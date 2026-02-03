@@ -47,6 +47,9 @@ function LoginPage() {
   const loginMutation = useMutation({
     mutationFn: () => authApi.login(email, password),
     onSuccess: async (data) => {
+      // 먼저 토큰 저장
+      localStorage.setItem('token', data.access_token);
+      // 그 다음 사용자 정보 조회
       const user = await authApi.getMe();
       setAuth(user, data.access_token);
       toast.success('로그인 성공!');
