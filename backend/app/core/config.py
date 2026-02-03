@@ -28,10 +28,9 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
     REPLICATE_API_TOKEN: str = ""
 
-    # Pinecone Vector DB
-    PINECONE_API_KEY: str = ""
-    PINECONE_ENVIRONMENT: str = ""
-    PINECONE_INDEX_NAME: str = "meta-commander-styles"
+    # Chroma Vector DB (로컬 실행, API 키 불필요)
+    CHROMA_PERSIST_DIRECTORY: str = "./chroma_data"
+    CHROMA_COLLECTION_NAME: str = "meta-commander-styles"
 
     # JWT Authentication
     JWT_SECRET_KEY: str = "your-secret-key-change-in-production"

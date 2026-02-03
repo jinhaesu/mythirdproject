@@ -6,11 +6,12 @@ python-multipart==0.0.6
 # Database
 sqlalchemy==2.0.25
 asyncpg==0.29.0
+aiosqlite==0.19.0
 alembic==1.13.1
 psycopg2-binary==2.9.9
 
-# Vector Database
-pinecone-client==3.0.0
+# Vector Database (로컬 실행)
+chromadb==0.4.22
 
 # AI/ML
 anthropic==0.18.0
