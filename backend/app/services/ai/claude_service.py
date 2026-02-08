@@ -302,3 +302,122 @@ JSON 형식으로 응답:
             pass
 
         return []
+
+    async def analyze_marketing_performance(
+        self,
+        data_summary: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Comprehensive AI analysis of marketing performance across platforms.
+        """
+        prompt = f"""다음 마케팅 성과 데이터를 종합 분석해주세요:
+
+{json.dumps(data_summary, ensure_ascii=False, indent=2)}
+
+다음 형식으로 분석 결과를 JSON으로 응답해주세요:
+{{
+    "summary": "전체 성과에 대한 2-3문장 요약",
+    "insights": [
+        {{
+            "insight_type": "TREND/ANOMALY/RECOMMENDATION/ALERT",
+            "title": "인사이트 제목",
+            "description": "상세 설명",
+            "severity": "INFO/WARNING/CRITICAL",
+            "platform": "META/GOOGLE/NAVER/KAKAO (해당시)",
+            "metric_name": "관련 지표명",
+            "metric_change": 변화율
+        }}
+    ],
+    "recommendations": [
+        "실행 가능한 추천 액션 1",
+        "실행 가능한 추천 액션 2"
+    ],
+    "predicted_trends": {{
+        "next_week_spend": 예상 광고비,
+        "next_week_revenue": 예상 매출,
+        "trend_direction": "up/down/stable",
+        "confidence": 0.8
+    }}
+}}"""
+
+        response = self.client.messages.create(
+            model=self.model,
+            max_tokens=3000,
+            messages=[{"role": "user", "content": prompt}]
+        )
+
+        try:
+            content = response.content[0].text
+            start = content.find("{")
+            end = content.rfind("}") + 1
+            if start >= 0 and end > start:
+                return json.loads(content[start:end])
+        except (json.JSONDecodeError, IndexError):
+            pass
+
+        return {
+            "summary": "분석을 수행할 수 없습니다.",
+            "insights": [],
+            "recommendations": [],
+            "predicted_trends": {}
+        }
+
+    async def generate_report_summary(
+        self,
+        kpi_data: Dict[str, Any],
+        report_type: str
+    ) -> Dict[str, Any]:
+        """
+        Generate AI summary for performance reports.
+        """
+        period_name = {
+            "DAILY": "일간",
+            "WEEKLY": "주간",
+            "MONTHLY": "월간"
+        }.get(report_type, "기간")
+
+        prompt = f"""다음 {period_name} 마케팅 성과 데이터를 분석하고 리포트를 생성해주세요:
+
+KPI 데이터:
+{json.dumps(kpi_data, ensure_ascii=False, indent=2)}
+
+다음 형식으로 JSON 응답:
+{{
+    "summary": "{period_name} 성과에 대한 종합 요약 (3-4문장)",
+    "insights": [
+        {{
+            "title": "주요 인사이트",
+            "description": "상세 내용",
+            "impact": "high/medium/low"
+        }}
+    ],
+    "recommendations": [
+        "다음 기간 추천 액션 1",
+        "다음 기간 추천 액션 2"
+    ],
+    "highlights": [
+        "주요 성과 하이라이트 1",
+        "주요 성과 하이라이트 2"
+    ]
+}}"""
+
+        response = self.client.messages.create(
+            model=self.model,
+            max_tokens=2000,
+            messages=[{"role": "user", "content": prompt}]
+        )
+
+        try:
+            content = response.content[0].text
+            start = content.find("{")
+            end = content.rfind("}") + 1
+            if start >= 0 and end > start:
+                return json.loads(content[start:end])
+        except (json.JSONDecodeError, IndexError):
+            pass
+
+        return {
+            "summary": f"{period_name} 리포트가 생성되었습니다.",
+            "insights": [],
+            "recommendations": []
+        }

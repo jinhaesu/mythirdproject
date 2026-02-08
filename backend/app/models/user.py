@@ -37,3 +37,6 @@ class User(Base):
     campaigns = relationship("Campaign", back_populates="user")
     creatives = relationship("Creative", back_populates="user")
     benchmarks = relationship("Benchmark", back_populates="user")
+    platform_connections = relationship("PlatformConnection", back_populates="user")
+    reports = relationship("Report", back_populates="user")
+    ai_insights = relationship("AIInsightLog", back_populates="user")

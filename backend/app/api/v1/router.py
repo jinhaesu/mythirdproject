@@ -1,7 +1,7 @@
 """API v1 router configuration."""
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import auth, benchmark, creative, campaign, analytics
+from app.api.v1.endpoints import auth, benchmark, creative, campaign, analytics, dashboard
 
 api_router = APIRouter()
 
@@ -38,4 +38,11 @@ api_router.include_router(
     analytics.router,
     prefix="/analytics",
     tags=["Performance Dashboard"]
+)
+
+# Dashboard & Revenue Analytics (Toryt)
+api_router.include_router(
+    dashboard.router,
+    prefix="/dashboard",
+    tags=["Dashboard & Revenue"]
 )
