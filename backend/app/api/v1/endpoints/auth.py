@@ -1,4 +1,5 @@
 """Authentication endpoints - Magic Link via Resend."""
+import logging
 from datetime import timedelta
 from typing import Annotated
 
@@ -13,6 +14,8 @@ from app.core.security import create_access_token, create_magic_link_token, deco
 from app.db.database import get_db
 from app.models.user import User
 from app.schemas.user import UserResponse, Token, MetaConnectionRequest, MagicLinkRequest, MagicLinkVerifyRequest
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 settings = get_settings()
@@ -55,6 +58,14 @@ async def send_magic_link(
     """Send magic link email for login/signup."""
     email = request.email.lower().strip()
 
+    # Check email whitelist
+    allowed = settings.allowed_emails_list
+    if allowed and email not in allowed:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="허가되지 않은 이메일입니다."
+        )
+
     # Create magic link token
     magic_token = create_magic_link_token(email)
     magic_link = f"{settings.FRONTEND_URL}?token={magic_token}"
@@ -62,7 +73,7 @@ async def send_magic_link(
     # Send email via Resend
     try:
         resend.api_key = settings.RESEND_API_KEY
-        resend.Emails.send({
+        result = resend.Emails.send({
             "from": settings.RESEND_FROM_EMAIL,
             "to": [email],
             "subject": "Meta-Commander 로그인 링크",
@@ -87,7 +98,9 @@ async def send_magic_link(
             </div>
             """
         })
+        logger.info(f"Magic link email sent to {email}, result: {result}")
     except Exception as e:
+        logger.error(f"Failed to send magic link email to {email}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"이메일 전송 실패: {str(e)}"

@@ -30,8 +30,17 @@ class Settings(BaseSettings):
 
     # Resend (Email)
     RESEND_API_KEY: str = ""
-    RESEND_FROM_EMAIL: str = "Meta-Commander <noreply@resend.dev>"
+    RESEND_FROM_EMAIL: str = "onboarding@resend.dev"
     FRONTEND_URL: str = "http://localhost:3000"
+
+    # Allowed emails (comma-separated, empty = allow all)
+    ALLOWED_EMAILS: str = ""
+
+    @property
+    def allowed_emails_list(self) -> List[str]:
+        if not self.ALLOWED_EMAILS.strip():
+            return []
+        return [e.strip().lower() for e in self.ALLOWED_EMAILS.split(",")]
 
     # Chroma Vector DB (로컬 실행, API 키 불필요)
     CHROMA_PERSIST_DIRECTORY: str = "./chroma_data"
