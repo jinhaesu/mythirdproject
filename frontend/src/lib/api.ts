@@ -33,18 +33,13 @@ api.interceptors.request.use((config) => {
 
 // Auth API
 export const authApi = {
-  login: async (email: string, password: string) => {
-    const formData = new URLSearchParams();
-    formData.append('username', email);
-    formData.append('password', password);
-    const { data } = await api.post('/auth/login', formData, {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    });
+  sendMagicLink: async (email: string) => {
+    const { data } = await api.post('/auth/send-magic-link', { email });
     return data;
   },
 
-  register: async (userData: { email: string; password: string; full_name?: string; company_name?: string }) => {
-    const { data } = await api.post<User>('/auth/register', userData);
+  verifyMagicLink: async (token: string) => {
+    const { data } = await api.post<{ access_token: string; token_type: string }>('/auth/verify-magic-link', { token });
     return data;
   },
 

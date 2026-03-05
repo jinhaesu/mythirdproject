@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
     REPLICATE_API_TOKEN: str = ""
 
+    # Resend (Email)
+    RESEND_API_KEY: str = ""
+    RESEND_FROM_EMAIL: str = "Meta-Commander <noreply@resend.dev>"
+    FRONTEND_URL: str = "http://localhost:3000"
+
     # Chroma Vector DB (로컬 실행, API 키 불필요)
     CHROMA_PERSIST_DIRECTORY: str = "./chroma_data"
     CHROMA_COLLECTION_NAME: str = "meta-commander-styles"

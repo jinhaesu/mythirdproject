@@ -50,6 +50,16 @@ class MetaConnectionRequest(BaseModel):
     ad_account_id: Optional[str] = None
 
 
+class MagicLinkRequest(BaseModel):
+    """Request to send magic link email."""
+    email: EmailStr
+
+
+class MagicLinkVerifyRequest(BaseModel):
+    """Request to verify magic link token."""
+    token: str
+
+
 class Token(BaseModel):
     """JWT token response."""
     access_token: str

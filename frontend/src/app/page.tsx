@@ -1,11 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { useAuthStore, useAppStore } from '@/store';
 import { authApi } from '@/lib/api';
 import { Header, TabNav } from '@/components/layout';
-import { Button, Input, Card, CardTitle } from '@/components/ui';
+import { Button, Input, Card } from '@/components/ui';
 import {
   MarketIntelligence,
   CreativeStudio,
@@ -17,6 +17,41 @@ import toast from 'react-hot-toast';
 export default function Home() {
   const { isAuthenticated, setAuth } = useAuthStore();
   const { activeTab } = useAppStore();
+  const [verifying, setVerifying] = useState(false);
+
+  // Handle magic link token from URL
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
+    if (token && !isAuthenticated) {
+      setVerifying(true);
+      authApi.verifyMagicLink(token)
+        .then(async (data) => {
+          localStorage.setItem('token', data.access_token);
+          const user = await authApi.getMe();
+          setAuth(user, data.access_token);
+          // Clean URL
+          window.history.replaceState({}, '', '/');
+          toast.success('로그인 성공!');
+        })
+        .catch(() => {
+          toast.error('로그인 링크가 만료되었거나 유효하지 않습니다.');
+          window.history.replaceState({}, '', '/');
+        })
+        .finally(() => setVerifying(false));
+    }
+  }, []);
+
+  if (verifying) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 via-white to-purple-50">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-primary-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-gray-600 text-lg">로그인 확인 중...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return <LoginPage />;
@@ -37,41 +72,22 @@ export default function Home() {
 }
 
 function LoginPage() {
-  const { setAuth } = useAuthStore();
-  const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
-  const [company, setCompany] = useState('');
+  const [sent, setSent] = useState(false);
 
-  const loginMutation = useMutation({
-    mutationFn: () => authApi.login(email, password),
-    onSuccess: async (data) => {
-      // 먼저 토큰 저장
-      localStorage.setItem('token', data.access_token);
-      // 그 다음 사용자 정보 조회
-      const user = await authApi.getMe();
-      setAuth(user, data.access_token);
-      toast.success('로그인 성공!');
-    },
-    onError: () => toast.error('로그인 실패. 이메일과 비밀번호를 확인하세요.'),
-  });
-
-  const registerMutation = useMutation({
-    mutationFn: () => authApi.register({ email, password, full_name: name, company_name: company }),
+  const sendMagicLinkMutation = useMutation({
+    mutationFn: () => authApi.sendMagicLink(email),
     onSuccess: () => {
-      toast.success('회원가입 완료! 로그인해주세요.');
-      setIsLogin(true);
+      setSent(true);
+      toast.success('로그인 링크가 이메일로 전송되었습니다!');
     },
-    onError: () => toast.error('회원가입 실패. 다시 시도해주세요.'),
+    onError: () => toast.error('이메일 전송에 실패했습니다. 다시 시도해주세요.'),
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (isLogin) {
-      loginMutation.mutate();
-    } else {
-      registerMutation.mutate();
+    if (email) {
+      sendMagicLinkMutation.mutate();
     }
   };
 
@@ -89,66 +105,50 @@ function LoginPage() {
         </div>
 
         <Card variant="elevated" padding="lg">
-          <div className="flex gap-2 mb-6">
-            <button
-              className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${
-                isLogin ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-600'
-              }`}
-              onClick={() => setIsLogin(true)}
-            >
-              로그인
-            </button>
-            <button
-              className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${
-                !isLogin ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-600'
-              }`}
-              onClick={() => setIsLogin(false)}
-            >
-              회원가입
-            </button>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {!isLogin && (
-              <>
-                <Input
-                  label="이름"
-                  placeholder="홍길동"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                />
-                <Input
-                  label="회사명"
-                  placeholder="회사명 (선택)"
-                  value={company}
-                  onChange={(e) => setCompany(e.target.value)}
-                />
-              </>
-            )}
-            <Input
-              label="이메일"
-              type="email"
-              placeholder="email@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-            <Input
-              label="비밀번호"
-              type="password"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-            <Button
-              type="submit"
-              className="w-full"
-              loading={loginMutation.isPending || registerMutation.isPending}
-            >
-              {isLogin ? '로그인' : '회원가입'}
-            </Button>
-          </form>
+          {!sent ? (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="text-center mb-2">
+                <h2 className="text-lg font-semibold text-gray-900">이메일로 시작하기</h2>
+                <p className="text-sm text-gray-500 mt-1">로그인 링크를 이메일로 보내드립니다</p>
+              </div>
+              <Input
+                label="이메일"
+                type="email"
+                placeholder="email@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+              <Button
+                type="submit"
+                className="w-full"
+                loading={sendMagicLinkMutation.isPending}
+              >
+                로그인 링크 받기
+              </Button>
+            </form>
+          ) : (
+            <div className="text-center py-4">
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <h2 className="text-lg font-semibold text-gray-900 mb-2">이메일을 확인하세요</h2>
+              <p className="text-sm text-gray-500 mb-1">
+                <span className="font-medium text-gray-700">{email}</span>
+              </p>
+              <p className="text-sm text-gray-500 mb-6">
+                로 로그인 링크를 보냈습니다
+              </p>
+              <button
+                className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+                onClick={() => { setSent(false); setEmail(''); }}
+              >
+                다른 이메일로 시도
+              </button>
+            </div>
+          )}
         </Card>
 
         <p className="text-center text-sm text-gray-500 mt-6">
