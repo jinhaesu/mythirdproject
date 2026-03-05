@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     DEBUG: bool = False
 
     # Database
-    DATABASE_URL: str = "postgresql+asyncpg://user:password@localhost:5432/meta_commander"
+    DATABASE_URL: str = "sqlite+aiosqlite:///./meta_commander.db"
 
     # Meta API
     META_APP_ID: str = ""
@@ -36,6 +36,9 @@ class Settings(BaseSettings):
     JWT_SECRET_KEY: str = "your-secret-key-change-in-production"
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+
+    # Server
+    PORT: int = 8000
 
     # CORS
     CORS_ORIGINS: str = "http://localhost:3000"
