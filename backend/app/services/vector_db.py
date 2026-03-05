@@ -1,39 +1,52 @@
 """Chroma Vector Database Service for style similarity search."""
-import chromadb
-from chromadb.config import Settings as ChromaSettings
+import logging
 from typing import List, Dict, Any, Optional
 import json
 
-from app.core.config import get_settings
+logger = logging.getLogger(__name__)
 
-settings = get_settings()
+try:
+    import chromadb
+    from chromadb.config import Settings as ChromaSettings
+    CHROMA_AVAILABLE = True
+except ImportError:
+    CHROMA_AVAILABLE = False
+    logger.warning("ChromaDB not available, vector search disabled")
 
 
 class VectorDBService:
     """Chroma-based vector database for storing and searching style embeddings."""
 
     _instance: Optional["VectorDBService"] = None
-    _client: Optional[chromadb.Client] = None
+    _client = None
+    _collection = None
+    _initialized = False
 
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def __init__(self):
-        if self._client is None:
+    def _ensure_initialized(self):
+        if self._initialized or not CHROMA_AVAILABLE:
+            return
+        try:
+            from app.core.config import get_settings
+            settings = get_settings()
             self._client = chromadb.Client(ChromaSettings(
-                chroma_db_impl="duckdb+parquet",
-                persist_directory=settings.CHROMA_PERSIST_DIRECTORY,
                 anonymized_telemetry=False
             ))
             self._collection = self._client.get_or_create_collection(
                 name=settings.CHROMA_COLLECTION_NAME,
                 metadata={"description": "Style embeddings for creative content"}
             )
+            self._initialized = True
+        except Exception as e:
+            logger.error(f"Failed to initialize ChromaDB: {e}")
 
     @property
     def collection(self):
+        self._ensure_initialized()
         return self._collection
 
     async def add_style(
@@ -43,6 +56,9 @@ class VectorDBService:
         metadata: Dict[str, Any]
     ) -> bool:
         """Add a style embedding to the database."""
+        self._ensure_initialized()
+        if not self._collection:
+            return False
         try:
             self._collection.add(
                 ids=[style_id],
@@ -52,7 +68,7 @@ class VectorDBService:
             )
             return True
         except Exception as e:
-            print(f"Error adding style: {e}")
+            logger.error(f"Error adding style: {e}")
             return False
 
     async def search_similar_styles(
@@ -62,6 +78,9 @@ class VectorDBService:
         filter_metadata: Optional[Dict[str, Any]] = None
     ) -> List[Dict[str, Any]]:
         """Search for similar styles based on embedding similarity."""
+        self._ensure_initialized()
+        if not self._collection:
+            return []
         try:
             results = self._collection.query(
                 query_embeddings=[query_embedding],
@@ -80,20 +99,26 @@ class VectorDBService:
 
             return similar_styles
         except Exception as e:
-            print(f"Error searching styles: {e}")
+            logger.error(f"Error searching styles: {e}")
             return []
 
     async def delete_style(self, style_id: str) -> bool:
         """Delete a style from the database."""
+        self._ensure_initialized()
+        if not self._collection:
+            return False
         try:
             self._collection.delete(ids=[style_id])
             return True
         except Exception as e:
-            print(f"Error deleting style: {e}")
+            logger.error(f"Error deleting style: {e}")
             return False
 
     async def get_style(self, style_id: str) -> Optional[Dict[str, Any]]:
         """Get a specific style by ID."""
+        self._ensure_initialized()
+        if not self._collection:
+            return None
         try:
             result = self._collection.get(ids=[style_id])
             if result and result['ids']:
@@ -103,9 +128,9 @@ class VectorDBService:
                 }
             return None
         except Exception as e:
-            print(f"Error getting style: {e}")
+            logger.error(f"Error getting style: {e}")
             return None
 
 
-# Singleton instance
+# Singleton instance (lazy - won't crash on import)
 vector_db = VectorDBService()

@@ -1,4 +1,5 @@
 """Meta-Commander FastAPI Application."""
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -8,6 +9,9 @@ from app.core.config import get_settings
 from app.api.v1.router import api_router
 from app.db.database import init_db
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 settings = get_settings()
 
 
@@ -15,7 +19,12 @@ settings = get_settings()
 async def lifespan(app: FastAPI):
     """Application lifespan events."""
     # Startup
-    await init_db()
+    try:
+        await init_db()
+        logger.info("Database initialized successfully")
+    except Exception as e:
+        logger.error(f"Database initialization failed: {e}")
+        raise
     yield
     # Shutdown
 
