@@ -249,23 +249,24 @@ async def get_meta_login_url(
 async def meta_oauth_callback(
     code: str,
     state: str = None,
-    current_user: User = None,
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Meta OAuth 콜백 처리.
+    Meta OAuth 콜백 처리 (인증 불필요 - state 파라미터로 유저 식별).
 
     프론트엔드가 Facebook에서 받은 code를 전달하면:
-    1. code → short-lived access token 교환
-    2. short-lived → long-lived access token 교환
-    3. 사용자 프로필 조회
-    4. 광고 계정 목록 조회
-    5. DB에 토큰 및 계정 정보 저장
+    1. state에서 user_id 추출
+    2. code → short-lived access token 교환
+    3. short-lived → long-lived access token 교환
+    4. 사용자 프로필 조회
+    5. 광고 계정 목록 조회
+    6. DB에 토큰 및 계정 정보 저장
     """
     import httpx
 
-    # state 파라미터(user_id)로 사용자 조회 (OAuth 리다이렉트 후 토큰이 없을 수 있음)
-    if current_user is None and state:
+    # state 파라미터(user_id)로 사용자 조회
+    current_user = None
+    if state:
         try:
             result = await db.execute(select(User).where(User.id == int(state)))
             current_user = result.scalar_one_or_none()
