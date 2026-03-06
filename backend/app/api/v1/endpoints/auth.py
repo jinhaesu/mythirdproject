@@ -248,7 +248,8 @@ async def get_meta_login_url(
 @router.post("/meta/callback")
 async def meta_oauth_callback(
     code: str,
-    current_user: User = Depends(get_current_user),
+    state: str = None,
+    current_user: User = None,
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -262,6 +263,20 @@ async def meta_oauth_callback(
     5. DB에 토큰 및 계정 정보 저장
     """
     import httpx
+
+    # state 파라미터(user_id)로 사용자 조회 (OAuth 리다이렉트 후 토큰이 없을 수 있음)
+    if current_user is None and state:
+        try:
+            result = await db.execute(select(User).where(User.id == int(state)))
+            current_user = result.scalar_one_or_none()
+        except (ValueError, Exception):
+            pass
+
+    if current_user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="사용자를 확인할 수 없습니다. 다시 로그인해주세요."
+        )
 
     if not settings.META_APP_ID or not settings.META_APP_SECRET:
         raise HTTPException(

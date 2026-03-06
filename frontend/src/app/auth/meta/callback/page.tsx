@@ -44,13 +44,14 @@ function MetaCallbackContent() {
       return;
     }
 
-    handleCallback(code);
+    const state = searchParams.get('state') || '';
+    handleCallback(code, state);
   }, [searchParams]);
 
-  const handleCallback = async (code: string) => {
+  const handleCallback = async (code: string, state: string) => {
     try {
       const { data } = await api.post('/auth/meta/callback', null, {
-        params: { code },
+        params: { code, state },
       });
 
       setMetaName(data.meta_name || '');
