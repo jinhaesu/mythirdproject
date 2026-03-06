@@ -88,25 +88,6 @@ class AISummaryResponse(BaseModel):
     trending_topics: List[str]
 
 
-class BenchmarkResponse(BaseModel):
-    """Full benchmark analysis response."""
-    id: int
-    query: str
-    benchmark_type: str
-    total_posts_analyzed: int
-    avg_engagement_rate: float
-    posts: List[CollectedPostResponse]
-    ai_summary: Optional[AISummaryResponse] = None
-    sentiment_analysis: Optional[SentimentAnalysis] = None
-    style_extraction: Optional[StyleExtraction] = None
-    data_source: str = "ai"  # "meta_api" or "ai"
-    ai_report: Optional[MarketIntelligenceReport] = None
-    created_at: datetime
-
-    class Config:
-        from_attributes = True
-
-
 class ContentTrend(BaseModel):
     """A single content trend."""
     topic: str
@@ -139,6 +120,25 @@ class MarketIntelligenceReport(BaseModel):
     content_pillars: List[ContentPillar] = []
     competitor_insights: List[str] = []
     recommendations: List[str] = []
+
+
+class BenchmarkResponse(BaseModel):
+    """Full benchmark analysis response."""
+    id: int
+    query: str
+    benchmark_type: str
+    total_posts_analyzed: int
+    avg_engagement_rate: float
+    posts: List[CollectedPostResponse]
+    ai_summary: Optional[AISummaryResponse] = None
+    sentiment_analysis: Optional[SentimentAnalysis] = None
+    style_extraction: Optional[StyleExtraction] = None
+    data_source: str = "ai"  # "meta_api" or "ai"
+    ai_report: Optional[MarketIntelligenceReport] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
 
 
 class StyleExtractionRequest(BaseModel):
