@@ -55,6 +55,28 @@ export const authApi = {
     });
     return data;
   },
+
+  getMetaLoginUrl: async () => {
+    const { data } = await api.get<{ login_url: string; redirect_uri: string }>('/auth/meta/login-url');
+    return data;
+  },
+
+  metaCallback: async (code: string) => {
+    const { data } = await api.post('/auth/meta/callback', null, { params: { code } });
+    return data;
+  },
+
+  selectAdAccount: async (adAccountId: string) => {
+    const { data } = await api.post('/auth/meta/select-ad-account', null, {
+      params: { ad_account_id: adAccountId },
+    });
+    return data;
+  },
+
+  getMetaStatus: async () => {
+    const { data } = await api.get('/auth/meta/status');
+    return data;
+  },
 };
 
 // Benchmark API (TAB 1)
