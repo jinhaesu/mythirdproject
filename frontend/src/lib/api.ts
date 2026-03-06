@@ -344,6 +344,54 @@ export const analyticsApi = {
     const { data } = await api.get('/analytics/summary', { params: { days } });
     return data;
   },
+
+  // 자동 관리 룰
+  getRules: async () => {
+    const { data } = await api.get('/analytics/rules');
+    return data;
+  },
+  createRule: async (ruleData: any) => {
+    const { data } = await api.post('/analytics/rules', ruleData);
+    return data;
+  },
+  updateRule: async (ruleId: string, ruleData: any) => {
+    const { data } = await api.put(`/analytics/rules/${ruleId}`, ruleData);
+    return data;
+  },
+  deleteRule: async (ruleId: string) => {
+    const { data } = await api.delete(`/analytics/rules/${ruleId}`);
+    return data;
+  },
+  executeRules: async () => {
+    const { data } = await api.post('/analytics/rules/execute');
+    return data;
+  },
+  getRuleLogs: async (limit = 50) => {
+    const { data } = await api.get('/analytics/rules/logs', { params: { limit } });
+    return data;
+  },
+  aiRecommendRules: async (overviewData?: any) => {
+    const { data } = await api.post('/analytics/rules/ai-recommend', { overview_data: overviewData || null });
+    return data;
+  },
+
+  // 스케줄 리포트
+  getSchedules: async () => {
+    const { data } = await api.get('/analytics/schedules');
+    return data;
+  },
+  createSchedule: async (schedData: any) => {
+    const { data } = await api.post('/analytics/schedules', schedData);
+    return data;
+  },
+  updateSchedule: async (schedId: string, schedData: any) => {
+    const { data } = await api.put(`/analytics/schedules/${schedId}`, schedData);
+    return data;
+  },
+  deleteSchedule: async (schedId: string) => {
+    const { data } = await api.delete(`/analytics/schedules/${schedId}`);
+    return data;
+  },
 };
 
 // Campaign Planner API

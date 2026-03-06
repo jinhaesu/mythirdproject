@@ -1,12 +1,13 @@
 """Performance Dashboard endpoints (TAB 4) - Real Meta data analysis."""
 import json
 import logging
+import uuid
 from typing import List, Optional
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 import httpx
 import resend
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -16,6 +17,8 @@ from app.db.database import get_db
 from app.models.user import User
 from app.models.campaign import Campaign, Ad, CampaignPerformance, CampaignStatus
 from app.models.creative import Creative
+from app.models.auto_rule import AutoRule, AutoRuleLog
+from app.models.scheduled_report import ScheduledReport
 from app.schemas.analytics import (
     KPIMetrics, DailyMetrics, CreativePerformance,
     PerformanceComparison, AIInsight,
@@ -26,10 +29,14 @@ from app.schemas.analytics import (
 from app.api.v1.endpoints.auth import get_current_user
 from app.services.ai import ClaudeService
 from app.services.meta_ads_service import MetaAdsService
+from app.services.rule_engine import run_rules
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 settings = get_settings()
+
+# Throttle for background rule runs
+_last_auto_run: dict[str, datetime] = {}
 
 
 # ──────────────────────────────────────────────
@@ -602,3 +609,297 @@ async def send_report_email(
         return {"success": True, "message": f"리포트가 {request.email}로 발송되었습니다."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"이메일 발송 실패: {str(e)}")
+
+
+# ══════════════════════════════════════════════════
+#  자동 관리 룰 CRUD + 실행
+# ══════════════════════════════════════════════════
+
+class RuleCreate(BaseModel):
+    name: str
+    metric: str
+    operator: str
+    threshold: float
+    duration_type: str = "any"
+    duration_value: Optional[int] = None
+    secondary_metric: Optional[str] = None
+    secondary_operator: Optional[str] = None
+    secondary_threshold: Optional[float] = None
+    action: str
+    action_value: Optional[float] = None
+    target_type: str = "campaign"
+    target_id: Optional[str] = None
+    target_name: Optional[str] = None
+
+class RuleUpdate(BaseModel):
+    name: Optional[str] = None
+    enabled: Optional[bool] = None
+    metric: Optional[str] = None
+    operator: Optional[str] = None
+    threshold: Optional[float] = None
+    action: Optional[str] = None
+    action_value: Optional[float] = None
+
+
+def _rule_dict(r):
+    return {
+        "id": r.id, "name": r.name, "metric": r.metric,
+        "operator": r.operator, "threshold": r.threshold,
+        "duration_type": r.duration_type, "duration_value": r.duration_value,
+        "secondary_metric": r.secondary_metric, "secondary_operator": r.secondary_operator,
+        "secondary_threshold": r.secondary_threshold,
+        "action": r.action, "action_value": r.action_value,
+        "target_type": r.target_type, "target_id": r.target_id, "target_name": r.target_name,
+        "enabled": r.enabled, "times_triggered": r.times_triggered,
+        "last_checked_at": r.last_checked_at.isoformat() if r.last_checked_at else None,
+        "created_at": r.created_at.isoformat() if r.created_at else None,
+    }
+
+
+@router.get("/rules")
+async def list_rules(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(AutoRule).where(AutoRule.user_id == str(current_user.id)).order_by(AutoRule.created_at.desc())
+    )
+    return [_rule_dict(r) for r in result.scalars().all()]
+
+
+@router.post("/rules")
+async def create_rule(
+    data: RuleCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    rule = AutoRule(id=str(uuid.uuid4()), user_id=str(current_user.id), **data.model_dump())
+    db.add(rule)
+    await db.commit()
+    await db.refresh(rule)
+    return _rule_dict(rule)
+
+
+@router.put("/rules/{rule_id}")
+async def update_rule(
+    rule_id: str,
+    data: RuleUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(AutoRule).where(AutoRule.id == rule_id, AutoRule.user_id == str(current_user.id)))
+    rule = result.scalar_one_or_none()
+    if not rule:
+        raise HTTPException(404, "룰을 찾을 수 없습니다")
+    for k, v in data.model_dump(exclude_unset=True).items():
+        setattr(rule, k, v)
+    await db.commit()
+    await db.refresh(rule)
+    return _rule_dict(rule)
+
+
+@router.delete("/rules/{rule_id}")
+async def delete_rule(
+    rule_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(AutoRule).where(AutoRule.id == rule_id, AutoRule.user_id == str(current_user.id)))
+    rule = result.scalar_one_or_none()
+    if not rule:
+        raise HTTPException(404, "룰을 찾을 수 없습니다")
+    await db.delete(rule)
+    await db.commit()
+    return {"message": "삭제되었습니다"}
+
+
+@router.post("/rules/execute")
+async def execute_rules(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    svc = MetaAdsService(current_user)
+    if not svc.connected:
+        raise HTTPException(400, "Meta 계정을 먼저 연동해주세요.")
+    results = await run_rules(db, str(current_user.id), svc)
+    return {"executed": len(results), "logs": results}
+
+
+@router.get("/rules/logs")
+async def get_rule_logs(
+    limit: int = 50,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(AutoRuleLog)
+        .where(AutoRuleLog.user_id == str(current_user.id))
+        .order_by(AutoRuleLog.triggered_at.desc())
+        .limit(limit)
+    )
+    logs = result.scalars().all()
+    return [{
+        "id": l.id, "rule_id": l.rule_id, "action_taken": l.action_taken,
+        "target_type": l.target_type, "target_id": l.target_id, "target_name": l.target_name,
+        "metric_name": l.metric_name, "metric_value": l.metric_value,
+        "threshold_value": l.threshold_value, "details": l.details,
+        "triggered_at": l.triggered_at.isoformat() if l.triggered_at else None,
+    } for l in logs]
+
+
+@router.post("/rules/ai-recommend")
+async def ai_recommend_rules(
+    request: AIAnalysisRequest = AIAnalysisRequest(),
+    current_user: User = Depends(get_current_user),
+):
+    """AI 기반 자동 관리 룰 추천."""
+    svc = MetaAdsService(current_user)
+    if not svc.connected:
+        raise HTTPException(400, "Meta 계정을 먼저 연동해주세요.")
+
+    if request.overview_data and request.overview_data.get("connected"):
+        context = svc.build_context_from_overview(request.overview_data)
+    else:
+        context = await svc.build_full_context_for_ai("last_7d")
+
+    claude = ClaudeService()
+    try:
+        resp = claude.client.messages.create(
+            model=claude.model, max_tokens=1024,
+            messages=[{"role": "user", "content": f"""Meta 광고 계정 데이터를 분석하여 자동 관리 룰 3~5개를 JSON 배열로 추천.
+
+{context}
+
+각 룰 형식:
+- name: 룰 이름 (한국어)
+- metric: cpc|ctr|roas|cvr|cpm|spend|frequency
+- operator: gt|lt|gte|lte
+- threshold: 숫자
+- duration_type: any|consecutive_days|total_days
+- duration_value: 일수 (any면 null)
+- action: pause|decrease_budget|increase_budget
+- action_value: 예산변경%(pause면 null)
+- target_type: campaign|adset|ad
+- reason: 추천이유 (한국어 1문장)
+
+JSON 배열만 반환. 마크다운 코드블록 없이."""}],
+        )
+        raw = resp.content[0].text.strip()
+        if "```" in raw:
+            raw = raw.split("```json")[-1].split("```")[0] if "```json" in raw else raw.split("```")[1].split("```")[0]
+        return {"recommendations": json.loads(raw.strip())}
+    except Exception as e:
+        raise HTTPException(500, f"AI 추천 실패: {e}")
+
+
+# ══════════════════════════════════════════════════
+#  스케줄 리포트 CRUD
+# ══════════════════════════════════════════════════
+
+class ScheduleCreate(BaseModel):
+    name: str
+    schedule_type: str
+    day_of_week: Optional[int] = None
+    day_of_month: Optional[int] = None
+    meta_campaign_id: Optional[str] = None
+    lookback_days: int = 7
+    email_to: Optional[str] = None
+
+class ScheduleUpdate(BaseModel):
+    name: Optional[str] = None
+    enabled: Optional[bool] = None
+    schedule_type: Optional[str] = None
+    day_of_week: Optional[int] = None
+    day_of_month: Optional[int] = None
+    lookback_days: Optional[int] = None
+    email_to: Optional[str] = None
+
+
+def _calc_next_run(sched):
+    now = datetime.now(timezone.utc)
+    if sched.schedule_type == "weekly":
+        days_ahead = (sched.day_of_week or 0) - now.weekday()
+        if days_ahead <= 0:
+            days_ahead += 7
+        return now.replace(hour=9, minute=0, second=0, microsecond=0) + timedelta(days=days_ahead)
+    else:
+        dom = sched.day_of_month or 1
+        m = now.month + 1 if now.day >= dom else now.month
+        y = now.year + (1 if m > 12 else 0)
+        m = m if m <= 12 else m - 12
+        return datetime(y, m, dom, 9, 0, 0, tzinfo=timezone.utc)
+
+
+def _sched_dict(s):
+    return {
+        "id": s.id, "name": s.name, "schedule_type": s.schedule_type,
+        "day_of_week": s.day_of_week, "day_of_month": s.day_of_month,
+        "meta_campaign_id": s.meta_campaign_id, "lookback_days": s.lookback_days,
+        "email_to": s.email_to, "enabled": s.enabled,
+        "last_run_at": s.last_run_at.isoformat() if s.last_run_at else None,
+        "next_run_at": s.next_run_at.isoformat() if s.next_run_at else None,
+        "created_at": s.created_at.isoformat() if s.created_at else None,
+    }
+
+
+@router.get("/schedules")
+async def list_schedules(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(ScheduledReport).where(ScheduledReport.user_id == str(current_user.id)).order_by(ScheduledReport.created_at.desc())
+    )
+    return [_sched_dict(s) for s in result.scalars().all()]
+
+
+@router.post("/schedules")
+async def create_schedule(
+    data: ScheduleCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    sched = ScheduledReport(id=str(uuid.uuid4()), user_id=str(current_user.id), **data.model_dump())
+    sched.next_run_at = _calc_next_run(sched)
+    db.add(sched)
+    await db.commit()
+    await db.refresh(sched)
+    return _sched_dict(sched)
+
+
+@router.put("/schedules/{schedule_id}")
+async def update_schedule(
+    schedule_id: str,
+    data: ScheduleUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(ScheduledReport).where(
+        ScheduledReport.id == schedule_id, ScheduledReport.user_id == str(current_user.id)
+    ))
+    sched = result.scalar_one_or_none()
+    if not sched:
+        raise HTTPException(404, "스케줄을 찾을 수 없습니다")
+    for k, v in data.model_dump(exclude_unset=True).items():
+        setattr(sched, k, v)
+    sched.next_run_at = _calc_next_run(sched)
+    await db.commit()
+    await db.refresh(sched)
+    return _sched_dict(sched)
+
+
+@router.delete("/schedules/{schedule_id}")
+async def delete_schedule(
+    schedule_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(ScheduledReport).where(
+        ScheduledReport.id == schedule_id, ScheduledReport.user_id == str(current_user.id)
+    ))
+    sched = result.scalar_one_or_none()
+    if not sched:
+        raise HTTPException(404, "스케줄을 찾을 수 없습니다")
+    await db.delete(sched)
+    await db.commit()
+    return {"message": "삭제되었습니다"}

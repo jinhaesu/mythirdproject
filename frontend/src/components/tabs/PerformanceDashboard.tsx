@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   BarChart3, DollarSign, Eye, MousePointer, Target,
   Play, Pause, ChevronDown, ChevronRight, AlertTriangle, CheckCircle, XCircle,
   Loader2, RefreshCw, Zap, Mail, FileText, Activity, Users, Layers,
-  TrendingUp, TrendingDown,
+  TrendingUp, TrendingDown, Shield, Clock, Trash2, Plus, Bot, PlayCircle,
+  Calendar, ToggleLeft, ToggleRight, Settings,
 } from 'lucide-react';
 import { analyticsApi } from '@/lib/api';
 
@@ -60,13 +61,34 @@ const ACTION_TYPE_KO: Record<string, string> = {
   'messaging_first_reply': '메시지 첫 답장',
 };
 
+const METRIC_OPTIONS = [
+  { value: 'cpc', label: 'CPC' },
+  { value: 'ctr', label: 'CTR (%)' },
+  { value: 'roas', label: 'ROAS' },
+  { value: 'cvr', label: 'CVR (%)' },
+  { value: 'cpm', label: 'CPM' },
+  { value: 'spend', label: '지출' },
+  { value: 'frequency', label: '빈도' },
+];
+
+const OPERATOR_OPTIONS = [
+  { value: 'gt', label: '>' },
+  { value: 'lt', label: '<' },
+  { value: 'gte', label: '>=' },
+  { value: 'lte', label: '<=' },
+];
+
+const ACTION_OPTIONS = [
+  { value: 'pause', label: '자동 중지' },
+  { value: 'decrease_budget', label: '예산 감소' },
+  { value: 'increase_budget', label: '예산 증가' },
+];
+
 function translateActionType(actionType: string): string {
   if (ACTION_TYPE_KO[actionType]) return ACTION_TYPE_KO[actionType];
-  // Try partial match
   for (const [key, val] of Object.entries(ACTION_TYPE_KO)) {
     if (actionType.includes(key)) return val;
   }
-  // Fallback: replace underscores and format
   return actionType
     .replace(/^(onsite_conversion\.|offsite_conversion\.)/, '')
     .replace(/_/g, ' ')
@@ -80,7 +102,23 @@ export default function PerformanceDashboard() {
   const [reportDates, setReportDates] = useState({ start: '', end: '' });
   const [reportEmail, setReportEmail] = useState('');
   const [reportCampaignId, setReportCampaignId] = useState('');
+  const [hidePaused, setHidePaused] = useState(false);
+  const [showRuleForm, setShowRuleForm] = useState(false);
+  const [showScheduleForm, setShowScheduleForm] = useState(false);
   const queryClient = useQueryClient();
+
+  // Rule form state
+  const [ruleForm, setRuleForm] = useState({
+    name: '', metric: 'cpc', operator: 'gt', threshold: '',
+    secondary_metric: '', secondary_operator: 'gt', secondary_threshold: '',
+    action: 'pause', action_value: '', target_type: 'campaign', target_id: '', target_name: '',
+  });
+
+  // Schedule form state
+  const [schedForm, setSchedForm] = useState({
+    name: '', schedule_type: 'weekly', day_of_week: 1, day_of_month: 1,
+    meta_campaign_id: '', lookback_days: 7, email_to: '',
+  });
 
   const { data: overview, isLoading: loadingOverview, isError: overviewError, refetch: refetchOverview } = useQuery({
     queryKey: ['account-overview', datePreset],
@@ -89,7 +127,6 @@ export default function PerformanceDashboard() {
     retry: 1,
   });
 
-  // Trend chart data
   const daysMap: Record<DatePreset, number> = { last_7d: 7, last_14d: 14, last_30d: 30 };
   const { data: trendData } = useQuery({
     queryKey: ['account-trend', datePreset],
@@ -109,6 +146,26 @@ export default function PerformanceDashboard() {
     enabled: !!selectedCampaignForDeep,
   });
 
+  // Auto-management rules queries
+  const { data: rulesData, refetch: refetchRules } = useQuery({
+    queryKey: ['auto-rules'],
+    queryFn: () => analyticsApi.getRules(),
+    enabled: overview?.connected === true,
+  });
+
+  const { data: ruleLogsData, refetch: refetchLogs } = useQuery({
+    queryKey: ['rule-logs'],
+    queryFn: () => analyticsApi.getRuleLogs(30),
+    enabled: overview?.connected === true,
+  });
+
+  // Schedule queries
+  const { data: schedulesData, refetch: refetchSchedules } = useQuery({
+    queryKey: ['schedules'],
+    queryFn: () => analyticsApi.getSchedules(),
+    enabled: overview?.connected === true,
+  });
+
   const statusMutation = useMutation({
     mutationFn: ({ id, type, status }: { id: string; type: string; status: string }) =>
       analyticsApi.updateStatus(id, type, status),
@@ -125,10 +182,113 @@ export default function PerformanceDashboard() {
       analyticsApi.sendReportEmail(req),
   });
 
+  // Rule mutations
+  const createRuleMutation = useMutation({
+    mutationFn: (data: any) => analyticsApi.createRule(data),
+    onSuccess: () => { refetchRules(); setShowRuleForm(false); resetRuleForm(); },
+  });
+
+  const updateRuleMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) => analyticsApi.updateRule(id, data),
+    onSuccess: () => refetchRules(),
+  });
+
+  const deleteRuleMutation = useMutation({
+    mutationFn: (id: string) => analyticsApi.deleteRule(id),
+    onSuccess: () => refetchRules(),
+  });
+
+  const executeRulesMutation = useMutation({
+    mutationFn: () => analyticsApi.executeRules(),
+    onSuccess: () => { refetchRules(); refetchLogs(); },
+  });
+
+  const aiRecommendMutation = useMutation({
+    mutationFn: () => analyticsApi.aiRecommendRules(overview),
+  });
+
+  // Schedule mutations
+  const createScheduleMutation = useMutation({
+    mutationFn: (data: any) => analyticsApi.createSchedule(data),
+    onSuccess: () => { refetchSchedules(); setShowScheduleForm(false); resetScheduleForm(); },
+  });
+
+  const deleteScheduleMutation = useMutation({
+    mutationFn: (id: string) => analyticsApi.deleteSchedule(id),
+    onSuccess: () => refetchSchedules(),
+  });
+
+  const updateScheduleMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) => analyticsApi.updateSchedule(id, data),
+    onSuccess: () => refetchSchedules(),
+  });
+
   const toggleStatus = (id: string, type: string, currentStatus: string) => {
     const newStatus = currentStatus === 'ACTIVE' ? 'PAUSED' : 'ACTIVE';
     statusMutation.mutate({ id, type, status: newStatus });
   };
+
+  const resetRuleForm = () => setRuleForm({
+    name: '', metric: 'cpc', operator: 'gt', threshold: '',
+    secondary_metric: '', secondary_operator: 'gt', secondary_threshold: '',
+    action: 'pause', action_value: '', target_type: 'campaign', target_id: '', target_name: '',
+  });
+
+  const resetScheduleForm = () => setSchedForm({
+    name: '', schedule_type: 'weekly', day_of_week: 1, day_of_month: 1,
+    meta_campaign_id: '', lookback_days: 7, email_to: '',
+  });
+
+  const handleCreateRule = () => {
+    const data: any = {
+      name: ruleForm.name || `${ruleForm.metric} ${ruleForm.operator} ${ruleForm.threshold}`,
+      metric: ruleForm.metric,
+      operator: ruleForm.operator,
+      threshold: parseFloat(ruleForm.threshold),
+      action: ruleForm.action,
+      target_type: ruleForm.target_type,
+    };
+    if (ruleForm.action_value) data.action_value = parseFloat(ruleForm.action_value);
+    if (ruleForm.target_id) { data.target_id = ruleForm.target_id; data.target_name = ruleForm.target_name; }
+    if (ruleForm.secondary_metric) {
+      data.secondary_metric = ruleForm.secondary_metric;
+      data.secondary_operator = ruleForm.secondary_operator;
+      data.secondary_threshold = parseFloat(ruleForm.secondary_threshold);
+    }
+    createRuleMutation.mutate(data);
+  };
+
+  const handleApplyRecommendation = (rec: any) => {
+    createRuleMutation.mutate({
+      name: rec.name,
+      metric: rec.metric,
+      operator: rec.operator,
+      threshold: rec.threshold,
+      action: rec.action,
+      action_value: rec.action_value,
+      target_type: rec.target_type || 'campaign',
+    });
+  };
+
+  const handleCreateSchedule = () => {
+    createScheduleMutation.mutate({
+      name: schedForm.name,
+      schedule_type: schedForm.schedule_type,
+      day_of_week: schedForm.schedule_type === 'weekly' ? schedForm.day_of_week : undefined,
+      day_of_month: schedForm.schedule_type === 'monthly' ? schedForm.day_of_month : undefined,
+      meta_campaign_id: schedForm.meta_campaign_id || undefined,
+      lookback_days: schedForm.lookback_days,
+      email_to: schedForm.email_to || undefined,
+    });
+  };
+
+  // Filter campaigns
+  const allCampaigns = overview?.campaigns || [];
+  const pausedCount = allCampaigns.filter((c: any) => (c.effective_status || c.status) === 'PAUSED').length;
+  const campaigns = useMemo(() => {
+    if (!hidePaused) return allCampaigns;
+    return allCampaigns.filter((c: any) => (c.effective_status || c.status) !== 'PAUSED');
+  }, [allCampaigns, hidePaused]);
 
   if (overviewError) {
     return (
@@ -138,7 +298,7 @@ export default function PerformanceDashboard() {
             <AlertTriangle size={40} className="text-red-600" />
           </div>
           <h2 className="text-2xl font-bold text-gray-900 mb-3">데이터 로딩 실패</h2>
-          <p className="text-gray-500 mb-6">Meta 광고 데이터를 가져오는데 실패했습니다. 네트워크 연결을 확인하거나 잠시 후 다시 시도해주세요.</p>
+          <p className="text-gray-500 mb-6">Meta 광고 데이터를 가져오는데 실패했습니다.</p>
           <button onClick={() => refetchOverview()} className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700">다시 시도</button>
         </div>
       </div>
@@ -153,18 +313,18 @@ export default function PerformanceDashboard() {
             <BarChart3 size={40} className="text-blue-600" />
           </div>
           <h2 className="text-2xl font-bold text-gray-900 mb-3">Meta 계정을 연동해주세요</h2>
-          <p className="text-gray-500 mb-6">
-            Meta 광고 관리자 계정을 연동하면 실제 캠페인 데이터를 기반으로 성과 분석, AI 추천, 광고 관리가 가능합니다.
-          </p>
+          <p className="text-gray-500 mb-6">Meta 광고 관리자 계정을 연동하면 실제 캠페인 데이터를 기반으로 성과 분석, AI 추천, 광고 관리가 가능합니다.</p>
         </div>
       </div>
     );
   }
 
   const analysis = aiAnalysis?.analysis;
-  const campaigns = overview?.campaigns || [];
   const accountInsights = overview?.account_insights || {};
   const trendDays = trendData?.data || [];
+  const rules = (rulesData as any)?.rules || rulesData || [];
+  const ruleLogs = (ruleLogsData as any)?.logs || ruleLogsData || [];
+  const schedules = (schedulesData as any)?.schedules || schedulesData || [];
 
   const formatNum = (v: any) => {
     if (!v) return '0';
@@ -178,13 +338,20 @@ export default function PerformanceDashboard() {
     if (!v) return '₩0';
     const n = parseFloat(v);
     if (n >= 10000) return `₩${(n / 10000).toFixed(1)}만`;
-    return `₩${n.toLocaleString('ko-KR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+    return `₩${Math.round(n).toLocaleString('ko-KR')}`;
   };
 
-  const formatMoneyUSD = (v: any) => {
-    if (!v) return '$0';
+  const formatSpend = (v: any) => {
+    if (!v) return '₩0';
     const n = parseFloat(v);
-    return `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (n >= 10000) return `₩${(n / 10000).toFixed(1)}만`;
+    return `₩${Math.round(n).toLocaleString('ko-KR')}`;
+  };
+
+  const formatCPC = (v: any) => {
+    if (!v) return '₩0';
+    const n = parseFloat(v);
+    return `₩${Math.round(n).toLocaleString('ko-KR')}`;
   };
 
   return (
@@ -220,10 +387,10 @@ export default function PerformanceDashboard() {
         <>
           {/* KPI Cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <KPICard icon={<DollarSign size={20} />} label="총 지출" value={formatMoneyUSD(accountInsights.spend)} color="blue" />
+            <KPICard icon={<DollarSign size={20} />} label="총 지출" value={formatSpend(accountInsights.spend)} color="blue" />
             <KPICard icon={<Eye size={20} />} label="노출" value={formatNum(accountInsights.impressions)} color="purple" />
             <KPICard icon={<MousePointer size={20} />} label="클릭" value={formatNum(accountInsights.clicks)} sub={`CTR ${parseFloat(accountInsights.ctr || '0').toFixed(2)}%`} color="green" />
-            <KPICard icon={<Target size={20} />} label="CPC" value={formatMoneyUSD(accountInsights.cpc)} sub={`CPM ${formatMoneyUSD(accountInsights.cpm)}`} color="orange" />
+            <KPICard icon={<Target size={20} />} label="CPC" value={formatCPC(accountInsights.cpc)} sub={`CPM ${formatMoney(accountInsights.cpm)}`} color="orange" />
           </div>
 
           {/* Daily Trend Chart */}
@@ -233,16 +400,14 @@ export default function PerformanceDashboard() {
                 <TrendingUp size={16} className="text-blue-500" /> 일별 성과 추이
               </h3>
               <div className="space-y-4">
-                {/* Spend chart */}
                 <div>
-                  <p className="text-xs text-gray-500 mb-2">지출 (USD)</p>
+                  <p className="text-xs text-gray-500 mb-2">지출</p>
                   <MiniBarChart
                     data={trendDays.map((d: any) => ({ label: d.date_stop?.slice(5) || '', value: parseFloat(d.spend || 0) }))}
                     color="blue"
-                    formatValue={(v) => `$${v.toFixed(2)}`}
+                    formatValue={(v) => formatSpend(v)}
                   />
                 </div>
-                {/* Impressions chart */}
                 <div>
                   <p className="text-xs text-gray-500 mb-2">노출수</p>
                   <MiniBarChart
@@ -251,7 +416,6 @@ export default function PerformanceDashboard() {
                     formatValue={(v) => formatNum(v)}
                   />
                 </div>
-                {/* CTR chart */}
                 <div>
                   <p className="text-xs text-gray-500 mb-2">CTR (%)</p>
                   <MiniBarChart
@@ -406,10 +570,19 @@ export default function PerformanceDashboard() {
 
           {/* Campaign List */}
           <div className="bg-white border border-gray-200 rounded-xl">
-            <div className="px-5 py-4 border-b border-gray-100">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
               <h3 className="font-semibold text-gray-900 flex items-center gap-2">
                 <Layers size={18} /> 캠페인 목록 ({campaigns.length}개)
               </h3>
+              <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+                <button onClick={() => setHidePaused(!hidePaused)} className="text-gray-500 hover:text-gray-700">
+                  {hidePaused ? <ToggleRight size={20} className="text-blue-600" /> : <ToggleLeft size={20} />}
+                </button>
+                <span>중지 숨기기</span>
+                {hidePaused && pausedCount > 0 && (
+                  <span className="text-xs text-gray-400">(중지 {pausedCount}개 숨김)</span>
+                )}
+              </label>
             </div>
             <div className="divide-y divide-gray-100">
               {campaigns.map((camp: any) => {
@@ -435,10 +608,11 @@ export default function PerformanceDashboard() {
                       </div>
                       {ins && (
                         <div className="flex items-center gap-6 text-sm">
-                          <div className="text-right"><p className="text-xs text-gray-400">지출</p><p className="font-semibold">{formatMoneyUSD(ins.spend)}</p></div>
+                          <div className="text-right"><p className="text-xs text-gray-400">지출</p><p className="font-semibold">{formatSpend(ins.spend)}</p></div>
                           <div className="text-right"><p className="text-xs text-gray-400">노출</p><p className="font-semibold">{formatNum(ins.impressions)}</p></div>
                           <div className="text-right"><p className="text-xs text-gray-400">클릭</p><p className="font-semibold">{formatNum(ins.clicks)}</p></div>
                           <div className="text-right"><p className="text-xs text-gray-400">CTR</p><p className="font-semibold">{parseFloat(ins.ctr || '0').toFixed(2)}%</p></div>
+                          <div className="text-right"><p className="text-xs text-gray-400">CPC</p><p className="font-semibold">{formatCPC(ins.cpc)}</p></div>
                         </div>
                       )}
                       <button onClick={(e) => { e.stopPropagation(); toggleStatus(camp.id, 'campaign', es); }}
@@ -485,9 +659,10 @@ export default function PerformanceDashboard() {
                                   )}
                                   {adset.insights && (
                                     <div className="flex gap-4 text-xs text-gray-600 mb-2">
-                                      <span>지출: {formatMoneyUSD(adset.insights.spend)}</span>
+                                      <span>지출: {formatSpend(adset.insights.spend)}</span>
                                       <span>클릭: {adset.insights.clicks}</span>
                                       <span>CTR: {parseFloat(adset.insights.ctr || '0').toFixed(2)}%</span>
+                                      <span>CPC: {formatCPC(adset.insights.cpc)}</span>
                                     </div>
                                   )}
                                   {adset.ads?.length > 0 && (
@@ -503,7 +678,7 @@ export default function PerformanceDashboard() {
                                               <span className={`text-xs ${adStatus === 'ACTIVE' ? 'text-green-600' : 'text-gray-400'}`}>{adStatusKo}</span>
                                             </div>
                                             <div className="flex items-center gap-3">
-                                              {ad.insights && <span className="text-xs text-gray-500">{formatMoneyUSD(ad.insights.spend)} | CTR {parseFloat(ad.insights.ctr || '0').toFixed(2)}%</span>}
+                                              {ad.insights && <span className="text-xs text-gray-500">{formatSpend(ad.insights.spend)} | CPC {formatCPC(ad.insights.cpc)} | CTR {parseFloat(ad.insights.ctr || '0').toFixed(2)}%</span>}
                                               <button onClick={() => toggleStatus(ad.id, 'ad', adStatus)} className="text-xs px-2 py-0.5 rounded border hover:bg-white">
                                                 {adStatus === 'ACTIVE' ? '중지' : '켜기'}
                                               </button>
@@ -542,7 +717,7 @@ export default function PerformanceDashboard() {
                                   {deepData.placements.slice(0, 6).map((p: any, i: number) => (
                                     <div key={i} className="flex justify-between text-xs bg-gray-50 rounded p-1.5">
                                       <span>{p.publisher_platform} - {p.platform_position}</span>
-                                      <span>{formatMoneyUSD(p.spend)} | CTR {parseFloat(p.ctr || '0').toFixed(2)}%</span>
+                                      <span>{formatSpend(p.spend)} | CTR {parseFloat(p.ctr || '0').toFixed(2)}%</span>
                                     </div>
                                   ))}
                                 </div>
@@ -555,8 +730,190 @@ export default function PerformanceDashboard() {
                   </div>
                 );
               })}
-              {campaigns.length === 0 && <div className="px-5 py-8 text-center text-gray-400">캠페인이 없습니다.</div>}
+              {campaigns.length === 0 && <div className="px-5 py-8 text-center text-gray-400">{hidePaused ? '활성 캠페인이 없습니다.' : '캠페인이 없습니다.'}</div>}
             </div>
+          </div>
+
+          {/* ====== AUTO MANAGEMENT RULES ====== */}
+          <div className="bg-white border border-gray-200 rounded-xl">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                <Shield size={18} className="text-indigo-600" /> 자동 관리
+              </h3>
+              <div className="flex items-center gap-2">
+                <button onClick={() => aiRecommendMutation.mutate()}
+                  disabled={aiRecommendMutation.isPending}
+                  className="text-xs bg-purple-100 text-purple-700 px-3 py-1.5 rounded-lg hover:bg-purple-200 flex items-center gap-1 disabled:opacity-50">
+                  <Bot size={13} /> {aiRecommendMutation.isPending ? 'AI 분석중...' : 'AI 추천'}
+                </button>
+                <button onClick={() => executeRulesMutation.mutate()}
+                  disabled={executeRulesMutation.isPending}
+                  className="text-xs bg-red-100 text-red-700 px-3 py-1.5 rounded-lg hover:bg-red-200 flex items-center gap-1 disabled:opacity-50">
+                  <PlayCircle size={13} /> {executeRulesMutation.isPending ? '실행중...' : '지금 실행'}
+                </button>
+                <button onClick={() => setShowRuleForm(!showRuleForm)}
+                  className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 flex items-center gap-1">
+                  <Plus size={13} /> 룰 추가
+                </button>
+              </div>
+            </div>
+
+            {/* Execute results */}
+            {executeRulesMutation.isSuccess && (
+              <div className="px-5 py-3 bg-green-50 border-b border-green-100">
+                <p className="text-sm text-green-700">
+                  실행 완료: {(executeRulesMutation.data as any)?.results?.length || 0}건 처리됨
+                </p>
+              </div>
+            )}
+
+            {/* AI Recommendations */}
+            {aiRecommendMutation.isSuccess && (aiRecommendMutation.data as any)?.recommendations && (
+              <div className="px-5 py-4 bg-purple-50 border-b border-purple-100">
+                <h4 className="text-sm font-semibold text-purple-800 mb-3">AI 추천 룰</h4>
+                <div className="space-y-2">
+                  {((aiRecommendMutation.data as any).recommendations as any[]).map((rec: any, i: number) => (
+                    <div key={i} className="flex items-center justify-between bg-white rounded-lg border border-purple-200 p-3">
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-gray-900">{rec.name}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {rec.metric} {rec.operator} {rec.threshold} → {rec.action}
+                          {rec.reason && ` | ${rec.reason}`}
+                        </p>
+                      </div>
+                      <button onClick={() => handleApplyRecommendation(rec)}
+                        disabled={createRuleMutation.isPending}
+                        className="text-xs bg-purple-600 text-white px-3 py-1 rounded-lg hover:bg-purple-700 ml-3">
+                        적용
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Rule Form */}
+            {showRuleForm && (
+              <div className="px-5 py-4 bg-gray-50 border-b border-gray-100">
+                <h4 className="text-sm font-semibold text-gray-700 mb-3">새 룰 추가</h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+                  <input placeholder="룰 이름 (선택)" value={ruleForm.name} onChange={(e) => setRuleForm(f => ({ ...f, name: e.target.value }))}
+                    className="px-3 py-2 border rounded-lg text-sm" />
+                  <select value={ruleForm.target_type} onChange={(e) => setRuleForm(f => ({ ...f, target_type: e.target.value }))}
+                    className="px-3 py-2 border rounded-lg text-sm">
+                    <option value="campaign">캠페인</option>
+                    <option value="adset">광고세트</option>
+                    <option value="ad">광고</option>
+                  </select>
+                  <select value={ruleForm.action} onChange={(e) => setRuleForm(f => ({ ...f, action: e.target.value }))}
+                    className="px-3 py-2 border rounded-lg text-sm">
+                    {ACTION_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
+                  <select value={ruleForm.metric} onChange={(e) => setRuleForm(f => ({ ...f, metric: e.target.value }))}
+                    className="px-3 py-2 border rounded-lg text-sm">
+                    {METRIC_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                  <select value={ruleForm.operator} onChange={(e) => setRuleForm(f => ({ ...f, operator: e.target.value }))}
+                    className="px-3 py-2 border rounded-lg text-sm">
+                    {OPERATOR_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                  <input type="number" placeholder="임계값" value={ruleForm.threshold} onChange={(e) => setRuleForm(f => ({ ...f, threshold: e.target.value }))}
+                    className="px-3 py-2 border rounded-lg text-sm" />
+                  {ruleForm.action !== 'pause' && (
+                    <input type="number" placeholder="변경량 (%)" value={ruleForm.action_value} onChange={(e) => setRuleForm(f => ({ ...f, action_value: e.target.value }))}
+                      className="px-3 py-2 border rounded-lg text-sm" />
+                  )}
+                </div>
+                {/* Secondary condition */}
+                <details className="mb-3">
+                  <summary className="text-xs text-gray-500 cursor-pointer hover:text-gray-700">+ AND 조건 추가</summary>
+                  <div className="grid grid-cols-3 gap-3 mt-2">
+                    <select value={ruleForm.secondary_metric} onChange={(e) => setRuleForm(f => ({ ...f, secondary_metric: e.target.value }))}
+                      className="px-3 py-2 border rounded-lg text-sm">
+                      <option value="">선택 안함</option>
+                      {METRIC_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    </select>
+                    <select value={ruleForm.secondary_operator} onChange={(e) => setRuleForm(f => ({ ...f, secondary_operator: e.target.value }))}
+                      className="px-3 py-2 border rounded-lg text-sm">
+                      {OPERATOR_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    </select>
+                    <input type="number" placeholder="임계값" value={ruleForm.secondary_threshold} onChange={(e) => setRuleForm(f => ({ ...f, secondary_threshold: e.target.value }))}
+                      className="px-3 py-2 border rounded-lg text-sm" />
+                  </div>
+                </details>
+                <div className="flex items-center gap-2">
+                  <button onClick={handleCreateRule} disabled={!ruleForm.threshold || createRuleMutation.isPending}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50">
+                    {createRuleMutation.isPending ? '생성중...' : '룰 생성'}
+                  </button>
+                  <button onClick={() => { setShowRuleForm(false); resetRuleForm(); }}
+                    className="text-gray-500 px-4 py-2 rounded-lg text-sm hover:bg-gray-100">취소</button>
+                </div>
+              </div>
+            )}
+
+            {/* Active Rules List */}
+            <div className="divide-y divide-gray-100">
+              {Array.isArray(rules) && rules.length > 0 ? rules.map((rule: any) => (
+                <div key={rule.id} className="px-5 py-3 flex items-center justify-between hover:bg-gray-50">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-gray-900">{rule.name}</span>
+                      <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">{rule.target_type}</span>
+                      {rule.times_triggered > 0 && (
+                        <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded">{rule.times_triggered}회 실행됨</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {rule.metric} {rule.operator} {rule.threshold}
+                      {rule.secondary_metric && ` AND ${rule.secondary_metric} ${rule.secondary_operator} ${rule.secondary_threshold}`}
+                      {' → '}{rule.action}{rule.action_value ? ` (${rule.action_value}%)` : ''}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => updateRuleMutation.mutate({ id: rule.id, data: { enabled: !rule.enabled } })}
+                      className={`p-1.5 rounded-lg ${rule.enabled ? 'text-green-600' : 'text-gray-400'}`}
+                      title={rule.enabled ? 'ON' : 'OFF'}>
+                      {rule.enabled ? <ToggleRight size={20} /> : <ToggleLeft size={20} />}
+                    </button>
+                    <button onClick={() => { if (confirm('이 룰을 삭제하시겠습니까?')) deleteRuleMutation.mutate(rule.id); }}
+                      className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg">
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+              )) : (
+                <div className="px-5 py-6 text-center text-gray-400 text-sm">
+                  등록된 자동 관리 룰이 없습니다. 위의 "룰 추가" 또는 "AI 추천"을 사용해보세요.
+                </div>
+              )}
+            </div>
+
+            {/* Execution Logs */}
+            {Array.isArray(ruleLogs) && ruleLogs.length > 0 && (
+              <div className="border-t border-gray-100 px-5 py-4">
+                <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3 flex items-center gap-1">
+                  <Clock size={13} /> 최근 실행 기록
+                </h4>
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {ruleLogs.slice(0, 15).map((log: any, i: number) => (
+                    <div key={log.id || i} className="flex items-center gap-3 text-xs">
+                      <span className="text-gray-400 w-32 flex-shrink-0">
+                        {log.triggered_at ? new Date(log.triggered_at).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}
+                      </span>
+                      <span className={`px-2 py-0.5 rounded font-medium ${
+                        log.action_taken === 'paused' ? 'bg-red-100 text-red-700' :
+                        log.action_taken?.includes('budget') ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-700'
+                      }`}>{log.action_taken}</span>
+                      <span className="text-gray-700 truncate">{log.target_name || log.target_id}</span>
+                      <span className="text-gray-400 ml-auto">{log.metric_name}: {typeof log.metric_value === 'number' ? log.metric_value.toFixed(2) : log.metric_value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Report Section */}
@@ -567,7 +924,7 @@ export default function PerformanceDashboard() {
                 <label className="text-xs text-gray-500 mb-1 block">캠페인</label>
                 <select value={reportCampaignId} onChange={(e) => setReportCampaignId(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm">
                   <option value="">전체 계정</option>
-                  {campaigns.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  {allCampaigns.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
               <div>
@@ -600,7 +957,6 @@ export default function PerformanceDashboard() {
             {/* Report Results */}
             {reportMutation.isSuccess && (
               <div className="mt-4 space-y-4">
-                {/* Daily Data Table */}
                 {(reportMutation.data as any)?.daily_data?.length > 0 && (
                   <div className="bg-gray-50 rounded-lg p-4">
                     <h4 className="text-sm font-semibold text-gray-700 mb-3">일별 데이터</h4>
@@ -621,12 +977,12 @@ export default function PerformanceDashboard() {
                           {(reportMutation.data as any).daily_data.map((row: any, i: number) => (
                             <tr key={i} className="border-b border-gray-100">
                               <td className="py-1.5 px-2 text-gray-700">{row.date_stop || row.date || '-'}</td>
-                              <td className="py-1.5 px-2 text-right font-medium">{formatMoneyUSD(row.spend)}</td>
+                              <td className="py-1.5 px-2 text-right font-medium">{formatSpend(row.spend)}</td>
                               <td className="py-1.5 px-2 text-right">{formatNum(row.impressions)}</td>
                               <td className="py-1.5 px-2 text-right">{formatNum(row.reach)}</td>
                               <td className="py-1.5 px-2 text-right">{formatNum(row.clicks)}</td>
                               <td className="py-1.5 px-2 text-right">{parseFloat(row.ctr || '0').toFixed(2)}%</td>
-                              <td className="py-1.5 px-2 text-right">{formatMoneyUSD(row.cpc)}</td>
+                              <td className="py-1.5 px-2 text-right">{formatCPC(row.cpc)}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -635,7 +991,6 @@ export default function PerformanceDashboard() {
                   </div>
                 )}
 
-                {/* Campaign Info */}
                 {(reportMutation.data as any)?.campaign_info && (
                   <div className="bg-blue-50 rounded-lg p-3">
                     <p className="text-sm text-blue-800">
@@ -646,7 +1001,6 @@ export default function PerformanceDashboard() {
                   </div>
                 )}
 
-                {/* AI Report */}
                 {(reportMutation.data as any)?.ai_report && (
                   <div className="bg-gray-50 rounded-lg p-4 max-h-96 overflow-y-auto">
                     <h4 className="text-sm font-semibold text-gray-700 mb-2">AI 분석 리포트</h4>
@@ -657,9 +1011,109 @@ export default function PerformanceDashboard() {
             )}
             {reportMutation.isError && (
               <div className="mt-4 bg-red-50 rounded-lg p-4">
-                <p className="text-sm text-red-600">리포트 생성에 실패했습니다. 날짜 범위와 캠페인을 확인해주세요.</p>
+                <p className="text-sm text-red-600">리포트 생성에 실패했습니다.</p>
               </div>
             )}
+          </div>
+
+          {/* ====== SCHEDULED REPORTS ====== */}
+          <div className="bg-white border border-gray-200 rounded-xl">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                <Calendar size={18} className="text-teal-600" /> 스케줄 리포트
+              </h3>
+              <button onClick={() => setShowScheduleForm(!showScheduleForm)}
+                className="text-xs bg-teal-600 text-white px-3 py-1.5 rounded-lg hover:bg-teal-700 flex items-center gap-1">
+                <Plus size={13} /> 스케줄 추가
+              </button>
+            </div>
+
+            {/* Schedule Form */}
+            {showScheduleForm && (
+              <div className="px-5 py-4 bg-gray-50 border-b border-gray-100">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+                  <input placeholder="스케줄 이름" value={schedForm.name} onChange={(e) => setSchedForm(f => ({ ...f, name: e.target.value }))}
+                    className="px-3 py-2 border rounded-lg text-sm" />
+                  <select value={schedForm.schedule_type} onChange={(e) => setSchedForm(f => ({ ...f, schedule_type: e.target.value }))}
+                    className="px-3 py-2 border rounded-lg text-sm">
+                    <option value="weekly">주간</option>
+                    <option value="monthly">월간</option>
+                  </select>
+                  {schedForm.schedule_type === 'weekly' ? (
+                    <select value={schedForm.day_of_week} onChange={(e) => setSchedForm(f => ({ ...f, day_of_week: parseInt(e.target.value) }))}
+                      className="px-3 py-2 border rounded-lg text-sm">
+                      {['일', '월', '화', '수', '목', '금', '토'].map((d, i) => (
+                        <option key={i} value={i}>{d}요일</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <select value={schedForm.day_of_month} onChange={(e) => setSchedForm(f => ({ ...f, day_of_month: parseInt(e.target.value) }))}
+                      className="px-3 py-2 border rounded-lg text-sm">
+                      {Array.from({ length: 28 }, (_, i) => i + 1).map(d => (
+                        <option key={d} value={d}>{d}일</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+                  <select value={schedForm.meta_campaign_id} onChange={(e) => setSchedForm(f => ({ ...f, meta_campaign_id: e.target.value }))}
+                    className="px-3 py-2 border rounded-lg text-sm">
+                    <option value="">전체 계정</option>
+                    {allCampaigns.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                  <select value={schedForm.lookback_days} onChange={(e) => setSchedForm(f => ({ ...f, lookback_days: parseInt(e.target.value) }))}
+                    className="px-3 py-2 border rounded-lg text-sm">
+                    <option value={7}>최근 7일</option>
+                    <option value={14}>최근 14일</option>
+                    <option value={30}>최근 30일</option>
+                  </select>
+                  <input type="email" placeholder="수신 이메일 (선택)" value={schedForm.email_to} onChange={(e) => setSchedForm(f => ({ ...f, email_to: e.target.value }))}
+                    className="px-3 py-2 border rounded-lg text-sm" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={handleCreateSchedule} disabled={!schedForm.name || createScheduleMutation.isPending}
+                    className="bg-teal-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-teal-700 disabled:opacity-50">
+                    {createScheduleMutation.isPending ? '생성중...' : '스케줄 생성'}
+                  </button>
+                  <button onClick={() => { setShowScheduleForm(false); resetScheduleForm(); }}
+                    className="text-gray-500 px-4 py-2 rounded-lg text-sm hover:bg-gray-100">취소</button>
+                </div>
+              </div>
+            )}
+
+            {/* Schedule List */}
+            <div className="divide-y divide-gray-100">
+              {Array.isArray(schedules) && schedules.length > 0 ? schedules.map((sched: any) => (
+                <div key={sched.id} className="px-5 py-3 flex items-center justify-between hover:bg-gray-50">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-gray-900">{sched.name}</span>
+                      <span className="text-xs bg-teal-100 text-teal-700 px-2 py-0.5 rounded">
+                        {sched.schedule_type === 'weekly' ? `매주 ${['일', '월', '화', '수', '목', '금', '토'][sched.day_of_week || 0]}요일` : `매월 ${sched.day_of_month}일`}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      최근 {sched.lookback_days}일 | {sched.email_to || '이메일 미설정'}
+                      {sched.last_run_at && ` | 마지막: ${new Date(sched.last_run_at).toLocaleDateString('ko-KR')}`}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => updateScheduleMutation.mutate({ id: sched.id, data: { enabled: !sched.enabled } })}
+                      className={`p-1.5 rounded-lg ${sched.enabled ? 'text-green-600' : 'text-gray-400'}`}>
+                      {sched.enabled ? <ToggleRight size={20} /> : <ToggleLeft size={20} />}
+                    </button>
+                    <button onClick={() => { if (confirm('이 스케줄을 삭제하시겠습니까?')) deleteScheduleMutation.mutate(sched.id); }}
+                      className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg">
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+              )) : (
+                <div className="px-5 py-6 text-center text-gray-400 text-sm">
+                  등록된 스케줄이 없습니다.
+                </div>
+              )}
+            </div>
           </div>
         </>
       )}

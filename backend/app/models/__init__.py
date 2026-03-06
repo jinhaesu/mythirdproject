@@ -4,6 +4,8 @@ from app.models.campaign import Campaign, Ad, CampaignPerformance, CampaignObjec
 from app.models.creative import Creative, CreativeType, CreativeFormat
 from app.models.benchmark import Benchmark, CollectedPost, BenchmarkType
 from app.models.ad_platform import PlatformConnection, RevenueData, Report, AIInsightLog, AdPlatform
+from app.models.auto_rule import AutoRule, AutoRuleLog
+from app.models.scheduled_report import ScheduledReport
 
 __all__ = [
     "User",
@@ -23,4 +25,7 @@ __all__ = [
     "Report",
     "AIInsightLog",
     "AdPlatform",
+    "AutoRule",
+    "AutoRuleLog",
+    "ScheduledReport",
 ]
