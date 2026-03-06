@@ -269,6 +269,20 @@ class MetaAdsService:
 
         return "\n".join(lines)
 
+    async def get_account_daily_trend(self, days: int = 30) -> List[Dict]:
+        """Get daily account-level metrics for trend charts."""
+        if not self.connected:
+            return []
+        resp = await self._get(
+            f"{self.ad_account_id}/insights",
+            {
+                "fields": "spend,impressions,clicks,ctr,cpc,cpm,reach",
+                "date_preset": f"last_{days}d",
+                "time_increment": 1,
+            },
+        )
+        return resp.get("data", [])
+
     async def build_full_context_for_ai(self, date_preset: str = "last_7d") -> str:
         """Convenience: fetch overview and build context."""
         if not self.connected:

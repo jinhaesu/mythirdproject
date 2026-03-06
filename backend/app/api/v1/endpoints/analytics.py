@@ -24,7 +24,6 @@ from app.schemas.analytics import (
     LearnFromPerformanceRequest, LearnFromPerformanceResponse
 )
 from app.api.v1.endpoints.auth import get_current_user
-from app.services.meta import MetaMarketingAPI
 from app.services.ai import ClaudeService
 from app.services.meta_ads_service import MetaAdsService
 
