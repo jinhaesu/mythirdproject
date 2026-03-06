@@ -6,10 +6,72 @@ import {
   BarChart3, DollarSign, Eye, MousePointer, Target,
   Play, Pause, ChevronDown, ChevronRight, AlertTriangle, CheckCircle, XCircle,
   Loader2, RefreshCw, Zap, Mail, FileText, Activity, Users, Layers,
+  TrendingUp, TrendingDown,
 } from 'lucide-react';
 import { analyticsApi } from '@/lib/api';
 
 type DatePreset = 'last_7d' | 'last_14d' | 'last_30d';
+
+// Meta action_type → 한국어 번역
+const ACTION_TYPE_KO: Record<string, string> = {
+  'link_click': '링크 클릭',
+  'post_engagement': '게시물 참여',
+  'page_engagement': '페이지 참여',
+  'like': '좋아요',
+  'comment': '댓글',
+  'post': '게시',
+  'post_reaction': '게시물 반응',
+  'photo_view': '사진 보기',
+  'video_view': '동영상 조회',
+  'landing_page_view': '랜딩페이지 방문',
+  'offsite_conversion': '외부 전환',
+  'onsite_conversion.messaging_conversation_started_7d': '메시지 대화 시작',
+  'onsite_conversion.post_save': '게시물 저장',
+  'onsite_conversion.flow_complete': '플로우 완료',
+  'purchase': '구매',
+  'add_to_cart': '장바구니 추가',
+  'initiate_checkout': '결제 시작',
+  'lead': '리드',
+  'complete_registration': '회원가입 완료',
+  'search': '검색',
+  'view_content': '콘텐츠 보기',
+  'add_payment_info': '결제정보 입력',
+  'add_to_wishlist': '위시리스트 추가',
+  'contact': '문의',
+  'find_location': '위치 찾기',
+  'schedule': '예약',
+  'start_trial': '체험 시작',
+  'subscribe': '구독',
+  'customize_product': '제품 커스터마이즈',
+  'donate': '기부',
+  'omni_purchase': '통합 구매',
+  'omni_add_to_cart': '통합 장바구니',
+  'omni_initiated_checkout': '통합 결제 시작',
+  'omni_view_content': '통합 콘텐츠 보기',
+  'impression': '노출',
+  'reach': '도달',
+  'frequency': '빈도',
+  'spend': '지출',
+  'cost_per_action_type': '액션당 비용',
+  'actions': '전체 액션',
+  'conversions': '전환',
+  'cost_per_conversion': '전환당 비용',
+  'messaging_conversation_started_7d': '메시지 대화 시작',
+  'messaging_first_reply': '메시지 첫 답장',
+};
+
+function translateActionType(actionType: string): string {
+  if (ACTION_TYPE_KO[actionType]) return ACTION_TYPE_KO[actionType];
+  // Try partial match
+  for (const [key, val] of Object.entries(ACTION_TYPE_KO)) {
+    if (actionType.includes(key)) return val;
+  }
+  // Fallback: replace underscores and format
+  return actionType
+    .replace(/^(onsite_conversion\.|offsite_conversion\.)/, '')
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, c => c.toUpperCase());
+}
 
 export default function PerformanceDashboard() {
   const [datePreset, setDatePreset] = useState<DatePreset>('last_7d');
@@ -25,6 +87,14 @@ export default function PerformanceDashboard() {
     queryFn: () => analyticsApi.getAccountOverview(datePreset),
     refetchInterval: 60000,
     retry: 1,
+  });
+
+  // Trend chart data
+  const daysMap: Record<DatePreset, number> = { last_7d: 7, last_14d: 14, last_30d: 30 };
+  const { data: trendData } = useQuery({
+    queryKey: ['account-trend', datePreset],
+    queryFn: () => analyticsApi.getAccountTrend(daysMap[datePreset]),
+    enabled: overview?.connected === true,
   });
 
   const { data: aiAnalysis, isLoading: loadingAI, refetch: refetchAI } = useQuery({
@@ -94,6 +164,7 @@ export default function PerformanceDashboard() {
   const analysis = aiAnalysis?.analysis;
   const campaigns = overview?.campaigns || [];
   const accountInsights = overview?.account_insights || {};
+  const trendDays = trendData?.data || [];
 
   const formatNum = (v: any) => {
     if (!v) return '0';
@@ -104,6 +175,13 @@ export default function PerformanceDashboard() {
   };
 
   const formatMoney = (v: any) => {
+    if (!v) return '₩0';
+    const n = parseFloat(v);
+    if (n >= 10000) return `₩${(n / 10000).toFixed(1)}만`;
+    return `₩${n.toLocaleString('ko-KR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+  };
+
+  const formatMoneyUSD = (v: any) => {
     if (!v) return '$0';
     const n = parseFloat(v);
     return `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -142,20 +220,58 @@ export default function PerformanceDashboard() {
         <>
           {/* KPI Cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <KPICard icon={<DollarSign size={20} />} label="총 지출" value={formatMoney(accountInsights.spend)} color="blue" />
+            <KPICard icon={<DollarSign size={20} />} label="총 지출" value={formatMoneyUSD(accountInsights.spend)} color="blue" />
             <KPICard icon={<Eye size={20} />} label="노출" value={formatNum(accountInsights.impressions)} color="purple" />
             <KPICard icon={<MousePointer size={20} />} label="클릭" value={formatNum(accountInsights.clicks)} sub={`CTR ${parseFloat(accountInsights.ctr || '0').toFixed(2)}%`} color="green" />
-            <KPICard icon={<Target size={20} />} label="CPC" value={formatMoney(accountInsights.cpc)} sub={`CPM ${formatMoney(accountInsights.cpm)}`} color="orange" />
+            <KPICard icon={<Target size={20} />} label="CPC" value={formatMoneyUSD(accountInsights.cpc)} sub={`CPM ${formatMoneyUSD(accountInsights.cpm)}`} color="orange" />
           </div>
+
+          {/* Daily Trend Chart */}
+          {trendDays.length > 0 && (
+            <div className="bg-white border border-gray-200 rounded-xl p-5">
+              <h3 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
+                <TrendingUp size={16} className="text-blue-500" /> 일별 성과 추이
+              </h3>
+              <div className="space-y-4">
+                {/* Spend chart */}
+                <div>
+                  <p className="text-xs text-gray-500 mb-2">지출 (USD)</p>
+                  <MiniBarChart
+                    data={trendDays.map((d: any) => ({ label: d.date_stop?.slice(5) || '', value: parseFloat(d.spend || 0) }))}
+                    color="blue"
+                    formatValue={(v) => `$${v.toFixed(2)}`}
+                  />
+                </div>
+                {/* Impressions chart */}
+                <div>
+                  <p className="text-xs text-gray-500 mb-2">노출수</p>
+                  <MiniBarChart
+                    data={trendDays.map((d: any) => ({ label: d.date_stop?.slice(5) || '', value: parseInt(d.impressions || 0) }))}
+                    color="purple"
+                    formatValue={(v) => formatNum(v)}
+                  />
+                </div>
+                {/* CTR chart */}
+                <div>
+                  <p className="text-xs text-gray-500 mb-2">CTR (%)</p>
+                  <MiniBarChart
+                    data={trendDays.map((d: any) => ({ label: d.date_stop?.slice(5) || '', value: parseFloat(d.ctr || 0) }))}
+                    color="green"
+                    formatValue={(v) => `${v.toFixed(2)}%`}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Conversion Actions */}
           {accountInsights.actions && accountInsights.actions.length > 0 && (
             <div className="bg-white border border-gray-200 rounded-xl p-4">
               <h3 className="text-sm font-semibold text-gray-700 mb-3">전환 액션 요약</h3>
               <div className="flex flex-wrap gap-3">
-                {accountInsights.actions.slice(0, 8).map((action: any, i: number) => (
+                {accountInsights.actions.slice(0, 10).map((action: any, i: number) => (
                   <div key={i} className="bg-gray-50 rounded-lg px-3 py-2 text-sm">
-                    <span className="text-gray-500">{action.action_type?.replace(/_/g, ' ')}</span>
+                    <span className="text-gray-500">{translateActionType(action.action_type)}</span>
                     <span className="ml-2 font-semibold text-gray-900">{formatNum(action.value)}</span>
                   </div>
                 ))}
@@ -207,7 +323,7 @@ export default function PerformanceDashboard() {
                         <span className={`text-xs font-bold px-2 py-0.5 rounded mt-0.5 ${
                           item.priority === 'high' ? 'bg-red-600 text-white' :
                           item.priority === 'medium' ? 'bg-yellow-600 text-white' : 'bg-gray-400 text-white'
-                        }`}>{item.priority?.toUpperCase()}</span>
+                        }`}>{item.priority === 'high' ? '긴급' : item.priority === 'medium' ? '중간' : '낮음'}</span>
                         <div className="flex-1">
                           <p className="text-sm font-medium text-gray-900">{item.action}</p>
                           <p className="text-xs text-gray-500 mt-1">{item.reason}</p>
@@ -300,6 +416,7 @@ export default function PerformanceDashboard() {
                 const isExpanded = expandedCampaign === camp.id;
                 const ins = camp.insights;
                 const es = camp.effective_status || camp.status;
+                const statusKo = es === 'ACTIVE' ? '활성' : es === 'PAUSED' ? '일시중지' : es === 'CAMPAIGN_PAUSED' ? '캠페인 중지' : es;
 
                 return (
                   <div key={camp.id}>
@@ -312,13 +429,13 @@ export default function PerformanceDashboard() {
                           <span className={`text-xs px-2 py-0.5 rounded-full ${
                             es === 'ACTIVE' ? 'bg-green-100 text-green-700' :
                             es === 'PAUSED' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-600'
-                          }`}>{es}</span>
+                          }`}>{statusKo}</span>
                         </div>
                         <p className="text-xs text-gray-500 mt-0.5">{camp.objective}</p>
                       </div>
                       {ins && (
                         <div className="flex items-center gap-6 text-sm">
-                          <div className="text-right"><p className="text-xs text-gray-400">지출</p><p className="font-semibold">{formatMoney(ins.spend)}</p></div>
+                          <div className="text-right"><p className="text-xs text-gray-400">지출</p><p className="font-semibold">{formatMoneyUSD(ins.spend)}</p></div>
                           <div className="text-right"><p className="text-xs text-gray-400">노출</p><p className="font-semibold">{formatNum(ins.impressions)}</p></div>
                           <div className="text-right"><p className="text-xs text-gray-400">클릭</p><p className="font-semibold">{formatNum(ins.clicks)}</p></div>
                           <div className="text-right"><p className="text-xs text-gray-400">CTR</p><p className="font-semibold">{parseFloat(ins.ctr || '0').toFixed(2)}%</p></div>
@@ -343,54 +460,62 @@ export default function PerformanceDashboard() {
 
                         {camp.adsets?.length > 0 ? (
                           <div className="space-y-3">
-                            {camp.adsets.map((adset: any) => (
-                              <div key={adset.id} className="bg-white rounded-lg border border-gray-200 p-3">
-                                <div className="flex items-center justify-between mb-2">
-                                  <div className="flex items-center gap-2">
-                                    <Users size={14} className="text-purple-500" />
-                                    <span className="text-sm font-medium">{adset.name}</span>
-                                    <span className={`text-xs px-1.5 py-0.5 rounded ${adset.effective_status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{adset.effective_status}</span>
+                            {camp.adsets.map((adset: any) => {
+                              const adsetStatus = adset.effective_status || adset.status;
+                              const adsetStatusKo = adsetStatus === 'ACTIVE' ? '활성' : adsetStatus === 'PAUSED' ? '중지' : adsetStatus;
+                              return (
+                                <div key={adset.id} className="bg-white rounded-lg border border-gray-200 p-3">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center gap-2">
+                                      <Users size={14} className="text-purple-500" />
+                                      <span className="text-sm font-medium">{adset.name}</span>
+                                      <span className={`text-xs px-1.5 py-0.5 rounded ${adsetStatus === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{adsetStatusKo}</span>
+                                    </div>
+                                    <button onClick={() => toggleStatus(adset.id, 'adset', adsetStatus)} className="text-xs px-2 py-1 rounded border hover:bg-gray-50">
+                                      {adsetStatus === 'ACTIVE' ? '중지' : '활성화'}
+                                    </button>
                                   </div>
-                                  <button onClick={() => toggleStatus(adset.id, 'adset', adset.effective_status)} className="text-xs px-2 py-1 rounded border hover:bg-gray-50">
-                                    {adset.effective_status === 'ACTIVE' ? '중지' : '활성화'}
-                                  </button>
+                                  {adset.targeting && (
+                                    <div className="text-xs text-gray-500 mb-2">
+                                      타겟: {adset.targeting.age_min || '?'}-{adset.targeting.age_max || '?'}세
+                                      {adset.targeting.genders && `, ${adset.targeting.genders.map((g: number) => g === 1 ? '남' : g === 2 ? '여' : '전체').join('/')}`}
+                                      {adset.targeting.flexible_spec?.[0]?.interests &&
+                                        ` | 관심사: ${adset.targeting.flexible_spec[0].interests.slice(0, 3).map((i: any) => i.name).join(', ')}`}
+                                    </div>
+                                  )}
+                                  {adset.insights && (
+                                    <div className="flex gap-4 text-xs text-gray-600 mb-2">
+                                      <span>지출: {formatMoneyUSD(adset.insights.spend)}</span>
+                                      <span>클릭: {adset.insights.clicks}</span>
+                                      <span>CTR: {parseFloat(adset.insights.ctr || '0').toFixed(2)}%</span>
+                                    </div>
+                                  )}
+                                  {adset.ads?.length > 0 && (
+                                    <div className="mt-2 space-y-1">
+                                      {adset.ads.map((ad: any) => {
+                                        const adStatus = ad.effective_status || ad.status;
+                                        const adStatusKo = adStatus === 'ACTIVE' ? '활성' : adStatus === 'PAUSED' ? '중지' : adStatus;
+                                        return (
+                                          <div key={ad.id} className="flex items-center justify-between bg-gray-50 rounded p-2">
+                                            <div className="flex items-center gap-2">
+                                              <div className="w-1.5 h-1.5 rounded-full bg-gray-400" />
+                                              <span className="text-xs text-gray-700">{ad.name}</span>
+                                              <span className={`text-xs ${adStatus === 'ACTIVE' ? 'text-green-600' : 'text-gray-400'}`}>{adStatusKo}</span>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                              {ad.insights && <span className="text-xs text-gray-500">{formatMoneyUSD(ad.insights.spend)} | CTR {parseFloat(ad.insights.ctr || '0').toFixed(2)}%</span>}
+                                              <button onClick={() => toggleStatus(ad.id, 'ad', adStatus)} className="text-xs px-2 py-0.5 rounded border hover:bg-white">
+                                                {adStatus === 'ACTIVE' ? '중지' : '켜기'}
+                                              </button>
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
                                 </div>
-                                {adset.targeting && (
-                                  <div className="text-xs text-gray-500 mb-2">
-                                    타겟: {adset.targeting.age_min || '?'}-{adset.targeting.age_max || '?'}세
-                                    {adset.targeting.genders && `, ${adset.targeting.genders.map((g: number) => g === 1 ? '남' : g === 2 ? '여' : '전체').join('/')}`}
-                                    {adset.targeting.flexible_spec?.[0]?.interests &&
-                                      ` | 관심사: ${adset.targeting.flexible_spec[0].interests.slice(0, 3).map((i: any) => i.name).join(', ')}`}
-                                  </div>
-                                )}
-                                {adset.insights && (
-                                  <div className="flex gap-4 text-xs text-gray-600 mb-2">
-                                    <span>지출: {formatMoney(adset.insights.spend)}</span>
-                                    <span>클릭: {adset.insights.clicks}</span>
-                                    <span>CTR: {parseFloat(adset.insights.ctr || '0').toFixed(2)}%</span>
-                                  </div>
-                                )}
-                                {adset.ads?.length > 0 && (
-                                  <div className="mt-2 space-y-1">
-                                    {adset.ads.map((ad: any) => (
-                                      <div key={ad.id} className="flex items-center justify-between bg-gray-50 rounded p-2">
-                                        <div className="flex items-center gap-2">
-                                          <div className="w-1.5 h-1.5 rounded-full bg-gray-400" />
-                                          <span className="text-xs text-gray-700">{ad.name}</span>
-                                          <span className={`text-xs ${ad.effective_status === 'ACTIVE' ? 'text-green-600' : 'text-gray-400'}`}>{ad.effective_status}</span>
-                                        </div>
-                                        <div className="flex items-center gap-3">
-                                          {ad.insights && <span className="text-xs text-gray-500">{formatMoney(ad.insights.spend)} | CTR {parseFloat(ad.insights.ctr || '0').toFixed(2)}%</span>}
-                                          <button onClick={() => toggleStatus(ad.id, 'ad', ad.effective_status)} className="text-xs px-2 py-0.5 rounded border hover:bg-white">
-                                            {ad.effective_status === 'ACTIVE' ? '중지' : '켜기'}
-                                          </button>
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         ) : <p className="text-sm text-gray-400">광고세트가 없습니다.</p>}
 
@@ -417,7 +542,7 @@ export default function PerformanceDashboard() {
                                   {deepData.placements.slice(0, 6).map((p: any, i: number) => (
                                     <div key={i} className="flex justify-between text-xs bg-gray-50 rounded p-1.5">
                                       <span>{p.publisher_platform} - {p.platform_position}</span>
-                                      <span>{formatMoney(p.spend)} | CTR {parseFloat(p.ctr || '0').toFixed(2)}%</span>
+                                      <span>{formatMoneyUSD(p.spend)} | CTR {parseFloat(p.ctr || '0').toFixed(2)}%</span>
                                     </div>
                                   ))}
                                 </div>
@@ -470,10 +595,69 @@ export default function PerformanceDashboard() {
               </button>
             </div>
             {emailMutation.isSuccess && <p className="mt-2 text-sm text-green-600">{(emailMutation.data as any)?.message}</p>}
-            {reportMutation.isSuccess && (reportMutation.data as any)?.ai_report && (
-              <div className="mt-4 bg-gray-50 rounded-lg p-4 max-h-96 overflow-y-auto">
-                <h4 className="text-sm font-semibold text-gray-700 mb-2">AI 분석 리포트</h4>
-                <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{(reportMutation.data as any).ai_report}</div>
+            {emailMutation.isError && <p className="mt-2 text-sm text-red-600">이메일 발송에 실패했습니다.</p>}
+
+            {/* Report Results */}
+            {reportMutation.isSuccess && (
+              <div className="mt-4 space-y-4">
+                {/* Daily Data Table */}
+                {(reportMutation.data as any)?.daily_data?.length > 0 && (
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <h4 className="text-sm font-semibold text-gray-700 mb-3">일별 데이터</h4>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b border-gray-200">
+                            <th className="text-left py-2 px-2 text-gray-500">날짜</th>
+                            <th className="text-right py-2 px-2 text-gray-500">지출</th>
+                            <th className="text-right py-2 px-2 text-gray-500">노출</th>
+                            <th className="text-right py-2 px-2 text-gray-500">도달</th>
+                            <th className="text-right py-2 px-2 text-gray-500">클릭</th>
+                            <th className="text-right py-2 px-2 text-gray-500">CTR</th>
+                            <th className="text-right py-2 px-2 text-gray-500">CPC</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(reportMutation.data as any).daily_data.map((row: any, i: number) => (
+                            <tr key={i} className="border-b border-gray-100">
+                              <td className="py-1.5 px-2 text-gray-700">{row.date_stop || row.date || '-'}</td>
+                              <td className="py-1.5 px-2 text-right font-medium">{formatMoneyUSD(row.spend)}</td>
+                              <td className="py-1.5 px-2 text-right">{formatNum(row.impressions)}</td>
+                              <td className="py-1.5 px-2 text-right">{formatNum(row.reach)}</td>
+                              <td className="py-1.5 px-2 text-right">{formatNum(row.clicks)}</td>
+                              <td className="py-1.5 px-2 text-right">{parseFloat(row.ctr || '0').toFixed(2)}%</td>
+                              <td className="py-1.5 px-2 text-right">{formatMoneyUSD(row.cpc)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Campaign Info */}
+                {(reportMutation.data as any)?.campaign_info && (
+                  <div className="bg-blue-50 rounded-lg p-3">
+                    <p className="text-sm text-blue-800">
+                      <span className="font-semibold">{(reportMutation.data as any).campaign_info.name}</span>
+                      <span className="ml-2 text-xs bg-blue-200 px-2 py-0.5 rounded">{(reportMutation.data as any).campaign_info.status}</span>
+                      <span className="ml-2 text-xs text-blue-600">{(reportMutation.data as any).campaign_info.objective}</span>
+                    </p>
+                  </div>
+                )}
+
+                {/* AI Report */}
+                {(reportMutation.data as any)?.ai_report && (
+                  <div className="bg-gray-50 rounded-lg p-4 max-h-96 overflow-y-auto">
+                    <h4 className="text-sm font-semibold text-gray-700 mb-2">AI 분석 리포트</h4>
+                    <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{(reportMutation.data as any).ai_report}</div>
+                  </div>
+                )}
+              </div>
+            )}
+            {reportMutation.isError && (
+              <div className="mt-4 bg-red-50 rounded-lg p-4">
+                <p className="text-sm text-red-600">리포트 생성에 실패했습니다. 날짜 범위와 캠페인을 확인해주세요.</p>
               </div>
             )}
           </div>
@@ -490,6 +674,41 @@ function KPICard({ icon, label, value, sub, color }: { icon: React.ReactNode; la
       <div className="flex items-center gap-2 mb-2"><div className={`p-1.5 rounded-lg ${colors[color]}`}>{icon}</div><span className="text-xs text-gray-500">{label}</span></div>
       <p className="text-xl font-bold text-gray-900">{value}</p>
       {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
+    </div>
+  );
+}
+
+function MiniBarChart({ data, color, formatValue }: {
+  data: { label: string; value: number }[];
+  color: string;
+  formatValue: (v: number) => string;
+}) {
+  const maxVal = Math.max(...data.map(d => d.value), 0.01);
+  const colorMap: Record<string, { bar: string; text: string }> = {
+    blue: { bar: 'bg-blue-500', text: 'text-blue-700' },
+    purple: { bar: 'bg-purple-500', text: 'text-purple-700' },
+    green: { bar: 'bg-green-500', text: 'text-green-700' },
+    orange: { bar: 'bg-orange-500', text: 'text-orange-700' },
+  };
+  const c = colorMap[color] || colorMap.blue;
+
+  return (
+    <div className="flex items-end gap-1 h-24">
+      {data.map((d, i) => {
+        const pct = (d.value / maxVal) * 100;
+        return (
+          <div key={i} className="flex-1 flex flex-col items-center gap-1 group relative">
+            <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+              {formatValue(d.value)}
+            </div>
+            <div
+              className={`w-full rounded-t ${c.bar} transition-all min-h-[2px]`}
+              style={{ height: `${Math.max(pct, 2)}%` }}
+            />
+            <span className="text-[9px] text-gray-400 leading-none">{d.label}</span>
+          </div>
+        );
+      })}
     </div>
   );
 }

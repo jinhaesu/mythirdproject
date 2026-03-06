@@ -490,11 +490,16 @@ async def generate_report(
     report_data = {"period": {"start": request.start_date, "end": request.end_date}}
     base_url = f"{settings.META_GRAPH_API_BASE}/{settings.META_API_VERSION}"
 
-    if request.meta_campaign_id and current_user.meta_access_token:
+    if current_user.meta_access_token and current_user.meta_ad_account_id:
+        ad_account_id = current_user.meta_ad_account_id
+        if not ad_account_id.startswith("act_"):
+            ad_account_id = f"act_{ad_account_id}"
+        # Use campaign-level or account-level endpoint
+        insights_endpoint = f"{request.meta_campaign_id}/insights" if request.meta_campaign_id else f"{ad_account_id}/insights"
         try:
-            async with httpx.AsyncClient(timeout=15.0) as client:
+            async with httpx.AsyncClient(timeout=20.0) as client:
                 resp = await client.get(
-                    f"{base_url}/{request.meta_campaign_id}/insights",
+                    f"{base_url}/{insights_endpoint}",
                     params={
                         "access_token": current_user.meta_access_token,
                         "fields": "spend,impressions,reach,clicks,ctr,cpc,cpm,actions,cost_per_action_type",
@@ -504,16 +509,19 @@ async def generate_report(
                 )
                 if resp.status_code == 200:
                     report_data["daily_data"] = resp.json().get("data", [])
+                else:
+                    logger.error(f"Meta report insights {resp.status_code}: {resp.text[:200]}")
 
-                camp_resp = await client.get(
-                    f"{base_url}/{request.meta_campaign_id}",
-                    params={
-                        "access_token": current_user.meta_access_token,
-                        "fields": "name,status,objective",
-                    }
-                )
-                if camp_resp.status_code == 200:
-                    report_data["campaign_info"] = camp_resp.json()
+                if request.meta_campaign_id:
+                    camp_resp = await client.get(
+                        f"{base_url}/{request.meta_campaign_id}",
+                        params={
+                            "access_token": current_user.meta_access_token,
+                            "fields": "name,status,objective",
+                        }
+                    )
+                    if camp_resp.status_code == 200:
+                        report_data["campaign_info"] = camp_resp.json()
         except Exception as e:
             logger.error(f"Failed to fetch Meta report: {e}")
     elif request.campaign_id:
