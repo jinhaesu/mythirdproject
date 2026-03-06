@@ -198,6 +198,37 @@ export const campaignApi = {
     const { data } = await api.get('/campaign/interests/suggest', { params: { query } });
     return data;
   },
+
+  activate: async (campaignId: number) => {
+    const { data } = await api.post(`/campaign/${campaignId}/activate`);
+    return data;
+  },
+
+  pause: async (campaignId: number) => {
+    const { data } = await api.post(`/campaign/${campaignId}/pause`);
+    return data;
+  },
+
+  updateBudget: async (campaignId: number, dailyBudget?: number, totalBudget?: number) => {
+    const { data } = await api.post(`/campaign/${campaignId}/budget`, null, {
+      params: { daily_budget: dailyBudget, total_budget: totalBudget },
+    });
+    return data;
+  },
+
+  toggleAd: async (campaignId: number, adId: number, action: 'activate' | 'pause') => {
+    const { data } = await api.post(`/campaign/${campaignId}/ads/${adId}/toggle`, null, {
+      params: { action },
+    });
+    return data;
+  },
+
+  syncInsights: async (campaignId: number, datePreset = 'last_7d') => {
+    const { data } = await api.post(`/campaign/${campaignId}/sync-insights`, null, {
+      params: { date_preset: datePreset },
+    });
+    return data;
+  },
 };
 
 // Analytics API (TAB 4)
@@ -228,6 +259,68 @@ export const analyticsApi = {
 
   getSummary: async (days = 30) => {
     const { data } = await api.get('/analytics/summary', { params: { days } });
+    return data;
+  },
+};
+
+// Campaign Planner API (구조설계, 타겟, 카피, UTM, CSV분석, 소재예측)
+export const campaignPlannerApi = {
+  designStructure: async (request: {
+    product_list: Array<{ name: string; category: string; price: number; promo_info?: string }>;
+    schedule: { promo_start_date: string; promo_end_date: string };
+    total_budget: number;
+    brand_name: string;
+  }) => {
+    const { data } = await api.post('/campaign-planner/structure', request);
+    return data;
+  },
+
+  designTargeting: async (request: {
+    product_category: string;
+    budget: number;
+    past_performance_data?: any;
+    brand_info?: string;
+  }) => {
+    const { data } = await api.post('/campaign-planner/targeting', request);
+    return data;
+  },
+
+  generateCopywriting: async (request: {
+    products: Array<{ name: string; description: string; price: number; promo?: string }>;
+    purpose: string;
+    brand_voice?: string;
+    tone?: string;
+  }) => {
+    const { data } = await api.post('/campaign-planner/copywriting', request);
+    return data;
+  },
+
+  generateUTM: async (request: {
+    base_url: string;
+    products: string[];
+    campaign_names: string[];
+    platforms: string[];
+  }) => {
+    const { data } = await api.post('/campaign-planner/utm', request);
+    return data;
+  },
+
+  analyzeCSV: async (file: File, platform: string, analysisType: string) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('platform', platform);
+    formData.append('analysis_type', analysisType);
+    const { data } = await api.post('/campaign-planner/analyze-csv', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return data;
+  },
+
+  predictCreative: async (request: {
+    past_creatives: Array<{ type: string; style: string; ctr: number; cvr: number; spend: number }>;
+    new_creative_description: string;
+  }) => {
+    const { data } = await api.post('/campaign-planner/predict-creative', request);
     return data;
   },
 };

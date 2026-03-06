@@ -1,7 +1,9 @@
 """API v1 router configuration."""
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import auth, benchmark, creative, campaign, analytics, dashboard
+from app.api.v1.endpoints import (
+    auth, benchmark, creative, campaign, analytics, dashboard, campaign_planner
+)
 
 api_router = APIRouter()
 
@@ -31,6 +33,13 @@ api_router.include_router(
     campaign.router,
     prefix="/campaign",
     tags=["Ads Controller"]
+)
+
+# Campaign Planner (구조설계, 타겟, 카피, UTM, CSV분석, 소재예측)
+api_router.include_router(
+    campaign_planner.router,
+    prefix="/campaign-planner",
+    tags=["Campaign Planner"]
 )
 
 # TAB 4: Performance Dashboard
