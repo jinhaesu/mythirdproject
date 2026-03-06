@@ -15,7 +15,7 @@ from app.db.database import get_db
 from app.api.v1.endpoints.auth import get_current_user
 from app.models.user import User
 from app.services.ai import ClaudeService
-from app.services.meta_context import get_user_meta_context, build_ai_system_prompt_with_context
+from app.services.meta_ads_service import MetaAdsService
 from app.schemas.campaign_planner import (
     # Structure
     CampaignStructureRequest, CampaignStructureResponse,
@@ -839,9 +839,14 @@ async def auto_plan_campaign(
     if not product_info.get("name"):
         raise HTTPException(status_code=400, detail="제품 정보를 확인할 수 없습니다. 제품명을 직접 입력해주세요.")
 
-    # Step 2: Get Meta context if available
-    meta_context = await get_user_meta_context(current_user)
-    meta_context_text = meta_context.get("summary_text", "")
+    # Step 2: Get deep Meta context if available
+    svc = MetaAdsService(current_user)
+    meta_context_text = ""
+    if svc.connected:
+        try:
+            meta_context_text = await svc.build_full_context_for_ai("last_30d")
+        except Exception:
+            meta_context_text = ""
 
     # Step 3: Generate full campaign plan via Claude
     claude = ClaudeService()

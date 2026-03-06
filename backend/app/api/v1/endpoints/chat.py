@@ -1,6 +1,6 @@
-"""AI Command Center - Claude chat endpoint with Meta data integration."""
+"""AI Command Center - Claude chat with deep Meta account data."""
 import logging
-from typing import List, Optional
+from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -10,7 +10,7 @@ from app.api.v1.endpoints.auth import get_current_user
 from app.core.config import get_settings
 from app.db.database import get_db
 from app.models.user import User
-from app.services.meta_context import get_user_meta_context, build_ai_system_prompt_with_context
+from app.services.meta_ads_service import MetaAdsService
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -18,14 +18,12 @@ settings = get_settings()
 
 
 class ChatMessage(BaseModel):
-    role: str  # "user" or "assistant"
+    role: str
     content: str
-
 
 class ChatRequest(BaseModel):
     message: str
     history: List[ChatMessage] = []
-
 
 class ChatResponse(BaseModel):
     reply: str
@@ -34,23 +32,23 @@ class ChatResponse(BaseModel):
 
 SYSTEM_PROMPT = """당신은 Meta-Commander AI 어시스턴트입니다. 디지털 마케팅 전문가로서 사용자의 Meta(Facebook/Instagram) 광고 운영을 돕습니다.
 
-당신이 할 수 있는 일:
-1. **시장 분석**: 경쟁사 분석, 키워드 트렌드, 타겟 오디언스 인사이트
-2. **소재 제작 가이드**: 광고 카피 작성, 이미지/영상 아이디어, A/B 테스트 전략
-3. **캠페인 기획**: 캠페인 구조 설계, 예산 배분, 타겟팅 전략
-4. **광고 집행 조언**: Meta 광고 세팅, 입찰 전략, 최적화 팁
-5. **성과 분석**: KPI 해석, ROAS 개선, 성과 보고서 작성
+핵심 역할:
+1. **실시간 성과 분석**: 사용자의 실제 Meta 광고 계정 데이터를 알고 있습니다. 캠페인별 지출, CTR, CPC, 전환 등을 구체적으로 분석합니다.
+2. **즉각적인 액션 추천**: "이 캠페인 예산 늘리세요", "이 광고 끄세요", "이 타겟 추가하세요" 같은 구체적 실행 조언
+3. **캠페인 구조 설계**: 신제품/주력/소진용 구분, 광고 목적별 캠페인 트리
+4. **타겟 설계**: Broad/관심사/리타겟 비중 배분, 성과 기반 타겟 추천
+5. **카피라이팅**: 전환용/유입용/잠재고객용 카피 제품별 생성
+6. **효율 모니터링**: 소재 피로도, 타겟별 ROAS 편차, 일별 광고비 대비 매출 분석
+7. **소재 성과 예측**: CTR/CVR 패턴 분석, 신규 소재 방향 제안
 
-대화 시 주의사항:
+대화 규칙:
 - 한국어로 답변합니다
-- 실무에서 바로 적용할 수 있는 구체적인 조언을 제공합니다
-- 데이터 기반의 근거를 포함합니다
-- 마케팅 용어는 한글과 영어를 병기합니다 (예: 클릭률(CTR))
-- 플랫폼의 각 기능(시장분석, 소재제작, 캠페인기획, 광고집행, 성과분석)을 안내합니다
-- 답변은 간결하되 핵심을 놓치지 않습니다
+- 사용자의 실제 계정 데이터를 직접 언급하며 구체적으로 조언합니다 (예: "현재 A캠페인의 CTR이 1.2%인데, B캠페인은 2.8%입니다. A캠페인 예산을 B로 이전하는 것을 추천합니다")
+- 데이터가 없는 영역은 솔직하게 말하고 일반적인 업계 벤치마크로 보완합니다
+- 마케팅 용어는 한글+영어 병기 (예: 클릭률(CTR))
+- 간결하되 핵심을 놓치지 않습니다
 
-중요: 매 응답의 마지막에 사용자가 이어서 질문할 수 있는 관련 질문 3개를 제안하세요.
-형식: 응답 본문 후 "---SUGGESTED---" 구분자 후에 줄바꿈으로 구분된 3개 질문을 작성하세요."""
+중요: 매 응답 마지막에 "---SUGGESTED---" 구분자 후 관련 후속 질문 3개를 줄바꿈으로 제안하세요."""
 
 
 @router.post("/chat", response_model=ChatResponse)
@@ -59,7 +57,7 @@ async def chat(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """AI Command Center - 마케팅 AI 어시스턴트와 대화 (Meta 데이터 연동 + 추천 질문)."""
+    """AI chat with full Meta account context."""
     from anthropic import Anthropic
 
     if not settings.ANTHROPIC_API_KEY:
@@ -67,11 +65,25 @@ async def chat(
 
     client = Anthropic(api_key=settings.ANTHROPIC_API_KEY)
 
-    # Fetch Meta context for the user
-    meta_context = await get_user_meta_context(current_user)
-    system_prompt = build_ai_system_prompt_with_context(SYSTEM_PROMPT, meta_context)
+    # Build deep Meta context
+    svc = MetaAdsService(current_user)
+    meta_context = ""
+    if svc.connected:
+        try:
+            meta_context = await svc.build_full_context_for_ai("last_7d")
+        except Exception as e:
+            logger.warning(f"Failed to build Meta context: {e}")
+            meta_context = "Meta 계정이 연결되어 있지만 데이터를 가져오는 데 실패했습니다."
+    else:
+        meta_context = "Meta 광고 계정이 연결되지 않은 사용자입니다."
 
-    # Build message history
+    system = f"""{SYSTEM_PROMPT}
+
+--- 사용자의 실제 Meta 광고 계정 데이터 ---
+{meta_context}
+
+위 데이터를 바탕으로, 사용자의 질문에 실제 캠페인명/수치를 인용하며 구체적으로 답변하세요."""
+
     messages = []
     for msg in request.history[-20:]:
         messages.append({"role": msg.role, "content": msg.content})
@@ -80,13 +92,12 @@ async def chat(
     try:
         response = client.messages.create(
             model="claude-sonnet-4-20250514",
-            max_tokens=2048,
-            system=system_prompt,
+            max_tokens=3000,
+            system=system,
             messages=messages,
         )
         full_reply = response.content[0].text
 
-        # Parse suggested questions from the response
         suggested_questions = []
         reply = full_reply
 
@@ -100,13 +111,19 @@ async def chat(
                 if q.strip() and len(q.strip()) > 5
             ][:3]
 
-        # Fallback: generate default suggestions if none parsed
         if not suggested_questions:
-            suggested_questions = [
-                "이 전략을 실제로 적용하려면 어떻게 해야 하나요?",
-                "예산이 제한적일 때 우선순위는 어떻게 정하나요?",
-                "성과 측정은 어떤 지표를 봐야 하나요?",
-            ]
+            if svc.connected:
+                suggested_questions = [
+                    "현재 가장 성과가 좋은 캠페인은 뭐야?",
+                    "예산을 어떻게 재배분하면 좋을까?",
+                    "소재 피로도가 높은 광고가 있어?",
+                ]
+            else:
+                suggested_questions = [
+                    "Meta 계정 연동은 어떻게 하나요?",
+                    "캠페인 구조를 어떻게 짜야 할까요?",
+                    "광고 예산은 어떻게 설정하나요?",
+                ]
 
         return ChatResponse(reply=reply, suggested_questions=suggested_questions)
     except Exception as e:

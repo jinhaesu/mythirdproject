@@ -258,6 +258,38 @@ export const campaignApi = {
 
 // Analytics API (TAB 4)
 export const analyticsApi = {
+  getAccountOverview: async (datePreset = 'last_7d') => {
+    const { data } = await api.get('/analytics/account-overview', { params: { date_preset: datePreset } });
+    return data;
+  },
+
+  getCampaignDeep: async (campaignId: string, datePreset = 'last_7d') => {
+    const { data } = await api.get(`/analytics/campaign/${campaignId}/deep`, { params: { date_preset: datePreset } });
+    return data;
+  },
+
+  getAIAnalysis: async (datePreset = 'last_7d') => {
+    const { data } = await api.get('/analytics/ai-analysis', { params: { date_preset: datePreset } });
+    return data;
+  },
+
+  updateStatus: async (objectId: string, objectType: string, status: string) => {
+    const { data } = await api.post('/analytics/manage/status', { object_id: objectId, object_type: objectType, status });
+    return data;
+  },
+
+  updateBudgetMeta: async (objectId: string, objectType: string, dailyBudget?: number, lifetimeBudget?: number) => {
+    const { data } = await api.post('/analytics/manage/budget', {
+      object_id: objectId, object_type: objectType, daily_budget: dailyBudget, lifetime_budget: lifetimeBudget,
+    });
+    return data;
+  },
+
+  getAccountTrend: async (days = 30) => {
+    const { data } = await api.get('/analytics/account-trend', { params: { days } });
+    return data;
+  },
+
   getDashboard: async (campaignId: number, days = 7) => {
     const { data } = await api.get<PerformanceDashboard>(`/analytics/dashboard/${campaignId}`, {
       params: { days },
@@ -265,8 +297,8 @@ export const analyticsApi = {
     return data;
   },
 
-  getMetaCampaigns: async () => {
-    const { data } = await api.get('/analytics/meta-campaigns');
+  getMetaCampaigns: async (datePreset = 'last_7d') => {
+    const { data } = await api.get('/analytics/meta-campaigns', { params: { date_preset: datePreset } });
     return data;
   },
 

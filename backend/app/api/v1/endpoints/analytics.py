@@ -1,15 +1,15 @@
-"""Performance Dashboard endpoints (TAB 4)."""
-from typing import List, Optional
-from datetime import date, datetime, timedelta
+"""Performance Dashboard endpoints (TAB 4) - Real Meta data analysis."""
 import json
 import logging
+from typing import List, Optional
+from datetime import date, datetime, timedelta
 
 import httpx
 import resend
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select
 
 from app.core.config import get_settings
 from app.db.database import get_db
@@ -26,11 +26,247 @@ from app.schemas.analytics import (
 from app.api.v1.endpoints.auth import get_current_user
 from app.services.meta import MetaMarketingAPI
 from app.services.ai import ClaudeService
+from app.services.meta_ads_service import MetaAdsService
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 settings = get_settings()
 
+
+# ──────────────────────────────────────────────
+# Full Account Overview (NEW - core endpoint)
+# ──────────────────────────────────────────────
+
+@router.get("/account-overview")
+async def get_account_overview(
+    date_preset: str = Query(default="last_7d"),
+    current_user: User = Depends(get_current_user),
+):
+    """Get complete ad account overview: all campaigns, ad sets, ads with insights."""
+    svc = MetaAdsService(current_user)
+    if not svc.connected:
+        return {"connected": False, "error": "Meta 계정을 먼저 연동해주세요."}
+
+    overview = await svc.get_account_overview(date_preset)
+    return overview
+
+
+# ──────────────────────────────────────────────
+# Campaign Deep Analysis
+# ──────────────────────────────────────────────
+
+@router.get("/campaign/{campaign_id}/deep")
+async def get_campaign_deep_analysis(
+    campaign_id: str,
+    date_preset: str = Query(default="last_7d"),
+    current_user: User = Depends(get_current_user),
+):
+    """Deep analysis of a single campaign: daily trend, demographics, placements."""
+    svc = MetaAdsService(current_user)
+    if not svc.connected:
+        raise HTTPException(status_code=400, detail="Meta 계정이 연동되지 않았습니다.")
+
+    return await svc.get_campaign_deep_insights(campaign_id, date_preset)
+
+
+# ──────────────────────────────────────────────
+# AI Analysis with Action Items
+# ──────────────────────────────────────────────
+
+@router.get("/ai-analysis")
+async def get_ai_analysis(
+    date_preset: str = Query(default="last_7d"),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    AI-powered analysis of entire ad account.
+    Returns actionable recommendations: pause this ad, increase budget there, creative fatigue alerts.
+    """
+    svc = MetaAdsService(current_user)
+    if not svc.connected:
+        return {"connected": False, "recommendations": [], "error": "Meta 계정을 연동해주세요."}
+
+    # Get full context
+    context_text = await svc.build_full_context_for_ai(date_preset)
+
+    claude = ClaudeService()
+    try:
+        response = claude.client.messages.create(
+            model=claude.model,
+            max_tokens=4096,
+            messages=[{
+                "role": "user",
+                "content": f"""당신은 Meta 광고 전문 분석가입니다. 아래 광고 계정 데이터를 분석하고 실행 가능한 액션 아이템을 JSON으로 반환하세요.
+
+{context_text}
+
+다음 JSON 형식으로 반환하세요:
+{{
+  "account_health": "good|warning|critical",
+  "health_summary": "계정 전체 건강도 요약 (2-3문장)",
+  "kpi_analysis": {{
+    "total_spend": "총 지출 분석",
+    "ctr_assessment": "CTR 분석 (업종 평균 대비)",
+    "cpc_assessment": "CPC 분석",
+    "roas_assessment": "ROAS 분석 (있는 경우)",
+    "frequency_warning": "빈도 분석 (소재 피로도)"
+  }},
+  "action_items": [
+    {{
+      "priority": "high|medium|low",
+      "type": "pause_ad|increase_budget|decrease_budget|change_creative|change_targeting|create_campaign",
+      "target_id": "관련 캠페인/광고세트/광고 ID",
+      "target_name": "관련 이름",
+      "action": "구체적 액션 설명",
+      "reason": "이유",
+      "expected_impact": "예상 효과"
+    }}
+  ],
+  "creative_fatigue": [
+    {{
+      "ad_name": "광고 이름",
+      "ad_id": "ID",
+      "frequency": "빈도 수치",
+      "recommendation": "교체/수정/유지"
+    }}
+  ],
+  "budget_recommendations": [
+    {{
+      "campaign_name": "캠페인 이름",
+      "campaign_id": "ID",
+      "current_budget": "현재 예산",
+      "recommended_budget": "추천 예산",
+      "reason": "이유"
+    }}
+  ],
+  "targeting_insights": [
+    {{
+      "adset_name": "광고세트 이름",
+      "insight": "타겟팅 인사이트",
+      "recommendation": "추천 사항"
+    }}
+  ],
+  "next_steps": ["다음 3가지 우선 실행 사항"]
+}}
+
+반드시 JSON만 반환하세요. 마크다운이나 설명 없이 JSON만."""
+            }],
+        )
+
+        raw = response.content[0].text.strip()
+        # Parse JSON from response
+        if "```json" in raw:
+            raw = raw.split("```json")[1].split("```")[0].strip()
+        elif "```" in raw:
+            raw = raw.split("```")[1].split("```")[0].strip()
+
+        analysis = json.loads(raw)
+        return {"connected": True, "analysis": analysis}
+
+    except json.JSONDecodeError:
+        return {"connected": True, "analysis": {"raw_text": response.content[0].text, "parse_error": True}}
+    except Exception as e:
+        logger.error(f"AI analysis failed: {e}")
+        return {"connected": True, "analysis": None, "error": str(e)}
+
+
+# ──────────────────────────────────────────────
+# Management Actions (execute on Meta)
+# ──────────────────────────────────────────────
+
+class StatusUpdateRequest(BaseModel):
+    object_id: str
+    object_type: str  # campaign, adset, ad
+    status: str  # ACTIVE, PAUSED
+
+class BudgetUpdateRequest(BaseModel):
+    object_id: str
+    object_type: str  # campaign, adset
+    daily_budget: Optional[int] = None  # in cents
+    lifetime_budget: Optional[int] = None
+
+
+@router.post("/manage/status")
+async def update_status(
+    request: StatusUpdateRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """Toggle campaign/adset/ad status on Meta."""
+    svc = MetaAdsService(current_user)
+    if not svc.connected:
+        raise HTTPException(status_code=400, detail="Meta 계정이 연동되지 않았습니다.")
+
+    if request.object_type == "campaign":
+        result = await svc.update_campaign_status(request.object_id, request.status)
+    elif request.object_type == "adset":
+        result = await svc.update_adset_status(request.object_id, request.status)
+    elif request.object_type == "ad":
+        result = await svc.update_ad_status(request.object_id, request.status)
+    else:
+        raise HTTPException(status_code=400, detail="Invalid object_type")
+
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+
+    return {"success": True, "message": f"{request.object_type} {request.object_id} 상태가 {request.status}로 변경되었습니다."}
+
+
+@router.post("/manage/budget")
+async def update_budget(
+    request: BudgetUpdateRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """Update budget for campaign or ad set on Meta."""
+    svc = MetaAdsService(current_user)
+    if not svc.connected:
+        raise HTTPException(status_code=400, detail="Meta 계정이 연동되지 않았습니다.")
+
+    if request.object_type == "campaign":
+        result = await svc.update_campaign_budget(request.object_id, request.daily_budget)
+    elif request.object_type == "adset":
+        result = await svc.update_adset_budget(request.object_id, request.daily_budget, request.lifetime_budget)
+    else:
+        raise HTTPException(status_code=400, detail="Invalid object_type")
+
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+
+    return {"success": True, "message": "예산이 업데이트되었습니다."}
+
+
+# ──────────────────────────────────────────────
+# Daily Trend
+# ──────────────────────────────────────────────
+
+@router.get("/account-trend")
+async def get_account_trend(
+    days: int = Query(default=30, le=90),
+    current_user: User = Depends(get_current_user),
+):
+    """Get daily account-level trend for charts."""
+    svc = MetaAdsService(current_user)
+    if not svc.connected:
+        return {"connected": False, "data": []}
+
+    data = await svc.get_account_daily_trend(days)
+    return {"connected": True, "data": data}
+
+
+# ──────────────────────────────────────────────
+# CSV Upload Analysis
+# ──────────────────────────────────────────────
+
+@router.post("/analyze-csv")
+async def analyze_uploaded_csv(
+    current_user: User = Depends(get_current_user),
+):
+    """Placeholder - CSV analysis is handled in campaign_planner/analyze-csv."""
+    return {"message": "CSV 분석은 /campaign-planner/analyze-csv 엔드포인트를 사용하세요."}
+
+
+# ──────────────────────────────────────────────
+# Existing endpoints (kept for backwards compat)
+# ──────────────────────────────────────────────
 
 @router.get("/dashboard/{campaign_id}", response_model=PerformanceDashboardResponse)
 async def get_campaign_dashboard(
@@ -39,25 +275,18 @@ async def get_campaign_dashboard(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """
-    Get full performance dashboard for a campaign.
-
-    Includes KPIs, daily trends, creative comparison, and AI insights.
-    """
-    # Get campaign
+    """Get performance dashboard for a local campaign."""
     result = await db.execute(
         select(Campaign)
         .where(Campaign.id == campaign_id, Campaign.user_id == current_user.id)
     )
     campaign = result.scalar_one_or_none()
-
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
 
     period_end = date.today()
     period_start = period_end - timedelta(days=days)
 
-    # Get performance data from DB
     perf_result = await db.execute(
         select(CampaignPerformance)
         .where(
@@ -69,22 +298,6 @@ async def get_campaign_dashboard(
     )
     performance_records = perf_result.scalars().all()
 
-    # If we have Meta integration, fetch fresh data
-    if campaign.meta_campaign_id and current_user.meta_access_token:
-        try:
-            meta_api = MetaMarketingAPI(
-                current_user.meta_access_token,
-                current_user.meta_ad_account_id
-            )
-            insights = await meta_api.get_campaign_insights(
-                campaign.meta_campaign_id,
-                f"last_{days}d"
-            )
-            # Process and save insights to DB (simplified)
-        except Exception:
-            pass  # Use cached data
-
-    # Calculate KPIs
     total_spend = sum(p.spend for p in performance_records)
     total_impressions = sum(p.impressions for p in performance_records)
     total_clicks = sum(p.clicks for p in performance_records)
@@ -104,115 +317,19 @@ async def get_campaign_dashboard(
         conversion_rate=total_conversions / total_clicks * 100 if total_clicks > 0 else 0
     )
 
-    # Daily trends
     daily_trend = [
         DailyMetrics(
-            date=p.date.date(),
-            spend=p.spend,
-            impressions=p.impressions,
-            clicks=p.clicks,
-            conversions=p.conversions,
-            revenue=p.revenue,
-            ctr=p.ctr,
-            cpc=p.cpc,
-            roas=p.roas
+            date=p.date.date(), spend=p.spend, impressions=p.impressions,
+            clicks=p.clicks, conversions=p.conversions, revenue=p.revenue,
+            ctr=p.ctr, cpc=p.cpc, roas=p.roas
         )
         for p in performance_records
     ]
 
-    # Get creative performance (mock for demo)
-    ads_result = await db.execute(
-        select(Ad).where(Ad.campaign_id == campaign_id)
-    )
-    ads = ads_result.scalars().all()
-
-    creative_performance = []
-    winner_idx = 0
-    best_roas = 0
-
-    for i, ad in enumerate(ads):
-        creative_result = await db.execute(
-            select(Creative).where(Creative.id == ad.creative_id)
-        )
-        creative = creative_result.scalar_one_or_none()
-
-        if creative:
-            # Mock performance data (in production, aggregate from actual metrics)
-            mock_spend = total_spend * (ad.budget_percentage / 100)
-            mock_impressions = int(total_impressions * (ad.budget_percentage / 100))
-            mock_clicks = int(total_clicks * (ad.budget_percentage / 100))
-            mock_conversions = int(total_conversions * (ad.budget_percentage / 100))
-            mock_roas = (1 + i * 0.5) if total_conversions > 0 else 0  # Vary for demo
-
-            if mock_roas > best_roas:
-                best_roas = mock_roas
-                winner_idx = i
-
-            creative_performance.append(CreativePerformance(
-                creative_id=creative.id,
-                creative_name=creative.name,
-                creative_type=creative.creative_type.value,
-                thumbnail_url=creative.thumbnail_url,
-                spend=mock_spend,
-                impressions=mock_impressions,
-                clicks=mock_clicks,
-                conversions=mock_conversions,
-                ctr=mock_clicks / mock_impressions * 100 if mock_impressions > 0 else 0,
-                conversion_rate=mock_conversions / mock_clicks * 100 if mock_clicks > 0 else 0,
-                roas=mock_roas,
-                is_winner=False
-            ))
-
-    # Mark winner
-    if creative_performance:
-        creative_performance[winner_idx].is_winner = True
-
-    # Generate comparison if A/B test
-    comparison = None
-    if len(creative_performance) >= 2:
-        sorted_perf = sorted(creative_performance, key=lambda x: x.roas, reverse=True)
-        winner = sorted_perf[0]
-        loser = sorted_perf[-1]
-
-        diff = ((winner.roas - loser.roas) / loser.roas * 100) if loser.roas > 0 else 100
-
-        comparison = PerformanceComparison(
-            winner=winner,
-            loser=loser,
-            performance_difference=diff,
-            statistical_significance=0.95,  # Mock
-            recommendation=f"🏆 Winner: {winner.creative_name}이 {loser.creative_name}보다 ROAS가 {diff:.1f}% 높습니다."
-        )
-
-    # Generate AI insights
-    claude = ClaudeService()
-    performance_data = {
-        "kpi": kpi.model_dump(),
-        "creative_comparison": [p.model_dump() for p in creative_performance],
-        "trend": "improving" if len(daily_trend) > 1 and daily_trend[-1].roas > daily_trend[0].roas else "declining"
-    }
-
-    ai_insights_raw = await claude.analyze_performance(performance_data)
-    ai_insights = [
-        AIInsight(
-            insight_type=i.get("insight_type", "performance"),
-            title=i.get("title", ""),
-            description=i.get("description", ""),
-            action_available=i.get("action_available", False),
-            action_type=i.get("action_type"),
-            action_params=i.get("action_params")
-        )
-        for i in ai_insights_raw
-    ]
-
     return PerformanceDashboardResponse(
-        period_start=period_start,
-        period_end=period_end,
-        kpi_summary=kpi,
-        daily_trend=daily_trend,
-        creative_performance=creative_performance,
-        comparison=comparison,
-        ai_insights=ai_insights
+        period_start=period_start, period_end=period_end,
+        kpi_summary=kpi, daily_trend=daily_trend,
+        creative_performance=[], comparison=None, ai_insights=[]
     )
 
 
@@ -222,76 +339,42 @@ async def reallocate_budget(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """
-    Reallocate budget based on performance.
-
-    Pauses underperforming ads and reallocates to winners.
-    """
+    """Reallocate budget based on performance."""
     result = await db.execute(
         select(Campaign)
         .where(Campaign.id == request.campaign_id, Campaign.user_id == current_user.id)
     )
     campaign = result.scalar_one_or_none()
-
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
 
-    # Get ads
-    ads_result = await db.execute(
-        select(Ad).where(Ad.campaign_id == campaign.id)
-    )
+    ads_result = await db.execute(select(Ad).where(Ad.campaign_id == campaign.id))
     ads = ads_result.scalars().all()
-
     if len(ads) < 2:
         raise HTTPException(status_code=400, detail="Need at least 2 ads for reallocation")
 
     changes_made = []
-    new_allocations = []
-
-    # Simple logic: pause worst performer, give budget to best
-    # In production, use actual performance metrics
     if request.pause_underperforming and len(ads) >= 2:
-        worst_ad = ads[-1]  # Simplified
+        worst_ad = ads[-1]
         best_ad = ads[0]
-
         worst_budget = worst_ad.budget_percentage
         worst_ad.budget_percentage = 0
         worst_ad.status = "PAUSED"
-
         if request.reallocate_to_winner:
             best_ad.budget_percentage += worst_budget
-
         changes_made.append(f"Paused ad: {worst_ad.name}")
         changes_made.append(f"Increased {best_ad.name} budget by {worst_budget}%")
 
-        # Update in Meta if connected
-        if campaign.meta_campaign_id and current_user.meta_access_token:
-            try:
-                meta_api = MetaMarketingAPI(
-                    current_user.meta_access_token,
-                    current_user.meta_ad_account_id
-                )
-                if worst_ad.meta_ad_id:
-                    await meta_api.update_campaign_status(worst_ad.meta_ad_id, "PAUSED")
-            except Exception:
-                pass
-
     await db.commit()
 
-    # Build new allocations
-    for ad in ads:
-        new_allocations.append({
-            "ad_id": ad.id,
-            "ad_name": ad.name,
-            "new_percentage": ad.budget_percentage,
-            "status": ad.status
-        })
+    new_allocations = [
+        {"ad_id": ad.id, "ad_name": ad.name, "new_percentage": ad.budget_percentage, "status": ad.status}
+        for ad in ads
+    ]
 
     return BudgetReallocationResponse(
-        success=True,
-        changes_made=changes_made,
-        new_allocations=new_allocations,
-        estimated_improvement=15.0  # Mock estimate
+        success=True, changes_made=changes_made,
+        new_allocations=new_allocations, estimated_improvement=15.0
     )
 
 
@@ -301,34 +384,22 @@ async def learn_from_performance(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """
-    Learn from successful campaign and apply to future.
-
-    Extracts winning patterns for TAB 1 (Market Intelligence) and TAB 2 (Creative Studio).
-    """
+    """Learn from successful campaign."""
     result = await db.execute(
         select(Campaign)
         .where(Campaign.id == request.campaign_id, Campaign.user_id == current_user.id)
     )
     campaign = result.scalar_one_or_none()
-
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
 
-    # Get best performing ad
-    ads_result = await db.execute(
-        select(Ad).where(Ad.campaign_id == campaign.id)
-    )
+    ads_result = await db.execute(select(Ad).where(Ad.campaign_id == campaign.id))
     ads = ads_result.scalars().all()
-
     if not ads:
         raise HTTPException(status_code=400, detail="No ads in campaign")
 
-    # Get winning creative
-    winning_ad = ads[0]  # Simplified - should be based on actual metrics
-    creative_result = await db.execute(
-        select(Creative).where(Creative.id == winning_ad.creative_id)
-    )
+    winning_ad = ads[0]
+    creative_result = await db.execute(select(Creative).where(Creative.id == winning_ad.creative_id))
     winning_creative = creative_result.scalar_one_or_none()
 
     winning_style = {}
@@ -346,12 +417,10 @@ async def learn_from_performance(
             pass
 
     recommendations = [
-        f"이 캠페인의 성공 스타일을 기본값으로 설정합니다.",
-        f"추천 타겟: {winning_targeting.get('age_range', {}).get('min_age', 18)}-{winning_targeting.get('age_range', {}).get('max_age', 65)}세",
+        "이 캠페인의 성공 스타일을 기본값으로 설정합니다.",
         "다음 캠페인에서 유사한 크리에이티브 스타일 사용을 권장합니다."
     ]
 
-    # If apply_to_future, save as user's default settings
     if request.apply_to_future and winning_creative:
         user_settings = {
             "default_style": winning_style,
@@ -362,10 +431,8 @@ async def learn_from_performance(
         await db.commit()
 
     return LearnFromPerformanceResponse(
-        winning_style=winning_style,
-        winning_targeting=winning_targeting,
-        recommendations=recommendations,
-        applied=request.apply_to_future
+        winning_style=winning_style, winning_targeting=winning_targeting,
+        recommendations=recommendations, applied=request.apply_to_future
     )
 
 
@@ -375,10 +442,21 @@ async def get_overall_summary(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get overall performance summary across all campaigns."""
-    period_start = datetime.utcnow() - timedelta(days=days)
+    """Get overall performance summary."""
+    # If Meta connected, use real data
+    svc = MetaAdsService(current_user)
+    if svc.connected:
+        overview = await svc.get_account_overview(f"last_{days}d")
+        return {
+            "source": "meta",
+            "connected": True,
+            **overview.get("totals", {}),
+            "account_insights": overview.get("account_insights", {}),
+            "period_days": days,
+        }
 
-    # Get all user's campaigns
+    # Fallback to local DB
+    period_start = datetime.utcnow() - timedelta(days=days)
     result = await db.execute(
         select(Campaign)
         .where(
@@ -387,14 +465,14 @@ async def get_overall_summary(
         )
     )
     campaigns = result.scalars().all()
-
     total_spend = sum(c.spent_amount for c in campaigns)
     total_budget = sum(c.total_budget for c in campaigns)
-    active_campaigns = len([c for c in campaigns if c.status == CampaignStatus.ACTIVE])
 
     return {
+        "source": "local",
+        "connected": False,
         "total_campaigns": len(campaigns),
-        "active_campaigns": active_campaigns,
+        "active_campaigns": len([c for c in campaigns if c.status == CampaignStatus.ACTIVE]),
         "total_budget": total_budget,
         "total_spend": total_spend,
         "budget_utilization": total_spend / total_budget * 100 if total_budget > 0 else 0,
@@ -403,83 +481,30 @@ async def get_overall_summary(
 
 
 # ──────────────────────────────────────────────
-# Meta 연동 캠페인 자동 조회 (Part E-1)
+# Meta campaigns list (kept, improved)
 # ──────────────────────────────────────────────
 
 @router.get("/meta-campaigns")
 async def get_meta_campaigns(
+    date_preset: str = Query(default="last_7d"),
     current_user: User = Depends(get_current_user),
 ):
     """Meta API에서 실제 캠페인 목록 직접 조회."""
-    if not current_user.meta_access_token or not current_user.meta_ad_account_id:
+    svc = MetaAdsService(current_user)
+    if not svc.connected:
         return {"connected": False, "campaigns": [], "message": "Meta 계정을 연동해주세요."}
 
-    ad_account_id = current_user.meta_ad_account_id
-    if not ad_account_id.startswith("act_"):
-        ad_account_id = f"act_{ad_account_id}"
-
-    base_url = f"{settings.META_GRAPH_API_BASE}/{settings.META_API_VERSION}"
-
-    try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            # Fetch campaigns with insights
-            resp = await client.get(
-                f"{base_url}/{ad_account_id}/campaigns",
-                params={
-                    "access_token": current_user.meta_access_token,
-                    "fields": "id,name,status,objective,daily_budget,lifetime_budget,start_time,stop_time,updated_time",
-                    "limit": 25,
-                }
-            )
-
-            if resp.status_code != 200:
-                return {"connected": True, "campaigns": [], "error": "캠페인 목록을 가져올 수 없습니다."}
-
-            campaigns = resp.json().get("data", [])
-
-            # Fetch insights for each active campaign
-            enriched = []
-            for camp in campaigns:
-                camp_data = {
-                    "id": camp.get("id"),
-                    "name": camp.get("name"),
-                    "status": camp.get("status"),
-                    "objective": camp.get("objective"),
-                    "daily_budget": camp.get("daily_budget"),
-                    "lifetime_budget": camp.get("lifetime_budget"),
-                    "start_time": camp.get("start_time"),
-                    "stop_time": camp.get("stop_time"),
-                    "insights": None,
-                }
-
-                if camp.get("status") in ("ACTIVE", "PAUSED"):
-                    try:
-                        insights_resp = await client.get(
-                            f"{base_url}/{camp['id']}/insights",
-                            params={
-                                "access_token": current_user.meta_access_token,
-                                "fields": "spend,impressions,clicks,ctr,cpc,actions",
-                                "date_preset": "last_7d",
-                            }
-                        )
-                        if insights_resp.status_code == 200:
-                            insights_data = insights_resp.json().get("data", [])
-                            if insights_data:
-                                camp_data["insights"] = insights_data[0]
-                    except Exception:
-                        pass
-
-                enriched.append(camp_data)
-
-            return {"connected": True, "campaigns": enriched}
-
-    except Exception as e:
-        logger.error(f"Failed to fetch Meta campaigns: {e}")
-        return {"connected": True, "campaigns": [], "error": str(e)}
+    overview = await svc.get_account_overview(date_preset)
+    return {
+        "connected": True,
+        "campaigns": overview.get("campaigns", []),
+        "totals": overview.get("totals", {}),
+        "account_insights": overview.get("account_insights", {}),
+    }
 
 
 # ──────────────────────────────────────────────
-# 기간 설정 리포트 + 이메일 발송 (Part E-3)
+# Report generation + email
 # ──────────────────────────────────────────────
 
 class ReportRequest(BaseModel):
@@ -487,7 +512,6 @@ class ReportRequest(BaseModel):
     meta_campaign_id: Optional[str] = None
     start_date: str
     end_date: str
-
 
 class ReportEmailRequest(BaseModel):
     campaign_id: Optional[int] = None
@@ -505,10 +529,9 @@ async def generate_report(
 ):
     """기간 지정 리포트 생성."""
     report_data = {"period": {"start": request.start_date, "end": request.end_date}}
+    base_url = f"{settings.META_GRAPH_API_BASE}/{settings.META_API_VERSION}"
 
-    # If Meta campaign, fetch from API
     if request.meta_campaign_id and current_user.meta_access_token:
-        base_url = f"{settings.META_GRAPH_API_BASE}/{settings.META_API_VERSION}"
         try:
             async with httpx.AsyncClient(timeout=15.0) as client:
                 resp = await client.get(
@@ -523,7 +546,6 @@ async def generate_report(
                 if resp.status_code == 200:
                     report_data["daily_data"] = resp.json().get("data", [])
 
-                # Get campaign name
                 camp_resp = await client.get(
                     f"{base_url}/{request.meta_campaign_id}",
                     params={
@@ -535,8 +557,6 @@ async def generate_report(
                     report_data["campaign_info"] = camp_resp.json()
         except Exception as e:
             logger.error(f"Failed to fetch Meta report: {e}")
-
-    # If local campaign
     elif request.campaign_id:
         result = await db.execute(
             select(CampaignPerformance)
@@ -549,26 +569,17 @@ async def generate_report(
         )
         records = result.scalars().all()
         report_data["daily_data"] = [
-            {
-                "date": r.date.isoformat(),
-                "spend": r.spend,
-                "impressions": r.impressions,
-                "clicks": r.clicks,
-                "conversions": r.conversions,
-                "revenue": r.revenue,
-            }
+            {"date": r.date.isoformat(), "spend": r.spend, "impressions": r.impressions,
+             "clicks": r.clicks, "conversions": r.conversions, "revenue": r.revenue}
             for r in records
         ]
 
-    # Generate AI summary
+    # AI summary
     claude = ClaudeService()
     try:
         ai_resp = claude.client.messages.create(
-            model=claude.model,
-            max_tokens=2048,
-            messages=[{
-                "role": "user",
-                "content": f"""다음 캠페인 성과 데이터를 분석하여 한국어 리포트를 작성해주세요.
+            model=claude.model, max_tokens=2048,
+            messages=[{"role": "user", "content": f"""다음 캠페인 성과 데이터를 분석하여 한국어 리포트를 작성해주세요.
 
 {json.dumps(report_data, ensure_ascii=False, indent=2)}
 
@@ -579,8 +590,7 @@ async def generate_report(
 4. 핵심 인사이트 (3-5개)
 5. 실행 가능한 추천 사항 (3-5개)
 
-마크다운 형식으로 작성해주세요."""
-            }],
+마크다운 형식으로 작성해주세요."""}],
         )
         report_data["ai_report"] = ai_resp.content[0].text
     except Exception:
@@ -596,18 +606,13 @@ async def send_report_email(
     db: AsyncSession = Depends(get_db),
 ):
     """리포트를 이메일로 발송."""
-    # Generate report first
     report_request = ReportRequest(
-        campaign_id=request.campaign_id,
-        meta_campaign_id=request.meta_campaign_id,
-        start_date=request.start_date,
-        end_date=request.end_date,
+        campaign_id=request.campaign_id, meta_campaign_id=request.meta_campaign_id,
+        start_date=request.start_date, end_date=request.end_date,
     )
     report = await generate_report(report_request, current_user, db)
 
     ai_report = report.get("ai_report", "리포트 데이터가 없습니다.")
-
-    # Convert markdown to simple HTML
     html_content = ai_report.replace("\n", "<br>")
     html_content = f"""
     <div style="font-family: Arial, sans-serif; max-width: 640px; margin: 0 auto; padding: 20px;">
@@ -615,18 +620,13 @@ async def send_report_email(
             <h1 style="color: white; margin: 0; font-size: 24px;">Meta-Commander 성과 리포트</h1>
             <p style="color: rgba(255,255,255,0.8); margin: 8px 0 0;">기간: {request.start_date} ~ {request.end_date}</p>
         </div>
-        <div style="padding: 20px; background: #f9fafb; border-radius: 8px; line-height: 1.8;">
-            {html_content}
-        </div>
-        <p style="color: #999; font-size: 12px; margin-top: 20px; text-align: center;">
-            Meta-Commander에서 자동 생성된 리포트입니다.
-        </p>
-    </div>
-    """
+        <div style="padding: 20px; background: #f9fafb; border-radius: 8px; line-height: 1.8;">{html_content}</div>
+        <p style="color: #999; font-size: 12px; margin-top: 20px; text-align: center;">Meta-Commander에서 자동 생성된 리포트입니다.</p>
+    </div>"""
 
     try:
         resend.api_key = settings.RESEND_API_KEY
-        result = resend.Emails.send({
+        resend.Emails.send({
             "from": settings.RESEND_FROM_EMAIL,
             "to": [request.email],
             "subject": f"[Meta-Commander] 성과 리포트 ({request.start_date} ~ {request.end_date})",
