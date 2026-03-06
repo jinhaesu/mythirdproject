@@ -13,6 +13,7 @@ import {
   AdsController,
   PerformanceDashboard,
 } from '@/components/tabs';
+import { AICommandCenter } from '@/components/chat/AICommandCenter';
 import toast from 'react-hot-toast';
 
 export default function Home() {
@@ -80,6 +81,7 @@ export default function Home() {
         {activeTab === 3 && <AdsController />}
         {activeTab === 4 && <PerformanceDashboard />}
       </main>
+      <AICommandCenter />
     </div>
   );
 }

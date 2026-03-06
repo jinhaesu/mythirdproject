@@ -2,7 +2,7 @@
 from fastapi import APIRouter
 
 from app.api.v1.endpoints import (
-    auth, benchmark, creative, campaign, analytics, dashboard, campaign_planner
+    auth, benchmark, creative, campaign, analytics, dashboard, campaign_planner, chat
 )
 
 api_router = APIRouter()
@@ -54,4 +54,11 @@ api_router.include_router(
     dashboard.router,
     prefix="/dashboard",
     tags=["Dashboard & Revenue"]
+)
+
+# AI Command Center (Chat)
+api_router.include_router(
+    chat.router,
+    prefix="/ai",
+    tags=["AI Command Center"]
 )

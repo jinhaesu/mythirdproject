@@ -347,4 +347,12 @@ export const campaignPlannerApi = {
   },
 };
 
+// AI Chat API
+export const chatApi = {
+  send: async (message: string, history: { role: string; content: string }[] = []) => {
+    const { data } = await api.post('/ai/chat', { message, history });
+    return data;
+  },
+};
+
 export default api;

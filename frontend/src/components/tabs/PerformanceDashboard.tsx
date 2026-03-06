@@ -58,14 +58,31 @@ export function PerformanceDashboard() {
       <Card variant="bordered">
         <div className="text-center py-12">
           <TrendingUp size={48} className="mx-auto mb-4 text-gray-400" />
-          <h3 className="text-lg font-medium mb-2">캠페인을 선택하세요</h3>
-          <p className="text-gray-500 mb-4">분석할 캠페인을 선택하면 성과 대시보드가 표시됩니다</p>
-          {campaigns && campaigns.length > 0 && (
-            <Select
-              options={campaigns.map((c) => ({ value: String(c.id), label: c.name }))}
-              onChange={(e) => setSelectedCampaignId(Number(e.target.value))}
-              className="max-w-xs mx-auto"
-            />
+          {campaigns && campaigns.length > 0 ? (
+            <>
+              <h3 className="text-lg font-medium mb-2">캠페인을 선택하세요</h3>
+              <p className="text-gray-500 mb-4">분석할 캠페인을 선택하면 성과 대시보드가 표시됩니다</p>
+              <div className="max-w-xs mx-auto space-y-2">
+                {campaigns.map((c) => (
+                  <button key={c.id} onClick={() => setSelectedCampaignId(c.id)}
+                    className="w-full text-left p-3 border border-gray-200 rounded-lg hover:border-primary-400 hover:bg-primary-50 transition-colors">
+                    <p className="font-medium text-sm">{c.name}</p>
+                    <p className="text-xs text-gray-500">
+                      {c.status === 'ACTIVE' ? '진행중' : c.status === 'DRAFT' ? '초안' : c.status === 'PAUSED' ? '일시정지' : c.status}
+                      {' · '}₩{c.total_budget.toLocaleString()}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : (
+            <>
+              <h3 className="text-lg font-medium mb-2">아직 캠페인이 없습니다</h3>
+              <p className="text-gray-500 mb-4">광고 집행 탭에서 캠페인을 생성하면 여기서 성과를 분석할 수 있습니다</p>
+              <Button variant="outline" onClick={() => setActiveTab(3)}>
+                광고 집행 탭으로 이동
+              </Button>
+            </>
           )}
         </div>
       </Card>
