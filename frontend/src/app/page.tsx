@@ -9,6 +9,7 @@ import { Button, Input, Card } from '@/components/ui';
 import {
   MarketIntelligence,
   CreativeStudio,
+  CampaignPlanner,
   AdsController,
   PerformanceDashboard,
 } from '@/components/tabs';
@@ -30,7 +31,6 @@ export default function Home() {
           localStorage.setItem('token', data.access_token);
           const user = await authApi.getMe();
           setAuth(user, data.access_token);
-          // Clean URL
           window.history.replaceState({}, '', '/');
           toast.success('로그인 성공!');
         })
@@ -41,6 +41,18 @@ export default function Home() {
         .finally(() => setVerifying(false));
     }
   }, []);
+
+  // Refresh user info on page load (meta_connected status 등 갱신)
+  useEffect(() => {
+    if (isAuthenticated) {
+      authApi.getMe()
+        .then((user) => {
+          const token = localStorage.getItem('token');
+          if (token) setAuth(user, token);
+        })
+        .catch(() => {});
+    }
+  }, [isAuthenticated]);
 
   if (verifying) {
     return (
@@ -64,8 +76,9 @@ export default function Home() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {activeTab === 0 && <MarketIntelligence />}
         {activeTab === 1 && <CreativeStudio />}
-        {activeTab === 2 && <AdsController />}
-        {activeTab === 3 && <PerformanceDashboard />}
+        {activeTab === 2 && <CampaignPlanner />}
+        {activeTab === 3 && <AdsController />}
+        {activeTab === 4 && <PerformanceDashboard />}
       </main>
     </div>
   );
