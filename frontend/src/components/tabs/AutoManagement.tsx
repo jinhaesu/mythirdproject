@@ -5,7 +5,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import {
   Shield, Plus, Bot, PlayCircle, Trash2, Clock,
   ToggleLeft, ToggleRight, Calendar, Loader2, Zap,
-  ChevronDown, ChevronRight,
+  ChevronDown, ChevronRight, FileText, Mail,
 } from 'lucide-react';
 import { analyticsApi } from '@/lib/api';
 
@@ -63,10 +63,31 @@ function formatThreshold(metric: string, value: number): string {
   return fmt ? fmt(value) : String(value);
 }
 
+const formatSpend = (v: any) => {
+  if (!v) return '\u20A90';
+  const n = parseFloat(v);
+  if (n >= 10000) return `\u20A9${(n / 10000).toFixed(1)}\uB9CC`;
+  return `\u20A9${Math.round(n).toLocaleString('ko-KR')}`;
+};
+const formatNum = (v: any) => {
+  if (!v) return '0';
+  const n = parseFloat(v);
+  if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
+  return n.toFixed(n < 10 ? 2 : 0);
+};
+const formatCPC = (v: any) => {
+  if (!v) return '\u20A90';
+  return `\u20A9${Math.round(parseFloat(v)).toLocaleString('ko-KR')}`;
+};
+
 export function AutoManagement() {
   const [showRuleForm, setShowRuleForm] = useState(false);
   const [showScheduleForm, setShowScheduleForm] = useState(false);
   const [showHistory, setShowHistory] = useState(true);
+  const [reportDates, setReportDates] = useState({ start: '', end: '' });
+  const [reportEmail, setReportEmail] = useState('');
+  const [reportCampaignId, setReportCampaignId] = useState('');
 
   // Rule form state
   const [ruleForm, setRuleForm] = useState({
@@ -142,6 +163,16 @@ export function AutoManagement() {
   const updateScheduleMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: any }) => analyticsApi.updateSchedule(id, data),
     onSuccess: () => refetchSchedules(),
+  });
+
+  const reportMutation = useMutation({
+    mutationFn: (req: { meta_campaign_id?: string; start_date: string; end_date: string }) =>
+      analyticsApi.generateReport(req),
+  });
+
+  const emailMutation = useMutation({
+    mutationFn: (req: { meta_campaign_id?: string; start_date: string; end_date: string; email: string }) =>
+      analyticsApi.sendReportEmail(req),
   });
 
   const resetRuleForm = () => setRuleForm({
@@ -518,6 +549,105 @@ export function AutoManagement() {
                 <p className="text-gray-400 text-sm">아직 실행 기록이 없습니다.</p>
               </div>
             )}
+          </div>
+        )}
+      </div>
+
+      {/* Period Report */}
+      <div className="bg-white border border-gray-200 rounded-xl p-5">
+        <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2"><FileText size={18} /> 기간 리포트</h3>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">캠페인</label>
+            <select value={reportCampaignId} onChange={(e) => setReportCampaignId(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm">
+              <option value="">전체 계정</option>
+              {allCampaigns.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">시작일</label>
+            <input type="date" value={reportDates.start} onChange={(e) => setReportDates(d => ({ ...d, start: e.target.value }))} className="w-full px-3 py-2 border rounded-lg text-sm" />
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">종료일</label>
+            <input type="date" value={reportDates.end} onChange={(e) => setReportDates(d => ({ ...d, end: e.target.value }))} className="w-full px-3 py-2 border rounded-lg text-sm" />
+          </div>
+          <div className="flex items-end">
+            <button onClick={() => reportMutation.mutate({ meta_campaign_id: reportCampaignId || undefined, start_date: reportDates.start, end_date: reportDates.end })}
+              disabled={!reportDates.start || !reportDates.end || reportMutation.isPending}
+              className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50">
+              {reportMutation.isPending ? <Loader2 size={14} className="animate-spin mx-auto" /> : '리포트 생성'}
+            </button>
+          </div>
+        </div>
+        <div className="mt-3 flex items-center gap-2">
+          <input type="email" value={reportEmail} onChange={(e) => setReportEmail(e.target.value)} placeholder="이메일 주소" className="flex-1 px-3 py-2 border rounded-lg text-sm" />
+          <button onClick={() => emailMutation.mutate({ meta_campaign_id: reportCampaignId || undefined, start_date: reportDates.start, end_date: reportDates.end, email: reportEmail })}
+            disabled={!reportEmail || !reportDates.start || !reportDates.end || emailMutation.isPending}
+            className="bg-purple-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2">
+            <Mail size={14} /> {emailMutation.isPending ? '발송중...' : '이메일 발송'}
+          </button>
+        </div>
+        {emailMutation.isSuccess && <p className="mt-2 text-sm text-green-600">{(emailMutation.data as any)?.message}</p>}
+        {emailMutation.isError && <p className="mt-2 text-sm text-red-600">이메일 발송에 실패했습니다.</p>}
+
+        {reportMutation.isSuccess && (
+          <div className="mt-4 space-y-4">
+            {(reportMutation.data as any)?.daily_data?.length > 0 && (
+              <div className="bg-gray-50 rounded-lg p-4">
+                <h4 className="text-sm font-semibold text-gray-700 mb-3">일별 데이터</h4>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-gray-200">
+                        <th className="text-left py-2 px-2 text-gray-500">날짜</th>
+                        <th className="text-right py-2 px-2 text-gray-500">지출</th>
+                        <th className="text-right py-2 px-2 text-gray-500">노출</th>
+                        <th className="text-right py-2 px-2 text-gray-500">도달</th>
+                        <th className="text-right py-2 px-2 text-gray-500">클릭</th>
+                        <th className="text-right py-2 px-2 text-gray-500">CTR</th>
+                        <th className="text-right py-2 px-2 text-gray-500">CPC</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(reportMutation.data as any).daily_data.map((row: any, i: number) => (
+                        <tr key={i} className="border-b border-gray-100">
+                          <td className="py-1.5 px-2 text-gray-700">{row.date_stop || row.date || '-'}</td>
+                          <td className="py-1.5 px-2 text-right font-medium">{formatSpend(row.spend)}</td>
+                          <td className="py-1.5 px-2 text-right">{formatNum(row.impressions)}</td>
+                          <td className="py-1.5 px-2 text-right">{formatNum(row.reach)}</td>
+                          <td className="py-1.5 px-2 text-right">{formatNum(row.clicks)}</td>
+                          <td className="py-1.5 px-2 text-right">{parseFloat(row.ctr || '0').toFixed(2)}%</td>
+                          <td className="py-1.5 px-2 text-right">{formatCPC(row.cpc)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {(reportMutation.data as any)?.campaign_info && (
+              <div className="bg-blue-50 rounded-lg p-3">
+                <p className="text-sm text-blue-800">
+                  <span className="font-semibold">{(reportMutation.data as any).campaign_info.name}</span>
+                  <span className="ml-2 text-xs bg-blue-200 px-2 py-0.5 rounded">{(reportMutation.data as any).campaign_info.status}</span>
+                  <span className="ml-2 text-xs text-blue-600">{(reportMutation.data as any).campaign_info.objective}</span>
+                </p>
+              </div>
+            )}
+
+            {(reportMutation.data as any)?.ai_report && (
+              <div className="bg-gray-50 rounded-lg p-4 max-h-96 overflow-y-auto">
+                <h4 className="text-sm font-semibold text-gray-700 mb-2">AI 분석 리포트</h4>
+                <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{(reportMutation.data as any).ai_report}</div>
+              </div>
+            )}
+          </div>
+        )}
+        {reportMutation.isError && (
+          <div className="mt-4 bg-red-50 rounded-lg p-4">
+            <p className="text-sm text-red-600">리포트 생성에 실패했습니다.</p>
           </div>
         )}
       </div>

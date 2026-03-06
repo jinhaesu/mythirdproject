@@ -48,6 +48,9 @@ async def get_db() -> AsyncSession:
 
 async def init_db():
     """Initialize database tables and add missing columns."""
+    # Ensure all models are registered with Base.metadata before create_all
+    import app.models  # noqa: F401
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         # Add meta_ig_account_id column if missing (create_all doesn't alter existing tables)

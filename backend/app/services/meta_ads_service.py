@@ -168,6 +168,12 @@ class MetaAdsService:
 
             result["campaigns"].append(camp_data)
 
+        # Propagate any Meta API errors to the frontend
+        if campaigns_resp.get("error"):
+            result["campaigns_error"] = campaigns_resp["error"]
+        if account_resp.get("error"):
+            result["account_error"] = account_resp["error"]
+
         result["totals"] = self._calculate_totals(result["campaigns"])
         return result
 
