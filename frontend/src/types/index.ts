@@ -7,6 +7,8 @@ export interface User {
   is_active: boolean;
   created_at: string;
   meta_connected: boolean;
+  meta_user_id?: string;
+  meta_ad_account_id?: string;
   brand_settings?: BrandSettings;
 }
 

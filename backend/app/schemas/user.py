@@ -38,6 +38,8 @@ class UserResponse(UserBase):
     is_active: bool
     created_at: datetime
     meta_connected: bool = False
+    meta_user_id: Optional[str] = None
+    meta_ad_account_id: Optional[str] = None
     brand_settings: Optional[BrandSettings] = None
 
     class Config:

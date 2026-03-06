@@ -161,7 +161,18 @@ async def verify_magic_link(
 @router.get("/me", response_model=UserResponse)
 async def get_me(current_user: User = Depends(get_current_user)):
     """Get current user info."""
-    return current_user
+    return UserResponse(
+        id=current_user.id,
+        email=current_user.email,
+        full_name=current_user.full_name,
+        company_name=current_user.company_name,
+        is_active=current_user.is_active,
+        created_at=current_user.created_at,
+        meta_connected=bool(current_user.meta_access_token),
+        meta_user_id=current_user.meta_user_id,
+        meta_ad_account_id=current_user.meta_ad_account_id,
+        brand_settings=None,
+    )
 
 
 @router.post("/connect-meta")
