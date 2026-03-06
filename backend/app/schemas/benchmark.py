@@ -99,10 +99,46 @@ class BenchmarkResponse(BaseModel):
     ai_summary: Optional[AISummaryResponse] = None
     sentiment_analysis: Optional[SentimentAnalysis] = None
     style_extraction: Optional[StyleExtraction] = None
+    data_source: str = "ai"  # "meta_api" or "ai"
+    ai_report: Optional[MarketIntelligenceReport] = None
     created_at: datetime
 
     class Config:
         from_attributes = True
+
+
+class ContentTrend(BaseModel):
+    """A single content trend."""
+    topic: str
+    description: str
+    engagement_level: str  # high, medium, low
+    examples: List[str] = []
+
+
+class HashtagGroup(BaseModel):
+    """A group of related hashtags."""
+    theme: str
+    hashtags: List[str]
+    avg_engagement: float = 0.0
+    recommendation: str = ""
+
+
+class ContentPillar(BaseModel):
+    """A content pillar recommendation."""
+    pillar_name: str
+    description: str
+    content_ratio: int  # percentage
+    example_topics: List[str] = []
+
+
+class MarketIntelligenceReport(BaseModel):
+    """AI-generated market intelligence report (for non-Meta-connected users)."""
+    market_overview: str
+    content_trends: List[ContentTrend] = []
+    hashtag_groups: List[HashtagGroup] = []
+    content_pillars: List[ContentPillar] = []
+    competitor_insights: List[str] = []
+    recommendations: List[str] = []
 
 
 class StyleExtractionRequest(BaseModel):

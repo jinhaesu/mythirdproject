@@ -171,6 +171,7 @@ async def get_me(current_user: User = Depends(get_current_user)):
         meta_connected=bool(current_user.meta_access_token),
         meta_user_id=current_user.meta_user_id,
         meta_ad_account_id=current_user.meta_ad_account_id,
+        meta_ig_account_id=current_user.meta_ig_account_id,
         brand_settings=None,
     )
 
@@ -382,6 +383,13 @@ async def meta_oauth_callback(
         # Auto-select first ad account if available
         if ad_accounts and not current_user.meta_ad_account_id:
             current_user.meta_ad_account_id = ad_accounts[0].get("account_id")
+
+        # Save IG Business Account ID from pages
+        for page in pages:
+            ig_biz = page.get("instagram_business_account")
+            if ig_biz and ig_biz.get("id"):
+                current_user.meta_ig_account_id = ig_biz["id"]
+                break
 
         await db.commit()
 

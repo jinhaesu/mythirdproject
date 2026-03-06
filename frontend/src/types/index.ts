@@ -9,6 +9,7 @@ export interface User {
   meta_connected: boolean;
   meta_user_id?: string;
   meta_ad_account_id?: string;
+  meta_ig_account_id?: string;
   brand_settings?: BrandSettings;
 }
 
@@ -45,6 +46,36 @@ export interface CollectedPost {
   posted_at?: string;
 }
 
+export interface ContentTrend {
+  topic: string;
+  description: string;
+  engagement_level: string;
+  examples: string[];
+}
+
+export interface HashtagGroup {
+  theme: string;
+  hashtags: string[];
+  avg_engagement: number;
+  recommendation: string;
+}
+
+export interface ContentPillar {
+  pillar_name: string;
+  description: string;
+  content_ratio: number;
+  example_topics: string[];
+}
+
+export interface MarketIntelligenceReport {
+  market_overview: string;
+  content_trends: ContentTrend[];
+  hashtag_groups: HashtagGroup[];
+  content_pillars: ContentPillar[];
+  competitor_insights: string[];
+  recommendations: string[];
+}
+
 export interface BenchmarkResponse {
   id: number;
   query: string;
@@ -54,6 +85,8 @@ export interface BenchmarkResponse {
   posts: CollectedPost[];
   ai_summary?: AISummary;
   sentiment_analysis?: SentimentAnalysis;
+  data_source: string; // "meta_api" or "ai"
+  ai_report?: MarketIntelligenceReport;
   created_at: string;
 }
 
@@ -221,4 +254,44 @@ export interface PerformanceDashboard {
     recommendation: string;
   };
   ai_insights: AIInsight[];
+}
+
+// Auto Plan types (One-Click Campaign)
+export interface AutoPlanRequest {
+  product_url?: string;
+  product_name?: string;
+  product_description?: string;
+  product_price?: number;
+  budget: number;
+  start_date?: string;
+  end_date?: string;
+}
+
+export interface AutoPlanResponse {
+  product_info: Record<string, any>;
+  campaign_structure: Record<string, any>;
+  targeting: Record<string, any>;
+  copywriting: Record<string, any>;
+  utm_links: Record<string, any>[];
+  overall_strategy: string;
+  meta_recommendations?: string;
+}
+
+// Meta Campaign (from API)
+export interface MetaCampaign {
+  id: string;
+  name: string;
+  status: string;
+  objective?: string;
+  daily_budget?: string;
+  lifetime_budget?: string;
+  start_time?: string;
+  stop_time?: string;
+  insights?: Record<string, any>;
+}
+
+// Chat types
+export interface ChatResponse {
+  reply: string;
+  suggested_questions: string[];
 }

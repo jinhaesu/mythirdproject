@@ -2,11 +2,16 @@
 from typing import List, Optional
 from datetime import date, datetime, timedelta
 import json
+import logging
 
+import httpx
+import resend
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, EmailStr
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
+from app.core.config import get_settings
 from app.db.database import get_db
 from app.models.user import User
 from app.models.campaign import Campaign, Ad, CampaignPerformance, CampaignStatus
@@ -22,7 +27,9 @@ from app.api.v1.endpoints.auth import get_current_user
 from app.services.meta import MetaMarketingAPI
 from app.services.ai import ClaudeService
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
+settings = get_settings()
 
 
 @router.get("/dashboard/{campaign_id}", response_model=PerformanceDashboardResponse)
@@ -393,3 +400,238 @@ async def get_overall_summary(
         "budget_utilization": total_spend / total_budget * 100 if total_budget > 0 else 0,
         "period_days": days
     }
+
+
+# ──────────────────────────────────────────────
+# Meta 연동 캠페인 자동 조회 (Part E-1)
+# ──────────────────────────────────────────────
+
+@router.get("/meta-campaigns")
+async def get_meta_campaigns(
+    current_user: User = Depends(get_current_user),
+):
+    """Meta API에서 실제 캠페인 목록 직접 조회."""
+    if not current_user.meta_access_token or not current_user.meta_ad_account_id:
+        return {"connected": False, "campaigns": [], "message": "Meta 계정을 연동해주세요."}
+
+    ad_account_id = current_user.meta_ad_account_id
+    if not ad_account_id.startswith("act_"):
+        ad_account_id = f"act_{ad_account_id}"
+
+    base_url = f"{settings.META_GRAPH_API_BASE}/{settings.META_API_VERSION}"
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            # Fetch campaigns with insights
+            resp = await client.get(
+                f"{base_url}/{ad_account_id}/campaigns",
+                params={
+                    "access_token": current_user.meta_access_token,
+                    "fields": "id,name,status,objective,daily_budget,lifetime_budget,start_time,stop_time,updated_time",
+                    "limit": 25,
+                }
+            )
+
+            if resp.status_code != 200:
+                return {"connected": True, "campaigns": [], "error": "캠페인 목록을 가져올 수 없습니다."}
+
+            campaigns = resp.json().get("data", [])
+
+            # Fetch insights for each active campaign
+            enriched = []
+            for camp in campaigns:
+                camp_data = {
+                    "id": camp.get("id"),
+                    "name": camp.get("name"),
+                    "status": camp.get("status"),
+                    "objective": camp.get("objective"),
+                    "daily_budget": camp.get("daily_budget"),
+                    "lifetime_budget": camp.get("lifetime_budget"),
+                    "start_time": camp.get("start_time"),
+                    "stop_time": camp.get("stop_time"),
+                    "insights": None,
+                }
+
+                if camp.get("status") in ("ACTIVE", "PAUSED"):
+                    try:
+                        insights_resp = await client.get(
+                            f"{base_url}/{camp['id']}/insights",
+                            params={
+                                "access_token": current_user.meta_access_token,
+                                "fields": "spend,impressions,clicks,ctr,cpc,actions",
+                                "date_preset": "last_7d",
+                            }
+                        )
+                        if insights_resp.status_code == 200:
+                            insights_data = insights_resp.json().get("data", [])
+                            if insights_data:
+                                camp_data["insights"] = insights_data[0]
+                    except Exception:
+                        pass
+
+                enriched.append(camp_data)
+
+            return {"connected": True, "campaigns": enriched}
+
+    except Exception as e:
+        logger.error(f"Failed to fetch Meta campaigns: {e}")
+        return {"connected": True, "campaigns": [], "error": str(e)}
+
+
+# ──────────────────────────────────────────────
+# 기간 설정 리포트 + 이메일 발송 (Part E-3)
+# ──────────────────────────────────────────────
+
+class ReportRequest(BaseModel):
+    campaign_id: Optional[int] = None
+    meta_campaign_id: Optional[str] = None
+    start_date: str
+    end_date: str
+
+
+class ReportEmailRequest(BaseModel):
+    campaign_id: Optional[int] = None
+    meta_campaign_id: Optional[str] = None
+    start_date: str
+    end_date: str
+    email: EmailStr
+
+
+@router.post("/report")
+async def generate_report(
+    request: ReportRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """기간 지정 리포트 생성."""
+    report_data = {"period": {"start": request.start_date, "end": request.end_date}}
+
+    # If Meta campaign, fetch from API
+    if request.meta_campaign_id and current_user.meta_access_token:
+        base_url = f"{settings.META_GRAPH_API_BASE}/{settings.META_API_VERSION}"
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                resp = await client.get(
+                    f"{base_url}/{request.meta_campaign_id}/insights",
+                    params={
+                        "access_token": current_user.meta_access_token,
+                        "fields": "spend,impressions,reach,clicks,ctr,cpc,cpm,actions,cost_per_action_type",
+                        "time_range": json.dumps({"since": request.start_date, "until": request.end_date}),
+                        "time_increment": 1,
+                    }
+                )
+                if resp.status_code == 200:
+                    report_data["daily_data"] = resp.json().get("data", [])
+
+                # Get campaign name
+                camp_resp = await client.get(
+                    f"{base_url}/{request.meta_campaign_id}",
+                    params={
+                        "access_token": current_user.meta_access_token,
+                        "fields": "name,status,objective",
+                    }
+                )
+                if camp_resp.status_code == 200:
+                    report_data["campaign_info"] = camp_resp.json()
+        except Exception as e:
+            logger.error(f"Failed to fetch Meta report: {e}")
+
+    # If local campaign
+    elif request.campaign_id:
+        result = await db.execute(
+            select(CampaignPerformance)
+            .where(
+                CampaignPerformance.campaign_id == request.campaign_id,
+                CampaignPerformance.date >= datetime.strptime(request.start_date, "%Y-%m-%d"),
+                CampaignPerformance.date <= datetime.strptime(request.end_date, "%Y-%m-%d"),
+            )
+            .order_by(CampaignPerformance.date)
+        )
+        records = result.scalars().all()
+        report_data["daily_data"] = [
+            {
+                "date": r.date.isoformat(),
+                "spend": r.spend,
+                "impressions": r.impressions,
+                "clicks": r.clicks,
+                "conversions": r.conversions,
+                "revenue": r.revenue,
+            }
+            for r in records
+        ]
+
+    # Generate AI summary
+    claude = ClaudeService()
+    try:
+        ai_resp = claude.client.messages.create(
+            model=claude.model,
+            max_tokens=2048,
+            messages=[{
+                "role": "user",
+                "content": f"""다음 캠페인 성과 데이터를 분석하여 한국어 리포트를 작성해주세요.
+
+{json.dumps(report_data, ensure_ascii=False, indent=2)}
+
+리포트 형식:
+1. 기간 요약
+2. 주요 KPI 분석
+3. 일별 트렌드 분석
+4. 핵심 인사이트 (3-5개)
+5. 실행 가능한 추천 사항 (3-5개)
+
+마크다운 형식으로 작성해주세요."""
+            }],
+        )
+        report_data["ai_report"] = ai_resp.content[0].text
+    except Exception:
+        report_data["ai_report"] = "AI 리포트 생성에 실패했습니다."
+
+    return report_data
+
+
+@router.post("/report/email")
+async def send_report_email(
+    request: ReportEmailRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """리포트를 이메일로 발송."""
+    # Generate report first
+    report_request = ReportRequest(
+        campaign_id=request.campaign_id,
+        meta_campaign_id=request.meta_campaign_id,
+        start_date=request.start_date,
+        end_date=request.end_date,
+    )
+    report = await generate_report(report_request, current_user, db)
+
+    ai_report = report.get("ai_report", "리포트 데이터가 없습니다.")
+
+    # Convert markdown to simple HTML
+    html_content = ai_report.replace("\n", "<br>")
+    html_content = f"""
+    <div style="font-family: Arial, sans-serif; max-width: 640px; margin: 0 auto; padding: 20px;">
+        <div style="background: linear-gradient(135deg, #1877F2, #E1306C); padding: 20px; border-radius: 12px; margin-bottom: 20px;">
+            <h1 style="color: white; margin: 0; font-size: 24px;">Meta-Commander 성과 리포트</h1>
+            <p style="color: rgba(255,255,255,0.8); margin: 8px 0 0;">기간: {request.start_date} ~ {request.end_date}</p>
+        </div>
+        <div style="padding: 20px; background: #f9fafb; border-radius: 8px; line-height: 1.8;">
+            {html_content}
+        </div>
+        <p style="color: #999; font-size: 12px; margin-top: 20px; text-align: center;">
+            Meta-Commander에서 자동 생성된 리포트입니다.
+        </p>
+    </div>
+    """
+
+    try:
+        resend.api_key = settings.RESEND_API_KEY
+        result = resend.Emails.send({
+            "from": settings.RESEND_FROM_EMAIL,
+            "to": [request.email],
+            "subject": f"[Meta-Commander] 성과 리포트 ({request.start_date} ~ {request.end_date})",
+            "html": html_content,
+        })
+        return {"success": True, "message": f"리포트가 {request.email}로 발송되었습니다."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"이메일 발송 실패: {str(e)}")

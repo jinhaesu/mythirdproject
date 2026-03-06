@@ -1,6 +1,7 @@
 """Market Intelligence / Benchmark endpoints (TAB 1)."""
 from typing import List, Optional
 import json
+import re
 
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,7 +13,8 @@ from app.models.benchmark import Benchmark, CollectedPost, BenchmarkType
 from app.schemas.benchmark import (
     BenchmarkQuery, BenchmarkResponse, CollectedPostResponse,
     AISummaryResponse, SentimentAnalysis,
-    StyleExtractionRequest, StyleExtractionResponse, StyleExtraction
+    StyleExtractionRequest, StyleExtractionResponse, StyleExtraction,
+    MarketIntelligenceReport, ContentTrend, HashtagGroup, ContentPillar,
 )
 from app.api.v1.endpoints.auth import get_current_user
 from app.services.meta import MetaGraphAPI
@@ -30,34 +32,64 @@ def determine_benchmark_type(query: str) -> BenchmarkType:
     elif query.startswith("http"):
         return BenchmarkType.URL_ANALYSIS
     else:
-        # 일반 키워드 → 해시태그 검색으로 처리
         return BenchmarkType.HASHTAG_RESEARCH
 
 
-async def _generate_ai_market_data(query: str, limit: int) -> list:
-    """Meta API 사용 불가 시 AI로 시장 분석 데이터 생성."""
-    import random
-
+async def _generate_ai_market_report(query: str) -> dict:
+    """Generate an AI-powered market intelligence report instead of fake posts."""
     claude = ClaudeService()
-    prompt = f"""'{query}' 키워드로 Instagram/Facebook에서 인기있는 광고/게시물을 분석합니다.
+    prompt = f"""'{query}' 키워드에 대한 Instagram/Facebook 시장 분석 리포트를 생성해주세요.
 
-실제 마케팅 데이터처럼 다음 형식의 JSON 배열을 {min(limit, 12)}개 생성해주세요:
+실제 마케팅 전문가처럼 분석해주세요. JSON 형식으로 응답:
+{{
+    "market_overview": "이 시장/키워드에 대한 전반적인 분석 (3-5문장)",
+    "content_trends": [
+        {{
+            "topic": "트렌드 주제",
+            "description": "구체적 설명",
+            "engagement_level": "high/medium/low",
+            "examples": ["콘텐츠 예시1", "콘텐츠 예시2"]
+        }}
+    ],
+    "hashtag_groups": [
+        {{
+            "theme": "해시태그 그룹 테마",
+            "hashtags": ["#태그1", "#태그2", "#태그3"],
+            "avg_engagement": 3.5,
+            "recommendation": "사용 추천 이유"
+        }}
+    ],
+    "content_pillars": [
+        {{
+            "pillar_name": "콘텐츠 축 이름",
+            "description": "설명",
+            "content_ratio": 30,
+            "example_topics": ["예시 주제1", "예시 주제2"]
+        }}
+    ],
+    "competitor_insights": [
+        "경쟁사/시장 인사이트1",
+        "경쟁사/시장 인사이트2"
+    ],
+    "recommendations": [
+        "실행 가능한 추천 전략1",
+        "실행 가능한 추천 전략2"
+    ],
+    "estimated_posts": [
+        {{
+            "caption": "트렌드를 반영한 예시 캡션 (해시태그 포함, 한국어)",
+            "media_type": "IMAGE",
+            "like_count": 현실적인 좋아요 수,
+            "comments_count": 현실적인 댓글 수,
+            "engagement_rate": 현실적인 참여율,
+            "content_theme": "콘텐츠 주제"
+        }}
+    ]
+}}
 
-[
-  {{
-    "caption": "실제 인스타그램 게시물처럼 작성한 캡션 (해시태그 포함, 한국어)",
-    "media_type": "IMAGE",
-    "like_count": 좋아요 수 (100~50000 사이 현실적인 수치),
-    "comments_count": 댓글 수 (5~2000 사이 현실적인 수치),
-    "shares_count": 공유 수 (0~500),
-    "engagement_rate": 참여율 (1.0~15.0 사이),
-    "estimated_reach": 예상 도달 (1000~500000),
-    "content_theme": "콘텐츠 주제"
-  }}
-]
-
-'{query}' 관련 실제 트렌드를 반영해서 다양한 콘텐츠 유형을 포함해주세요.
-JSON 배열만 출력하세요. 다른 텍스트 없이."""
+'{query}' 관련 실제 트렌드와 시장 상황을 반영해주세요.
+estimated_posts는 5-8개 정도 다양하게 생성해주세요.
+JSON만 출력하세요."""
 
     try:
         result = claude.client.messages.create(
@@ -66,30 +98,23 @@ JSON 배열만 출력하세요. 다른 텍스트 없이."""
             messages=[{"role": "user", "content": prompt}],
         )
         text = result.content[0].text.strip()
-        # JSON 배열 추출
-        if text.startswith("["):
+        if text.startswith("{"):
             return json.loads(text)
-        # ```json ... ``` 패턴 처리
-        import re
-        match = re.search(r'\[[\s\S]*\]', text)
+        match = re.search(r'\{[\s\S]*\}', text)
         if match:
             return json.loads(match.group())
-    except Exception as e:
+    except Exception:
         pass
 
-    # AI 실패 시 기본 데이터
-    return [
-        {
-            "caption": f"{query} 관련 인기 게시물 #{i+1} - 트렌드 분석 중 #{query.replace(' ', '')}",
-            "media_type": "IMAGE",
-            "like_count": random.randint(200, 15000),
-            "comments_count": random.randint(10, 800),
-            "shares_count": random.randint(5, 200),
-            "engagement_rate": round(random.uniform(1.5, 8.0), 2),
-            "estimated_reach": random.randint(2000, 200000),
-        }
-        for i in range(min(limit, 10))
-    ]
+    return {
+        "market_overview": f"'{query}' 관련 시장 분석 데이터를 생성하지 못했습니다.",
+        "content_trends": [],
+        "hashtag_groups": [],
+        "content_pillars": [],
+        "competitor_insights": [],
+        "recommendations": [],
+        "estimated_posts": [],
+    }
 
 
 @router.post("/search", response_model=BenchmarkResponse)
@@ -102,14 +127,11 @@ async def search_benchmark(
     """
     Search and analyze competitor/keyword content.
 
-    Query can be:
-    - @username: Competitor Instagram account
-    - #hashtag: Hashtag research
-    - keyword: General keyword analysis (AI-powered)
+    - Meta 연동 유저: Business Discovery API로 실제 데이터
+    - 미연동 유저: AI 시장 분석 리포트 생성 (가짜 이미지 없음)
     """
     benchmark_type = determine_benchmark_type(query.query)
 
-    # Create benchmark record
     benchmark = Benchmark(
         user_id=current_user.id,
         benchmark_type=benchmark_type,
@@ -120,22 +142,24 @@ async def search_benchmark(
     await db.refresh(benchmark)
 
     posts_data = []
-    use_ai_data = False
+    data_source = "ai"
+    ai_report = None
 
     # Meta API로 데이터 수집 시도
-    if current_user.meta_access_token:
+    if current_user.meta_access_token and current_user.meta_ig_account_id:
         meta_api = MetaGraphAPI(current_user.meta_access_token)
         try:
             if benchmark_type == BenchmarkType.COMPETITOR_ACCOUNT:
                 username = query.query.lstrip("@")
-                ig_account_id = current_user.meta_user_id
+                ig_account_id = current_user.meta_ig_account_id
                 result = await meta_api.business_discovery(ig_account_id, username)
                 media = result.get("business_discovery", {}).get("media", {}).get("data", [])
                 posts_data = media
+                data_source = "meta_api"
 
             elif benchmark_type == BenchmarkType.HASHTAG_RESEARCH:
                 hashtag = query.query.lstrip("#")
-                ig_account_id = current_user.meta_user_id
+                ig_account_id = current_user.meta_ig_account_id
                 hashtag_result = await meta_api.search_hashtag(ig_account_id, hashtag)
                 if hashtag_result.get("data"):
                     hashtag_id = hashtag_result["data"][0]["id"]
@@ -143,15 +167,34 @@ async def search_benchmark(
                         ig_account_id, hashtag_id, limit=query.limit
                     )
                     posts_data = media_result.get("data", [])
+                    data_source = "meta_api"
         except Exception as e:
             import logging
             logging.getLogger(__name__).warning(f"Meta API failed for '{query.query}': {e}")
             posts_data = []
 
-    # Meta API 데이터가 없으면 AI로 생성
+    # Meta API 데이터가 없으면 AI 리포트 생성
     if not posts_data:
-        use_ai_data = True
-        posts_data = await _generate_ai_market_data(query.query, query.limit)
+        data_source = "ai"
+        report_data = await _generate_ai_market_report(query.query)
+
+        ai_report = MarketIntelligenceReport(
+            market_overview=report_data.get("market_overview", ""),
+            content_trends=[
+                ContentTrend(**t) for t in report_data.get("content_trends", [])
+            ],
+            hashtag_groups=[
+                HashtagGroup(**h) for h in report_data.get("hashtag_groups", [])
+            ],
+            content_pillars=[
+                ContentPillar(**p) for p in report_data.get("content_pillars", [])
+            ],
+            competitor_insights=report_data.get("competitor_insights", []),
+            recommendations=report_data.get("recommendations", []),
+        )
+
+        # Use estimated_posts for display
+        posts_data = report_data.get("estimated_posts", [])
 
     # Save collected posts
     collected_posts = []
@@ -160,13 +203,15 @@ async def search_benchmark(
         comments = post.get("comments_count", 0)
         shares = post.get("shares_count", 0)
         reach = post.get("estimated_reach", (likes + comments) * 10)
-        eng_rate = post.get("engagement_rate", 0.0)
+
+        # Never use picsum.photos — use actual media_url or null
+        media_url = post.get("media_url") if data_source == "meta_api" else None
 
         collected = CollectedPost(
             benchmark_id=benchmark.id,
             post_id=post.get("id", f"ai_{benchmark.id}_{i}"),
             post_url=post.get("permalink"),
-            media_url=post.get("media_url") or f"https://picsum.photos/seed/{query.query}{i}/400/400",
+            media_url=media_url,
             media_type=post.get("media_type", "IMAGE"),
             caption=post.get("caption", ""),
             likes=likes,
@@ -181,9 +226,9 @@ async def search_benchmark(
 
     # Calculate average engagement
     if collected_posts:
-        if use_ai_data:
-            avg_eng = sum(p.get("engagement_rate", 0) for p in posts_data[:query.limit]) / len(collected_posts)
-            benchmark.avg_engagement_rate = avg_eng
+        if data_source == "ai":
+            eng_rates = [p.get("engagement_rate", 0) for p in posts_data[:query.limit]]
+            benchmark.avg_engagement_rate = sum(eng_rates) / len(eng_rates) if eng_rates else 0
         else:
             total_engagement = sum(p.likes + p.comments for p in collected_posts)
             benchmark.avg_engagement_rate = total_engagement / len(collected_posts)
@@ -193,7 +238,7 @@ async def search_benchmark(
     # Build response
     posts_response = []
     for j, p in enumerate(collected_posts):
-        eng_rate = posts_data[j].get("engagement_rate", 0.0) if use_ai_data and j < len(posts_data) else 0.0
+        eng_rate = posts_data[j].get("engagement_rate", 0.0) if data_source == "ai" and j < len(posts_data) else 0.0
         posts_response.append(
             CollectedPostResponse(
                 id=p.id,
@@ -221,6 +266,8 @@ async def search_benchmark(
         total_posts_analyzed=benchmark.total_posts_analyzed,
         avg_engagement_rate=benchmark.avg_engagement_rate,
         posts=posts_response,
+        data_source=data_source,
+        ai_report=ai_report,
         created_at=benchmark.created_at
     )
 
@@ -231,11 +278,7 @@ async def generate_ai_summary(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """
-    Generate AI summary analysis for benchmark.
-
-    Analyzes top posts and provides insights.
-    """
+    """Generate AI summary analysis for benchmark."""
     result = await db.execute(
         select(Benchmark)
         .where(Benchmark.id == benchmark_id, Benchmark.user_id == current_user.id)
@@ -245,13 +288,11 @@ async def generate_ai_summary(
     if not benchmark:
         raise HTTPException(status_code=404, detail="Benchmark not found")
 
-    # Get collected posts
     posts_result = await db.execute(
         select(CollectedPost).where(CollectedPost.benchmark_id == benchmark_id)
     )
     posts = posts_result.scalars().all()
 
-    # Prepare data for AI analysis
     posts_data = [
         {
             "caption": p.caption,
@@ -262,11 +303,9 @@ async def generate_ai_summary(
         for p in posts
     ]
 
-    # Generate AI summary
     claude = ClaudeService()
     analysis = await claude.analyze_content_trends(posts_data, benchmark.query)
 
-    # Save to benchmark
     benchmark.analysis_summary = json.dumps(analysis, ensure_ascii=False)
     await db.commit()
 
@@ -284,11 +323,7 @@ async def analyze_sentiment(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """
-    Analyze sentiment from comments.
-
-    Returns positive/negative keyword word cloud data.
-    """
+    """Analyze sentiment from comments."""
     result = await db.execute(
         select(Benchmark)
         .where(Benchmark.id == benchmark_id, Benchmark.user_id == current_user.id)
@@ -298,20 +333,16 @@ async def analyze_sentiment(
     if not benchmark:
         raise HTTPException(status_code=404, detail="Benchmark not found")
 
-    # Get posts and their captions (as proxy for comments in demo)
     posts_result = await db.execute(
         select(CollectedPost).where(CollectedPost.benchmark_id == benchmark_id)
     )
     posts = posts_result.scalars().all()
 
-    # Use captions for sentiment analysis (in production, fetch actual comments)
     texts = [p.caption for p in posts if p.caption]
 
-    # Analyze sentiment
     claude = ClaudeService()
     sentiment = await claude.analyze_sentiment(texts)
 
-    # Save to benchmark
     benchmark.sentiment_analysis = json.dumps(sentiment, ensure_ascii=False)
     await db.commit()
 
@@ -329,21 +360,22 @@ async def extract_style(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """
-    Extract style from URL (image or page).
-
-    Reverse-engineering feature for benchmark engine.
-    """
+    """Extract style from URL (image or page)."""
     vision = VisionService()
     claude = ClaudeService()
 
-    # Analyze image style
-    visual_style = await vision.analyze_image_style(request.url)
+    # Resolve the URL to get an actual image URL
+    image_url = await vision.resolve_image_url(request.url)
 
-    # Extract text style if there's text
-    text_extraction = await vision.extract_text_from_image(request.url)
+    if not image_url:
+        raise HTTPException(
+            status_code=400,
+            detail="이 URL에서 이미지를 찾을 수 없습니다. 직접 이미지 URL, Instagram 게시물 URL, 또는 이미지가 있는 웹페이지 URL을 입력해주세요."
+        )
 
-    # Combine into style extraction
+    visual_style = await vision.analyze_image_style(image_url)
+    text_extraction = await vision.extract_text_from_image(image_url)
+
     style = StyleExtraction(
         visual_style=visual_style.get("visual_style", "unknown"),
         color_palette=visual_style.get("color_palette", []),
@@ -354,7 +386,6 @@ async def extract_style(
         key_elements=visual_style.get("key_visual_elements", [])
     )
 
-    # Generate prompt template for Creative Studio
     prompt_template = await vision.generate_image_prompt(
         visual_style,
         "product advertisement",
@@ -363,7 +394,6 @@ async def extract_style(
 
     preview_desc = f"이 콘텐츠는 [{style.visual_style}] 스타일 + [{style.appeal_type}] 소구 패턴입니다."
 
-    # Save as benchmark for reference
     benchmark = Benchmark(
         user_id=current_user.id,
         benchmark_type=BenchmarkType.URL_ANALYSIS,

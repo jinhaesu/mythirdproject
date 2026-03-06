@@ -40,6 +40,7 @@ class UserResponse(UserBase):
     meta_connected: bool = False
     meta_user_id: Optional[str] = None
     meta_ad_account_id: Optional[str] = None
+    meta_ig_account_id: Optional[str] = None
     brand_settings: Optional[BrandSettings] = None
 
     class Config:

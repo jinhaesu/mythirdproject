@@ -6,12 +6,16 @@ import io
 import re
 from urllib.parse import urlencode, quote
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
 from app.api.v1.endpoints.auth import get_current_user
+from app.models.user import User
 from app.services.ai import ClaudeService
+from app.services.meta_context import get_user_meta_context, build_ai_system_prompt_with_context
 from app.schemas.campaign_planner import (
     # Structure
     CampaignStructureRequest, CampaignStructureResponse,
@@ -736,4 +740,205 @@ JSON 형식으로 응답:
         confidence=result.get("confidence", 0.5),
         similar_past_creatives=similar,
         recommendations=result.get("recommendations", []),
+    )
+
+
+# ──────────────────────────────────────────────
+# 7. One-Click Auto Plan (통합 캠페인 기획)
+# ──────────────────────────────────────────────
+
+class AutoPlanRequest(BaseModel):
+    product_url: Optional[str] = Field(None, description="제품 URL (자동으로 정보 추출)")
+    product_name: Optional[str] = Field(None, description="제품명 (URL 없을 경우)")
+    product_description: Optional[str] = Field(None, description="제품 설명")
+    product_price: Optional[float] = Field(None, description="제품 가격")
+    budget: float = Field(..., description="총 예산 (원)")
+    start_date: Optional[str] = Field(None, description="시작일 (YYYY-MM-DD)")
+    end_date: Optional[str] = Field(None, description="종료일 (YYYY-MM-DD)")
+
+
+class AutoPlanResponse(BaseModel):
+    product_info: dict
+    campaign_structure: dict
+    targeting: dict
+    copywriting: dict
+    utm_links: List[dict] = []
+    overall_strategy: str
+    meta_recommendations: Optional[str] = None
+
+
+async def _scrape_product_info(url: str) -> dict:
+    """Scrape product info from URL."""
+    try:
+        async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+            resp = await client.get(url, headers={
+                "User-Agent": "Mozilla/5.0 (compatible; MetaCommander/1.0)"
+            })
+            html = resp.text[:80000]
+
+            def extract_meta(property_name: str) -> Optional[str]:
+                patterns = [
+                    rf'<meta[^>]+(?:property|name)=["\'](?:og:)?{property_name}["\'][^>]+content=["\']([^"\']+)["\']',
+                    rf'<meta[^>]+content=["\']([^"\']+)["\'][^>]+(?:property|name)=["\'](?:og:)?{property_name}["\']',
+                ]
+                for pattern in patterns:
+                    m = re.search(pattern, html, re.IGNORECASE)
+                    if m:
+                        return m.group(1)
+                return None
+
+            title = extract_meta("title") or ""
+            if not title:
+                m = re.search(r'<title>([^<]+)</title>', html)
+                title = m.group(1).strip() if m else ""
+
+            description = extract_meta("description") or ""
+            image = extract_meta("image") or ""
+
+            # Try to find price
+            price_match = re.search(r'[\₩\$][\s]?([\d,]+)', html)
+            price = price_match.group(1).replace(",", "") if price_match else None
+
+            return {
+                "name": title,
+                "description": description,
+                "image_url": image,
+                "price": float(price) if price else None,
+                "source_url": url,
+            }
+    except Exception:
+        return {"name": "", "description": "", "source_url": url}
+
+
+@router.post("/auto-plan", response_model=AutoPlanResponse)
+async def auto_plan_campaign(
+    request: AutoPlanRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    One-Click 캠페인 기획: URL 또는 제품 정보만으로 전체 캠페인 생성.
+
+    1. URL → 웹 스크래핑으로 제품 정보 추출
+    2. Claude AI로 한 번에 생성: 구조 + 타겟 + 카피 + UTM
+    3. Meta 연동 시 과거 성과 데이터 반영
+    """
+    # Step 1: Get product info
+    product_info = {}
+    if request.product_url:
+        product_info = await _scrape_product_info(request.product_url)
+
+    # Override with explicit params
+    if request.product_name:
+        product_info["name"] = request.product_name
+    if request.product_description:
+        product_info["description"] = request.product_description
+    if request.product_price:
+        product_info["price"] = request.product_price
+
+    if not product_info.get("name"):
+        raise HTTPException(status_code=400, detail="제품 정보를 확인할 수 없습니다. 제품명을 직접 입력해주세요.")
+
+    # Step 2: Get Meta context if available
+    meta_context = await get_user_meta_context(current_user)
+    meta_context_text = meta_context.get("summary_text", "")
+
+    # Step 3: Generate full campaign plan via Claude
+    claude = ClaudeService()
+
+    prompt = f"""당신은 Meta 광고 캠페인 전문 플래너입니다.
+다음 제품 정보와 예산으로 완전한 캠페인 기획을 한 번에 생성해주세요.
+
+[제품 정보]
+- 제품명: {product_info.get('name', 'N/A')}
+- 설명: {product_info.get('description', 'N/A')}
+- 가격: {product_info.get('price', 'N/A')}원
+- URL: {product_info.get('source_url', request.product_url or 'N/A')}
+
+[예산] {request.budget:,.0f}원
+[기간] {request.start_date or '미정'} ~ {request.end_date or '미정'}
+
+{f'[사용자 Meta 계정 정보] {meta_context_text}' if meta_context_text else ''}
+
+다음 4가지를 한 번에 생성하세요:
+
+JSON 형식으로 응답:
+{{
+    "campaign_structure": {{
+        "campaign_name": "캠페인명",
+        "objective": "CONVERSIONS/TRAFFIC/LEAD_GENERATION",
+        "groups": [
+            {{
+                "name": "그룹명",
+                "budget_ratio": 50,
+                "budget_amount": 금액,
+                "objective": "목적",
+                "reasoning": "이유"
+            }}
+        ],
+        "overall_strategy": "전체 전략 요약"
+    }},
+    "targeting": {{
+        "segments": [
+            {{
+                "type": "브로드/관심사/리타겟팅/유사",
+                "ratio": 비율,
+                "budget": 금액,
+                "description": "대상 설명",
+                "interests": ["관심사1", "관심사2"],
+                "age_range": "25-45"
+            }}
+        ],
+        "strategy_summary": "타겟 전략 요약"
+    }},
+    "copywriting": {{
+        "variations": [
+            {{
+                "name": "변형 A - 전환용",
+                "headline": "헤드라인 (30자 이내)",
+                "primary_text": "본문 (125자 이내)",
+                "description": "설명 (30자 이내)",
+                "cta": "CTA 버튼 텍스트"
+            }}
+        ]
+    }},
+    "utm": {{
+        "base_url": "{request.product_url or 'https://example.com'}",
+        "links": [
+            {{
+                "campaign": "캠페인명",
+                "source": "facebook",
+                "medium": "paid_social",
+                "content": "소재설명",
+                "full_url": "전체 UTM URL"
+            }}
+        ]
+    }},
+    "meta_recommendations": "Meta 광고 계정 데이터 기반 추가 추천 사항 (있는 경우)"
+}}
+
+실무에서 바로 사용 가능한 수준으로 구체적으로 작성해주세요.
+카피는 최소 3개 변형을 생성하세요.
+JSON만 출력하세요."""
+
+    try:
+        response = claude.client.messages.create(
+            model=claude.model,
+            max_tokens=4096,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        result = _parse_json_response(response.content[0].text)
+    except (json.JSONDecodeError, ValueError, IndexError) as e:
+        raise HTTPException(status_code=500, detail=f"AI 응답 파싱 실패: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI 서비스 오류: {str(e)}")
+
+    return AutoPlanResponse(
+        product_info=product_info,
+        campaign_structure=result.get("campaign_structure", {}),
+        targeting=result.get("targeting", {}),
+        copywriting=result.get("copywriting", {}),
+        utm_links=result.get("utm", {}).get("links", []),
+        overall_strategy=result.get("campaign_structure", {}).get("overall_strategy", ""),
+        meta_recommendations=result.get("meta_recommendations"),
     )

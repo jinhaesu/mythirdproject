@@ -1,14 +1,17 @@
 """Vision AI service for image analysis."""
 from typing import Dict, Any, Optional, List
 import base64
+import re
 import httpx
 import json
+import logging
 
 from openai import OpenAI
 
 from app.core.config import get_settings
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 
 class VisionService:
@@ -17,15 +20,118 @@ class VisionService:
     def __init__(self):
         self.client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
+    async def resolve_image_url(self, url: str) -> Optional[str]:
+        """
+        Resolve a URL to an actual image URL.
+
+        Handles:
+        - Direct image URLs (.jpg, .png, .webp, etc.)
+        - Instagram/Facebook URLs → oEmbed API
+        - General web pages → OG image meta tag
+        """
+        # Direct image URL
+        if re.search(r'\.(jpg|jpeg|png|gif|webp|bmp|svg)(\?.*)?$', url, re.IGNORECASE):
+            return url
+
+        try:
+            async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+                # Instagram oEmbed
+                if 'instagram.com' in url or 'instagr.am' in url:
+                    return await self._resolve_instagram_url(client, url)
+
+                # Facebook oEmbed
+                if 'facebook.com' in url or 'fb.com' in url:
+                    return await self._resolve_facebook_url(client, url)
+
+                # General web page → OG image
+                return await self._resolve_og_image(client, url)
+
+        except Exception as e:
+            logger.warning(f"Failed to resolve image URL from {url}: {e}")
+            return None
+
+    async def _resolve_instagram_url(self, client: httpx.AsyncClient, url: str) -> Optional[str]:
+        """Extract image from Instagram post via oEmbed API."""
+        try:
+            oembed_url = f"https://graph.facebook.com/v21.0/instagram_oembed"
+            params = {"url": url, "access_token": f"{settings.META_APP_ID}|{settings.META_APP_SECRET}"}
+
+            resp = await client.get(oembed_url, params=params)
+            if resp.status_code == 200:
+                data = resp.json()
+                thumbnail = data.get("thumbnail_url")
+                if thumbnail:
+                    return thumbnail
+
+            # Fallback: try page scraping for OG image
+            return await self._resolve_og_image(client, url)
+        except Exception:
+            return await self._resolve_og_image(client, url)
+
+    async def _resolve_facebook_url(self, client: httpx.AsyncClient, url: str) -> Optional[str]:
+        """Extract image from Facebook post via oEmbed API."""
+        try:
+            oembed_url = f"https://graph.facebook.com/v21.0/oembed_post"
+            params = {"url": url, "access_token": f"{settings.META_APP_ID}|{settings.META_APP_SECRET}"}
+
+            resp = await client.get(oembed_url, params=params)
+            if resp.status_code == 200:
+                data = resp.json()
+                # Facebook oEmbed returns HTML; extract image from it
+                html = data.get("html", "")
+                img_match = re.search(r'src="(https?://[^"]+)"', html)
+                if img_match:
+                    return img_match.group(1)
+
+            return await self._resolve_og_image(client, url)
+        except Exception:
+            return await self._resolve_og_image(client, url)
+
+    async def _resolve_og_image(self, client: httpx.AsyncClient, url: str) -> Optional[str]:
+        """Extract OG image meta tag from a web page."""
+        try:
+            resp = await client.get(url, headers={
+                "User-Agent": "Mozilla/5.0 (compatible; MetaCommander/1.0)"
+            })
+            if resp.status_code != 200:
+                return None
+
+            html = resp.text[:50000]  # Limit to first 50KB
+
+            # Try og:image first
+            og_match = re.search(
+                r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']',
+                html, re.IGNORECASE
+            )
+            if not og_match:
+                og_match = re.search(
+                    r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']',
+                    html, re.IGNORECASE
+                )
+
+            if og_match:
+                img_url = og_match.group(1)
+                if img_url.startswith("//"):
+                    img_url = "https:" + img_url
+                return img_url
+
+            # Try twitter:image
+            tw_match = re.search(
+                r'<meta[^>]+name=["\']twitter:image["\'][^>]+content=["\']([^"\']+)["\']',
+                html, re.IGNORECASE
+            )
+            if tw_match:
+                return tw_match.group(1)
+
+            return None
+        except Exception:
+            return None
+
     async def analyze_image_style(
         self,
         image_url: str
     ) -> Dict[str, Any]:
-        """
-        Analyze visual style of an image.
-
-        Returns style attributes: composition, colors, mood, etc.
-        """
+        """Analyze visual style of an image."""
         response = self.client.chat.completions.create(
             model="gpt-4o",
             messages=[
@@ -78,9 +184,7 @@ JSON 형식으로 응답해주세요:
         self,
         image_url: str
     ) -> Dict[str, Any]:
-        """
-        Analyze an advertisement creative for marketing insights.
-        """
+        """Analyze an advertisement creative for marketing insights."""
         response = self.client.chat.completions.create(
             model="gpt-4o",
             messages=[
@@ -128,9 +232,7 @@ JSON 형식으로 응답:
         self,
         image_url: str
     ) -> Dict[str, Any]:
-        """
-        Extract and analyze text content from image.
-        """
+        """Extract and analyze text content from image."""
         response = self.client.chat.completions.create(
             model="gpt-4o",
             messages=[
@@ -180,9 +282,7 @@ JSON 형식으로 응답:
         product_description: str,
         brand_info: Optional[Dict[str, Any]] = None
     ) -> str:
-        """
-        Generate an image generation prompt based on style reference.
-        """
+        """Generate an image generation prompt based on style reference."""
         brand_context = ""
         if brand_info:
             brand_context = f"""
@@ -218,9 +318,7 @@ JSON 형식으로 응답:
         self,
         image_urls: List[str]
     ) -> Dict[str, Any]:
-        """
-        Compare multiple images for A/B testing insights.
-        """
+        """Compare multiple images for A/B testing insights."""
         content = [
             {
                 "type": "text",
@@ -242,7 +340,7 @@ JSON 형식으로 응답:
             }
         ]
 
-        for url in image_urls[:4]:  # Max 4 images
+        for url in image_urls[:4]:
             content.append({
                 "type": "image_url",
                 "image_url": {"url": url}

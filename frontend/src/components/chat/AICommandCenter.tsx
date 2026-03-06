@@ -9,6 +9,12 @@ interface Message {
   content: string;
 }
 
+const DEFAULT_SUGGESTIONS = [
+  '이번 달 캠페인 전략 추천해줘',
+  'CTR 개선 방법 알려줘',
+  '인스타 릴스 광고 카피 써줘',
+];
+
 export function AICommandCenter() {
   const [isOpen, setIsOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -20,6 +26,7 @@ export function AICommandCenter() {
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>(DEFAULT_SUGGESTIONS);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -33,10 +40,10 @@ export function AICommandCenter() {
     }
   }, [isOpen]);
 
-  const sendMessage = async () => {
-    if (!input.trim() || loading) return;
+  const sendMessage = async (text?: string) => {
+    const userMessage = (text || input).trim();
+    if (!userMessage || loading) return;
 
-    const userMessage = input.trim();
     setInput('');
     setMessages((prev) => [...prev, { role: 'user', content: userMessage }]);
     setLoading(true);
@@ -47,6 +54,11 @@ export function AICommandCenter() {
         history: messages.filter((m) => m.role !== 'assistant' || messages.indexOf(m) !== 0).slice(-20),
       });
       setMessages((prev) => [...prev, { role: 'assistant', content: data.reply }]);
+
+      // Update suggested questions from response
+      if (data.suggested_questions && data.suggested_questions.length > 0) {
+        setSuggestedQuestions(data.suggested_questions);
+      }
     } catch (err: any) {
       const errorMsg = err?.response?.data?.detail || 'AI 응답을 받지 못했습니다. 다시 시도해주세요.';
       setMessages((prev) => [...prev, { role: 'assistant', content: `오류: ${errorMsg}` }]);
@@ -131,17 +143,12 @@ export function AICommandCenter() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Quick actions */}
-      {messages.length <= 1 && (
+      {/* Suggested questions - always visible after any message */}
+      {!loading && suggestedQuestions.length > 0 && (
         <div className="px-4 pb-2">
           <div className="flex flex-wrap gap-1.5">
-            {[
-              '이번 달 캠페인 전략 추천해줘',
-              'CTR 개선 방법 알려줘',
-              '인스타 릴스 광고 카피 써줘',
-              '예산 100만원 배분 전략',
-            ].map((q, i) => (
-              <button key={i} onClick={() => { setInput(q); }}
+            {suggestedQuestions.map((q, i) => (
+              <button key={i} onClick={() => sendMessage(q)}
                 className="px-2.5 py-1 bg-gray-50 border border-gray-200 rounded-full text-xs text-gray-600 hover:bg-primary-50 hover:border-primary-200 hover:text-primary-700 transition-colors">
                 {q}
               </button>
@@ -164,7 +171,7 @@ export function AICommandCenter() {
             style={{ minHeight: '40px' }}
           />
           <button
-            onClick={sendMessage}
+            onClick={() => sendMessage()}
             disabled={!input.trim() || loading}
             className="p-2 bg-primary-600 text-white rounded-xl hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >

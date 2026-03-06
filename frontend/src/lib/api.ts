@@ -11,6 +11,9 @@ import type {
   Campaign,
   StrategyRecommendation,
   PerformanceDashboard,
+  AutoPlanRequest,
+  AutoPlanResponse,
+  ChatResponse,
 } from '@/types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api/v1';
@@ -262,6 +265,32 @@ export const analyticsApi = {
     return data;
   },
 
+  getMetaCampaigns: async () => {
+    const { data } = await api.get('/analytics/meta-campaigns');
+    return data;
+  },
+
+  generateReport: async (request: {
+    campaign_id?: number;
+    meta_campaign_id?: string;
+    start_date: string;
+    end_date: string;
+  }) => {
+    const { data } = await api.post('/analytics/report', request);
+    return data;
+  },
+
+  sendReportEmail: async (request: {
+    campaign_id?: number;
+    meta_campaign_id?: string;
+    start_date: string;
+    end_date: string;
+    email: string;
+  }) => {
+    const { data } = await api.post('/analytics/report/email', request);
+    return data;
+  },
+
   reallocateBudget: async (campaignId: number, pauseUnderperforming = true, reallocateToWinner = true) => {
     const { data } = await api.post('/analytics/reallocate-budget', {
       campaign_id: campaignId,
@@ -285,8 +314,13 @@ export const analyticsApi = {
   },
 };
 
-// Campaign Planner API (구조설계, 타겟, 카피, UTM, CSV분석, 소재예측)
+// Campaign Planner API
 export const campaignPlannerApi = {
+  autoPlan: async (request: AutoPlanRequest) => {
+    const { data } = await api.post<AutoPlanResponse>('/campaign-planner/auto-plan', request);
+    return data;
+  },
+
   designStructure: async (request: {
     product_list: Array<{ name: string; category: string; price: number; promo_info?: string }>;
     schedule: { promo_start_date: string; promo_end_date: string };
@@ -350,7 +384,7 @@ export const campaignPlannerApi = {
 // AI Chat API
 export const chatApi = {
   send: async (message: string, history: { role: string; content: string }[] = []) => {
-    const { data } = await api.post('/ai/chat', { message, history });
+    const { data } = await api.post<ChatResponse>('/ai/chat', { message, history });
     return data;
   },
 };

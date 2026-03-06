@@ -47,6 +47,15 @@ async def get_db() -> AsyncSession:
 
 
 async def init_db():
-    """Initialize database tables."""
+    """Initialize database tables and add missing columns."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # Add meta_ig_account_id column if missing (create_all doesn't alter existing tables)
+        try:
+            await conn.execute(
+                __import__('sqlalchemy').text(
+                    "ALTER TABLE users ADD COLUMN meta_ig_account_id VARCHAR(255)"
+                )
+            )
+        except Exception:
+            pass  # Column already exists
