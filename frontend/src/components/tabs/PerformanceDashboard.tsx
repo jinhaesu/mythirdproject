@@ -104,6 +104,13 @@ export default function PerformanceDashboard() {
     enabled: !!selectedCampaignForDeep,
   });
 
+  // Load adsets on-demand when a campaign is expanded
+  const { data: adsetsData, isLoading: loadingAdsets } = useQuery({
+    queryKey: ['campaign-adsets', expandedCampaign, datePreset],
+    queryFn: () => analyticsApi.getCampaignAdsets(expandedCampaign!, datePreset),
+    enabled: !!expandedCampaign,
+  });
+
   const statusMutation = useMutation({
     mutationFn: ({ id, type, status }: { id: string; type: string; status: string }) =>
       analyticsApi.updateStatus(id, type, status),
@@ -462,9 +469,13 @@ export default function PerformanceDashboard() {
                           </button>
                         </div>
 
-                        {camp.adsets?.length > 0 ? (
+                        {loadingAdsets && expandedCampaign === camp.id ? (
+                          <div className="flex items-center gap-2 text-sm text-gray-400 py-4">
+                            <Loader2 size={14} className="animate-spin" /> 광고세트 로딩 중...
+                          </div>
+                        ) : (adsetsData?.adsets || []).length > 0 && expandedCampaign === camp.id ? (
                           <div className="space-y-3">
-                            {camp.adsets.map((adset: any) => {
+                            {(adsetsData.adsets as any[]).map((adset: any) => {
                               const adsetStatus = adset.effective_status || adset.status;
                               const adsetStatusKo = adsetStatus === 'ACTIVE' ? '활성' : adsetStatus === 'PAUSED' ? '중지' : adsetStatus;
                               return (
@@ -522,7 +533,7 @@ export default function PerformanceDashboard() {
                               );
                             })}
                           </div>
-                        ) : <p className="text-sm text-gray-400">광고세트가 없습니다.</p>}
+                        ) : expandedCampaign === camp.id ? <p className="text-sm text-gray-400">광고세트가 없습니다.</p> : null}
 
                         {selectedCampaignForDeep === camp.id && deepData && (
                           <div className="mt-4 bg-white rounded-lg border border-blue-200 p-4">

@@ -55,37 +55,31 @@ class MetaAdsService:
             return {"error": str(e)}
 
     # ──────────────────────────────────────────────
-    # OPTIMIZED: 3 API calls total (account + campaigns + adsets/ads)
-    # Uses field expansion to get insights inline
+    # Step 1: Overview (campaigns + account insights, lightweight)
+    # Step 2: Adsets/ads loaded on-demand per campaign
     # ──────────────────────────────────────────────
 
     async def get_account_overview(self, date_preset: str = "last_30d") -> Dict[str, Any]:
-        """Get full account overview in just 2-3 API calls using field expansion."""
+        """Get account overview: account insights + campaigns with campaign-level insights.
+        Adsets/ads are NOT included here to avoid Meta API data limit errors.
+        Use get_campaign_adsets() to load them on-demand when a campaign is expanded."""
         if not self.connected:
             return {"connected": False, "error": "Meta 계정이 연동되지 않았습니다."}
 
-        # Run account insights + campaigns in parallel (2 calls)
+        insight_fields = "spend,impressions,reach,clicks,ctr,cpc,cpm,actions,cost_per_action_type,frequency"
+
+        # Two lightweight parallel calls
         account_task = self._get(
             f"{self.ad_account_id}/insights",
-            {"fields": "spend,impressions,reach,clicks,ctr,cpc,cpm,actions,cost_per_action_type,frequency",
-             "date_preset": date_preset}
+            {"fields": insight_fields, "date_preset": date_preset}
         )
 
-        # Field expansion: get campaigns WITH their insights, adsets, and ads in ONE call
-        insight_fields = "spend,impressions,reach,clicks,ctr,cpc,cpm,actions,cost_per_action_type,frequency"
-        adset_insight_fields = "spend,impressions,clicks,ctr,cpc,cpm,actions,frequency"
-        ad_insight_fields = "spend,impressions,clicks,ctr,cpc,actions,frequency"
-
+        # Campaigns with their own insights only (no nested adsets/ads)
         campaigns_fields = (
             f"id,name,status,objective,daily_budget,lifetime_budget,"
             f"start_time,stop_time,effective_status,"
-            f"insights.date_preset({date_preset}){{{insight_fields}}},"
-            f"adsets{{id,name,status,effective_status,targeting,daily_budget,lifetime_budget,"
-            f"insights.date_preset({date_preset}){{{adset_insight_fields}}},"
-            f"ads{{id,name,status,effective_status,creative{{id,name,thumbnail_url}},"
-            f"insights.date_preset({date_preset}){{{ad_insight_fields}}}}}}}"
+            f"insights.date_preset({date_preset}){{{insight_fields}}}"
         )
-
         campaigns_task = self._get(
             f"{self.ad_account_id}/campaigns",
             {"fields": campaigns_fields, "limit": 50}
@@ -105,7 +99,7 @@ class MetaAdsService:
         if account_resp.get("data"):
             result["account_insights"] = account_resp["data"][0]
 
-        # Process campaigns (data already includes nested insights, adsets, ads)
+        # Process campaigns (lightweight: no adsets/ads)
         raw_campaigns = campaigns_resp.get("data", [])
 
         for camp in raw_campaigns:
@@ -128,44 +122,6 @@ class MetaAdsService:
             if camp_insights:
                 camp_data["insights"] = camp_insights[0]
 
-            # Ad sets (inline)
-            raw_adsets = camp.get("adsets", {}).get("data", [])
-            for adset in raw_adsets:
-                adset_data = {
-                    "id": adset.get("id"),
-                    "name": adset.get("name"),
-                    "status": adset.get("status"),
-                    "effective_status": adset.get("effective_status"),
-                    "targeting": adset.get("targeting"),
-                    "daily_budget": adset.get("daily_budget"),
-                    "lifetime_budget": adset.get("lifetime_budget"),
-                    "insights": None,
-                    "ads": [],
-                }
-
-                adset_insights = adset.get("insights", {}).get("data", [])
-                if adset_insights:
-                    adset_data["insights"] = adset_insights[0]
-
-                # Ads (inline)
-                raw_ads = adset.get("ads", {}).get("data", [])
-                for ad in raw_ads:
-                    ad_data = {
-                        "id": ad.get("id"),
-                        "name": ad.get("name"),
-                        "status": ad.get("status"),
-                        "effective_status": ad.get("effective_status"),
-                        "creative": ad.get("creative"),
-                        "insights": None,
-                    }
-                    ad_insights = ad.get("insights", {}).get("data", [])
-                    if ad_insights:
-                        ad_data["insights"] = ad_insights[0]
-
-                    adset_data["ads"].append(ad_data)
-
-                camp_data["adsets"].append(adset_data)
-
             result["campaigns"].append(camp_data)
 
         # Propagate any Meta API errors to the frontend
@@ -176,6 +132,55 @@ class MetaAdsService:
 
         result["totals"] = self._calculate_totals(result["campaigns"])
         return result
+
+    async def get_campaign_adsets(self, campaign_id: str, date_preset: str = "last_7d") -> List[Dict]:
+        """Load adsets + ads for a single campaign (on-demand when user expands)."""
+        adset_fields = (
+            f"id,name,status,effective_status,targeting,daily_budget,lifetime_budget,"
+            f"insights.date_preset({date_preset}){{spend,impressions,clicks,ctr,cpc,cpm,actions,frequency}},"
+            f"ads{{id,name,status,effective_status,creative{{id,name,thumbnail_url}},"
+            f"insights.date_preset({date_preset}){{spend,impressions,clicks,ctr,cpc,actions,frequency}}}}"
+        )
+        resp = await self._get(
+            f"{campaign_id}/adsets",
+            {"fields": adset_fields, "limit": 50}
+        )
+        if resp.get("error"):
+            return []
+
+        adsets = []
+        for adset in resp.get("data", []):
+            adset_data = {
+                "id": adset.get("id"),
+                "name": adset.get("name"),
+                "status": adset.get("status"),
+                "effective_status": adset.get("effective_status"),
+                "targeting": adset.get("targeting"),
+                "daily_budget": adset.get("daily_budget"),
+                "lifetime_budget": adset.get("lifetime_budget"),
+                "insights": None,
+                "ads": [],
+            }
+            adset_insights = adset.get("insights", {}).get("data", [])
+            if adset_insights:
+                adset_data["insights"] = adset_insights[0]
+
+            for ad in adset.get("ads", {}).get("data", []):
+                ad_data = {
+                    "id": ad.get("id"),
+                    "name": ad.get("name"),
+                    "status": ad.get("status"),
+                    "effective_status": ad.get("effective_status"),
+                    "creative": ad.get("creative"),
+                    "insights": None,
+                }
+                ad_insights = ad.get("insights", {}).get("data", [])
+                if ad_insights:
+                    ad_data["insights"] = ad_insights[0]
+                adset_data["ads"].append(ad_data)
+
+            adsets.append(adset_data)
+        return adsets
 
     async def get_campaign_deep_insights(self, campaign_id: str, date_preset: str = "last_7d") -> Dict[str, Any]:
         """Deep analysis with demographics and placements - 3 parallel calls."""

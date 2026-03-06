@@ -58,6 +58,24 @@ async def get_account_overview(
 
 
 # ──────────────────────────────────────────────
+# Campaign Adsets (on-demand loading)
+# ──────────────────────────────────────────────
+
+@router.get("/campaign/{campaign_id}/adsets")
+async def get_campaign_adsets(
+    campaign_id: str,
+    date_preset: str = Query(default="last_7d"),
+    current_user: User = Depends(get_current_user),
+):
+    """Load adsets + ads for a single campaign (on-demand when user expands)."""
+    svc = MetaAdsService(current_user)
+    if not svc.connected:
+        raise HTTPException(status_code=400, detail="Meta 계정이 연동되지 않았습니다.")
+    adsets = await svc.get_campaign_adsets(campaign_id, date_preset)
+    return {"adsets": adsets}
+
+
+# ──────────────────────────────────────────────
 # Campaign Deep Analysis
 # ──────────────────────────────────────────────
 

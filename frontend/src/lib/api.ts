@@ -271,6 +271,11 @@ export const analyticsApi = {
     return data;
   },
 
+  getCampaignAdsets: async (campaignId: string, datePreset = 'last_7d') => {
+    const { data } = await api.get(`/analytics/campaign/${campaignId}/adsets`, { params: { date_preset: datePreset } });
+    return data;
+  },
+
   getCampaignDeep: async (campaignId: string, datePreset = 'last_7d') => {
     const { data } = await api.get(`/analytics/campaign/${campaignId}/deep`, { params: { date_preset: datePreset } });
     return data;
