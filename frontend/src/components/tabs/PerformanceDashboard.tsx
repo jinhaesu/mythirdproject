@@ -28,8 +28,8 @@ export default function PerformanceDashboard() {
 
   const { data: aiAnalysis, isLoading: loadingAI, refetch: refetchAI } = useQuery({
     queryKey: ['ai-analysis', datePreset],
-    queryFn: () => analyticsApi.getAIAnalysis(datePreset),
-    enabled: overview?.connected === true,
+    queryFn: () => analyticsApi.getAIAnalysis(datePreset, overview),
+    enabled: overview?.connected === true && !!overview?.campaigns?.length,
   });
 
   const { data: deepData } = useQuery({

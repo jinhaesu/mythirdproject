@@ -268,8 +268,8 @@ export const analyticsApi = {
     return data;
   },
 
-  getAIAnalysis: async (datePreset = 'last_7d') => {
-    const { data } = await api.get('/analytics/ai-analysis', { params: { date_preset: datePreset } });
+  getAIAnalysis: async (datePreset = 'last_7d', overviewData?: any) => {
+    const { data } = await api.post('/analytics/ai-analysis', { overview_data: overviewData || null }, { params: { date_preset: datePreset } });
     return data;
   },
 

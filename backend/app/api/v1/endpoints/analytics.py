@@ -73,83 +73,43 @@ async def get_campaign_deep_analysis(
 # AI Analysis with Action Items
 # ──────────────────────────────────────────────
 
-@router.get("/ai-analysis")
+class AIAnalysisRequest(BaseModel):
+    overview_data: Optional[dict] = None  # Pass cached overview to avoid re-fetching
+
+@router.post("/ai-analysis")
 async def get_ai_analysis(
+    request: AIAnalysisRequest = AIAnalysisRequest(),
     date_preset: str = Query(default="last_7d"),
     current_user: User = Depends(get_current_user),
 ):
     """
-    AI-powered analysis of entire ad account.
-    Returns actionable recommendations: pause this ad, increase budget there, creative fatigue alerts.
+    AI-powered analysis. Accepts cached overview data to avoid double-fetching.
     """
     svc = MetaAdsService(current_user)
     if not svc.connected:
         return {"connected": False, "recommendations": [], "error": "Meta 계정을 연동해주세요."}
 
-    # Get full context
-    context_text = await svc.build_full_context_for_ai(date_preset)
+    # Use cached overview if provided, otherwise fetch
+    if request.overview_data and request.overview_data.get("connected"):
+        context_text = svc.build_context_from_overview(request.overview_data)
+    else:
+        context_text = await svc.build_full_context_for_ai(date_preset)
 
     claude = ClaudeService()
     try:
         response = claude.client.messages.create(
             model=claude.model,
-            max_tokens=4096,
+            max_tokens=2048,
             messages=[{
                 "role": "user",
-                "content": f"""당신은 Meta 광고 전문 분석가입니다. 아래 광고 계정 데이터를 분석하고 실행 가능한 액션 아이템을 JSON으로 반환하세요.
+                "content": f"""Meta 광고 계정 데이터를 분석해 JSON으로 반환. 간결하게.
 
 {context_text}
 
-다음 JSON 형식으로 반환하세요:
-{{
-  "account_health": "good|warning|critical",
-  "health_summary": "계정 전체 건강도 요약 (2-3문장)",
-  "kpi_analysis": {{
-    "total_spend": "총 지출 분석",
-    "ctr_assessment": "CTR 분석 (업종 평균 대비)",
-    "cpc_assessment": "CPC 분석",
-    "roas_assessment": "ROAS 분석 (있는 경우)",
-    "frequency_warning": "빈도 분석 (소재 피로도)"
-  }},
-  "action_items": [
-    {{
-      "priority": "high|medium|low",
-      "type": "pause_ad|increase_budget|decrease_budget|change_creative|change_targeting|create_campaign",
-      "target_id": "관련 캠페인/광고세트/광고 ID",
-      "target_name": "관련 이름",
-      "action": "구체적 액션 설명",
-      "reason": "이유",
-      "expected_impact": "예상 효과"
-    }}
-  ],
-  "creative_fatigue": [
-    {{
-      "ad_name": "광고 이름",
-      "ad_id": "ID",
-      "frequency": "빈도 수치",
-      "recommendation": "교체/수정/유지"
-    }}
-  ],
-  "budget_recommendations": [
-    {{
-      "campaign_name": "캠페인 이름",
-      "campaign_id": "ID",
-      "current_budget": "현재 예산",
-      "recommended_budget": "추천 예산",
-      "reason": "이유"
-    }}
-  ],
-  "targeting_insights": [
-    {{
-      "adset_name": "광고세트 이름",
-      "insight": "타겟팅 인사이트",
-      "recommendation": "추천 사항"
-    }}
-  ],
-  "next_steps": ["다음 3가지 우선 실행 사항"]
-}}
+JSON 형식:
+{{"account_health":"good|warning|critical","health_summary":"요약 2문장","action_items":[{{"priority":"high|medium|low","type":"pause_ad|increase_budget|decrease_budget|change_creative","target_id":"ID","target_name":"이름","action":"액션","reason":"이유","expected_impact":"효과"}}],"creative_fatigue":[{{"ad_name":"이름","frequency":"수치","recommendation":"교체|수정|유지"}}],"budget_recommendations":[{{"campaign_name":"이름","campaign_id":"ID","current_budget":"현재","recommended_budget":"추천","reason":"이유"}}],"next_steps":["실행사항 3개"]}}
 
-반드시 JSON만 반환하세요. 마크다운이나 설명 없이 JSON만."""
+JSON만 반환."""
             }],
         )
 
