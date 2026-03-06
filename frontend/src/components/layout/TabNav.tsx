@@ -1,6 +1,6 @@
 'use client';
 
-import { Search, Palette, Target, BarChart2, ClipboardList } from 'lucide-react';
+import { Search, Palette, Target, BarChart2, ClipboardList, Shield } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { clsx } from 'clsx';
 
@@ -10,6 +10,7 @@ const tabs = [
   { id: 2, name: '캠페인 기획', icon: ClipboardList, description: '구조/타겟/카피 설계' },
   { id: 3, name: '광고 집행', icon: Target, description: '캠페인 생성 및 관리' },
   { id: 4, name: '성과 분석', icon: BarChart2, description: 'KPI 대시보드' },
+  { id: 5, name: '자동 관리', icon: Shield, description: '룰 기반 자동 최적화' },
 ];
 
 export function TabNav() {

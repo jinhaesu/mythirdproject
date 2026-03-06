@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Image, Video, Wand2, Type, Expand, Check, Loader2 } from 'lucide-react';
+import { Image, Video, Wand2, Type, Expand, Check, Loader2, Link, Upload, ShoppingBag } from 'lucide-react';
 import { Button, Input, Card, CardTitle, Select } from '@/components/ui';
 import { creativeApi } from '@/lib/api';
 import { useAppStore } from '@/store';
@@ -19,11 +19,23 @@ export function CreativeStudio() {
   const [currentJob, setCurrentJob] = useState<string | null>(null);
   const [generatedCreatives, setGeneratedCreatives] = useState<Creative[]>([]);
 
+  // Image additional fields
+  const [imageReferenceUrl, setImageReferenceUrl] = useState('');
+  const [imageProductUrl, setImageProductUrl] = useState('');
+  const [imageProductFile, setImageProductFile] = useState<File | null>(null);
+  const [imageDescription, setImageDescription] = useState('');
+
   // Video settings
   const [videoPrompt, setVideoPrompt] = useState('');
   const [videoScript, setVideoScript] = useState('');
   const [voiceStyle, setVoiceStyle] = useState<'calm' | 'energetic' | 'male' | 'female'>('calm');
   const [includeSubtitles, setIncludeSubtitles] = useState(true);
+
+  // Video additional fields
+  const [videoReferenceUrl, setVideoReferenceUrl] = useState('');
+  const [videoProductUrl, setVideoProductUrl] = useState('');
+  const [videoProductFile, setVideoProductFile] = useState<File | null>(null);
+  const [videoDescription, setVideoDescription] = useState('');
 
   // Library
   const { data: library, refetch: refetchLibrary } = useQuery({
@@ -70,6 +82,10 @@ export function CreativeStudio() {
       highlight_text: highlightText || undefined,
       format,
       variations,
+      reference_url: imageReferenceUrl || undefined,
+      product_url: imageProductUrl || undefined,
+      product_image_url: imageProductFile ? URL.createObjectURL(imageProductFile) : undefined,
+      description: imageDescription || undefined,
     }),
     onSuccess: (data) => {
       setCurrentJob(data.job_id);
@@ -86,6 +102,10 @@ export function CreativeStudio() {
       voice_style: voiceStyle,
       include_subtitles: includeSubtitles,
       duration_seconds: 15,
+      reference_url: videoReferenceUrl || undefined,
+      product_url: videoProductUrl || undefined,
+      product_image_url: videoProductFile ? URL.createObjectURL(videoProductFile) : undefined,
+      description: videoDescription || undefined,
     }),
     onSuccess: (data) => {
       setCurrentJob(data.job_id);
@@ -139,6 +159,62 @@ export function CreativeStudio() {
               value={highlightText}
               onChange={(e) => setHighlightText(e.target.value)}
             />
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">참고 URL</label>
+              <div className="relative">
+                <Link size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="url"
+                  placeholder="참고할 이미지/광고 URL"
+                  value={imageReferenceUrl}
+                  onChange={(e) => setImageReferenceUrl(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">제품 링크</label>
+              <div className="relative">
+                <ShoppingBag size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="url"
+                  placeholder="제품 페이지 URL"
+                  value={imageProductUrl}
+                  onChange={(e) => setImageProductUrl(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">제품 이미지</label>
+              <div className="border border-dashed border-gray-300 rounded-lg p-3 text-center hover:border-primary-400 transition-colors">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setImageProductFile(e.target.files?.[0] || null)}
+                  className="hidden"
+                  id="image-product-upload"
+                />
+                <label htmlFor="image-product-upload" className="cursor-pointer flex items-center justify-center gap-2">
+                  <Upload size={16} className="text-gray-400" />
+                  <span className="text-sm text-gray-600">{imageProductFile ? imageProductFile.name : '제품 이미지 업로드'}</span>
+                </label>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">설명 (선택)</label>
+              <textarea
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none resize-none"
+                rows={2}
+                placeholder="추가 설명이나 요구사항..."
+                value={imageDescription}
+                onChange={(e) => setImageDescription(e.target.value)}
+              />
+            </div>
 
             <Select
               label="포맷"
@@ -196,6 +272,62 @@ export function CreativeStudio() {
                 placeholder="영상에 들어갈 나레이션 스크립트..."
                 value={videoScript}
                 onChange={(e) => setVideoScript(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">참고 URL</label>
+              <div className="relative">
+                <Link size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="url"
+                  placeholder="참고할 영상/광고 URL"
+                  value={videoReferenceUrl}
+                  onChange={(e) => setVideoReferenceUrl(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">제품 링크</label>
+              <div className="relative">
+                <ShoppingBag size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="url"
+                  placeholder="제품 페이지 URL"
+                  value={videoProductUrl}
+                  onChange={(e) => setVideoProductUrl(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">제품 이미지</label>
+              <div className="border border-dashed border-gray-300 rounded-lg p-3 text-center hover:border-primary-400 transition-colors">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setVideoProductFile(e.target.files?.[0] || null)}
+                  className="hidden"
+                  id="video-product-upload"
+                />
+                <label htmlFor="video-product-upload" className="cursor-pointer flex items-center justify-center gap-2">
+                  <Upload size={16} className="text-gray-400" />
+                  <span className="text-sm text-gray-600">{videoProductFile ? videoProductFile.name : '제품 이미지 업로드'}</span>
+                </label>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">설명 (선택)</label>
+              <textarea
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none resize-none"
+                rows={2}
+                placeholder="추가 설명이나 요구사항..."
+                value={videoDescription}
+                onChange={(e) => setVideoDescription(e.target.value)}
               />
             </div>
 

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { User, StyleExtraction, Creative, Campaign } from '@/types';
+import type { User, StyleExtraction, Creative, Campaign, AutoPlanResponse } from '@/types';
 
 interface AuthState {
   user: User | null;
@@ -50,6 +50,10 @@ interface AppState {
   // Campaign for TAB 4
   selectedCampaign: Campaign | null;
   setSelectedCampaign: (campaign: Campaign | null) => void;
+
+  // Auto Plan result from CampaignPlanner → AdsController
+  autoPlanResult: AutoPlanResponse | null;
+  setAutoPlanResult: (result: AutoPlanResponse | null) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -76,4 +80,7 @@ export const useAppStore = create<AppState>((set) => ({
 
   selectedCampaign: null,
   setSelectedCampaign: (campaign) => set({ selectedCampaign: campaign }),
+
+  autoPlanResult: null,
+  setAutoPlanResult: (result) => set({ autoPlanResult: result }),
 }));

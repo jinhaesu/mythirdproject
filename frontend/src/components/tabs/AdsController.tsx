@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import {
   Target, DollarSign, Zap, Upload, CheckCircle,
-  Play, Pause, Settings, ChevronDown, ChevronUp, RefreshCw
+  Play, Pause, Settings, ChevronDown, ChevronUp, RefreshCw, Info, X
 } from 'lucide-react';
 import { Button, Input, Card, CardTitle, Select } from '@/components/ui';
 import { campaignApi } from '@/lib/api';
@@ -13,12 +13,40 @@ import type { Campaign, StrategyRecommendation, Ad } from '@/types';
 import toast from 'react-hot-toast';
 
 export function AdsController() {
-  const { selectedCreatives, setSelectedCampaign, setActiveTab } = useAppStore();
+  const { selectedCreatives, setSelectedCampaign, setActiveTab, autoPlanResult, setAutoPlanResult } = useAppStore();
 
   const [campaignName, setCampaignName] = useState('');
   const [objective, setObjective] = useState<'TRAFFIC' | 'CONVERSIONS' | 'LEAD_GENERATION'>('TRAFFIC');
   const [budget, setBudget] = useState('');
   const [strategy, setStrategy] = useState<StrategyRecommendation | null>(null);
+  const [showPlanBanner, setShowPlanBanner] = useState(false);
+
+  // Auto-fill from AI plan result
+  useEffect(() => {
+    if (autoPlanResult) {
+      const structure = autoPlanResult.campaign_structure;
+      const productName = autoPlanResult.product_info?.name || '';
+
+      // Campaign name
+      const planName = structure?.campaign_name || (productName ? `${productName} 캠페인` : '');
+      if (planName) setCampaignName(planName);
+
+      // Objective
+      const planObjective = structure?.objective;
+      if (planObjective && ['TRAFFIC', 'CONVERSIONS', 'LEAD_GENERATION'].includes(planObjective)) {
+        setObjective(planObjective as 'TRAFFIC' | 'CONVERSIONS' | 'LEAD_GENERATION');
+      }
+
+      // Budget - sum from groups or use total
+      const groups = structure?.groups || [];
+      const totalFromGroups = groups.reduce((sum: number, g: any) => sum + (g.budget_amount || 0), 0);
+      if (totalFromGroups > 0) {
+        setBudget(String(totalFromGroups));
+      }
+
+      setShowPlanBanner(true);
+    }
+  }, [autoPlanResult]);
 
   const { data: campaigns, refetch: refetchCampaigns } = useQuery({
     queryKey: ['campaigns'],
@@ -62,6 +90,45 @@ export function AdsController() {
             <Target size={20} />
             캠페인 생성
           </CardTitle>
+
+          {/* AI 기획 자동 입력 배너 */}
+          {showPlanBanner && autoPlanResult && (
+            <div className="mb-4 p-3 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-2">
+                  <Info size={16} className="text-purple-600 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-purple-800">AI 기획에서 자동 입력됨</p>
+                    <p className="text-xs text-purple-600 mt-0.5">기획 데이터를 기반으로 자동 입력되었습니다. 수정 후 캠페인을 생성하세요.</p>
+                    {autoPlanResult.overall_strategy && (
+                      <p className="text-xs text-gray-600 mt-1 italic">"{autoPlanResult.overall_strategy}"</p>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={() => { setShowPlanBanner(false); setAutoPlanResult(null); }}
+                  className="text-gray-400 hover:text-gray-600 flex-shrink-0"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+
+              {/* 타겟 요약 from plan */}
+              {autoPlanResult.targeting?.segments && autoPlanResult.targeting.segments.length > 0 && (
+                <div className="mt-2 pt-2 border-t border-purple-100">
+                  <p className="text-xs font-medium text-purple-700 mb-1">타겟 설계:</p>
+                  <div className="flex flex-wrap gap-1">
+                    {autoPlanResult.targeting.segments.map((seg: any, i: number) => (
+                      <span key={i} className="text-xs bg-white text-purple-700 px-2 py-0.5 rounded border border-purple-100">
+                        {seg.type} {seg.ratio}%
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="space-y-4">
             <Input label="캠페인명" placeholder="예: 봄 신상 런칭" value={campaignName} onChange={(e) => setCampaignName(e.target.value)} />
 

@@ -6,6 +6,7 @@ from app.models.benchmark import Benchmark, CollectedPost, BenchmarkType
 from app.models.ad_platform import PlatformConnection, RevenueData, Report, AIInsightLog, AdPlatform
 from app.models.auto_rule import AutoRule, AutoRuleLog
 from app.models.scheduled_report import ScheduledReport
+from app.models.market_keyword import MarketKeyword
 
 __all__ = [
     "User",
@@ -28,4 +29,5 @@ __all__ = [
     "AutoRule",
     "AutoRuleLog",
     "ScheduledReport",
+    "MarketKeyword",
 ]

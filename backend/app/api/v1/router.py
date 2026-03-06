@@ -2,7 +2,7 @@
 from fastapi import APIRouter
 
 from app.api.v1.endpoints import (
-    auth, benchmark, creative, campaign, analytics, dashboard, campaign_planner, chat
+    auth, benchmark, creative, campaign, analytics, dashboard, campaign_planner, chat, market_keywords
 )
 
 api_router = APIRouter()
@@ -54,6 +54,13 @@ api_router.include_router(
     dashboard.router,
     prefix="/dashboard",
     tags=["Dashboard & Revenue"]
+)
+
+# Market Keywords (Keyword Monitoring)
+api_router.include_router(
+    market_keywords.router,
+    prefix="/market",
+    tags=["Market Keywords"]
 )
 
 # AI Command Center (Chat)

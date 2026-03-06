@@ -765,6 +765,7 @@ class AutoPlanResponse(BaseModel):
     utm_links: List[dict] = []
     overall_strategy: str
     meta_recommendations: Optional[str] = None
+    creative_recommendation: Optional[dict] = None
 
 
 async def _scrape_product_info(url: str) -> dict:
@@ -865,7 +866,7 @@ async def auto_plan_campaign(
 
 {f'[사용자 Meta 계정 정보] {meta_context_text}' if meta_context_text else ''}
 
-다음 4가지를 한 번에 생성하세요:
+다음 5가지를 한 번에 생성하세요:
 
 JSON 형식으로 응답:
 {{
@@ -919,8 +920,30 @@ JSON 형식으로 응답:
             }}
         ]
     }},
+    "creative_recommendation": {{
+        "recommended_type": "short_form_video 또는 image 또는 carousel 중 하나",
+        "reason": "추천 이유를 한국어로 설명",
+        "video_plan": {{
+            "concept": "영상 컨셉 설명",
+            "scenes": ["씬1 설명", "씬2 설명", "씬3 설명"],
+            "script": "나레이션 스크립트 전문",
+            "duration_seconds": 15,
+            "music_mood": "energetic/calm/emotional 중 하나"
+        }},
+        "image_guidelines": {{
+            "style": "이미지 스타일 설명",
+            "key_elements": ["핵심 요소1", "핵심 요소2"],
+            "text_overlay": "텍스트 오버레이 내용"
+        }}
+    }},
     "meta_recommendations": "Meta 광고 계정 데이터 기반 추가 추천 사항 (있는 경우)"
 }}
+
+creative_recommendation 규칙:
+- recommended_type이 "short_form_video"인 경우 video_plan을 반드시 포함하고, image_guidelines는 null로 설정
+- recommended_type이 "image"인 경우 image_guidelines를 반드시 포함하고, video_plan은 null로 설정
+- recommended_type이 "carousel"인 경우 image_guidelines를 포함하고 video_plan은 null로 설정
+- 제품 특성과 타겟에 맞는 최적의 소재 유형을 추천하세요
 
 실무에서 바로 사용 가능한 수준으로 구체적으로 작성해주세요.
 카피는 최소 3개 변형을 생성하세요.
@@ -946,4 +969,5 @@ JSON만 출력하세요."""
         utm_links=result.get("utm", {}).get("links", []),
         overall_strategy=result.get("campaign_structure", {}).get("overall_strategy", ""),
         meta_recommendations=result.get("meta_recommendations"),
+        creative_recommendation=result.get("creative_recommendation"),
     )

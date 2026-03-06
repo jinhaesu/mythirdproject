@@ -5,10 +5,10 @@ import { useMutation } from '@tanstack/react-query';
 import {
   LayoutGrid, Users, FileText, Link2, Upload, BarChart3,
   Plus, Trash2, ChevronDown, ChevronUp, Loader2, Zap, ArrowRight,
-  Globe, Target, Copy, ExternalLink
+  Globe, Target, Copy, ExternalLink, Film, ImageIcon, Layers
 } from 'lucide-react';
 import { Button, Input, Card, CardTitle } from '@/components/ui';
-import { campaignPlannerApi, campaignApi } from '@/lib/api';
+import { campaignPlannerApi } from '@/lib/api';
 import { useAppStore } from '@/store';
 import type { AutoPlanResponse } from '@/types';
 import toast from 'react-hot-toast';
@@ -69,7 +69,7 @@ function AutoPlanDesigner() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [result, setResult] = useState<AutoPlanResponse | null>(null);
-  const { setActiveTab } = useAppStore();
+  const { setActiveTab, setAutoPlanResult } = useAppStore();
 
   const mutation = useMutation({
     mutationFn: () => campaignPlannerApi.autoPlan({
@@ -88,23 +88,11 @@ function AutoPlanDesigner() {
     },
   });
 
-  const handleCreateDraft = async () => {
+  const handleCreateDraft = () => {
     if (!result) return;
-    try {
-      const structure = result.campaign_structure;
-      await campaignApi.create({
-        name: structure.campaign_name || `${result.product_info.name} 캠페인`,
-        objective: structure.objective || 'CONVERSIONS',
-        total_budget: Number(budget),
-        start_date: startDate || undefined,
-        end_date: endDate || undefined,
-        creative_ids: [],
-      });
-      toast.success('DRAFT 캠페인이 생성되었습니다!');
-      setActiveTab(3); // AdsController 탭으로 이동
-    } catch {
-      toast.error('캠페인 생성 실패');
-    }
+    setAutoPlanResult(result);
+    toast.success('캠페인 기획이 저장되었습니다!');
+    setActiveTab(3); // AdsController 탭으로 이동
   };
 
   const canSubmit = (productUrl || productName) && budget;
@@ -265,6 +253,108 @@ function AutoPlanDesigner() {
             </Card>
           )}
 
+          {/* 소재 추천 */}
+          {result.creative_recommendation && (
+            <Card variant="bordered" className="bg-gradient-to-r from-pink-50 to-purple-50 border-purple-200">
+              <CardTitle className="flex items-center gap-2 mb-3">
+                {result.creative_recommendation.recommended_type === 'short_form_video' ? (
+                  <Film size={18} className="text-purple-600" />
+                ) : result.creative_recommendation.recommended_type === 'carousel' ? (
+                  <Layers size={18} className="text-purple-600" />
+                ) : (
+                  <ImageIcon size={18} className="text-purple-600" />
+                )}
+                소재 추천
+              </CardTitle>
+
+              <div className="space-y-3">
+                {/* 추천 유형 */}
+                <div className="flex items-center gap-2">
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                    result.creative_recommendation.recommended_type === 'short_form_video'
+                      ? 'bg-purple-100 text-purple-700'
+                      : result.creative_recommendation.recommended_type === 'carousel'
+                      ? 'bg-blue-100 text-blue-700'
+                      : 'bg-green-100 text-green-700'
+                  }`}>
+                    {result.creative_recommendation.recommended_type === 'short_form_video'
+                      ? '숏폼 영상'
+                      : result.creative_recommendation.recommended_type === 'carousel'
+                      ? '캐러셀'
+                      : '이미지'}
+                  </span>
+                  <span className="text-sm text-gray-600">추천</span>
+                </div>
+
+                {/* 추천 이유 */}
+                <p className="text-sm text-gray-700">{result.creative_recommendation.reason}</p>
+
+                {/* 영상 기획 (숏폼인 경우) */}
+                {result.creative_recommendation.recommended_type === 'short_form_video' && result.creative_recommendation.video_plan && (
+                  <div className="mt-3 p-4 bg-white rounded-lg border border-purple-100 space-y-3">
+                    <p className="font-medium text-sm text-purple-700">영상 기획안</p>
+                    <div className="space-y-2 text-sm">
+                      <div>
+                        <span className="text-gray-500">컨셉:</span>{' '}
+                        <span className="font-medium">{result.creative_recommendation.video_plan.concept}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">길이:</span>{' '}
+                        <span className="font-medium">{result.creative_recommendation.video_plan.duration_seconds}초</span>
+                        <span className="ml-3 text-gray-500">음악:</span>{' '}
+                        <span className="font-medium">{result.creative_recommendation.video_plan.music_mood}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 block mb-1">스토리보드:</span>
+                        <div className="space-y-1">
+                          {(result.creative_recommendation.video_plan.scenes || []).map((scene: string, i: number) => (
+                            <div key={i} className="flex items-start gap-2 p-2 bg-gray-50 rounded">
+                              <span className="text-xs font-bold text-purple-600 mt-0.5">#{i + 1}</span>
+                              <span className="text-sm text-gray-700">{scene}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 block mb-1">나레이션 스크립트:</span>
+                        <p className="p-2 bg-gray-50 rounded text-sm text-gray-700 italic">
+                          "{result.creative_recommendation.video_plan.script}"
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 이미지 가이드라인 (이미지/캐러셀인 경우) */}
+                {(result.creative_recommendation.recommended_type === 'image' || result.creative_recommendation.recommended_type === 'carousel') && result.creative_recommendation.image_guidelines && (
+                  <div className="mt-3 p-4 bg-white rounded-lg border border-green-100 space-y-2">
+                    <p className="font-medium text-sm text-green-700">이미지 가이드라인</p>
+                    <div className="space-y-2 text-sm">
+                      <div>
+                        <span className="text-gray-500">스타일:</span>{' '}
+                        <span className="font-medium">{result.creative_recommendation.image_guidelines.style}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">핵심 요소:</span>{' '}
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {(result.creative_recommendation.image_guidelines.key_elements || []).map((el: string, i: number) => (
+                            <span key={i} className="text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded">{el}</span>
+                          ))}
+                        </div>
+                      </div>
+                      {result.creative_recommendation.image_guidelines.text_overlay && (
+                        <div>
+                          <span className="text-gray-500">텍스트 오버레이:</span>{' '}
+                          <span className="font-medium">{result.creative_recommendation.image_guidelines.text_overlay}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </Card>
+          )}
+
           {/* Meta 추천 */}
           {result.meta_recommendations && (
             <Card variant="bordered" className="bg-gradient-to-r from-green-50 to-emerald-50">
@@ -273,11 +363,11 @@ function AutoPlanDesigner() {
             </Card>
           )}
 
-          {/* 광고 집행 버튼 */}
+          {/* 캠페인 제작 버튼 */}
           <div className="flex gap-3">
             <Button onClick={handleCreateDraft} className="flex-1 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700">
               <ArrowRight size={18} className="mr-2" />
-              광고 집행으로 넘어가기 (DRAFT 캠페인 생성)
+              캠페인 제작하기
             </Button>
           </div>
         </div>

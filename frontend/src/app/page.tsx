@@ -12,6 +12,7 @@ import {
   CampaignPlanner,
   AdsController,
   PerformanceDashboard,
+  AutoManagement,
 } from '@/components/tabs';
 import { AICommandCenter } from '@/components/chat/AICommandCenter';
 import toast from 'react-hot-toast';
@@ -80,6 +81,7 @@ export default function Home() {
         {activeTab === 2 && <CampaignPlanner />}
         {activeTab === 3 && <AdsController />}
         {activeTab === 4 && <PerformanceDashboard />}
+        {activeTab === 5 && <AutoManagement />}
       </main>
       <AICommandCenter />
     </div>

@@ -122,6 +122,10 @@ export const creativeApi = {
     highlight_text?: string;
     format?: string;
     variations?: number;
+    reference_url?: string;
+    product_url?: string;
+    product_image_url?: string;
+    description?: string;
   }) => {
     const { data } = await api.post<GenerationJob>('/creative/generate/image', request);
     return data;
@@ -134,6 +138,10 @@ export const creativeApi = {
     voice_style?: string;
     include_subtitles?: boolean;
     duration_seconds?: number;
+    reference_url?: string;
+    product_url?: string;
+    product_image_url?: string;
+    description?: string;
   }) => {
     const { data } = await api.post<GenerationJob>('/creative/generate/video', request);
     return data;
@@ -457,6 +465,33 @@ export const campaignPlannerApi = {
     new_creative_description: string;
   }) => {
     const { data } = await api.post('/campaign-planner/predict-creative', request);
+    return data;
+  },
+};
+
+// Market Keywords API (TAB 1 - Keyword Monitoring)
+export const marketApi = {
+  registerKeyword: async (keyword: string) => {
+    const { data } = await api.post('/market/keywords', { keyword });
+    return data;
+  },
+
+  listKeywords: async () => {
+    const { data } = await api.get('/market/keywords');
+    return data;
+  },
+
+  removeKeyword: async (keywordId: string) => {
+    await api.delete(`/market/keywords/${keywordId}`);
+  },
+
+  analyzeKeyword: async (keywordId: string) => {
+    const { data } = await api.post(`/market/keywords/${keywordId}/analyze`);
+    return data;
+  },
+
+  compareKeywords: async (keywordIds: string[]) => {
+    const { data } = await api.post('/market/keywords/compare', { keyword_ids: keywordIds });
     return data;
   },
 };

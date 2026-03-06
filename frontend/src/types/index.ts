@@ -275,6 +275,7 @@ export interface AutoPlanResponse {
   utm_links: Record<string, any>[];
   overall_strategy: string;
   meta_recommendations?: string;
+  creative_recommendation?: Record<string, any>;
 }
 
 // Meta Campaign (from API)
