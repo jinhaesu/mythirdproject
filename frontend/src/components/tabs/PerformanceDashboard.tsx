@@ -20,10 +20,11 @@ export default function PerformanceDashboard() {
   const [reportCampaignId, setReportCampaignId] = useState('');
   const queryClient = useQueryClient();
 
-  const { data: overview, isLoading: loadingOverview, refetch: refetchOverview } = useQuery({
+  const { data: overview, isLoading: loadingOverview, isError: overviewError, refetch: refetchOverview } = useQuery({
     queryKey: ['account-overview', datePreset],
     queryFn: () => analyticsApi.getAccountOverview(datePreset),
     refetchInterval: 60000,
+    retry: 1,
   });
 
   const { data: aiAnalysis, isLoading: loadingAI, refetch: refetchAI } = useQuery({
@@ -58,6 +59,21 @@ export default function PerformanceDashboard() {
     const newStatus = currentStatus === 'ACTIVE' ? 'PAUSED' : 'ACTIVE';
     statusMutation.mutate({ id, type, status: newStatus });
   };
+
+  if (overviewError) {
+    return (
+      <div className="flex items-center justify-center h-[60vh]">
+        <div className="text-center max-w-md">
+          <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <AlertTriangle size={40} className="text-red-600" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-3">데이터 로딩 실패</h2>
+          <p className="text-gray-500 mb-6">Meta 광고 데이터를 가져오는데 실패했습니다. 네트워크 연결을 확인하거나 잠시 후 다시 시도해주세요.</p>
+          <button onClick={() => refetchOverview()} className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700">다시 시도</button>
+        </div>
+      </div>
+    );
+  }
 
   if (overview && !overview.connected) {
     return (

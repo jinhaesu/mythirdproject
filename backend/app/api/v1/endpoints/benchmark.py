@@ -393,11 +393,14 @@ async def extract_style(
         key_elements=visual_style.get("key_visual_elements", [])
     )
 
-    prompt_template = await vision.generate_image_prompt(
-        visual_style,
-        "product advertisement",
-        None
-    )
+    try:
+        prompt_template = await vision.generate_image_prompt(
+            visual_style,
+            "product advertisement",
+            None
+        )
+    except Exception:
+        prompt_template = f"Create a {visual_style.get('visual_style', 'modern')} style advertisement image with {visual_style.get('mood', 'neutral')} mood."
 
     preview_desc = f"이 콘텐츠는 [{style.visual_style}] 스타일 + [{style.appeal_type}] 소구 패턴입니다."
 

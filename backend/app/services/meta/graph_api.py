@@ -25,7 +25,7 @@ class MetaGraphAPI:
         params = params or {}
         params["access_token"] = self.access_token
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=15.0) as client:
             url = f"{self.base_url}/{endpoint}"
             response = await client.request(method, url, params=params, json=data)
             response.raise_for_status()
