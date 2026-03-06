@@ -226,11 +226,8 @@ async def get_meta_login_url(
     redirect_uri = f"{settings.FRONTEND_URL}/auth/meta/callback"
     scopes = ",".join([
         "public_profile",
-        "email",
         "pages_show_list",
         "pages_read_engagement",
-        "instagram_basic",
-        "instagram_manage_insights",
         "ads_management",
         "ads_read",
         "business_management",
