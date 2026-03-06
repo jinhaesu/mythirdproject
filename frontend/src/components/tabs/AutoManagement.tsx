@@ -6,6 +6,9 @@ import {
   Shield, Plus, Bot, PlayCircle, Trash2, Clock,
   ToggleLeft, ToggleRight, Calendar, Loader2, Zap,
   ChevronDown, ChevronRight, FileText, Mail,
+  TrendingUp, TrendingDown, Award, Target, DollarSign,
+  Eye, MousePointer, ArrowUpRight, ArrowDownRight,
+  BarChart3,
 } from 'lucide-react';
 import { analyticsApi } from '@/lib/api';
 
@@ -592,58 +595,7 @@ export function AutoManagement() {
         {emailMutation.isError && <p className="mt-2 text-sm text-red-600">이메일 발송에 실패했습니다.</p>}
 
         {reportMutation.isSuccess && (
-          <div className="mt-4 space-y-4">
-            {(reportMutation.data as any)?.daily_data?.length > 0 && (
-              <div className="bg-gray-50 rounded-lg p-4">
-                <h4 className="text-sm font-semibold text-gray-700 mb-3">일별 데이터</h4>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="border-b border-gray-200">
-                        <th className="text-left py-2 px-2 text-gray-500">날짜</th>
-                        <th className="text-right py-2 px-2 text-gray-500">지출</th>
-                        <th className="text-right py-2 px-2 text-gray-500">노출</th>
-                        <th className="text-right py-2 px-2 text-gray-500">도달</th>
-                        <th className="text-right py-2 px-2 text-gray-500">클릭</th>
-                        <th className="text-right py-2 px-2 text-gray-500">CTR</th>
-                        <th className="text-right py-2 px-2 text-gray-500">CPC</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(reportMutation.data as any).daily_data.map((row: any, i: number) => (
-                        <tr key={i} className="border-b border-gray-100">
-                          <td className="py-1.5 px-2 text-gray-700">{row.date_stop || row.date || '-'}</td>
-                          <td className="py-1.5 px-2 text-right font-medium">{formatSpend(row.spend)}</td>
-                          <td className="py-1.5 px-2 text-right">{formatNum(row.impressions)}</td>
-                          <td className="py-1.5 px-2 text-right">{formatNum(row.reach)}</td>
-                          <td className="py-1.5 px-2 text-right">{formatNum(row.clicks)}</td>
-                          <td className="py-1.5 px-2 text-right">{parseFloat(row.ctr || '0').toFixed(2)}%</td>
-                          <td className="py-1.5 px-2 text-right">{formatCPC(row.cpc)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
-            {(reportMutation.data as any)?.campaign_info && (
-              <div className="bg-blue-50 rounded-lg p-3">
-                <p className="text-sm text-blue-800">
-                  <span className="font-semibold">{(reportMutation.data as any).campaign_info.name}</span>
-                  <span className="ml-2 text-xs bg-blue-200 px-2 py-0.5 rounded">{(reportMutation.data as any).campaign_info.status}</span>
-                  <span className="ml-2 text-xs text-blue-600">{(reportMutation.data as any).campaign_info.objective}</span>
-                </p>
-              </div>
-            )}
-
-            {(reportMutation.data as any)?.ai_report && (
-              <div className="bg-gray-50 rounded-lg p-4 max-h-96 overflow-y-auto">
-                <h4 className="text-sm font-semibold text-gray-700 mb-2">AI 분석 리포트</h4>
-                <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{(reportMutation.data as any).ai_report}</div>
-              </div>
-            )}
-          </div>
+          <ReportNewsletter data={reportMutation.data as any} />
         )}
         {reportMutation.isError && (
           <div className="mt-4 bg-red-50 rounded-lg p-4">
@@ -752,6 +704,433 @@ export function AutoManagement() {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────
+// Newsletter-style Report Component
+// ──────────────────────────────────────────────
+
+function ReportSparkline({ data, color, height = 48 }: { data: number[]; color: string; height?: number }) {
+  if (data.length < 2) return null;
+  const width = 200;
+  const max = Math.max(...data, 0.01);
+  const min = Math.min(...data, 0);
+  const range = max - min || 1;
+  const pad = 4;
+  const points = data.map((v, i) => ({
+    x: pad + (i / (data.length - 1)) * (width - pad * 2),
+    y: pad + (height - pad * 2) - ((v - min) / range) * (height - pad * 2),
+  }));
+
+  let d = `M ${points[0].x} ${points[0].y}`;
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = points[Math.max(i - 1, 0)];
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    const p3 = points[Math.min(i + 2, points.length - 1)];
+    const t = 0.3;
+    d += ` C ${p1.x + (p2.x - p0.x) * t},${p1.y + (p2.y - p0.y) * t} ${p2.x - (p3.x - p1.x) * t},${p2.y - (p3.y - p1.y) * t} ${p2.x},${p2.y}`;
+  }
+
+  const areaD = d + ` L ${points[points.length - 1].x},${height - pad} L ${points[0].x},${height - pad} Z`;
+
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} className="w-full" preserveAspectRatio="xMidYMid meet">
+      <defs>
+        <linearGradient id={`grad-${color}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.2" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={areaD} fill={`url(#grad-${color})`} />
+      <path d={d} fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function ReportNewsletter({ data }: { data: any }) {
+  const [activeTab, setActiveTab] = useState<'overview' | 'daily' | 'insights'>('overview');
+  const daily = data?.daily_data || [];
+  const totals = data?.totals || {};
+  const campaign = data?.campaign_info;
+  const ai = typeof data?.ai_report === 'object' ? data.ai_report : null;
+  const aiText = typeof data?.ai_report === 'string' ? data.ai_report : null;
+  const period = data?.period || {};
+
+  const formatROAS = (v: any) => {
+    if (v === null || v === undefined) return '-';
+    const n = parseFloat(v);
+    return isNaN(n) ? '-' : n.toFixed(2);
+  };
+
+  const gradeColors: Record<string, string> = {
+    A: 'from-emerald-500 to-green-600', B: 'from-blue-500 to-indigo-600',
+    C: 'from-yellow-500 to-orange-500', D: 'from-orange-500 to-red-500', F: 'from-red-500 to-red-700',
+  };
+  const grade = ai?.overall_grade || 'B';
+  const gradeGradient = gradeColors[grade] || gradeColors['B'];
+
+  // Prepare sparkline data
+  const spendData = daily.map((d: any) => parseFloat(d.spend || 0));
+  const clickData = daily.map((d: any) => parseInt(d.clicks || 0));
+  const ctrData = daily.map((d: any) => parseFloat(d.ctr || 0));
+  const roasData = daily.map((d: any) => parseFloat(d.roas || 0));
+
+  return (
+    <div className="mt-6 rounded-2xl overflow-hidden border border-gray-200 shadow-lg bg-white">
+      {/* Hero Header */}
+      <div className="bg-gradient-to-r from-slate-900 via-blue-900 to-indigo-900 px-8 py-8 relative overflow-hidden">
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-white rounded-full -translate-y-1/2 translate-x-1/3" />
+          <div className="absolute bottom-0 left-1/4 w-48 h-48 bg-blue-400 rounded-full translate-y-1/2" />
+        </div>
+        <div className="relative z-10">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center backdrop-blur">
+              <BarChart3 size={18} className="text-white" />
+            </div>
+            <span className="text-blue-200 text-xs font-medium tracking-wider uppercase">Performance Report</span>
+          </div>
+          {ai?.headline ? (
+            <h2 className="text-2xl font-bold text-white leading-snug">{ai.headline}</h2>
+          ) : (
+            <h2 className="text-2xl font-bold text-white">성과 분석 리포트</h2>
+          )}
+          <p className="text-blue-200 text-sm mt-2">
+            {period.start} ~ {period.end}
+            {campaign && <span className="ml-3 px-2 py-0.5 bg-white/10 rounded text-xs">{campaign.name}</span>}
+          </p>
+          {/* Grade Badge */}
+          {ai?.overall_grade && (
+            <div className="absolute top-8 right-8 flex flex-col items-center">
+              <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${gradeGradient} flex items-center justify-center shadow-lg`}>
+                <span className="text-3xl font-black text-white">{grade}</span>
+              </div>
+              <span className="text-xs text-blue-200 mt-1.5">{ai.grade_reason || '종합 등급'}</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Tab Navigation */}
+      <div className="flex border-b border-gray-200 bg-gray-50">
+        {[
+          { id: 'overview' as const, label: '핵심 지표', icon: <Target size={14} /> },
+          { id: 'daily' as const, label: '일별 추이', icon: <TrendingUp size={14} /> },
+          { id: 'insights' as const, label: 'AI 인사이트', icon: <Zap size={14} /> },
+        ].map((tab) => (
+          <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+            className={`flex items-center gap-1.5 px-6 py-3 text-sm font-medium transition-all border-b-2 ${
+              activeTab === tab.id
+                ? 'border-blue-600 text-blue-600 bg-white'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+            }`}>
+            {tab.icon} {tab.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="p-6">
+        {/* OVERVIEW TAB */}
+        {activeTab === 'overview' && (
+          <div className="space-y-6">
+            {/* Summary Text */}
+            {ai?.period_summary && (
+              <p className="text-gray-600 text-sm leading-relaxed bg-blue-50 rounded-xl p-4 border border-blue-100">
+                {ai.period_summary}
+              </p>
+            )}
+
+            {/* KPI Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <ReportKPICard
+                icon={<DollarSign size={18} />}
+                label="총 지출"
+                value={formatSpend(totals.spend)}
+                sparkData={spendData}
+                sparkColor="#3b82f6"
+                accent="blue"
+              />
+              <ReportKPICard
+                icon={<Eye size={18} />}
+                label="노출"
+                value={formatNum(totals.impressions)}
+                sub={`도달 ${formatNum(totals.reach)}`}
+                sparkData={daily.map((d: any) => parseInt(d.impressions || 0))}
+                sparkColor="#8b5cf6"
+                accent="purple"
+              />
+              <ReportKPICard
+                icon={<MousePointer size={18} />}
+                label="클릭"
+                value={formatNum(totals.clicks)}
+                sub={`CTR ${totals.ctr?.toFixed(2) || '0'}%`}
+                sparkData={clickData}
+                sparkColor="#10b981"
+                accent="green"
+              />
+              <ReportKPICard
+                icon={<Target size={18} />}
+                label="CPC"
+                value={formatCPC(totals.cpc)}
+                sparkData={daily.map((d: any) => parseFloat(d.cpc || 0))}
+                sparkColor="#f97316"
+                accent="orange"
+              />
+              <ReportKPICard
+                icon={<TrendingUp size={18} />}
+                label="ROAS"
+                value={formatROAS(totals.roas)}
+                sub={totals.conversion_value ? `전환매출 ${formatSpend(totals.conversion_value)}` : undefined}
+                sparkData={roasData}
+                sparkColor={totals.roas && totals.roas >= 1 ? '#10b981' : '#ef4444'}
+                accent={totals.roas && totals.roas >= 1 ? 'green' : 'red'}
+                highlight
+              />
+            </div>
+
+            {/* AI KPI Highlights */}
+            {ai?.kpi_highlights && ai.kpi_highlights.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">KPI 하이라이트</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {ai.kpi_highlights.map((kpi: any, i: number) => (
+                    <div key={i} className="flex items-center gap-3 bg-gray-50 rounded-xl p-4 border border-gray-100 hover:border-blue-200 transition-colors">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                        kpi.change?.startsWith('+') ? 'bg-green-100' : kpi.change?.startsWith('-') ? 'bg-red-100' : 'bg-blue-100'
+                      }`}>
+                        {kpi.change?.startsWith('+') ? <ArrowUpRight size={18} className="text-green-600" /> :
+                         kpi.change?.startsWith('-') ? <ArrowDownRight size={18} className="text-red-600" /> :
+                         <TrendingUp size={18} className="text-blue-600" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-semibold text-gray-900">{kpi.metric}</span>
+                          <span className="text-xs font-bold text-gray-700">{kpi.value}</span>
+                          {kpi.change && (
+                            <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
+                              kpi.change.startsWith('+') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                            }`}>{kpi.change}</span>
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-500 mt-0.5 truncate">{kpi.insight}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* DAILY TAB */}
+        {activeTab === 'daily' && (
+          <div className="space-y-6">
+            {/* Trend Charts */}
+            {daily.length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
+                  <h4 className="text-xs font-semibold text-gray-500 mb-3 uppercase tracking-wider">지출 추이</h4>
+                  <ReportSparkline data={spendData} color="#3b82f6" height={80} />
+                  <div className="flex justify-between text-xs text-gray-400 mt-1 px-1">
+                    <span>{daily[0]?.date_stop?.slice(5) || ''}</span>
+                    <span>{daily[daily.length - 1]?.date_stop?.slice(5) || ''}</span>
+                  </div>
+                </div>
+                <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
+                  <h4 className="text-xs font-semibold text-gray-500 mb-3 uppercase tracking-wider">ROAS 추이</h4>
+                  <ReportSparkline data={roasData} color={totals.roas >= 1 ? '#10b981' : '#ef4444'} height={80} />
+                  <div className="flex justify-between text-xs text-gray-400 mt-1 px-1">
+                    <span>{daily[0]?.date_stop?.slice(5) || ''}</span>
+                    <span>{daily[daily.length - 1]?.date_stop?.slice(5) || ''}</span>
+                  </div>
+                </div>
+                <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
+                  <h4 className="text-xs font-semibold text-gray-500 mb-3 uppercase tracking-wider">CTR 추이 (%)</h4>
+                  <ReportSparkline data={ctrData} color="#10b981" height={80} />
+                  <div className="flex justify-between text-xs text-gray-400 mt-1 px-1">
+                    <span>{daily[0]?.date_stop?.slice(5) || ''}</span>
+                    <span>{daily[daily.length - 1]?.date_stop?.slice(5) || ''}</span>
+                  </div>
+                </div>
+                <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
+                  <h4 className="text-xs font-semibold text-gray-500 mb-3 uppercase tracking-wider">클릭 추이</h4>
+                  <ReportSparkline data={clickData} color="#f97316" height={80} />
+                  <div className="flex justify-between text-xs text-gray-400 mt-1 px-1">
+                    <span>{daily[0]?.date_stop?.slice(5) || ''}</span>
+                    <span>{daily[daily.length - 1]?.date_stop?.slice(5) || ''}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {ai?.daily_trend_insight && (
+              <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
+                <p className="text-sm text-blue-800 leading-relaxed">{ai.daily_trend_insight}</p>
+              </div>
+            )}
+
+            {/* Daily Data Table */}
+            {daily.length > 0 && (
+              <div className="rounded-xl border border-gray-200 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="bg-gray-50 border-b border-gray-200">
+                        <th className="text-left py-3 px-4 text-gray-500 font-semibold">날짜</th>
+                        <th className="text-right py-3 px-3 text-gray-500 font-semibold">지출</th>
+                        <th className="text-right py-3 px-3 text-gray-500 font-semibold">노출</th>
+                        <th className="text-right py-3 px-3 text-gray-500 font-semibold">도달</th>
+                        <th className="text-right py-3 px-3 text-gray-500 font-semibold">클릭</th>
+                        <th className="text-right py-3 px-3 text-gray-500 font-semibold">CTR</th>
+                        <th className="text-right py-3 px-3 text-gray-500 font-semibold">CPC</th>
+                        <th className="text-right py-3 px-3 text-gray-500 font-semibold">ROAS</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {daily.map((row: any, i: number) => {
+                        const roas = parseFloat(row.roas || 0);
+                        return (
+                          <tr key={i} className="hover:bg-blue-50/40 transition-colors">
+                            <td className="py-2.5 px-4 text-gray-700 font-medium">{row.date_stop || row.date || '-'}</td>
+                            <td className="py-2.5 px-3 text-right font-medium text-gray-900">{formatSpend(row.spend)}</td>
+                            <td className="py-2.5 px-3 text-right text-gray-600">{formatNum(row.impressions)}</td>
+                            <td className="py-2.5 px-3 text-right text-gray-600">{formatNum(row.reach)}</td>
+                            <td className="py-2.5 px-3 text-right text-gray-600">{formatNum(row.clicks)}</td>
+                            <td className="py-2.5 px-3 text-right text-gray-600">{parseFloat(row.ctr || '0').toFixed(2)}%</td>
+                            <td className="py-2.5 px-3 text-right text-gray-600">{formatCPC(row.cpc)}</td>
+                            <td className={`py-2.5 px-3 text-right font-semibold ${roas >= 1 ? 'text-green-600' : roas > 0 ? 'text-red-600' : 'text-gray-400'}`}>
+                              {formatROAS(row.roas)}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    {/* Totals Row */}
+                    <tfoot>
+                      <tr className="bg-slate-800 text-white font-semibold">
+                        <td className="py-3 px-4 text-sm">합계</td>
+                        <td className="py-3 px-3 text-right text-sm">{formatSpend(totals.spend)}</td>
+                        <td className="py-3 px-3 text-right text-sm">{formatNum(totals.impressions)}</td>
+                        <td className="py-3 px-3 text-right text-sm">{formatNum(totals.reach)}</td>
+                        <td className="py-3 px-3 text-right text-sm">{formatNum(totals.clicks)}</td>
+                        <td className="py-3 px-3 text-right text-sm">{totals.ctr?.toFixed(2) || '0'}%</td>
+                        <td className="py-3 px-3 text-right text-sm">{formatCPC(totals.cpc)}</td>
+                        <td className="py-3 px-3 text-right text-sm">{formatROAS(totals.roas)}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* INSIGHTS TAB */}
+        {activeTab === 'insights' && (
+          <div className="space-y-6">
+            {ai ? (
+              <>
+                {/* Key Insights */}
+                {ai.key_insights?.length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">핵심 인사이트</h4>
+                    <div className="space-y-3">
+                      {ai.key_insights.map((insight: string, i: number) => (
+                        <div key={i} className="flex items-start gap-3 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-4 border border-amber-100">
+                          <div className="w-7 h-7 bg-amber-500 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                            <span className="text-white text-xs font-bold">{i + 1}</span>
+                          </div>
+                          <p className="text-sm text-gray-800 leading-relaxed">{insight}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Recommendations */}
+                {ai.recommendations?.length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">실행 추천</h4>
+                    <div className="space-y-3">
+                      {ai.recommendations.map((rec: any, i: number) => (
+                        <div key={i} className={`rounded-xl p-5 border transition-all hover:shadow-md ${
+                          rec.priority === 'high' ? 'border-red-200 bg-red-50/50 hover:border-red-300' :
+                          rec.priority === 'medium' ? 'border-yellow-200 bg-yellow-50/50 hover:border-yellow-300' :
+                          'border-gray-200 bg-gray-50/50 hover:border-gray-300'
+                        }`}>
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className={`text-xs font-bold px-2 py-0.5 rounded ${
+                              rec.priority === 'high' ? 'bg-red-600 text-white' :
+                              rec.priority === 'medium' ? 'bg-yellow-600 text-white' : 'bg-gray-500 text-white'
+                            }`}>{rec.priority === 'high' ? '긴급' : rec.priority === 'medium' ? '중요' : '참고'}</span>
+                            <h5 className="text-sm font-semibold text-gray-900">{rec.title}</h5>
+                          </div>
+                          <p className="text-sm text-gray-600 leading-relaxed">{rec.description}</p>
+                          {rec.expected_impact && (
+                            <div className="mt-2 flex items-center gap-1.5 text-xs text-blue-600 bg-blue-50 rounded-lg px-3 py-1.5 w-fit">
+                              <Award size={12} /> 예상 효과: {rec.expected_impact}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : aiText ? (
+              <div className="bg-gray-50 rounded-xl p-6 border border-gray-100">
+                <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{aiText}</div>
+              </div>
+            ) : (
+              <div className="text-center py-10 text-gray-400">
+                <Zap size={32} className="mx-auto mb-3 opacity-50" />
+                <p className="text-sm">AI 인사이트가 없습니다.</p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Footer */}
+      <div className="bg-gray-50 border-t border-gray-200 px-6 py-3 flex items-center justify-between">
+        <span className="text-xs text-gray-400">Meta-Commander에서 자동 생성된 리포트</span>
+        <span className="text-xs text-gray-400">{new Date().toLocaleDateString('ko-KR')}</span>
+      </div>
+    </div>
+  );
+}
+
+function ReportKPICard({ icon, label, value, sub, sparkData, sparkColor, accent, highlight }: {
+  icon: React.ReactNode; label: string; value: string; sub?: string;
+  sparkData: number[]; sparkColor: string; accent: string; highlight?: boolean;
+}) {
+  const accentBg: Record<string, string> = {
+    blue: 'bg-blue-50', purple: 'bg-purple-50', green: 'bg-green-50',
+    orange: 'bg-orange-50', red: 'bg-red-50',
+  };
+  const accentText: Record<string, string> = {
+    blue: 'text-blue-600', purple: 'text-purple-600', green: 'text-green-600',
+    orange: 'text-orange-600', red: 'text-red-600',
+  };
+
+  return (
+    <div className={`rounded-xl p-4 border transition-all hover:shadow-md ${
+      highlight ? 'border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 ring-1 ring-blue-100' : 'border-gray-200 bg-white hover:border-gray-300'
+    }`}>
+      <div className="flex items-center gap-2 mb-2">
+        <div className={`p-1.5 rounded-lg ${accentBg[accent]} ${accentText[accent]}`}>{icon}</div>
+        <span className="text-xs text-gray-500 font-medium">{label}</span>
+      </div>
+      <p className="text-xl font-bold text-gray-900">{value}</p>
+      {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
+      {sparkData.length > 1 && (
+        <div className="mt-2 -mx-1">
+          <ReportSparkline data={sparkData} color={sparkColor} height={32} />
+        </div>
+      )}
     </div>
   );
 }

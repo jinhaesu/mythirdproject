@@ -329,26 +329,43 @@ class MetaAdsService:
 
     @staticmethod
     def _calc_roas(insights: Dict) -> Optional[float]:
-        """Calculate ROAS from insights data. Prefers purchase_roas field, falls back to action_values/spend."""
-        # Try Meta's built-in purchase_roas field first
+        """Calculate ROAS from insights data.
+        Priority: purchase_roas > purchase action_values > all action_values (total conversion value).
+        """
+        # 1) Try Meta's built-in purchase_roas field first
         pr = insights.get("purchase_roas")
         if pr:
             if isinstance(pr, list) and pr:
-                return float(pr[0].get("value", 0))
-            elif isinstance(pr, (int, float)):
-                return float(pr)
+                val = float(pr[0].get("value", 0))
+                if val > 0:
+                    return round(val, 2)
+            elif isinstance(pr, (int, float)) and float(pr) > 0:
+                return round(float(pr), 2)
 
-        # Fallback: action_values (purchase value) / spend
         spend = float(insights.get("spend", 0) or 0)
         if spend <= 0:
             return None
 
-        purchase_value = 0.0
-        for av in (insights.get("action_values") or []):
-            if av.get("action_type") in ("purchase", "offsite_conversion.fb_pixel_purchase", "omni_purchase"):
-                purchase_value += float(av.get("value", 0))
+        action_values = insights.get("action_values") or []
+        if not action_values:
+            return None
 
-        return round(purchase_value / spend, 2) if purchase_value > 0 else None
+        # 2) Try purchase-specific action_values
+        purchase_value = 0.0
+        for av in action_values:
+            if av.get("action_type") in (
+                "purchase", "offsite_conversion.fb_pixel_purchase", "omni_purchase",
+            ):
+                purchase_value += float(av.get("value", 0))
+        if purchase_value > 0:
+            return round(purchase_value / spend, 2)
+
+        # 3) Fallback: sum ALL action_values as total conversion revenue
+        total_value = 0.0
+        for av in action_values:
+            total_value += float(av.get("value", 0))
+
+        return round(total_value / spend, 2) if total_value > 0 else None
 
     def _calculate_totals(self, campaigns: List[Dict]) -> Dict[str, Any]:
         total_spend = 0.0

@@ -531,13 +531,38 @@ async def generate_report(
                     f"{base_url}/{insights_endpoint}",
                     params={
                         "access_token": current_user.meta_access_token,
-                        "fields": "spend,impressions,reach,clicks,ctr,cpc,cpm,actions,cost_per_action_type",
+                        "fields": "spend,impressions,reach,clicks,ctr,cpc,cpm,actions,cost_per_action_type,action_values,purchase_roas",
                         "time_range": json.dumps({"since": request.start_date, "until": request.end_date}),
                         "time_increment": 1,
                     }
                 )
                 if resp.status_code == 200:
-                    report_data["daily_data"] = resp.json().get("data", [])
+                    daily = resp.json().get("data", [])
+                    # Compute ROAS for each daily row + period totals
+                    total_spend = 0.0
+                    total_impressions = 0
+                    total_clicks = 0
+                    total_reach = 0
+                    total_conv_value = 0.0
+                    for row in daily:
+                        row["roas"] = MetaAdsService._calc_roas(row)
+                        total_spend += float(row.get("spend", 0) or 0)
+                        total_impressions += int(row.get("impressions", 0) or 0)
+                        total_clicks += int(row.get("clicks", 0) or 0)
+                        total_reach += int(row.get("reach", 0) or 0)
+                        for av in (row.get("action_values") or []):
+                            total_conv_value += float(av.get("value", 0))
+                    report_data["daily_data"] = daily
+                    report_data["totals"] = {
+                        "spend": total_spend,
+                        "impressions": total_impressions,
+                        "clicks": total_clicks,
+                        "reach": total_reach,
+                        "ctr": round(total_clicks / total_impressions * 100, 2) if total_impressions > 0 else 0,
+                        "cpc": round(total_spend / total_clicks, 0) if total_clicks > 0 else 0,
+                        "conversion_value": total_conv_value,
+                        "roas": round(total_conv_value / total_spend, 2) if total_spend > 0 and total_conv_value > 0 else None,
+                    }
                 else:
                     logger.error(f"Meta report insights {resp.status_code}: {resp.text[:200]}")
 
@@ -579,16 +604,35 @@ async def generate_report(
 
 {json.dumps(report_data, ensure_ascii=False, indent=2)}
 
-리포트 형식:
-1. 기간 요약
-2. 주요 KPI 분석
-3. 일별 트렌드 분석
-4. 핵심 인사이트 (3-5개)
-5. 실행 가능한 추천 사항 (3-5개)
+리포트 형식 (JSON으로 응답해주세요):
+{{
+  "headline": "한 줄 핵심 분석 제목 (예: 'ROAS 1.8x 달성, 전환 효율 개선 필요')",
+  "period_summary": "2-3문장 기간 요약",
+  "kpi_highlights": [
+    {{"metric": "지표명", "value": "값", "change": "+15%", "insight": "한 줄 해석"}}
+  ],
+  "daily_trend_insight": "일별 트렌드에서 발견한 핵심 패턴 2-3문장",
+  "key_insights": ["핵심 인사이트 1", "핵심 인사이트 2", "핵심 인사이트 3"],
+  "recommendations": [
+    {{"title": "추천 제목", "description": "상세 설명", "priority": "high/medium/low", "expected_impact": "예상 효과"}}
+  ],
+  "overall_grade": "A/B/C/D/F",
+  "grade_reason": "등급 사유 1문장"
+}}
 
-마크다운 형식으로 작성해주세요."""}],
+ROAS(광고비 대비 매출)는 특히 중요하게 분석해주세요. JSON만 응답해주세요."""}],
         )
-        report_data["ai_report"] = ai_resp.content[0].text
+        ai_text = ai_resp.content[0].text
+        # Try to parse structured JSON
+        try:
+            import re as _re
+            json_match = _re.search(r'\{[\s\S]+\}', ai_text)
+            if json_match:
+                report_data["ai_report"] = json.loads(json_match.group())
+            else:
+                report_data["ai_report"] = ai_text
+        except (json.JSONDecodeError, Exception):
+            report_data["ai_report"] = ai_text
     except Exception:
         report_data["ai_report"] = "AI 리포트 생성에 실패했습니다."
 
