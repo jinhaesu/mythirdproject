@@ -373,8 +373,15 @@ async def extract_style(
             detail="이 URL에서 이미지를 찾을 수 없습니다. 직접 이미지 URL, Instagram 게시물 URL, 또는 이미지가 있는 웹페이지 URL을 입력해주세요."
         )
 
-    visual_style = await vision.analyze_image_style(image_url)
-    text_extraction = await vision.extract_text_from_image(image_url)
+    try:
+        visual_style = await vision.analyze_image_style(image_url)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"이미지 스타일 분석 실패: {str(e)}")
+
+    try:
+        text_extraction = await vision.extract_text_from_image(image_url)
+    except Exception:
+        text_extraction = {"font_style": "modern"}
 
     style = StyleExtraction(
         visual_style=visual_style.get("visual_style", "unknown"),

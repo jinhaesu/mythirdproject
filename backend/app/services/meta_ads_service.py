@@ -72,23 +72,23 @@ class MetaAdsService:
         )
 
         # Field expansion: get campaigns WITH their insights, adsets, and ads in ONE call
+        insight_fields = "spend,impressions,reach,clicks,ctr,cpc,cpm,actions,cost_per_action_type,frequency"
+        adset_insight_fields = "spend,impressions,clicks,ctr,cpc,cpm,actions,frequency"
+        ad_insight_fields = "spend,impressions,clicks,ctr,cpc,actions,frequency"
+
+        campaigns_fields = (
+            f"id,name,status,objective,daily_budget,lifetime_budget,"
+            f"start_time,stop_time,effective_status,"
+            f"insights.date_preset({date_preset}){{{insight_fields}}},"
+            f"adsets{{id,name,status,effective_status,targeting,daily_budget,lifetime_budget,"
+            f"insights.date_preset({date_preset}){{{adset_insight_fields}}},"
+            f"ads{{id,name,status,effective_status,creative{{id,name,thumbnail_url}},"
+            f"insights.date_preset({date_preset}){{{ad_insight_fields}}}}}}}"
+        )
+
         campaigns_task = self._get(
             f"{self.ad_account_id}/campaigns",
-            {
-                "fields": (
-                    "id,name,status,objective,daily_budget,lifetime_budget,"
-                    "start_time,stop_time,effective_status,"
-                    f"insights.date_preset({date_preset})"
-                    "{{spend,impressions,reach,clicks,ctr,cpc,cpm,actions,cost_per_action_type,frequency}},"
-                    "adsets{id,name,status,effective_status,targeting,daily_budget,lifetime_budget,"
-                    f"insights.date_preset({date_preset})"
-                    "{{spend,impressions,clicks,ctr,cpc,cpm,actions,frequency}},"
-                    "ads{id,name,status,effective_status,creative{id,name,thumbnail_url},"
-                    f"insights.date_preset({date_preset})"
-                    "{{spend,impressions,clicks,ctr,cpc,actions,frequency}}}}"
-                ),
-                "limit": 50,
-            }
+            {"fields": campaigns_fields, "limit": 50}
         )
 
         account_resp, campaigns_resp = await asyncio.gather(account_task, campaigns_task)
