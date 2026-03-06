@@ -46,6 +46,8 @@ _last_auto_run: dict[str, datetime] = {}
 @router.get("/account-overview")
 async def get_account_overview(
     date_preset: str = Query(default="last_7d"),
+    since: Optional[str] = Query(default=None),
+    until: Optional[str] = Query(default=None),
     current_user: User = Depends(get_current_user),
 ):
     """Get complete ad account overview: all campaigns, ad sets, ads with insights."""
@@ -53,7 +55,7 @@ async def get_account_overview(
     if not svc.connected:
         return {"connected": False, "error": "Meta 계정을 먼저 연동해주세요."}
 
-    overview = await svc.get_account_overview(date_preset)
+    overview = await svc.get_account_overview(date_preset, since=since, until=until)
     return overview
 
 
@@ -225,6 +227,8 @@ async def update_budget(
 @router.get("/account-trend")
 async def get_account_trend(
     days: int = Query(default=30, le=90),
+    since: Optional[str] = Query(default=None),
+    until: Optional[str] = Query(default=None),
     current_user: User = Depends(get_current_user),
 ):
     """Get daily account-level trend for charts."""
@@ -232,7 +236,7 @@ async def get_account_trend(
     if not svc.connected:
         return {"connected": False, "data": []}
 
-    data = await svc.get_account_daily_trend(days)
+    data = await svc.get_account_daily_trend(days, since=since, until=until)
     return {"connected": True, "data": data}
 
 

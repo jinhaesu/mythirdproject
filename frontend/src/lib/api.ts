@@ -266,8 +266,10 @@ export const campaignApi = {
 
 // Analytics API (TAB 4)
 export const analyticsApi = {
-  getAccountOverview: async (datePreset = 'last_7d') => {
-    const { data } = await api.get('/analytics/account-overview', { params: { date_preset: datePreset } });
+  getAccountOverview: async (datePreset = 'last_7d', since?: string, until?: string) => {
+    const params: any = { date_preset: datePreset };
+    if (since && until) { params.since = since; params.until = until; }
+    const { data } = await api.get('/analytics/account-overview', { params });
     return data;
   },
 
@@ -298,8 +300,10 @@ export const analyticsApi = {
     return data;
   },
 
-  getAccountTrend: async (days = 30) => {
-    const { data } = await api.get('/analytics/account-trend', { params: { days } });
+  getAccountTrend: async (days = 30, since?: string, until?: string) => {
+    const params: any = { days };
+    if (since && until) { params.since = since; params.until = until; }
+    const { data } = await api.get('/analytics/account-trend', { params });
     return data;
   },
 

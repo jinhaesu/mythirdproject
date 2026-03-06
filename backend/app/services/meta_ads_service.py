@@ -59,27 +59,39 @@ class MetaAdsService:
     # Step 2: Adsets/ads loaded on-demand per campaign
     # ──────────────────────────────────────────────
 
-    async def get_account_overview(self, date_preset: str = "last_30d") -> Dict[str, Any]:
+    async def get_account_overview(self, date_preset: str = "last_30d",
+                                    since: Optional[str] = None, until: Optional[str] = None) -> Dict[str, Any]:
         """Get account overview: account insights + campaigns with campaign-level insights.
         Adsets/ads are NOT included here to avoid Meta API data limit errors.
         Use get_campaign_adsets() to load them on-demand when a campaign is expanded."""
         if not self.connected:
             return {"connected": False, "error": "Meta 계정이 연동되지 않았습니다."}
 
-        insight_fields = "spend,impressions,reach,clicks,ctr,cpc,cpm,actions,cost_per_action_type,frequency"
+        insight_fields = "spend,impressions,reach,clicks,ctr,cpc,cpm,actions,action_values,cost_per_action_type,frequency,purchase_roas"
+
+        # Build date params
+        account_params: Dict[str, Any] = {"fields": insight_fields}
+        if since and until:
+            account_params["time_range"] = f'{{"since":"{since}","until":"{until}"}}'
+        else:
+            account_params["date_preset"] = date_preset
 
         # Two lightweight parallel calls
-        account_task = self._get(
-            f"{self.ad_account_id}/insights",
-            {"fields": insight_fields, "date_preset": date_preset}
-        )
+        account_task = self._get(f"{self.ad_account_id}/insights", account_params)
 
         # Campaigns with their own insights only (no nested adsets/ads)
-        campaigns_fields = (
-            f"id,name,status,objective,daily_budget,lifetime_budget,"
-            f"start_time,stop_time,effective_status,"
-            f"insights.date_preset({date_preset}){{{insight_fields}}}"
-        )
+        if since and until:
+            campaigns_fields = (
+                f"id,name,status,objective,daily_budget,lifetime_budget,"
+                f"start_time,stop_time,effective_status,"
+                f"insights.time_range({{'since':'{since}','until':'{until}'}}){{{insight_fields}}}"
+            )
+        else:
+            campaigns_fields = (
+                f"id,name,status,objective,daily_budget,lifetime_budget,"
+                f"start_time,stop_time,effective_status,"
+                f"insights.date_preset({date_preset}){{{insight_fields}}}"
+            )
         campaigns_task = self._get(
             f"{self.ad_account_id}/campaigns",
             {"fields": campaigns_fields, "limit": 50}
@@ -97,7 +109,9 @@ class MetaAdsService:
 
         # Account insights
         if account_resp.get("data"):
-            result["account_insights"] = account_resp["data"][0]
+            acct_ins = account_resp["data"][0]
+            acct_ins["roas"] = self._calc_roas(acct_ins)
+            result["account_insights"] = acct_ins
 
         # Process campaigns (lightweight: no adsets/ads)
         raw_campaigns = campaigns_resp.get("data", [])
@@ -120,7 +134,9 @@ class MetaAdsService:
             # Campaign insights (inline from field expansion)
             camp_insights = camp.get("insights", {}).get("data", [])
             if camp_insights:
-                camp_data["insights"] = camp_insights[0]
+                ins = camp_insights[0]
+                ins["roas"] = self._calc_roas(ins)
+                camp_data["insights"] = ins
 
             result["campaigns"].append(camp_data)
 
@@ -137,9 +153,9 @@ class MetaAdsService:
         """Load adsets + ads for a single campaign (on-demand when user expands)."""
         adset_fields = (
             f"id,name,status,effective_status,targeting,daily_budget,lifetime_budget,"
-            f"insights.date_preset({date_preset}){{spend,impressions,clicks,ctr,cpc,cpm,actions,frequency}},"
+            f"insights.date_preset({date_preset}){{spend,impressions,clicks,ctr,cpc,cpm,actions,action_values,purchase_roas,frequency}},"
             f"ads{{id,name,status,effective_status,creative{{id,name,thumbnail_url}},"
-            f"insights.date_preset({date_preset}){{spend,impressions,clicks,ctr,cpc,actions,frequency}}}}"
+            f"insights.date_preset({date_preset}){{spend,impressions,clicks,ctr,cpc,actions,action_values,purchase_roas,frequency}}}}"
         )
         resp = await self._get(
             f"{campaign_id}/adsets",
@@ -163,7 +179,9 @@ class MetaAdsService:
             }
             adset_insights = adset.get("insights", {}).get("data", [])
             if adset_insights:
-                adset_data["insights"] = adset_insights[0]
+                ains = adset_insights[0]
+                ains["roas"] = self._calc_roas(ains)
+                adset_data["insights"] = ains
 
             for ad in adset.get("ads", {}).get("data", []):
                 ad_data = {
@@ -176,7 +194,9 @@ class MetaAdsService:
                 }
                 ad_insights = ad.get("insights", {}).get("data", [])
                 if ad_insights:
-                    ad_data["insights"] = ad_insights[0]
+                    ad_ins = ad_insights[0]
+                    ad_ins["roas"] = self._calc_roas(ad_ins)
+                    ad_data["insights"] = ad_ins
                 adset_data["ads"].append(ad_data)
 
             adsets.append(adset_data)
@@ -280,19 +300,25 @@ class MetaAdsService:
 
         return "\n".join(lines)
 
-    async def get_account_daily_trend(self, days: int = 30) -> List[Dict]:
+    async def get_account_daily_trend(self, days: int = 30,
+                                      since: Optional[str] = None, until: Optional[str] = None) -> List[Dict]:
         """Get daily account-level metrics for trend charts."""
         if not self.connected:
             return []
-        resp = await self._get(
-            f"{self.ad_account_id}/insights",
-            {
-                "fields": "spend,impressions,clicks,ctr,cpc,cpm,reach",
-                "date_preset": f"last_{days}d",
-                "time_increment": 1,
-            },
-        )
-        return resp.get("data", [])
+        params: Dict[str, Any] = {
+            "fields": "spend,impressions,clicks,ctr,cpc,cpm,reach,actions,action_values,purchase_roas",
+            "time_increment": 1,
+        }
+        if since and until:
+            params["time_range"] = f'{{"since":"{since}","until":"{until}"}}'
+        else:
+            params["date_preset"] = f"last_{days}d"
+        resp = await self._get(f"{self.ad_account_id}/insights", params)
+        # Compute ROAS for each daily row
+        data = resp.get("data", [])
+        for row in data:
+            row["roas"] = self._calc_roas(row)
+        return data
 
     async def build_full_context_for_ai(self, date_preset: str = "last_7d") -> str:
         """Convenience: fetch overview and build context."""
@@ -300,6 +326,29 @@ class MetaAdsService:
             return "Meta 광고 계정이 연결되지 않았습니다."
         overview = await self.get_account_overview(date_preset)
         return self.build_context_from_overview(overview)
+
+    @staticmethod
+    def _calc_roas(insights: Dict) -> Optional[float]:
+        """Calculate ROAS from insights data. Prefers purchase_roas field, falls back to action_values/spend."""
+        # Try Meta's built-in purchase_roas field first
+        pr = insights.get("purchase_roas")
+        if pr:
+            if isinstance(pr, list) and pr:
+                return float(pr[0].get("value", 0))
+            elif isinstance(pr, (int, float)):
+                return float(pr)
+
+        # Fallback: action_values (purchase value) / spend
+        spend = float(insights.get("spend", 0) or 0)
+        if spend <= 0:
+            return None
+
+        purchase_value = 0.0
+        for av in (insights.get("action_values") or []):
+            if av.get("action_type") in ("purchase", "offsite_conversion.fb_pixel_purchase", "omni_purchase"):
+                purchase_value += float(av.get("value", 0))
+
+        return round(purchase_value / spend, 2) if purchase_value > 0 else None
 
     def _calculate_totals(self, campaigns: List[Dict]) -> Dict[str, Any]:
         total_spend = 0.0

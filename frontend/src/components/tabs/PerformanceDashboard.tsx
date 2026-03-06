@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { analyticsApi } from '@/lib/api';
 
-type DatePreset = 'last_7d' | 'last_14d' | 'last_30d';
+type DatePreset = 'last_7d' | 'last_14d' | 'last_30d' | 'custom';
 
 // Meta action_type → 한국어 번역
 const ACTION_TYPE_KO: Record<string, string> = {
@@ -73,22 +73,31 @@ function translateActionType(actionType: string): string {
 
 export default function PerformanceDashboard() {
   const [datePreset, setDatePreset] = useState<DatePreset>('last_7d');
+  const [customSince, setCustomSince] = useState('');
+  const [customUntil, setCustomUntil] = useState('');
   const [expandedCampaign, setExpandedCampaign] = useState<string | null>(null);
   const [selectedCampaignForDeep, setSelectedCampaignForDeep] = useState<string | null>(null);
   const [hidePaused, setHidePaused] = useState(false);
   const queryClient = useQueryClient();
 
+  const isCustom = datePreset === 'custom' && customSince && customUntil;
+
   const { data: overview, isLoading: loadingOverview, isError: overviewError, refetch: refetchOverview } = useQuery({
-    queryKey: ['account-overview', datePreset],
-    queryFn: () => analyticsApi.getAccountOverview(datePreset),
+    queryKey: ['account-overview', datePreset, customSince, customUntil],
+    queryFn: () => isCustom
+      ? analyticsApi.getAccountOverview('last_7d', customSince, customUntil)
+      : analyticsApi.getAccountOverview(datePreset),
     refetchInterval: 60000,
     retry: 1,
+    enabled: datePreset !== 'custom' || (!!customSince && !!customUntil),
   });
 
-  const daysMap: Record<DatePreset, number> = { last_7d: 7, last_14d: 14, last_30d: 30 };
+  const daysMap: Record<string, number> = { last_7d: 7, last_14d: 14, last_30d: 30 };
   const { data: trendData } = useQuery({
-    queryKey: ['account-trend', datePreset],
-    queryFn: () => analyticsApi.getAccountTrend(daysMap[datePreset]),
+    queryKey: ['account-trend', datePreset, customSince, customUntil],
+    queryFn: () => isCustom
+      ? analyticsApi.getAccountTrend(30, customSince, customUntil)
+      : analyticsApi.getAccountTrend(daysMap[datePreset] || 7),
     enabled: overview?.connected === true,
   });
 
@@ -191,15 +200,25 @@ export default function PerformanceDashboard() {
     return `\u20A9${Math.round(n).toLocaleString('ko-KR')}`;
   };
 
+  const formatROAS = (v: any) => {
+    if (v === null || v === undefined) return '-';
+    const n = parseFloat(v);
+    if (isNaN(n)) return '-';
+    return n.toFixed(2);
+  };
+
+  // Compute account-level ROAS from insights
+  const accountROAS = accountInsights.roas;
+
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">성과 분석 대시보드</h2>
           <p className="text-sm text-gray-500 mt-1">Meta 광고 관리자 실시간 데이터</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
           <select
             value={datePreset}
             onChange={(e) => setDatePreset(e.target.value as DatePreset)}
@@ -208,7 +227,17 @@ export default function PerformanceDashboard() {
             <option value="last_7d">최근 7일</option>
             <option value="last_14d">최근 14일</option>
             <option value="last_30d">최근 30일</option>
+            <option value="custom">직접 지정</option>
           </select>
+          {datePreset === 'custom' && (
+            <>
+              <input type="date" value={customSince} onChange={(e) => setCustomSince(e.target.value)}
+                className="px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+              <span className="text-gray-400 text-sm">~</span>
+              <input type="date" value={customUntil} onChange={(e) => setCustomUntil(e.target.value)}
+                className="px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+            </>
+          )}
           <button onClick={() => { refetchOverview(); refetchAI(); }} className="p-2 border border-gray-200 rounded-lg hover:bg-gray-50">
             <RefreshCw size={16} className={loadingOverview ? 'animate-spin' : ''} />
           </button>
@@ -223,11 +252,12 @@ export default function PerformanceDashboard() {
       ) : (
         <>
           {/* KPI Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <KPICard icon={<DollarSign size={20} />} label="총 지출" value={formatSpend(accountInsights.spend)} color="blue" />
             <KPICard icon={<Eye size={20} />} label="노출" value={formatNum(accountInsights.impressions)} color="purple" />
             <KPICard icon={<MousePointer size={20} />} label="클릭" value={formatNum(accountInsights.clicks)} sub={`CTR ${parseFloat(accountInsights.ctr || '0').toFixed(2)}%`} color="green" />
             <KPICard icon={<Target size={20} />} label="CPC" value={formatCPC(accountInsights.cpc)} sub={`CPM ${formatMoney(accountInsights.cpm)}`} color="orange" />
+            <KPICard icon={<TrendingUp size={20} />} label="ROAS" value={formatROAS(accountROAS)} sub={accountROAS ? `${(accountROAS * 100).toFixed(0)}% 수익률` : '데이터 없음'} color="blue" />
           </div>
 
           {/* Daily Trend Chart */}
@@ -259,6 +289,14 @@ export default function PerformanceDashboard() {
                     data={trendDays.map((d: any) => ({ label: d.date_stop?.slice(5) || '', value: parseFloat(d.ctr || 0) }))}
                     color="green"
                     formatValue={(v) => `${v.toFixed(2)}%`}
+                  />
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 mb-2">ROAS</p>
+                  <MiniLineChart
+                    data={trendDays.map((d: any) => ({ label: d.date_stop?.slice(5) || '', value: parseFloat(d.roas || 0) }))}
+                    color="orange"
+                    formatValue={(v) => v.toFixed(2)}
                   />
                 </div>
               </div>
@@ -450,6 +488,7 @@ export default function PerformanceDashboard() {
                           <div className="text-right"><p className="text-xs text-gray-400">클릭</p><p className="font-semibold">{formatNum(ins.clicks)}</p></div>
                           <div className="text-right"><p className="text-xs text-gray-400">CTR</p><p className="font-semibold">{parseFloat(ins.ctr || '0').toFixed(2)}%</p></div>
                           <div className="text-right"><p className="text-xs text-gray-400">CPC</p><p className="font-semibold">{formatCPC(ins.cpc)}</p></div>
+                          <div className="text-right"><p className="text-xs text-gray-400">ROAS</p><p className={`font-semibold ${ins.roas && ins.roas >= 1 ? 'text-green-600' : ins.roas ? 'text-red-600' : 'text-gray-400'}`}>{formatROAS(ins.roas)}</p></div>
                         </div>
                       )}
                       <button onClick={(e) => { e.stopPropagation(); toggleStatus(camp.id, 'campaign', es); }}
@@ -504,6 +543,7 @@ export default function PerformanceDashboard() {
                                       <span>클릭: {adset.insights.clicks}</span>
                                       <span>CTR: {parseFloat(adset.insights.ctr || '0').toFixed(2)}%</span>
                                       <span>CPC: {formatCPC(adset.insights.cpc)}</span>
+                                      <span className={adset.insights.roas && adset.insights.roas >= 1 ? 'text-green-600 font-medium' : adset.insights.roas ? 'text-red-600 font-medium' : ''}>ROAS: {formatROAS(adset.insights.roas)}</span>
                                     </div>
                                   )}
                                   {adset.ads?.length > 0 && (
@@ -519,7 +559,7 @@ export default function PerformanceDashboard() {
                                               <span className={`text-xs ${adStatus === 'ACTIVE' ? 'text-green-600' : 'text-gray-400'}`}>{adStatusKo}</span>
                                             </div>
                                             <div className="flex items-center gap-3">
-                                              {ad.insights && <span className="text-xs text-gray-500">{formatSpend(ad.insights.spend)} | CPC {formatCPC(ad.insights.cpc)} | CTR {parseFloat(ad.insights.ctr || '0').toFixed(2)}%</span>}
+                                              {ad.insights && <span className="text-xs text-gray-500">{formatSpend(ad.insights.spend)} | CPC {formatCPC(ad.insights.cpc)} | CTR {parseFloat(ad.insights.ctr || '0').toFixed(2)}% | <span className={ad.insights.roas && ad.insights.roas >= 1 ? 'text-green-600' : ad.insights.roas ? 'text-red-600' : ''}>ROAS {formatROAS(ad.insights.roas)}</span></span>}
                                               <button onClick={() => toggleStatus(ad.id, 'ad', adStatus)} className="text-xs px-2 py-0.5 rounded border hover:bg-white">
                                                 {adStatus === 'ACTIVE' ? '중지' : '켜기'}
                                               </button>
