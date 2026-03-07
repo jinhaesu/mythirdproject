@@ -875,8 +875,9 @@ ROAS(광고비 대비 매출)는 특히 중요하게 분석해주세요. JSON만
                 report_data["ai_report"] = ai_text
         except (json.JSONDecodeError, Exception):
             report_data["ai_report"] = ai_text
-    except Exception:
-        report_data["ai_report"] = "AI 리포트 생성에 실패했습니다."
+    except Exception as e:
+        logger.error(f"AI report generation failed: {e}", exc_info=True)
+        report_data["ai_report"] = f"AI 리포트 생성에 실패했습니다. ({type(e).__name__}: {str(e)[:100]})"
 
     return report_data
 

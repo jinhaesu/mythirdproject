@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 class MarketDataService:
     """Fetches real market data from YouTube, Naver, and Instagram APIs."""
 
-    def __init__(self, user_meta_token: Optional[str] = None):
+    def __init__(self, user_meta_token: Optional[str] = None, user_ig_account_id: Optional[str] = None):
         settings = get_settings()
         self.youtube_key = settings.YOUTUBE_API_KEY
         self.naver_id = settings.NAVER_CLIENT_ID
@@ -22,7 +22,9 @@ class MarketDataService:
         self.meta_token = user_meta_token or settings.META_ACCESS_TOKEN
         self.meta_graph_base = settings.META_GRAPH_API_BASE
         self.meta_api_version = settings.META_API_VERSION
-        logger.info(f"MarketDataService init: youtube={'YES' if self.youtube_key else 'NO'}, naver={'YES' if self.naver_id else 'NO'}, instagram={'YES' if self.meta_token else 'NO'} (user_token={'YES' if user_meta_token else 'NO'})")
+        # IG Business Account ID from user's OAuth connection
+        self.ig_account_id = user_ig_account_id
+        logger.info(f"MarketDataService init: youtube={'YES' if self.youtube_key else 'NO'}, naver={'YES' if self.naver_id else 'NO'}, instagram={'YES' if self.meta_token else 'NO'} (user_token={'YES' if user_meta_token else 'NO'}, ig_id={'YES' if user_ig_account_id else 'NO'})")
 
     @property
     def has_youtube(self) -> bool:
@@ -189,8 +191,9 @@ class MarketDataService:
                                 "date": dp["period"],
                                 "ratio": dp["ratio"],
                             })
-                        # Ratio is relative (0-100), estimate volume
-                        search_volume = int(max(dp["ratio"] for dp in data_points) * 100) if data_points else 0
+                        # Ratio is relative (0-100). Use sum of daily ratios as volume indicator
+                        # This changes with the selected period (more days = higher sum)
+                        search_volume = int(sum(dp["ratio"] for dp in data_points)) if data_points else 0
 
                 return {
                     "blog_post_count": blog_count,
@@ -225,21 +228,33 @@ class MarketDataService:
             return None
 
     async def fetch_instagram_hashtag_data(self, keyword: str) -> Optional[Dict[str, Any]]:
-        """Fetch Instagram hashtag data using Meta Graph API."""
+        """Fetch Instagram hashtag data using Meta Graph API.
+
+        Uses the user's IG Business Account ID (from OAuth) directly instead of
+        calling me/accounts which requires pages_show_list permission.
+        """
         if not self.has_instagram:
+            logger.warning("Instagram: no meta token available")
             return None
 
         try:
-            async with httpx.AsyncClient(timeout=15.0) as client:
-                # First get IG Business Account ID (required for hashtag search)
-                ig_user_id = await self._get_ig_user_id(client)
+            async with httpx.AsyncClient(timeout=20.0) as client:
+                # Use pre-stored IG Business Account ID first, then fallback to me/accounts
+                ig_user_id = self.ig_account_id
                 if not ig_user_id:
-                    logger.warning("Instagram: no IG Business Account ID available")
+                    logger.info("Instagram: no stored ig_account_id, trying me/accounts...")
+                    ig_user_id = await self._get_ig_user_id(client)
+                if not ig_user_id:
+                    logger.warning("Instagram: no IG Business Account ID available. User needs to connect Instagram in Meta settings.")
                     return None
 
+                logger.info(f"Instagram: using IG account ID: {ig_user_id[:10]}...")
+
                 # Search for hashtag ID
+                search_url = f"{self.meta_graph_base}/{self.meta_api_version}/ig_hashtag_search"
+                logger.info(f"Instagram: hashtag search URL: {search_url}, keyword: {keyword}")
                 search_resp = await client.get(
-                    f"{self.meta_graph_base}/{self.meta_api_version}/ig_hashtag_search",
+                    search_url,
                     params={
                         "q": keyword,
                         "user_id": ig_user_id,
@@ -248,15 +263,22 @@ class MarketDataService:
                 )
 
                 if search_resp.status_code != 200:
-                    logger.warning(f"Instagram hashtag search error: {search_resp.status_code} {search_resp.text[:200]}")
+                    error_text = search_resp.text[:300]
+                    logger.warning(f"Instagram hashtag search error: {search_resp.status_code} {error_text}")
+                    # If permission error, try fetching IG account's own recent media instead
+                    if search_resp.status_code in (400, 403):
+                        logger.info("Instagram: hashtag search failed, trying IG account media fallback...")
+                        return await self._fetch_ig_account_media(client, ig_user_id, keyword)
                     return None
 
                 hashtag_data = search_resp.json()
                 hashtags = hashtag_data.get("data", [])
                 if not hashtags:
-                    return None
+                    logger.warning("Instagram: no hashtag results found")
+                    return await self._fetch_ig_account_media(client, ig_user_id, keyword)
 
                 hashtag_id = hashtags[0].get("id")
+                logger.info(f"Instagram: found hashtag ID: {hashtag_id}")
 
                 # Get recent media for this hashtag
                 media_resp = await client.get(
@@ -279,14 +301,16 @@ class MarketDataService:
                     for media in media_data:
                         total_likes += media.get("like_count", 0)
                         total_comments += media.get("comments_count", 0)
-                        # Extract hashtags from captions
                         caption = media.get("caption", "")
                         if caption:
                             import re
                             found_tags = re.findall(r'#[\w가-힣]+', caption)
                             ig_hashtags.extend(found_tags)
+                    logger.info(f"Instagram: got {content_count} media, {total_likes} likes, {total_comments} comments")
                 else:
                     logger.warning(f"Instagram recent_media error: {media_resp.status_code} {media_resp.text[:200]}")
+                    # Fallback to account media
+                    return await self._fetch_ig_account_media(client, ig_user_id, keyword)
 
                 # Deduplicate hashtags
                 tag_counter: Dict[str, int] = {}
@@ -296,13 +320,75 @@ class MarketDataService:
 
                 return {
                     "content_count": content_count,
-                    "total_views": total_likes,  # Instagram doesn't expose views, use likes
+                    "total_views": total_likes,
                     "total_comments": total_comments,
                     "hashtag_id": hashtag_id,
                     "tags": top_ig_tags,
                 }
         except Exception as e:
-            logger.warning(f"Instagram API error for '{keyword}': {e}")
+            logger.error(f"Instagram API error for '{keyword}': {e}", exc_info=True)
+            return None
+
+    async def _fetch_ig_account_media(self, client: httpx.AsyncClient, ig_user_id: str, keyword: str) -> Optional[Dict[str, Any]]:
+        """Fallback: fetch IG Business Account's own recent media when hashtag search is restricted."""
+        try:
+            # Get account's recent media
+            media_resp = await client.get(
+                f"{self.meta_graph_base}/{self.meta_api_version}/{ig_user_id}/media",
+                params={
+                    "fields": "id,caption,like_count,comments_count,media_type,timestamp",
+                    "limit": 50,
+                    "access_token": self.meta_token,
+                },
+            )
+            if media_resp.status_code != 200:
+                logger.warning(f"Instagram account media fallback error: {media_resp.status_code} {media_resp.text[:200]}")
+                return None
+
+            all_media = media_resp.json().get("data", [])
+            # Filter media whose caption contains the keyword
+            keyword_lower = keyword.lower()
+            content_count = 0
+            total_likes = 0
+            total_comments = 0
+            ig_hashtags: List[str] = []
+
+            for media in all_media:
+                caption = media.get("caption", "") or ""
+                if keyword_lower in caption.lower():
+                    content_count += 1
+                    total_likes += media.get("like_count", 0)
+                    total_comments += media.get("comments_count", 0)
+                    import re
+                    found_tags = re.findall(r'#[\w가-힣]+', caption)
+                    ig_hashtags.extend(found_tags)
+
+            # Even if no keyword match, return overall account stats
+            if content_count == 0:
+                content_count = len(all_media)
+                for media in all_media:
+                    total_likes += media.get("like_count", 0)
+                    total_comments += media.get("comments_count", 0)
+                    caption = media.get("caption", "") or ""
+                    if caption:
+                        import re
+                        found_tags = re.findall(r'#[\w가-힣]+', caption)
+                        ig_hashtags.extend(found_tags)
+
+            tag_counter: Dict[str, int] = {}
+            for tag in ig_hashtags:
+                tag_counter[tag.lower()] = tag_counter.get(tag.lower(), 0) + 1
+            top_ig_tags = [t[0] for t in sorted(tag_counter.items(), key=lambda x: x[1], reverse=True)[:15]]
+
+            logger.info(f"Instagram fallback: {content_count} media, {total_likes} likes from account media")
+            return {
+                "content_count": content_count,
+                "total_views": total_likes,
+                "total_comments": total_comments,
+                "tags": top_ig_tags,
+            }
+        except Exception as e:
+            logger.error(f"Instagram account media fallback error: {e}")
             return None
 
     async def fetch_all(self, keyword: str, days: int = 30) -> Dict[str, Any]:

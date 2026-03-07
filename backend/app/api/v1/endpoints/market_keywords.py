@@ -223,8 +223,11 @@ async def analyze_keyword(
 
     try:
         # ── Step 1: Fetch REAL data from APIs (no fake data) ──
-        # Pass user's Meta token for Instagram access (has page/IG permissions)
-        market_svc = MarketDataService(user_meta_token=current_user.meta_access_token)
+        # Pass user's Meta token + IG Business Account ID for Instagram access
+        market_svc = MarketDataService(
+            user_meta_token=current_user.meta_access_token,
+            user_ig_account_id=current_user.meta_ig_account_id,
+        )
         real_data = await market_svc.fetch_all(kw.keyword, days=days)
         api_sources = real_data.get("api_sources", [])
         logger.info(f"Keyword '{kw.keyword}' real API sources: {api_sources}")
