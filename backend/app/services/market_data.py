@@ -19,6 +19,8 @@ class MarketDataService:
         self.naver_id = settings.NAVER_CLIENT_ID
         self.naver_secret = settings.NAVER_CLIENT_SECRET
         self.meta_token = settings.META_ACCESS_TOKEN
+        self.meta_graph_base = settings.META_GRAPH_API_BASE
+        self.meta_api_version = settings.META_API_VERSION
         logger.info(f"MarketDataService init: youtube={'YES' if self.youtube_key else 'NO'}, naver={'YES' if self.naver_id else 'NO'}, instagram={'YES' if self.meta_token else 'NO'}")
 
     @property
@@ -63,33 +65,47 @@ class MarketDataService:
                 total_results = search_data.get("pageInfo", {}).get("totalResults", 0)
 
                 if not video_ids:
-                    return {"content_count": total_results, "total_views": 0, "total_comments": 0}
+                    return {"content_count": total_results, "total_views": 0, "total_comments": 0, "tags": []}
 
-                # Get video statistics
+                # Get video statistics + snippet (for tags)
                 stats_resp = await client.get(
                     "https://www.googleapis.com/youtube/v3/videos",
                     params={
-                        "part": "statistics",
+                        "part": "statistics,snippet",
                         "id": ",".join(video_ids),
                         "key": self.youtube_key,
                     },
                 )
                 if stats_resp.status_code != 200:
                     logger.warning(f"YouTube videos API error: {stats_resp.status_code}")
-                    return {"content_count": total_results, "total_views": 0, "total_comments": 0}
+                    return {"content_count": total_results, "total_views": 0, "total_comments": 0, "tags": []}
                 stats_data = stats_resp.json()
 
                 total_views = 0
                 total_comments = 0
+                total_likes = 0
+                total_dislikes = 0
+                tag_counter: Dict[str, int] = {}
                 for item in stats_data.get("items", []):
                     stats = item.get("statistics", {})
                     total_views += int(stats.get("viewCount", 0))
                     total_comments += int(stats.get("commentCount", 0))
+                    total_likes += int(stats.get("likeCount", 0))
+                    # Collect tags from video snippets
+                    for tag in item.get("snippet", {}).get("tags", []):
+                        tag_lower = tag.lower().strip()
+                        tag_counter[tag_lower] = tag_counter.get(tag_lower, 0) + 1
+
+                # Get top tags sorted by frequency
+                sorted_tags = sorted(tag_counter.items(), key=lambda x: x[1], reverse=True)[:20]
+                top_tags = [f"#{t[0]}" for t in sorted_tags]
 
                 return {
                     "content_count": total_results,
                     "total_views": total_views,
                     "total_comments": total_comments,
+                    "total_likes": total_likes,
+                    "tags": top_tags,
                 }
         except Exception as e:
             logger.warning(f"YouTube API error for '{keyword}': {e}")
@@ -107,10 +123,10 @@ class MarketDataService:
                     "X-Naver-Client-Secret": self.naver_secret,
                 }
 
-                # Blog search
+                # Blog search (fetch 10 titles for sentiment keywords)
                 blog_resp = await client.get(
                     "https://openapi.naver.com/v1/search/blog.json",
-                    params={"query": keyword, "display": 1, "sort": "sim"},
+                    params={"query": keyword, "display": 10, "sort": "sim"},
                     headers=headers,
                 )
                 if blog_resp.status_code != 200:
@@ -118,6 +134,13 @@ class MarketDataService:
                     return None
                 blog_data = blog_resp.json()
                 blog_count = blog_data.get("total", 0)
+
+                # Extract blog titles for keyword extraction
+                import re
+                blog_titles = []
+                for item in blog_data.get("items", []):
+                    title = re.sub(r'<[^>]+>', '', item.get("title", ""))
+                    blog_titles.append(title)
 
                 # DataLab search trend (last 30 days)
                 end_date = datetime.utcnow().strftime("%Y-%m-%d")
@@ -160,6 +183,7 @@ class MarketDataService:
                     "blog_post_count": blog_count,
                     "search_query_volume": search_volume,
                     "daily_trend": daily_searches,
+                    "blog_titles": blog_titles,
                 }
         except Exception as e:
             logger.warning(f"Naver API error for '{keyword}': {e}")
@@ -174,7 +198,7 @@ class MarketDataService:
             async with httpx.AsyncClient(timeout=15.0) as client:
                 # Search for hashtag ID
                 search_resp = await client.get(
-                    f"{settings.META_GRAPH_API_BASE}/{settings.META_API_VERSION}/ig_hashtag_search",
+                    f"{self.meta_graph_base}/{self.meta_api_version}/ig_hashtag_search",
                     params={
                         "q": keyword,
                         "access_token": self.meta_token,
@@ -182,6 +206,7 @@ class MarketDataService:
                 )
 
                 if search_resp.status_code != 200:
+                    logger.warning(f"Instagram hashtag search error: {search_resp.status_code} {search_resp.text[:200]}")
                     return None
 
                 hashtag_data = search_resp.json()

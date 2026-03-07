@@ -669,14 +669,44 @@ async def send_report_email(
         raise HTTPException(status_code=500, detail=f"리포트 생성 실패: {str(e)}")
 
     ai_report = report.get("ai_report", "리포트 데이터가 없습니다.")
-    html_content = ai_report.replace("\n", "<br>")
+
+    # ai_report can be a parsed JSON dict or a plain string
+    if isinstance(ai_report, dict):
+        # Build HTML from structured report
+        parts = []
+        if ai_report.get("headline"):
+            parts.append(f"<h2>{ai_report['headline']}</h2>")
+        if ai_report.get("period_summary"):
+            parts.append(f"<p>{ai_report['period_summary']}</p>")
+        if ai_report.get("kpi_highlights"):
+            parts.append("<h3>KPI 하이라이트</h3><ul>")
+            for kpi in ai_report["kpi_highlights"]:
+                parts.append(f"<li><strong>{kpi.get('metric', '')}</strong>: {kpi.get('value', '')} ({kpi.get('change', '')}) - {kpi.get('insight', '')}</li>")
+            parts.append("</ul>")
+        if ai_report.get("daily_trend_insight"):
+            parts.append(f"<h3>일별 트렌드</h3><p>{ai_report['daily_trend_insight']}</p>")
+        if ai_report.get("key_insights"):
+            parts.append("<h3>핵심 인사이트</h3><ul>")
+            for insight in ai_report["key_insights"]:
+                parts.append(f"<li>{insight}</li>")
+            parts.append("</ul>")
+        if ai_report.get("recommendations"):
+            parts.append("<h3>추천 사항</h3><ul>")
+            for rec in ai_report["recommendations"]:
+                parts.append(f"<li><strong>[{rec.get('priority', '')}] {rec.get('title', '')}</strong>: {rec.get('description', '')} (예상 효과: {rec.get('expected_impact', '')})</li>")
+            parts.append("</ul>")
+        if ai_report.get("overall_grade"):
+            parts.append(f"<h3>종합 등급: {ai_report['overall_grade']}</h3><p>{ai_report.get('grade_reason', '')}</p>")
+        report_body = "\n".join(parts)
+    else:
+        report_body = str(ai_report).replace("\n", "<br>")
     html_content = f"""
     <div style="font-family: Arial, sans-serif; max-width: 640px; margin: 0 auto; padding: 20px;">
         <div style="background: linear-gradient(135deg, #1877F2, #E1306C); padding: 20px; border-radius: 12px; margin-bottom: 20px;">
             <h1 style="color: white; margin: 0; font-size: 24px;">Meta-Commander 성과 리포트</h1>
             <p style="color: rgba(255,255,255,0.8); margin: 8px 0 0;">기간: {request.start_date} ~ {request.end_date}</p>
         </div>
-        <div style="padding: 20px; background: #f9fafb; border-radius: 8px; line-height: 1.8;">{html_content}</div>
+        <div style="padding: 20px; background: #f9fafb; border-radius: 8px; line-height: 1.8;">{report_body}</div>
         <p style="color: #999; font-size: 12px; margin-top: 20px; text-align: center;">Meta-Commander에서 자동 생성된 리포트입니다.</p>
     </div>"""
 

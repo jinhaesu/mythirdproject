@@ -268,62 +268,80 @@ async def analyze_keyword(
             else:
                 platform_data["api_errors"]["naver"] = "Naver API 키가 설정되지 않았습니다."
 
-        # ── Step 2: AI for sentiment analysis + hashtags ONLY ──
+        # ── Step 2: Extract REAL sentiment + hashtags from API data ──
         sentiment_data = {}
         hashtags = []
-        try:
-            claude = ClaudeService()
-            prompt = f"""당신은 소셜 미디어 마켓 분석 전문가입니다. "{kw.keyword}" 키워드에 대해 감성 분석과 관련 해시태그를 생성해주세요.
 
-다음 JSON 형식으로 정확하게 응답해주세요 (JSON만 반환, 다른 텍스트 없이):
-{{
-    "sentiment_data": {{
-        "positive_ratio": <float: 0.0~1.0>,
-        "negative_ratio": <float: 0.0~1.0>,
-        "neutral_ratio": <float: 0.0~1.0>,
-        "positive_keywords": [
-            {{"keyword": "<한국어 긍정 키워드>", "count": <int>}},
-            {{"keyword": "<한국어 긍정 키워드>", "count": <int>}},
-            {{"keyword": "<한국어 긍정 키워드>", "count": <int>}},
-            {{"keyword": "<한국어 긍정 키워드>", "count": <int>}},
-            {{"keyword": "<한국어 긍정 키워드>", "count": <int>}}
-        ],
-        "negative_keywords": [
-            {{"keyword": "<한국어 부정 키워드>", "count": <int>}},
-            {{"keyword": "<한국어 부정 키워드>", "count": <int>}},
-            {{"keyword": "<한국어 부정 키워드>", "count": <int>}}
-        ],
-        "emotion_keywords": [
-            {{"keyword": "<감정 키워드>", "count": <int>, "emotion": "<기쁨/슬픔/분노/놀라움/기대 중 하나>"}},
-            {{"keyword": "<감정 키워드>", "count": <int>, "emotion": "<기쁨/슬픔/분노/놀라움/기대 중 하나>"}},
-            {{"keyword": "<감정 키워드>", "count": <int>, "emotion": "<기쁨/슬픔/분노/놀라움/기대 중 하나>"}},
-            {{"keyword": "<감정 키워드>", "count": <int>, "emotion": "<기쁨/슬픔/분노/놀라움/기대 중 하나>"}}
-        ]
-    }},
-    "hashtags": [
-        "#관련해시태그1", "#관련해시태그2", "#관련해시태그3", "#관련해시태그4",
-        "#관련해시태그5", "#관련해시태그6", "#관련해시태그7", "#관련해시태그8",
-        "#관련해시태그9", "#관련해시태그10"
-    ]
-}}
+        # Collect hashtags from real YouTube video tags
+        if real_data["youtube"] and real_data["youtube"].get("tags"):
+            hashtags.extend(real_data["youtube"]["tags"])
 
-"{kw.keyword}" 키워드와 관련된 현실적이고 구체적인 한국 시장 감성 분석을 생성하세요. 해시태그는 실제로 사용될 법한 한국어/영어 태그로 작성하세요."""
+        # YouTube engagement-based sentiment (likes vs total engagement)
+        if real_data["youtube"]:
+            yt = real_data["youtube"]
+            likes = yt.get("total_likes", 0)
+            comments = yt.get("total_comments", 0)
+            if likes + comments > 0:
+                positive_ratio = round(likes / (likes + comments), 2) if likes > 0 else 0.3
+                negative_ratio = round(max(0, 1 - positive_ratio - 0.3), 2)
+                neutral_ratio = round(1 - positive_ratio - negative_ratio, 2)
+                sentiment_data = {
+                    "positive_ratio": positive_ratio,
+                    "negative_ratio": negative_ratio,
+                    "neutral_ratio": neutral_ratio,
+                    "positive_keywords": [],
+                    "negative_keywords": [],
+                    "emotion_keywords": [],
+                    "source": "youtube_engagement",
+                }
 
-            response = claude.client.messages.create(
-                model=claude.model,
-                max_tokens=2000,
-                messages=[{"role": "user", "content": prompt}],
-            )
+        # Extract keywords from Naver blog titles (real data)
+        if real_data["naver"] and real_data["naver"].get("blog_titles"):
+            import re
+            titles = real_data["naver"]["blog_titles"]
+            positive_words = ["추천", "좋은", "최고", "인기", "만족", "효과", "혜택", "할인", "꿀팁", "대박"]
+            negative_words = ["주의", "실패", "단점", "후회", "별로", "비추", "부작용", "피해", "문제"]
+            pos_found = []
+            neg_found = []
+            for title in titles:
+                for pw in positive_words:
+                    if pw in title:
+                        pos_found.append({"keyword": pw, "count": 1})
+                for nw in negative_words:
+                    if nw in title:
+                        neg_found.append({"keyword": nw, "count": 1})
 
-            content = response.content[0].text
-            start = content.find("{")
-            end = content.rfind("}") + 1
-            if start >= 0 and end > start:
-                analysis = json.loads(content[start:end])
-                sentiment_data = analysis.get("sentiment_data", {})
-                hashtags = analysis.get("hashtags", [])
-        except Exception as e:
-            logger.warning(f"AI sentiment analysis failed for '{kw.keyword}': {e}")
+            # Deduplicate and count
+            pos_counter: Dict[str, int] = {}
+            for p in pos_found:
+                pos_counter[p["keyword"]] = pos_counter.get(p["keyword"], 0) + 1
+            neg_counter: Dict[str, int] = {}
+            for n in neg_found:
+                neg_counter[n["keyword"]] = neg_counter.get(n["keyword"], 0) + 1
+
+            pos_kws = [{"keyword": k, "count": v} for k, v in sorted(pos_counter.items(), key=lambda x: x[1], reverse=True)]
+            neg_kws = [{"keyword": k, "count": v} for k, v in sorted(neg_counter.items(), key=lambda x: x[1], reverse=True)]
+
+            total_signals = len(pos_found) + len(neg_found)
+            if total_signals > 0:
+                p_ratio = round(len(pos_found) / total_signals, 2)
+                n_ratio = round(len(neg_found) / total_signals, 2)
+            else:
+                p_ratio, n_ratio = 0.5, 0.1
+
+            sentiment_data = {
+                "positive_ratio": p_ratio,
+                "negative_ratio": n_ratio,
+                "neutral_ratio": round(1 - p_ratio - n_ratio, 2),
+                "positive_keywords": pos_kws[:5],
+                "negative_keywords": neg_kws[:3],
+                "emotion_keywords": [],
+                "source": "naver_blog_titles",
+            }
+
+        # Add keyword itself as hashtag if no tags found
+        if not hashtags:
+            hashtags = [f"#{kw.keyword}"]
 
         # ── Step 3: Save to DB ──
         kw.platform_data = json.dumps(platform_data, ensure_ascii=False)
@@ -336,12 +354,6 @@ async def analyze_keyword(
 
         return _serialize_keyword(kw)
 
-    except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse AI response for keyword '{kw.keyword}': {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="AI 분석 결과를 파싱하는 데 실패했습니다. 다시 시도해주세요.",
-        )
     except Exception as e:
         logger.error(f"Analysis failed for keyword '{kw.keyword}': {e}")
         raise HTTPException(

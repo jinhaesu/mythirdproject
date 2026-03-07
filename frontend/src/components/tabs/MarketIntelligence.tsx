@@ -18,6 +18,8 @@ interface PlatformMetrics {
   content_count: number;
   total_views: number;
   total_comments: number;
+  total_likes?: number;
+  tags?: string[];
 }
 
 interface NaverMetrics {
@@ -56,6 +58,7 @@ interface SentimentData {
   positive_keywords: { keyword: string; count: number }[];
   negative_keywords: { keyword: string; count: number }[];
   emotion_keywords: { keyword: string; count: number; emotion: string }[];
+  source?: string;
 }
 
 interface MarketKeyword {
@@ -519,6 +522,10 @@ export function MarketIntelligence() {
                         <span className="text-sm font-semibold">{fmt(selectedKeyword.platform_data.youtube.total_views)}</span>
                       </div>
                       <div className="flex justify-between">
+                        <span className="text-sm text-gray-500">총 좋아요</span>
+                        <span className="text-sm font-semibold">{fmt(selectedKeyword.platform_data.youtube.total_likes || 0)}</span>
+                      </div>
+                      <div className="flex justify-between">
                         <span className="text-sm text-gray-500">총 댓글</span>
                         <span className="text-sm font-semibold">{fmt(selectedKeyword.platform_data.youtube.total_comments)}</span>
                       </div>
@@ -653,8 +660,9 @@ export function MarketIntelligence() {
                 })()}
 
                 {selectedKeyword.platform_data.daily_trends.length === 0 && selectedKeyword.platform_data.monthly_trends.length === 0 && (
-                  <p className="text-center text-gray-400 py-8">트렌드 데이터가 없습니다. 분석을 실행해주세요.</p>
+                  <p className="text-center text-gray-400 py-8">일별 트렌드 데이터가 없습니다. (Naver DataLab API 연동 시 트렌드 차트가 표시됩니다)</p>
                 )}
+                <p className="text-[10px] text-gray-400 mt-2 text-center">* YouTube/Instagram은 일별 트렌드 API를 제공하지 않아 집계 데이터만 표시됩니다</p>
               </Card>
 
               {/* Sentiment Analysis */}
@@ -663,6 +671,11 @@ export function MarketIntelligence() {
                   <CardTitle className="flex items-center gap-2 mb-4">
                     <MessageCircle size={20} />
                     감성 분석 - "{selectedKeyword.keyword}"
+                    {selectedKeyword.sentiment_data.source && (
+                      <span className="ml-2 text-[9px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">
+                        {selectedKeyword.sentiment_data.source === 'naver_blog_titles' ? 'Naver 블로그' : selectedKeyword.sentiment_data.source === 'youtube_engagement' ? 'YouTube' : '실제 데이터'}
+                      </span>
+                    )}
                   </CardTitle>
 
                   <SentimentBar
