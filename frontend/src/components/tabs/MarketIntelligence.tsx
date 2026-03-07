@@ -40,12 +40,13 @@ interface MonthlyTrend {
 }
 
 interface PlatformData {
-  youtube: PlatformMetrics;
-  instagram: PlatformMetrics;
-  naver: NaverMetrics;
+  youtube: PlatformMetrics | null;
+  instagram: PlatformMetrics | null;
+  naver: NaverMetrics | null;
   daily_trends: DailyTrend[];
   monthly_trends: MonthlyTrend[];
   api_sources?: string[];
+  api_errors?: Record<string, string>;
 }
 
 interface SentimentData {
@@ -507,20 +508,24 @@ export function MarketIntelligence() {
                       <span className="ml-auto text-[9px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-medium">API</span>
                     )}
                   </div>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-500">콘텐츠 수</span>
-                      <span className="text-sm font-semibold">{fmt(selectedKeyword.platform_data.youtube.content_count)}</span>
+                  {selectedKeyword.platform_data.youtube ? (
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-500">콘텐츠 수</span>
+                        <span className="text-sm font-semibold">{fmt(selectedKeyword.platform_data.youtube.content_count)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-500">총 조회수</span>
+                        <span className="text-sm font-semibold">{fmt(selectedKeyword.platform_data.youtube.total_views)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-500">총 댓글</span>
+                        <span className="text-sm font-semibold">{fmt(selectedKeyword.platform_data.youtube.total_comments)}</span>
+                      </div>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-500">총 조회수</span>
-                      <span className="text-sm font-semibold">{fmt(selectedKeyword.platform_data.youtube.total_views)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-500">총 댓글</span>
-                      <span className="text-sm font-semibold">{fmt(selectedKeyword.platform_data.youtube.total_comments)}</span>
-                    </div>
-                  </div>
+                  ) : (
+                    <p className="text-xs text-red-500">{selectedKeyword.platform_data.api_errors?.youtube || '데이터를 가져올 수 없습니다.'}</p>
+                  )}
                 </Card>
 
                 {/* Instagram */}
@@ -534,20 +539,24 @@ export function MarketIntelligence() {
                       <span className="ml-auto text-[9px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-medium">API</span>
                     )}
                   </div>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-500">콘텐츠 수</span>
-                      <span className="text-sm font-semibold">{fmt(selectedKeyword.platform_data.instagram.content_count)}</span>
+                  {selectedKeyword.platform_data.instagram ? (
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-500">콘텐츠 수</span>
+                        <span className="text-sm font-semibold">{fmt(selectedKeyword.platform_data.instagram.content_count)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-500">총 조회수</span>
+                        <span className="text-sm font-semibold">{fmt(selectedKeyword.platform_data.instagram.total_views)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-500">총 댓글</span>
+                        <span className="text-sm font-semibold">{fmt(selectedKeyword.platform_data.instagram.total_comments)}</span>
+                      </div>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-500">총 조회수</span>
-                      <span className="text-sm font-semibold">{fmt(selectedKeyword.platform_data.instagram.total_views)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-500">총 댓글</span>
-                      <span className="text-sm font-semibold">{fmt(selectedKeyword.platform_data.instagram.total_comments)}</span>
-                    </div>
-                  </div>
+                  ) : (
+                    <p className="text-xs text-red-500">{selectedKeyword.platform_data.api_errors?.instagram || '데이터를 가져올 수 없습니다.'}</p>
+                  )}
                 </Card>
 
                 {/* Naver */}
@@ -561,16 +570,20 @@ export function MarketIntelligence() {
                       <span className="ml-auto text-[9px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-medium">API</span>
                     )}
                   </div>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-500">블로그 포스트</span>
-                      <span className="text-sm font-semibold">{fmt(selectedKeyword.platform_data.naver.blog_post_count)}</span>
+                  {selectedKeyword.platform_data.naver ? (
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-500">블로그 포스트</span>
+                        <span className="text-sm font-semibold">{fmt(selectedKeyword.platform_data.naver.blog_post_count)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-500">검색량</span>
+                        <span className="text-sm font-semibold">{fmt(selectedKeyword.platform_data.naver.search_query_volume)}</span>
+                      </div>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-500">검색량</span>
-                      <span className="text-sm font-semibold">{fmt(selectedKeyword.platform_data.naver.search_query_volume)}</span>
-                    </div>
-                  </div>
+                  ) : (
+                    <p className="text-xs text-red-500">{selectedKeyword.platform_data.api_errors?.naver || '데이터를 가져올 수 없습니다.'}</p>
+                  )}
                 </Card>
               </div>
 
@@ -601,53 +614,43 @@ export function MarketIntelligence() {
                   </div>
                 </div>
 
-                {chartView === 'daily' && selectedKeyword.platform_data.daily_trends.length > 0 && (
-                  <SVGLineChart
-                    title="일별 트렌드"
-                    labels={selectedKeyword.platform_data.daily_trends.map((d) => d.date.slice(5))}
-                    datasets={[
-                      {
-                        label: 'YouTube 조회수',
-                        data: selectedKeyword.platform_data.daily_trends.map((d) => d.youtube_views),
-                        color: '#EF4444',
-                      },
-                      {
-                        label: 'Instagram 조회수',
-                        data: selectedKeyword.platform_data.daily_trends.map((d) => d.instagram_views),
-                        color: '#EC4899',
-                      },
-                      {
-                        label: 'Naver 검색량',
-                        data: selectedKeyword.platform_data.daily_trends.map((d) => d.naver_searches),
-                        color: '#10B981',
-                      },
-                    ]}
-                  />
-                )}
+                {chartView === 'daily' && selectedKeyword.platform_data.daily_trends.length > 0 && (() => {
+                  const trends = selectedKeyword.platform_data!.daily_trends;
+                  const hasYt = trends.some((d) => d.youtube_views > 0);
+                  const hasIg = trends.some((d) => d.instagram_views > 0);
+                  const hasNv = trends.some((d) => d.naver_searches > 0);
+                  const datasets = [];
+                  if (hasYt) datasets.push({ label: 'YouTube 조회수', data: trends.map((d) => d.youtube_views || 0), color: '#EF4444' });
+                  if (hasIg) datasets.push({ label: 'Instagram 조회수', data: trends.map((d) => d.instagram_views || 0), color: '#EC4899' });
+                  if (hasNv) datasets.push({ label: 'Naver 검색 트렌드', data: trends.map((d) => d.naver_searches || 0), color: '#10B981' });
+                  if (datasets.length === 0) return <p className="text-center text-gray-400 py-6">일별 트렌드 데이터가 없습니다.</p>;
+                  return (
+                    <SVGLineChart
+                      title="일별 트렌드 (실제 API 데이터)"
+                      labels={trends.map((d) => d.date.slice(5))}
+                      datasets={datasets}
+                    />
+                  );
+                })()}
 
-                {chartView === 'monthly' && selectedKeyword.platform_data.monthly_trends.length > 0 && (
-                  <SVGLineChart
-                    title="월별 트렌드"
-                    labels={selectedKeyword.platform_data.monthly_trends.map((d) => d.month)}
-                    datasets={[
-                      {
-                        label: 'YouTube 조회수',
-                        data: selectedKeyword.platform_data.monthly_trends.map((d) => d.youtube_views),
-                        color: '#EF4444',
-                      },
-                      {
-                        label: 'Instagram 조회수',
-                        data: selectedKeyword.platform_data.monthly_trends.map((d) => d.instagram_views),
-                        color: '#EC4899',
-                      },
-                      {
-                        label: 'Naver 검색량',
-                        data: selectedKeyword.platform_data.monthly_trends.map((d) => d.naver_searches),
-                        color: '#10B981',
-                      },
-                    ]}
-                  />
-                )}
+                {chartView === 'monthly' && selectedKeyword.platform_data.monthly_trends.length > 0 && (() => {
+                  const trends = selectedKeyword.platform_data!.monthly_trends;
+                  const hasYt = trends.some((d) => d.youtube_views > 0);
+                  const hasIg = trends.some((d) => d.instagram_views > 0);
+                  const hasNv = trends.some((d) => d.naver_searches > 0);
+                  const datasets = [];
+                  if (hasYt) datasets.push({ label: 'YouTube 조회수', data: trends.map((d) => d.youtube_views || 0), color: '#EF4444' });
+                  if (hasIg) datasets.push({ label: 'Instagram 조회수', data: trends.map((d) => d.instagram_views || 0), color: '#EC4899' });
+                  if (hasNv) datasets.push({ label: 'Naver 검색 트렌드', data: trends.map((d) => d.naver_searches || 0), color: '#10B981' });
+                  if (datasets.length === 0) return <p className="text-center text-gray-400 py-6">월별 트렌드 데이터가 없습니다.</p>;
+                  return (
+                    <SVGLineChart
+                      title="월별 트렌드 (실제 API 데이터)"
+                      labels={trends.map((d) => d.month)}
+                      datasets={datasets}
+                    />
+                  );
+                })()}
 
                 {selectedKeyword.platform_data.daily_trends.length === 0 && selectedKeyword.platform_data.monthly_trends.length === 0 && (
                   <p className="text-center text-gray-400 py-8">트렌드 데이터가 없습니다. 분석을 실행해주세요.</p>
@@ -782,19 +785,25 @@ export function MarketIntelligence() {
                 <tr className="border-b">
                   <td className="py-2 px-3 text-gray-600 flex items-center gap-1"><Youtube size={14} className="text-red-500" /> YouTube 조회수</td>
                   {comparisonKeywords.map((kw) => (
-                    <td key={kw.id} className="text-right py-2 px-3 font-medium">{fmt(kw.platform_data?.youtube?.total_views || 0)}</td>
+                    <td key={kw.id} className="text-right py-2 px-3 font-medium">
+                      {kw.platform_data?.youtube ? fmt(kw.platform_data.youtube.total_views) : <span className="text-gray-400 text-xs">N/A</span>}
+                    </td>
                   ))}
                 </tr>
                 <tr className="border-b">
                   <td className="py-2 px-3 text-gray-600 flex items-center gap-1"><Instagram size={14} className="text-pink-500" /> Instagram 조회수</td>
                   {comparisonKeywords.map((kw) => (
-                    <td key={kw.id} className="text-right py-2 px-3 font-medium">{fmt(kw.platform_data?.instagram?.total_views || 0)}</td>
+                    <td key={kw.id} className="text-right py-2 px-3 font-medium">
+                      {kw.platform_data?.instagram ? fmt(kw.platform_data.instagram.total_views) : <span className="text-gray-400 text-xs">N/A</span>}
+                    </td>
                   ))}
                 </tr>
                 <tr className="border-b">
                   <td className="py-2 px-3 text-gray-600 flex items-center gap-1"><Globe size={14} className="text-green-500" /> Naver 검색량</td>
                   {comparisonKeywords.map((kw) => (
-                    <td key={kw.id} className="text-right py-2 px-3 font-medium">{fmt(kw.platform_data?.naver?.search_query_volume || 0)}</td>
+                    <td key={kw.id} className="text-right py-2 px-3 font-medium">
+                      {kw.platform_data?.naver ? fmt(kw.platform_data.naver.search_query_volume) : <span className="text-gray-400 text-xs">N/A</span>}
+                    </td>
                   ))}
                 </tr>
                 <tr>

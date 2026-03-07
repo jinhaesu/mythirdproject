@@ -73,8 +73,11 @@ async def send_magic_link(
     # Send email via Resend
     try:
         resend.api_key = settings.RESEND_API_KEY
+        from_email = settings.RESEND_FROM_EMAIL or "onboarding@resend.dev"
+        if "<" not in from_email:
+            from_email = f"Meta-Commander <{from_email}>"
         result = resend.Emails.send({
-            "from": settings.RESEND_FROM_EMAIL,
+            "from": from_email,
             "to": [email],
             "subject": "Meta-Commander 로그인 링크",
             "html": f"""

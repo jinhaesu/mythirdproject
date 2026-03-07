@@ -340,6 +340,11 @@ export const analyticsApi = {
     return data;
   },
 
+  testEmail: async () => {
+    const { data } = await api.post('/analytics/report/email/test');
+    return data;
+  },
+
   reallocateBudget: async (campaignId: number, pauseUnderperforming = true, reallocateToWinner = true) => {
     const { data } = await api.post('/analytics/reallocate-budget', {
       campaign_id: campaignId,

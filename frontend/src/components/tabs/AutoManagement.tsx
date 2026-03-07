@@ -197,6 +197,22 @@ export function AutoManagement() {
     },
   });
 
+  const testEmailMutation = useMutation({
+    mutationFn: () => analyticsApi.testEmail(),
+    onSuccess: (data: any) => {
+      if (data.success) {
+        toast.success(data.message || '테스트 이메일 발송 성공');
+      } else {
+        toast.error(`테스트 실패: ${data.error || '알 수 없는 오류'}`);
+        console.log('Email diagnostics:', data.diagnostics);
+      }
+    },
+    onError: (err: any) => {
+      const detail = err?.response?.data?.detail;
+      toast.error(typeof detail === 'string' ? detail : '테스트 이메일 실패');
+    },
+  });
+
   const resetRuleForm = () => setRuleForm({
     name: '', metric: 'cpc', operator: 'gt', threshold: '',
     secondary_metric: '', secondary_operator: 'gt', secondary_threshold: '',
@@ -609,9 +625,17 @@ export function AutoManagement() {
             className="bg-purple-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2">
             <Mail size={14} /> {emailMutation.isPending ? '발송중...' : '이메일 발송'}
           </button>
+          <button onClick={() => testEmailMutation.mutate()}
+            disabled={testEmailMutation.isPending}
+            className="bg-gray-500 text-white px-3 py-2 rounded-lg text-sm hover:bg-gray-600 disabled:opacity-50 flex items-center gap-1">
+            {testEmailMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />} 테스트
+          </button>
         </div>
         {emailMutation.isSuccess && <p className="mt-2 text-sm text-green-600">{(emailMutation.data as any)?.message}</p>}
         {emailMutation.isError && <p className="mt-2 text-sm text-red-600">이메일 발송에 실패했습니다.</p>}
+        {testEmailMutation.isSuccess && !testEmailMutation.data?.success && (
+          <p className="mt-2 text-xs text-red-600">진단: {JSON.stringify(testEmailMutation.data?.diagnostics, null, 2)}</p>
+        )}
 
         {savedReport && (
           <ReportNewsletter data={savedReport}

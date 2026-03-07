@@ -2,7 +2,7 @@
 import json
 import logging
 from datetime import datetime
-from typing import List, Optional
+from typing import Dict, List, Optional
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -40,11 +40,13 @@ class NaverMetrics(BaseModel):
 
 
 class PlatformData(BaseModel):
-    youtube: PlatformMetrics = Field(default_factory=PlatformMetrics)
-    instagram: PlatformMetrics = Field(default_factory=PlatformMetrics)
-    naver: NaverMetrics = Field(default_factory=NaverMetrics)
+    youtube: Optional[PlatformMetrics] = None
+    instagram: Optional[PlatformMetrics] = None
+    naver: Optional[NaverMetrics] = None
     daily_trends: List[dict] = Field(default_factory=list)
     monthly_trends: List[dict] = Field(default_factory=list)
+    api_sources: List[str] = Field(default_factory=list)
+    api_errors: dict = Field(default_factory=dict)
 
 
 class SentimentData(BaseModel):
@@ -214,71 +216,67 @@ async def analyze_keyword(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="키워드를 찾을 수 없습니다.")
 
     try:
-        # Fetch real data from available APIs
+        # ── Step 1: Fetch REAL data from APIs (no fake data) ──
         market_svc = MarketDataService()
         real_data = await market_svc.fetch_all(kw.keyword)
         api_sources = real_data.get("api_sources", [])
-        logger.info(f"Keyword '{kw.keyword}' real API sources: {api_sources}, youtube={real_data.get('youtube')}, naver={real_data.get('naver')}")
+        logger.info(f"Keyword '{kw.keyword}' real API sources: {api_sources}")
 
-        # Build context from real API data for AI to enhance
-        real_data_context = ""
+        # Build platform_data from REAL API data only
+        platform_data: dict = {
+            "api_sources": api_sources,
+            "api_errors": {},
+            "daily_trends": [],
+            "monthly_trends": [],
+        }
+
+        # YouTube: real data only
         if real_data["youtube"]:
-            yt = real_data["youtube"]
-            real_data_context += f"\n[실제 YouTube 데이터] 콘텐츠 수: {yt['content_count']}, 조회수: {yt['total_views']}, 댓글: {yt['total_comments']}"
+            platform_data["youtube"] = real_data["youtube"]
+        else:
+            if market_svc.has_youtube:
+                platform_data["api_errors"]["youtube"] = "YouTube API 호출에 실패했습니다. 잠시 후 다시 시도해주세요."
+            else:
+                platform_data["api_errors"]["youtube"] = "YouTube API 키가 설정되지 않았습니다."
+
+        # Instagram: real data only
+        if real_data["instagram"]:
+            platform_data["instagram"] = real_data["instagram"]
+        else:
+            if market_svc.has_instagram:
+                platform_data["api_errors"]["instagram"] = "Instagram API 호출에 실패했습니다."
+            else:
+                platform_data["api_errors"]["instagram"] = "Instagram API 토큰이 설정되지 않았습니다."
+
+        # Naver: real data only
         if real_data["naver"]:
             nv = real_data["naver"]
-            real_data_context += f"\n[실제 Naver 데이터] 블로그 수: {nv['blog_post_count']}, 검색량 지수: {nv['search_query_volume']}"
-        if real_data["instagram"]:
-            ig = real_data["instagram"]
-            real_data_context += f"\n[실제 Instagram 데이터] 해시태그 ID: {ig.get('hashtag_id', 'N/A')}"
+            platform_data["naver"] = {
+                "blog_post_count": nv["blog_post_count"],
+                "search_query_volume": nv["search_query_volume"],
+            }
+            # Build daily_trends from Naver DataLab data
+            if nv.get("daily_trend"):
+                for dp in nv["daily_trend"]:
+                    platform_data["daily_trends"].append({
+                        "date": dp["date"],
+                        "naver_searches": int(dp["ratio"] * 100),
+                    })
+        else:
+            if market_svc.has_naver:
+                platform_data["api_errors"]["naver"] = "Naver API 호출에 실패했습니다."
+            else:
+                platform_data["api_errors"]["naver"] = "Naver API 키가 설정되지 않았습니다."
 
-        claude = ClaudeService()
-
-        prompt = f"""당신은 소셜 미디어 마켓 분석 전문가입니다. "{kw.keyword}" 키워드에 대해 현실적인 시장 데이터를 생성해주세요.
-{f"아래 실제 API 데이터를 참고하여 이를 기반으로 현실적인 수치를 생성하세요:{real_data_context}" if real_data_context else ""}
+        # ── Step 2: AI for sentiment analysis + hashtags ONLY ──
+        sentiment_data = {}
+        hashtags = []
+        try:
+            claude = ClaudeService()
+            prompt = f"""당신은 소셜 미디어 마켓 분석 전문가입니다. "{kw.keyword}" 키워드에 대해 감성 분석과 관련 해시태그를 생성해주세요.
 
 다음 JSON 형식으로 정확하게 응답해주세요 (JSON만 반환, 다른 텍스트 없이):
 {{
-    "platform_data": {{
-        "youtube": {{
-            "content_count": <int: 100~50000 사이의 현실적인 콘텐츠 수>,
-            "total_views": <int: 10000~50000000 사이의 현실적인 조회수>,
-            "total_comments": <int: 500~500000 사이의 현실적인 댓글 수>
-        }},
-        "instagram": {{
-            "content_count": <int: 500~200000>,
-            "total_views": <int: 50000~100000000>,
-            "total_comments": <int: 1000~1000000>
-        }},
-        "naver": {{
-            "blog_post_count": <int: 100~100000>,
-            "search_query_volume": <int: 1000~500000>
-        }},
-        "daily_trends": [
-            {{"date": "2026-02-20", "youtube_views": <int>, "instagram_views": <int>, "naver_searches": <int>}},
-            {{"date": "2026-02-21", "youtube_views": <int>, "instagram_views": <int>, "naver_searches": <int>}},
-            {{"date": "2026-02-22", "youtube_views": <int>, "instagram_views": <int>, "naver_searches": <int>}},
-            {{"date": "2026-02-23", "youtube_views": <int>, "instagram_views": <int>, "naver_searches": <int>}},
-            {{"date": "2026-02-24", "youtube_views": <int>, "instagram_views": <int>, "naver_searches": <int>}},
-            {{"date": "2026-02-25", "youtube_views": <int>, "instagram_views": <int>, "naver_searches": <int>}},
-            {{"date": "2026-02-26", "youtube_views": <int>, "instagram_views": <int>, "naver_searches": <int>}},
-            {{"date": "2026-02-27", "youtube_views": <int>, "instagram_views": <int>, "naver_searches": <int>}},
-            {{"date": "2026-02-28", "youtube_views": <int>, "instagram_views": <int>, "naver_searches": <int>}},
-            {{"date": "2026-03-01", "youtube_views": <int>, "instagram_views": <int>, "naver_searches": <int>}},
-            {{"date": "2026-03-02", "youtube_views": <int>, "instagram_views": <int>, "naver_searches": <int>}},
-            {{"date": "2026-03-03", "youtube_views": <int>, "instagram_views": <int>, "naver_searches": <int>}},
-            {{"date": "2026-03-04", "youtube_views": <int>, "instagram_views": <int>, "naver_searches": <int>}},
-            {{"date": "2026-03-05", "youtube_views": <int>, "instagram_views": <int>, "naver_searches": <int>}}
-        ],
-        "monthly_trends": [
-            {{"month": "2025-10", "youtube_views": <int>, "instagram_views": <int>, "naver_searches": <int>}},
-            {{"month": "2025-11", "youtube_views": <int>, "instagram_views": <int>, "naver_searches": <int>}},
-            {{"month": "2025-12", "youtube_views": <int>, "instagram_views": <int>, "naver_searches": <int>}},
-            {{"month": "2026-01", "youtube_views": <int>, "instagram_views": <int>, "naver_searches": <int>}},
-            {{"month": "2026-02", "youtube_views": <int>, "instagram_views": <int>, "naver_searches": <int>}},
-            {{"month": "2026-03", "youtube_views": <int>, "instagram_views": <int>, "naver_searches": <int>}}
-        ]
-    }},
     "sentiment_data": {{
         "positive_ratio": <float: 0.0~1.0>,
         "negative_ratio": <float: 0.0~1.0>,
@@ -309,45 +307,28 @@ async def analyze_keyword(
     ]
 }}
 
-"{kw.keyword}" 키워드와 관련된 현실적이고 구체적인 한국 시장 데이터를 생성하세요. 트렌드에는 자연스러운 변동이 있어야 합니다. 해시태그는 실제로 사용될 법한 한국어/영어 태그로 작성하세요."""
+"{kw.keyword}" 키워드와 관련된 현실적이고 구체적인 한국 시장 감성 분석을 생성하세요. 해시태그는 실제로 사용될 법한 한국어/영어 태그로 작성하세요."""
 
-        response = claude.client.messages.create(
-            model=claude.model,
-            max_tokens=4000,
-            messages=[{"role": "user", "content": prompt}],
-        )
+            response = claude.client.messages.create(
+                model=claude.model,
+                max_tokens=2000,
+                messages=[{"role": "user", "content": prompt}],
+            )
 
-        content = response.content[0].text
-        start = content.find("{")
-        end = content.rfind("}") + 1
-        if start < 0 or end <= start:
-            raise ValueError("AI response did not contain valid JSON")
+            content = response.content[0].text
+            start = content.find("{")
+            end = content.rfind("}") + 1
+            if start >= 0 and end > start:
+                analysis = json.loads(content[start:end])
+                sentiment_data = analysis.get("sentiment_data", {})
+                hashtags = analysis.get("hashtags", [])
+        except Exception as e:
+            logger.warning(f"AI sentiment analysis failed for '{kw.keyword}': {e}")
 
-        analysis = json.loads(content[start:end])
-
-        # Override AI-generated platform stats with real API data
-        platform_data = analysis.get("platform_data", {})
-        if real_data["youtube"]:
-            platform_data["youtube"] = real_data["youtube"]
-        if real_data["naver"]:
-            nv = real_data["naver"]
-            platform_data["naver"] = {
-                "blog_post_count": nv["blog_post_count"],
-                "search_query_volume": nv["search_query_volume"],
-            }
-            # If Naver daily_trend is available, merge into daily_trends
-            if nv.get("daily_trend"):
-                ai_trends = platform_data.get("daily_trends", [])
-                naver_map = {d["date"]: d["ratio"] for d in nv["daily_trend"]}
-                for trend in ai_trends:
-                    if trend["date"] in naver_map:
-                        trend["naver_searches"] = int(naver_map[trend["date"]] * nv["blog_post_count"] / 100)
-        platform_data["api_sources"] = api_sources
-
-        # Save to DB
+        # ── Step 3: Save to DB ──
         kw.platform_data = json.dumps(platform_data, ensure_ascii=False)
-        kw.sentiment_data = json.dumps(analysis.get("sentiment_data", {}), ensure_ascii=False)
-        kw.hashtags = json.dumps(analysis.get("hashtags", []), ensure_ascii=False)
+        kw.sentiment_data = json.dumps(sentiment_data, ensure_ascii=False)
+        kw.hashtags = json.dumps(hashtags, ensure_ascii=False)
         kw.last_analyzed_at = datetime.utcnow()
 
         await db.commit()

@@ -683,30 +683,114 @@ async def send_report_email(
     if not settings.RESEND_API_KEY:
         raise HTTPException(
             status_code=400,
-            detail="이메일 발송을 위해 RESEND_API_KEY 환경변수를 설정해주세요. resend.com에서 무료 API 키를 발급받을 수 있습니다."
+            detail="이메일 발송을 위해 RESEND_API_KEY 환경변수를 설정해주세요."
         )
 
     try:
         resend.api_key = settings.RESEND_API_KEY
         from_email = settings.RESEND_FROM_EMAIL or "onboarding@resend.dev"
-        # Resend requires "Name <email>" format
+        # Resend requires "Name <email>" format for custom domains
         if "<" not in from_email:
             from_email = f"Meta-Commander <{from_email}>"
-        logger.info(f"Sending email from={from_email}, to={request.email}")
-        result = resend.Emails.send({
+        logger.info(f"Sending email: from={from_email}, to={request.email}, api_key_prefix={settings.RESEND_API_KEY[:8]}...")
+
+        params = {
             "from": from_email,
             "to": [request.email],
             "subject": f"[Meta-Commander] 성과 리포트 ({request.start_date} ~ {request.end_date})",
             "html": html_content,
-        })
+        }
+        logger.info(f"Resend params: from={params['from']}, to={params['to']}, subject={params['subject']}")
+
+        result = resend.Emails.send(params)
         logger.info(f"Resend result: {result}")
-        return {"success": True, "message": f"리포트가 {request.email}로 발송되었습니다."}
+
+        # resend v2.0 returns dict with 'id' on success, or may return error info
+        if isinstance(result, dict) and result.get("id"):
+            return {"success": True, "message": f"리포트가 {request.email}로 발송되었습니다.", "email_id": result["id"]}
+
+        # If result doesn't have 'id', it might be an error
+        logger.warning(f"Resend unexpected result: {result}")
+        return {"success": True, "message": f"리포트가 {request.email}로 발송 요청되었습니다."}
+
     except Exception as e:
-        logger.error(f"Email send error: {type(e).__name__}: {e}")
-        error_msg = str(e)
-        if "validation" in error_msg.lower() or "from" in error_msg.lower():
-            error_msg += " (Resend 무료 플랜은 onboarding@resend.dev에서만 발송 가능합니다. 커스텀 도메인을 등록하거나 RESEND_FROM_EMAIL을 확인하세요.)"
-        raise HTTPException(status_code=500, detail=f"이메일 발송 실패: {error_msg}")
+        error_detail = str(e)
+        error_type = type(e).__name__
+        logger.error(f"Email send error: {error_type}: {error_detail}")
+
+        # Try to extract more details from the exception
+        if hasattr(e, 'status_code'):
+            logger.error(f"Resend HTTP status: {getattr(e, 'status_code', 'unknown')}")
+        if hasattr(e, 'message'):
+            logger.error(f"Resend message: {getattr(e, 'message', 'unknown')}")
+        if hasattr(e, 'body'):
+            logger.error(f"Resend body: {getattr(e, 'body', 'unknown')}")
+
+        hint = ""
+        from_addr = settings.RESEND_FROM_EMAIL or "onboarding@resend.dev"
+        if "validation" in error_detail.lower() or "from" in error_detail.lower() or "403" in error_detail:
+            hint = f" 현재 RESEND_FROM_EMAIL='{from_addr}'. 이 이메일의 도메인이 Resend에 등록/인증되었는지 확인하세요."
+        elif "401" in error_detail or "unauthorized" in error_detail.lower():
+            hint = " RESEND_API_KEY가 올바른지 확인하세요."
+        elif "missing" in error_detail.lower():
+            hint = f" RESEND_FROM_EMAIL='{from_addr}' 설정을 확인하세요."
+
+        raise HTTPException(
+            status_code=500,
+            detail=f"이메일 발송 실패 ({error_type}): {error_detail}{hint}"
+        )
+
+
+@router.post("/report/email/test")
+async def test_email(
+    current_user: User = Depends(get_current_user),
+):
+    """Send a test email to diagnose Resend configuration."""
+    diag = {
+        "resend_api_key_set": bool(settings.RESEND_API_KEY),
+        "resend_api_key_prefix": settings.RESEND_API_KEY[:8] + "..." if settings.RESEND_API_KEY else "NOT SET",
+        "resend_from_email": settings.RESEND_FROM_EMAIL,
+    }
+
+    if not settings.RESEND_API_KEY:
+        return {"success": False, "diagnostics": diag, "error": "RESEND_API_KEY가 설정되지 않았습니다."}
+
+    from_email = settings.RESEND_FROM_EMAIL or "onboarding@resend.dev"
+    if "<" not in from_email:
+        from_email = f"Meta-Commander <{from_email}>"
+    diag["from_email_formatted"] = from_email
+
+    try:
+        resend.api_key = settings.RESEND_API_KEY
+
+        # Try listing domains to verify API key works
+        try:
+            domains = resend.Domains.list()
+            diag["domains"] = str(domains)
+        except Exception as de:
+            diag["domains_error"] = f"{type(de).__name__}: {de}"
+
+        # Send test email to the user
+        result = resend.Emails.send({
+            "from": from_email,
+            "to": [current_user.email],
+            "subject": "[Meta-Commander] 테스트 이메일",
+            "html": "<h2>테스트 이메일</h2><p>이 이메일이 보이면 이메일 발송이 정상 작동합니다.</p>",
+        })
+        diag["send_result"] = str(result)
+
+        if isinstance(result, dict) and result.get("id"):
+            return {"success": True, "diagnostics": diag, "message": f"테스트 이메일이 {current_user.email}로 발송되었습니다."}
+
+        return {"success": False, "diagnostics": diag, "error": f"예상치 못한 응답: {result}"}
+    except Exception as e:
+        diag["error_type"] = type(e).__name__
+        diag["error_detail"] = str(e)
+        if hasattr(e, 'status_code'):
+            diag["error_status"] = getattr(e, 'status_code', None)
+        if hasattr(e, 'body'):
+            diag["error_body"] = str(getattr(e, 'body', None))
+        return {"success": False, "diagnostics": diag, "error": str(e)}
 
 
 # ══════════════════════════════════════════════════
