@@ -54,7 +54,7 @@ export function AdsController() {
   });
 
   const strategyMutation = useMutation({
-    mutationFn: () => campaignApi.getStrategy(Number(budget), selectedCreatives.map((c) => c.id)),
+    mutationFn: () => campaignApi.getStrategy(Number(budget), selectedCreatives.length > 0 ? selectedCreatives.map((c) => c.id) : []),
     onSuccess: (data) => { setStrategy(data); toast.success('최적 전략 분석 완료'); },
     onError: () => toast.error('전략 분석 실패'),
   });
@@ -64,10 +64,10 @@ export function AdsController() {
       name: campaignName || `캠페인 ${new Date().toLocaleDateString()}`,
       objective,
       total_budget: Number(budget),
-      creative_ids: selectedCreatives.map((c) => c.id),
+      creative_ids: selectedCreatives.length > 0 ? selectedCreatives.map((c) => c.id) : [],
     }),
     onSuccess: () => { refetchCampaigns(); toast.success('캠페인 생성 완료'); setCampaignName(''); setBudget(''); },
-    onError: () => toast.error('캠페인 생성 실패'),
+    onError: (err: any) => toast.error(err?.response?.data?.detail || '캠페인 생성 실패'),
   });
 
   const publishMutation = useMutation({
@@ -173,7 +173,7 @@ export function AdsController() {
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-orange-500">Creative Studio 탭에서 소재를 선택해주세요</p>
+                <p className="text-sm text-gray-500">소재 없이도 캠페인 생성 가능 (Creative Studio에서 소재 생성 후 선택 가능)</p>
               )}
             </div>
 
@@ -181,7 +181,7 @@ export function AdsController() {
               leftIcon={<span className="text-sm font-medium">₩</span>} />
 
             <Button variant="outline" className="w-full" onClick={() => strategyMutation.mutate()}
-              loading={strategyMutation.isPending} disabled={!budget || selectedCreatives.length === 0}>
+              loading={strategyMutation.isPending} disabled={!budget}>
               <Zap size={16} className="mr-2" /> AI 전략 추천
             </Button>
 
@@ -206,7 +206,7 @@ export function AdsController() {
             )}
 
             <Button className="w-full" onClick={() => createCampaignMutation.mutate()}
-              loading={createCampaignMutation.isPending} disabled={!budget || selectedCreatives.length === 0}>
+              loading={createCampaignMutation.isPending} disabled={!budget}>
               캠페인 생성
             </Button>
           </div>

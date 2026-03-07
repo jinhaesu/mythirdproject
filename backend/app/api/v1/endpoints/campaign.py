@@ -26,7 +26,7 @@ router = APIRouter()
 @router.post("/strategy", response_model=StrategyRecommendation)
 async def get_strategy_recommendation(
     budget: float,
-    creative_ids: List[int],
+    creative_ids: List[int] = [],
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -41,9 +41,6 @@ async def get_strategy_recommendation(
         .where(Creative.id.in_(creative_ids), Creative.user_id == current_user.id)
     )
     creatives = result.scalars().all()
-
-    if not creatives:
-        raise HTTPException(status_code=400, detail="No valid creatives found")
 
     # Prepare creative data for AI
     creative_data = [
@@ -129,6 +126,19 @@ async def create_campaign(
 
     # Create ads for each creative
     ads = []
+    if not creatives:
+        targeting_response = None
+        if campaign.targeting:
+            targeting_response = TargetingConfig.model_validate_json(campaign.targeting)
+        return CampaignResponse(
+            id=campaign.id, user_id=campaign.user_id, name=campaign.name,
+            objective=campaign.objective, status=campaign.status,
+            total_budget=campaign.total_budget, daily_budget=campaign.daily_budget,
+            spent_amount=campaign.spent_amount, targeting=targeting_response,
+            start_date=campaign.start_date, end_date=campaign.end_date,
+            ads=[], meta_campaign_id=campaign.meta_campaign_id,
+            created_at=campaign.created_at, updated_at=campaign.updated_at,
+        )
     budget_per_ad = 100.0 / len(creatives)
     for creative in creatives:
         ad = Ad(

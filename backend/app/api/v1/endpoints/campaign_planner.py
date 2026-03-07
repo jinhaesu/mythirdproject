@@ -796,9 +796,34 @@ async def _scrape_product_info(url: str) -> dict:
             description = extract_meta("description") or ""
             image = extract_meta("image") or ""
 
-            # Try to find price
-            price_match = re.search(r'[\₩\$][\s]?([\d,]+)', html)
-            price = price_match.group(1).replace(",", "") if price_match else None
+            # Try to find price - multiple patterns for Korean e-commerce
+            price = None
+            # 1. product:price meta tag (Naver Shopping, Coupang, etc.)
+            price_meta = extract_meta("product:price:amount")
+            if not price_meta:
+                # og:price:amount
+                price_meta = extract_meta("price:amount")
+            if price_meta:
+                price = re.sub(r'[^\d.]', '', price_meta)
+            else:
+                # 2. JSON-LD structured data (Schema.org)
+                ld_match = re.search(r'"price"\s*:\s*"?([\d,]+(?:\.\d+)?)"?', html)
+                if ld_match:
+                    price = ld_match.group(1).replace(",", "")
+                else:
+                    # 3. Korean patterns: 39,900원, 가격: 39,900, ₩39,900, $39.99
+                    price_patterns = [
+                        r'([\d,]+)\s*원',                          # 39,900원
+                        r'[\₩]\s?([\d,]+)',                        # ₩39,900
+                        r'[\$]\s?([\d,.]+)',                        # $39.99
+                        r'(?:price|가격)["\s:]*?([\d,]+)',         # price: 39900
+                        r'class="[^"]*price[^"]*"[^>]*>([\d,]+)',  # <span class="price">39900</span>
+                    ]
+                    for pat in price_patterns:
+                        pm = re.search(pat, html, re.IGNORECASE)
+                        if pm:
+                            price = pm.group(1).replace(",", "")
+                            break
 
             return {
                 "name": title,
