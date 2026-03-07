@@ -855,10 +855,7 @@ async def generate_report(
         ]
     else:
         ai_input["daily_data"] = daily_for_ai
-    try:
-        ai_resp = claude.client.messages.create(
-            model=claude.model, max_tokens=2048,
-            messages=[{"role": "user", "content": f"""다음 캠페인 성과 데이터를 분석하여 한국어 리포트를 작성해주세요.
+    report_prompt = f"""다음 캠페인 성과 데이터를 분석하여 한국어 리포트를 작성해주세요.
 
 {json.dumps(ai_input, ensure_ascii=False, indent=2)}
 
@@ -878,8 +875,25 @@ async def generate_report(
   "grade_reason": "등급 사유 1문장"
 }}
 
-ROAS(광고비 대비 매출)는 특히 중요하게 분석해주세요. JSON만 응답해주세요."""}],
-        )
+ROAS(광고비 대비 매출)는 특히 중요하게 분석해주세요. JSON만 응답해주세요."""
+
+    # Try primary model, then fallback models
+    models_to_try = [claude.model, "claude-sonnet-4-6", "claude-haiku-4-5-20251001"]
+    ai_resp = None
+    try:
+        for model_id in models_to_try:
+            try:
+                ai_resp = claude.client.messages.create(
+                    model=model_id, max_tokens=2048,
+                    messages=[{"role": "user", "content": report_prompt}],
+                )
+                logger.info(f"AI report generated with model: {model_id}")
+                break
+            except Exception as model_err:
+                logger.warning(f"Model {model_id} failed: {model_err}")
+                if model_id == models_to_try[-1]:
+                    raise model_err
+                continue
         ai_text = ai_resp.content[0].text
         # Try to parse structured JSON
         try:
@@ -892,10 +906,56 @@ ROAS(광고비 대비 매출)는 특히 중요하게 분석해주세요. JSON만
         except (json.JSONDecodeError, Exception):
             report_data["ai_report"] = ai_text
     except Exception as e:
-        logger.error(f"AI report generation failed: {e}", exc_info=True)
-        report_data["ai_report"] = f"AI 리포트 생성에 실패했습니다. ({type(e).__name__}: {str(e)[:100]})"
+        err_msg = str(e)
+        logger.error(f"AI report generation failed: {err_msg}", exc_info=True)
+        # Provide helpful guidance based on error type
+        if "credit" in err_msg.lower() or "balance" in err_msg.lower():
+            hint = "Anthropic API 크레딧이 부족합니다. Anthropic 콘솔에서 크레딧을 충전해주세요."
+        elif "credentials" in err_msg.lower() or "api_key" in err_msg.lower() or "authentication" in err_msg.lower():
+            hint = "ANTHROPIC_API_KEY가 유효하지 않습니다. Railway 환경변수를 확인해주세요."
+        elif "model" in err_msg.lower():
+            hint = f"모델 '{claude.model}'에 접근할 수 없습니다. API 키 권한을 확인해주세요."
+        else:
+            hint = f"{type(e).__name__}: {err_msg[:200]}"
+        report_data["ai_report"] = f"AI 리포트 생성에 실패했습니다. ({hint})"
+        report_data["ai_error"] = hint
 
     return report_data
+
+
+@router.get("/ai/status")
+async def check_ai_status(
+    current_user: User = Depends(get_current_user),
+):
+    """Anthropic API 키 상태 확인."""
+    result = {
+        "key_configured": bool(settings.ANTHROPIC_API_KEY),
+        "key_prefix": settings.ANTHROPIC_API_KEY[:12] + "..." if settings.ANTHROPIC_API_KEY else None,
+    }
+    if not settings.ANTHROPIC_API_KEY:
+        result["error"] = "ANTHROPIC_API_KEY가 설정되지 않았습니다."
+        return result
+
+    try:
+        claude = ClaudeService()
+        # Try a minimal API call to verify the key works
+        resp = claude.client.messages.create(
+            model=claude.model,
+            max_tokens=10,
+            messages=[{"role": "user", "content": "Hi"}],
+        )
+        result["status"] = "ok"
+        result["model"] = claude.model
+        result["message"] = "API 키가 정상 작동합니다."
+    except Exception as e:
+        err_msg = str(e)
+        result["status"] = "error"
+        result["model"] = claude.model
+        result["error"] = err_msg[:500]
+        # If opus doesn't work, suggest trying sonnet
+        if "model" in err_msg.lower() or "permission" in err_msg.lower() or "access" in err_msg.lower():
+            result["suggestion"] = "현재 API 키로 이 모델에 접근할 수 없습니다. 다른 모델을 시도해보세요."
+    return result
 
 
 @router.post("/report/email")

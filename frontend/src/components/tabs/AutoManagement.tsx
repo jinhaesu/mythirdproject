@@ -183,8 +183,16 @@ export function AutoManagement() {
   const reportMutation = useMutation({
     mutationFn: (req: { meta_campaign_id?: string; start_date: string; end_date: string }) =>
       analyticsApi.generateReport(req),
-    onSuccess: (data) => { setSavedReport(data); },
-    onError: () => toast.error('리포트 생성에 실패했습니다.'),
+    onSuccess: (data: any) => {
+      setSavedReport(data);
+      if (data?.ai_error) {
+        toast.error(`AI 리포트 생성에 실패했습니다. (${data.ai_error})`);
+      }
+    },
+    onError: (err: any) => {
+      const detail = err?.response?.data?.detail;
+      toast.error(typeof detail === 'string' ? detail : '리포트 생성에 실패했습니다.');
+    },
   });
 
   const emailMutation = useMutation({
