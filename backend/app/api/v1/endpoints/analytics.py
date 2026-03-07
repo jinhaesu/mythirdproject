@@ -837,14 +837,26 @@ async def generate_report(
             for r in records
         ]
 
-    # AI summary
+    # AI summary - truncate data to avoid token limits
     claude = ClaudeService()
+    ai_input = {
+        "period": report_data.get("period"),
+        "totals": report_data.get("totals"),
+        "campaign_info": report_data.get("campaign_info"),
+    }
+    # Include only last 14 days of daily data to keep within token limits
+    daily_for_ai = report_data.get("daily_data", [])
+    if len(daily_for_ai) > 14:
+        ai_input["daily_data"] = daily_for_ai[-14:]
+        ai_input["note"] = f"최근 14일 데이터만 표시 (전체 {len(daily_for_ai)}일)"
+    else:
+        ai_input["daily_data"] = daily_for_ai
     try:
         ai_resp = claude.client.messages.create(
             model=claude.model, max_tokens=2048,
             messages=[{"role": "user", "content": f"""다음 캠페인 성과 데이터를 분석하여 한국어 리포트를 작성해주세요.
 
-{json.dumps(report_data, ensure_ascii=False, indent=2)}
+{json.dumps(ai_input, ensure_ascii=False, indent=2)}
 
 리포트 형식 (JSON으로 응답해주세요):
 {{

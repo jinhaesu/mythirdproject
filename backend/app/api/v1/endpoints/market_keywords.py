@@ -40,7 +40,7 @@ class PlatformMetrics(BaseModel):
 
 class NaverMetrics(BaseModel):
     blog_post_count: int = 0
-    search_query_volume: int = 0
+    search_query_volume: float = 0.0
 
 
 class PlatformData(BaseModel):
@@ -253,10 +253,12 @@ async def analyze_keyword(
         if real_data["instagram"]:
             platform_data["instagram"] = real_data["instagram"]
         else:
-            if market_svc.has_instagram:
-                platform_data["api_errors"]["instagram"] = "Instagram API 호출에 실패했습니다. Meta 계정 연동 및 Instagram 비즈니스 계정 연결을 확인해주세요."
+            if not current_user.meta_access_token:
+                platform_data["api_errors"]["instagram"] = "Meta 계정이 연동되지 않았습니다. 설정에서 Meta 계정을 먼저 연동해주세요."
+            elif not current_user.meta_ig_account_id:
+                platform_data["api_errors"]["instagram"] = "Instagram 비즈니스 계정이 연결되지 않았습니다. 설정 > Meta 계정 연동을 다시 진행해주세요. (Instagram 권한 필요)"
             else:
-                platform_data["api_errors"]["instagram"] = "Instagram API 토큰이 설정되지 않았습니다. 설정에서 Meta 계정을 연동해주세요."
+                platform_data["api_errors"]["instagram"] = "Instagram API 호출에 실패했습니다. 설정에서 Meta 계정을 재연동해주세요."
 
         # Naver: real data only
         if real_data["naver"]:
@@ -265,12 +267,12 @@ async def analyze_keyword(
                 "blog_post_count": nv["blog_post_count"],
                 "search_query_volume": nv["search_query_volume"],
             }
-            # Build daily_trends from Naver DataLab data
+            # Build daily_trends from Naver DataLab data (ratio is 0-100 scale)
             if nv.get("daily_trend"):
                 for dp in nv["daily_trend"]:
                     platform_data["daily_trends"].append({
                         "date": dp["date"],
-                        "naver_searches": int(dp["ratio"] * 100),
+                        "naver_searches": round(dp["ratio"], 1),
                     })
         else:
             if market_svc.has_naver:

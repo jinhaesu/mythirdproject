@@ -140,6 +140,8 @@ function SVGLineChart({ datasets, labels, height = 160, title }: LineChartProps)
         {datasets.map((dataset, di) => {
           if (dataset.data.length < 2) return null;
           const pathD = dataset.data.map((v, i) => `${i === 0 ? 'M' : 'L'} ${getX(i)} ${getY(v)}`).join(' ');
+          const lastIdx = dataset.data.length - 1;
+          const lastVal = dataset.data[lastIdx];
           return (
             <g key={`line-${di}`}>
               <path d={pathD} fill="none" stroke={dataset.color} strokeWidth="1.5" strokeLinejoin="round" />
@@ -148,6 +150,10 @@ function SVGLineChart({ datasets, labels, height = 160, title }: LineChartProps)
                   r={hoveredIdx === i ? 3 : 1.5} fill={dataset.color}
                   style={{ transition: 'r 0.1s' }} />
               ))}
+              {/* Last value label */}
+              <text x={getX(lastIdx) + 4} y={getY(lastVal) + 3} fill={dataset.color} fontSize="7" fontWeight={600}>
+                {formatNumber(lastVal)}
+              </text>
             </g>
           );
         })}
@@ -600,13 +606,17 @@ export function MarketIntelligence() {
                   {selectedKeyword.platform_data.naver ? (
                     <div className="space-y-2">
                       <div className="flex justify-between">
-                        <span className="text-sm text-gray-500">블로그 포스트</span>
-                        <span className="text-sm font-semibold">{fmt(selectedKeyword.platform_data.naver.blog_post_count)}</span>
+                        <span className="text-sm text-gray-500">블로그 포스트 수</span>
+                        <span className="text-sm font-semibold">{fmt(selectedKeyword.platform_data.naver.blog_post_count)}건</span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-500">검색량</span>
-                        <span className="text-sm font-semibold">{fmt(selectedKeyword.platform_data.naver.search_query_volume)}</span>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-500">검색 관심도</span>
+                        <div className="text-right">
+                          <span className="text-sm font-semibold">{selectedKeyword.platform_data.naver.search_query_volume}</span>
+                          <span className="text-xs text-gray-400 ml-1">/ 100</span>
+                        </div>
                       </div>
+                      <p className="text-[10px] text-gray-400 mt-1">* 검색 관심도: 네이버 DataLab 기준 상대값 (최대 100)</p>
                     </div>
                   ) : (
                     <p className="text-xs text-red-500">{selectedKeyword.platform_data.api_errors?.naver || '데이터를 가져올 수 없습니다.'}</p>
@@ -649,7 +659,7 @@ export function MarketIntelligence() {
                   const datasets = [];
                   if (hasYt) datasets.push({ label: 'YouTube 조회수', data: trends.map((d) => d.youtube_views || 0), color: '#EF4444' });
                   if (hasIg) datasets.push({ label: 'Instagram 조회수', data: trends.map((d) => d.instagram_views || 0), color: '#EC4899' });
-                  if (hasNv) datasets.push({ label: 'Naver 검색 트렌드', data: trends.map((d) => d.naver_searches || 0), color: '#10B981' });
+                  if (hasNv) datasets.push({ label: 'Naver 검색 관심도 (0-100)', data: trends.map((d) => d.naver_searches || 0), color: '#10B981' });
                   if (datasets.length === 0) return <p className="text-center text-gray-400 py-6">일별 트렌드 데이터가 없습니다.</p>;
                   return (
                     <SVGLineChart
@@ -668,7 +678,7 @@ export function MarketIntelligence() {
                   const datasets = [];
                   if (hasYt) datasets.push({ label: 'YouTube 조회수', data: trends.map((d) => d.youtube_views || 0), color: '#EF4444' });
                   if (hasIg) datasets.push({ label: 'Instagram 조회수', data: trends.map((d) => d.instagram_views || 0), color: '#EC4899' });
-                  if (hasNv) datasets.push({ label: 'Naver 검색 트렌드', data: trends.map((d) => d.naver_searches || 0), color: '#10B981' });
+                  if (hasNv) datasets.push({ label: 'Naver 검색 관심도 (0-100)', data: trends.map((d) => d.naver_searches || 0), color: '#10B981' });
                   if (datasets.length === 0) return <p className="text-center text-gray-400 py-6">월별 트렌드 데이터가 없습니다.</p>;
                   return (
                     <SVGLineChart
@@ -823,7 +833,7 @@ export function MarketIntelligence() {
                   ))}
                 </tr>
                 <tr className="border-b">
-                  <td className="py-2 px-3 text-gray-600 flex items-center gap-1"><Globe size={14} className="text-green-500" /> Naver 검색량</td>
+                  <td className="py-2 px-3 text-gray-600 flex items-center gap-1"><Globe size={14} className="text-green-500" /> Naver 검색 관심도</td>
                   {comparisonKeywords.map((kw) => (
                     <td key={kw.id} className="text-right py-2 px-3 font-medium">
                       {kw.platform_data?.naver ? fmt(kw.platform_data.naver.search_query_volume) : <span className="text-gray-400 text-xs">N/A</span>}

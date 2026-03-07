@@ -142,20 +142,15 @@ class MarketDataService:
                     logger.warning(f"Naver blog API error: {blog_resp.status_code} {blog_resp.text[:200]}")
                     return None
                 blog_data = blog_resp.json()
+                blog_total = blog_data.get("total", 0)  # All-time total from Naver API
 
-                # Filter blog posts by date range and count only those within period
+                # Extract blog titles for sentiment analysis (from recent posts)
                 import re
-                cutoff_date = (datetime.utcnow() - timedelta(days=days)).strftime("%Y%m%d")
                 blog_titles = []
-                period_blog_count = 0
                 for item in blog_data.get("items", []):
-                    # Naver postdate format: "20260305"
-                    post_date = item.get("postdate", "")
-                    if post_date >= cutoff_date:
-                        period_blog_count += 1
-                        title = re.sub(r'<[^>]+>', '', item.get("title", ""))
-                        blog_titles.append(title)
-                blog_count = period_blog_count
+                    title = re.sub(r'<[^>]+>', '', item.get("title", ""))
+                    blog_titles.append(title)
+                blog_count = blog_total
 
                 # DataLab search trend
                 end_date = datetime.utcnow().strftime("%Y-%m-%d")
@@ -191,9 +186,9 @@ class MarketDataService:
                                 "date": dp["period"],
                                 "ratio": dp["ratio"],
                             })
-                        # Ratio is relative (0-100). Use sum of daily ratios as volume indicator
-                        # This changes with the selected period (more days = higher sum)
-                        search_volume = int(sum(dp["ratio"] for dp in data_points)) if data_points else 0
+                        # Ratio is relative (0-100 scale). Use average as search interest index
+                        avg_ratio = sum(dp["ratio"] for dp in data_points) / len(data_points) if data_points else 0
+                        search_volume = round(avg_ratio, 1)
 
                 return {
                     "blog_post_count": blog_count,

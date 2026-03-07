@@ -235,6 +235,8 @@ async def get_meta_login_url(
         "ads_management",
         "ads_read",
         "business_management",
+        "instagram_basic",
+        "instagram_manage_insights",
     ])
 
     login_url = (
