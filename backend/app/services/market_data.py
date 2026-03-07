@@ -132,25 +132,48 @@ class MarketDataService:
                     "X-Naver-Client-Secret": self.naver_secret,
                 }
 
-                # Blog search (fetch recent posts sorted by date for period relevance)
-                blog_resp = await client.get(
-                    "https://openapi.naver.com/v1/search/blog.json",
-                    params={"query": keyword, "display": 100, "sort": "date"},
-                    headers=headers,
-                )
-                if blog_resp.status_code != 200:
-                    logger.warning(f"Naver blog API error: {blog_resp.status_code} {blog_resp.text[:200]}")
-                    return None
-                blog_data = blog_resp.json()
-                blog_total = blog_data.get("total", 0)  # All-time total from Naver API
-
-                # Extract blog titles for sentiment analysis (from recent posts)
+                # Blog search — paginate to count posts within the selected period
                 import re
+                cutoff_date = (datetime.utcnow() - timedelta(days=days)).strftime("%Y%m%d")
                 blog_titles = []
-                for item in blog_data.get("items", []):
-                    title = re.sub(r'<[^>]+>', '', item.get("title", ""))
-                    blog_titles.append(title)
-                blog_count = blog_total
+                period_blog_count = 0
+                found_outside_range = False
+
+                # Fetch up to 5 pages (500 posts) sorted by newest first
+                for page_start in range(1, 500, 100):
+                    blog_resp = await client.get(
+                        "https://openapi.naver.com/v1/search/blog.json",
+                        params={"query": keyword, "display": 100, "sort": "date", "start": page_start},
+                        headers=headers,
+                    )
+                    if blog_resp.status_code != 200:
+                        if page_start == 1:
+                            logger.warning(f"Naver blog API error: {blog_resp.status_code} {blog_resp.text[:200]}")
+                            return None
+                        break
+                    page_data = blog_resp.json()
+                    items = page_data.get("items", [])
+                    if not items:
+                        break
+
+                    for item in items:
+                        post_date = item.get("postdate", "")
+                        if post_date >= cutoff_date:
+                            period_blog_count += 1
+                            title = re.sub(r'<[^>]+>', '', item.get("title", ""))
+                            blog_titles.append(title)
+                        else:
+                            found_outside_range = True
+
+                    # If the oldest post on this page is outside the range, no need to fetch more
+                    if found_outside_range:
+                        break
+                    # Naver API limit: start can be at most 1000
+                    if page_start + 100 > 1000:
+                        break
+
+                blog_count = period_blog_count
+                logger.info(f"Naver blog: {period_blog_count} posts found within last {days} days (cutoff: {cutoff_date})")
 
                 # DataLab search trend
                 end_date = datetime.utcnow().strftime("%Y-%m-%d")

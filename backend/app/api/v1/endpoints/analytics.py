@@ -837,18 +837,22 @@ async def generate_report(
             for r in records
         ]
 
-    # AI summary - truncate data to avoid token limits
+    # AI summary
     claude = ClaudeService()
     ai_input = {
         "period": report_data.get("period"),
         "totals": report_data.get("totals"),
         "campaign_info": report_data.get("campaign_info"),
     }
-    # Include only last 14 days of daily data to keep within token limits
+    # Include daily data — for very long periods, trim to key fields only
     daily_for_ai = report_data.get("daily_data", [])
-    if len(daily_for_ai) > 14:
-        ai_input["daily_data"] = daily_for_ai[-14:]
-        ai_input["note"] = f"최근 14일 데이터만 표시 (전체 {len(daily_for_ai)}일)"
+    if len(daily_for_ai) > 60:
+        # For long periods, send only key metrics per day
+        ai_input["daily_data"] = [
+            {"date": d.get("date_stop") or d.get("date"), "spend": d.get("spend"), "impressions": d.get("impressions"),
+             "clicks": d.get("clicks"), "ctr": d.get("ctr"), "roas": d.get("roas")}
+            for d in daily_for_ai
+        ]
     else:
         ai_input["daily_data"] = daily_for_ai
     try:

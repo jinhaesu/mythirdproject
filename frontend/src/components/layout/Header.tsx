@@ -1,15 +1,16 @@
 'use client';
 
 import { useState } from 'react';
-import { Settings, LogOut, User, ChevronDown, Link2 } from 'lucide-react';
+import { Settings, LogOut, User, ChevronDown, Link2, Unlink } from 'lucide-react';
 import { useAuthStore } from '@/store';
 import { authApi } from '@/lib/api';
 import toast from 'react-hot-toast';
 
 export function Header() {
-  const { user, logout, isAuthenticated, setAuth } = useAuthStore();
+  const { user, logout, isAuthenticated, setAuth, token } = useAuthStore();
   const [showMenu, setShowMenu] = useState(false);
   const [connecting, setConnecting] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
 
   const handleMetaConnect = async () => {
     setConnecting(true);
@@ -20,6 +21,23 @@ export function Header() {
       const msg = err?.response?.data?.detail || 'Meta 연결 URL을 가져올 수 없습니다.';
       toast.error(msg);
       setConnecting(false);
+    }
+  };
+
+  const handleMetaDisconnect = async () => {
+    if (!confirm('Meta 계정 연동을 해제하시겠습니까?\n해제 후 다시 연동하면 Instagram 권한도 새로 부여됩니다.')) return;
+    setDisconnecting(true);
+    try {
+      await authApi.disconnectMeta();
+      // Refresh user data
+      const me = await authApi.getMe();
+      setAuth(me, token!);
+      toast.success('Meta 연동이 해제되었습니다. 다시 연동해주세요.');
+      setShowMenu(false);
+    } catch (err: any) {
+      toast.error('연동 해제에 실패했습니다.');
+    } finally {
+      setDisconnecting(false);
     }
   };
 
@@ -70,9 +88,28 @@ export function Header() {
                 {showMenu && (
                   <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
                     {user.meta_connected ? (
-                      <div className="px-4 py-2 border-b border-gray-100">
-                        <p className="text-xs text-gray-500">Meta 계정</p>
-                        <p className="text-sm font-medium text-green-600">연동됨</p>
+                      <div className="border-b border-gray-100">
+                        <div className="px-4 py-2">
+                          <p className="text-xs text-gray-500">Meta 계정</p>
+                          <p className="text-sm font-medium text-green-600">연동됨</p>
+                        </div>
+                        <div className="flex border-t border-gray-100">
+                          <button
+                            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs text-blue-600 hover:bg-blue-50"
+                            onClick={() => { setShowMenu(false); handleMetaConnect(); }}
+                          >
+                            <Link2 size={12} />
+                            재연동
+                          </button>
+                          <button
+                            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs text-red-500 hover:bg-red-50 border-l border-gray-100"
+                            onClick={handleMetaDisconnect}
+                            disabled={disconnecting}
+                          >
+                            <Unlink size={12} />
+                            {disconnecting ? '해제중...' : '연동 해제'}
+                          </button>
+                        </div>
                       </div>
                     ) : (
                       <button

@@ -80,6 +80,11 @@ export const authApi = {
     const { data } = await api.get('/auth/meta/status');
     return data;
   },
+
+  disconnectMeta: async () => {
+    const { data } = await api.post('/auth/meta/disconnect');
+    return data;
+  },
 };
 
 // Benchmark API (TAB 1)

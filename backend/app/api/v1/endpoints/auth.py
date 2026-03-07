@@ -449,6 +449,20 @@ async def select_ad_account(
     }
 
 
+@router.post("/meta/disconnect")
+async def disconnect_meta(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Meta 계정 연동 해제."""
+    current_user.meta_access_token = None
+    current_user.meta_user_id = None
+    current_user.meta_ad_account_id = None
+    current_user.meta_ig_account_id = None
+    await db.commit()
+    return {"success": True, "message": "Meta 계정 연동이 해제되었습니다."}
+
+
 @router.get("/meta/status")
 async def get_meta_connection_status(
     current_user: User = Depends(get_current_user),
