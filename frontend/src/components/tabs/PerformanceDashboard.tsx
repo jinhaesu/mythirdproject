@@ -80,7 +80,7 @@ export default function PerformanceDashboard() {
   const [hidePaused, setHidePaused] = useState(true);
   const queryClient = useQueryClient();
 
-  const isCustom = datePreset === 'custom' && customSince && customUntil;
+  const isCustom = datePreset === 'custom' && customSince && customUntil && customSince <= customUntil;
 
   const { data: overview, isLoading: loadingOverview, isError: overviewError, refetch: refetchOverview } = useQuery({
     queryKey: ['account-overview', datePreset, customSince, customUntil],
@@ -231,11 +231,14 @@ export default function PerformanceDashboard() {
           </select>
           {datePreset === 'custom' && (
             <>
-              <input type="date" value={customSince} onChange={(e) => setCustomSince(e.target.value)}
-                className="px-3 py-2 border border-gray-200 rounded-lg text-sm" />
-              <span className="text-gray-400 text-sm">~</span>
-              <input type="date" value={customUntil} onChange={(e) => setCustomUntil(e.target.value)}
-                className="px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+              <input type="date" value={customSince} onChange={(e) => setCustomSince(e.target.value)} max={customUntil || undefined}
+                className="px-3 py-2 border border-gray-200 rounded-lg text-xs" />
+              <span className="text-gray-400 text-xs">~</span>
+              <input type="date" value={customUntil} onChange={(e) => setCustomUntil(e.target.value)} min={customSince || undefined}
+                className="px-3 py-2 border border-gray-200 rounded-lg text-xs" />
+              {customSince && customUntil && customSince > customUntil && (
+                <span className="text-red-500 text-[10px]">시작일이 종료일보다 뒤입니다</span>
+              )}
             </>
           )}
           <button onClick={() => { refetchOverview(); refetchAI(); }} className="p-2 border border-gray-200 rounded-lg hover:bg-gray-50">
@@ -738,7 +741,7 @@ function MiniLineChart({ data, color, formatValue }: {
         <path d={areaD} fill={c.areaFill} />
 
         {/* Line */}
-        <path d={pathD} fill="none" stroke={c.stroke} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+        <path d={pathD} fill="none" stroke={c.stroke} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
 
         {/* Hover detector rects + dots */}
         {points.map((p, i) => {
@@ -762,10 +765,10 @@ function MiniLineChart({ data, color, formatValue }: {
               <circle
                 cx={p.x}
                 cy={p.y}
-                r={isHovered ? 5 : 3}
+                r={isHovered ? 3.5 : 2}
                 fill={isHovered ? c.fill : c.dot}
                 stroke={c.dotStroke}
-                strokeWidth={2}
+                strokeWidth={1.5}
                 style={{ transition: 'r 0.15s ease' }}
               />
 
@@ -773,24 +776,24 @@ function MiniLineChart({ data, color, formatValue }: {
               {isHovered && (
                 <g>
                   {/* Vertical guide line */}
-                  <line x1={p.x} y1={paddingTop} x2={p.x} y2={paddingTop + chartHeight} stroke={c.stroke} strokeWidth={1} strokeDasharray="3,3" opacity={0.4} />
+                  <line x1={p.x} y1={paddingTop} x2={p.x} y2={paddingTop + chartHeight} stroke={c.stroke} strokeWidth={0.5} strokeDasharray="2,2" opacity={0.3} />
 
                   {/* Tooltip background */}
                   <rect
-                    x={p.x - 40}
-                    y={p.y - 28}
-                    width={80}
-                    height={20}
-                    rx={4}
+                    x={p.x - 30}
+                    y={p.y - 22}
+                    width={60}
+                    height={15}
+                    rx={3}
                     fill="#1f2937"
                     opacity={0.9}
                   />
                   <text
                     x={p.x}
-                    y={p.y - 15}
+                    y={p.y - 12}
                     textAnchor="middle"
                     fill="white"
-                    fontSize={10}
+                    fontSize={7.5}
                     fontWeight={600}
                   >
                     {formatValue(p.value)}
@@ -805,7 +808,7 @@ function MiniLineChart({ data, color, formatValue }: {
                   y={height - 4}
                   textAnchor="middle"
                   fill="#9ca3af"
-                  fontSize={9}
+                  fontSize={7}
                 >
                   {p.label}
                 </text>

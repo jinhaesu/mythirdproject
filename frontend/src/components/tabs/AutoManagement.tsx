@@ -94,6 +94,7 @@ export function AutoManagement() {
   const [reportDates, setReportDates] = useState({ start: '', end: '' });
   const [reportEmail, setReportEmail] = useState('');
   const [reportCampaignId, setReportCampaignId] = useState('');
+  const [savedReport, setSavedReport] = useState<any>(null);
 
   // Rule form state
   const [ruleForm, setRuleForm] = useState({
@@ -182,6 +183,7 @@ export function AutoManagement() {
   const reportMutation = useMutation({
     mutationFn: (req: { meta_campaign_id?: string; start_date: string; end_date: string }) =>
       analyticsApi.generateReport(req),
+    onSuccess: (data) => { setSavedReport(data); },
     onError: () => toast.error('리포트 생성에 실패했습니다.'),
   });
 
@@ -608,8 +610,8 @@ export function AutoManagement() {
         {emailMutation.isSuccess && <p className="mt-2 text-sm text-green-600">{(emailMutation.data as any)?.message}</p>}
         {emailMutation.isError && <p className="mt-2 text-sm text-red-600">이메일 발송에 실패했습니다.</p>}
 
-        {reportMutation.isSuccess && (
-          <ReportNewsletter data={reportMutation.data as any}
+        {savedReport && (
+          <ReportNewsletter data={savedReport}
             onEmail={reportEmail ? () => emailMutation.mutate({ meta_campaign_id: reportCampaignId || undefined, start_date: reportDates.start, end_date: reportDates.end, email: reportEmail }) : undefined} />
         )}
         {reportMutation.isError && (

@@ -85,9 +85,10 @@ interface LineChartProps {
   title?: string;
 }
 
-function SVGLineChart({ datasets, labels, height = 200, title }: LineChartProps) {
-  const padding = { top: 20, right: 20, bottom: 40, left: 60 };
-  const width = 700;
+function SVGLineChart({ datasets, labels, height = 160, title }: LineChartProps) {
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+  const padding = { top: 16, right: 16, bottom: 28, left: 48 };
+  const width = 600;
   const chartWidth = width - padding.left - padding.right;
   const chartHeight = height - padding.top - padding.bottom;
 
@@ -99,7 +100,7 @@ function SVGLineChart({ datasets, labels, height = 200, title }: LineChartProps)
   const getX = (i: number) => padding.left + (i / Math.max(labels.length - 1, 1)) * chartWidth;
   const getY = (v: number) => padding.top + chartHeight - ((v - minVal) / range) * chartHeight;
 
-  const yTicks = 5;
+  const yTicks = 4;
   const yTickValues = Array.from({ length: yTicks }, (_, i) => minVal + (range * i) / (yTicks - 1));
 
   const formatNumber = (n: number) => {
@@ -110,57 +111,82 @@ function SVGLineChart({ datasets, labels, height = 200, title }: LineChartProps)
 
   return (
     <div className="w-full overflow-x-auto">
-      {title && <h4 className="text-sm font-medium text-gray-700 mb-2">{title}</h4>}
-      <svg viewBox={`0 0 ${width} ${height}`} className="w-full" style={{ minWidth: 400 }}>
-        {/* Grid lines */}
+      {title && <h4 className="text-xs font-medium text-gray-700 mb-1">{title}</h4>}
+      <svg viewBox={`0 0 ${width} ${height}`} className="w-full" style={{ minWidth: 300 }}
+        onMouseLeave={() => setHoveredIdx(null)}>
+        {/* Grid lines + Y-axis */}
         {yTickValues.map((val, i) => (
           <g key={`grid-${i}`}>
-            <line
-              x1={padding.left} y1={getY(val)}
-              x2={width - padding.right} y2={getY(val)}
-              stroke="#E5E7EB" strokeWidth="1"
-            />
-            <text x={padding.left - 8} y={getY(val) + 4} textAnchor="end" fill="#9CA3AF" fontSize="10">
-              {formatNumber(val)}
-            </text>
+            <line x1={padding.left} y1={getY(val)} x2={width - padding.right} y2={getY(val)} stroke="#E5E7EB" strokeWidth="0.5" />
+            <text x={padding.left - 6} y={getY(val) + 3} textAnchor="end" fill="#9CA3AF" fontSize="7">{formatNumber(val)}</text>
           </g>
         ))}
 
         {/* X-axis labels */}
         {labels.map((label, i) => {
-          // Only show every Nth label to avoid crowding
           const showEvery = Math.max(1, Math.ceil(labels.length / 7));
           if (i % showEvery !== 0 && i !== labels.length - 1) return null;
           return (
-            <text key={`xlabel-${i}`} x={getX(i)} y={height - 5} textAnchor="middle" fill="#9CA3AF" fontSize="10">
-              {label}
-            </text>
+            <text key={`xlabel-${i}`} x={getX(i)} y={height - 5} textAnchor="middle" fill="#9CA3AF" fontSize="7">{label}</text>
           );
         })}
 
         {/* Lines */}
         {datasets.map((dataset, di) => {
           if (dataset.data.length < 2) return null;
-          const pathD = dataset.data
-            .map((v, i) => `${i === 0 ? 'M' : 'L'} ${getX(i)} ${getY(v)}`)
-            .join(' ');
+          const pathD = dataset.data.map((v, i) => `${i === 0 ? 'M' : 'L'} ${getX(i)} ${getY(v)}`).join(' ');
           return (
             <g key={`line-${di}`}>
-              <path d={pathD} fill="none" stroke={dataset.color} strokeWidth="2.5" strokeLinejoin="round" />
+              <path d={pathD} fill="none" stroke={dataset.color} strokeWidth="1.5" strokeLinejoin="round" />
               {dataset.data.map((v, i) => (
-                <circle key={`dot-${di}-${i}`} cx={getX(i)} cy={getY(v)} r="3" fill={dataset.color} />
+                <circle key={`dot-${di}-${i}`} cx={getX(i)} cy={getY(v)}
+                  r={hoveredIdx === i ? 3 : 1.5} fill={dataset.color}
+                  style={{ transition: 'r 0.1s' }} />
               ))}
             </g>
           );
         })}
+
+        {/* Hover detector rects */}
+        {labels.map((_, i) => {
+          const rectW = chartWidth / Math.max(labels.length - 1, 1);
+          return (
+            <rect key={`hover-${i}`} x={getX(i) - rectW / 2} y={padding.top} width={rectW} height={chartHeight}
+              fill="transparent" onMouseEnter={() => setHoveredIdx(i)} />
+          );
+        })}
+
+        {/* Hover tooltip */}
+        {hoveredIdx !== null && (
+          <g>
+            <line x1={getX(hoveredIdx)} y1={padding.top} x2={getX(hoveredIdx)} y2={padding.top + chartHeight}
+              stroke="#9ca3af" strokeWidth="0.5" strokeDasharray="2,2" />
+            {datasets.map((ds, di) => {
+              const v = ds.data[hoveredIdx];
+              if (v === undefined) return null;
+              const y = getY(v);
+              const tooltipW = 55;
+              const tooltipX = Math.min(Math.max(getX(hoveredIdx) - tooltipW / 2, 2), width - tooltipW - 2);
+              const tooltipY = y - 14 - di * 14;
+              return (
+                <g key={`tt-${di}`}>
+                  <rect x={tooltipX} y={tooltipY} width={tooltipW} height={12} rx={2} fill={ds.color} opacity={0.9} />
+                  <text x={tooltipX + tooltipW / 2} y={tooltipY + 9} textAnchor="middle" fill="white" fontSize="7" fontWeight={600}>
+                    {formatNumber(v)}
+                  </text>
+                </g>
+              );
+            })}
+          </g>
+        )}
       </svg>
 
       {/* Legend */}
       {datasets.length > 1 && (
-        <div className="flex flex-wrap gap-4 mt-2 justify-center">
+        <div className="flex flex-wrap gap-3 mt-1 justify-center">
           {datasets.map((d, i) => (
-            <div key={i} className="flex items-center gap-1.5 text-xs text-gray-600">
-              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: d.color }} />
+            <div key={i} className="flex items-center gap-1 text-[10px] text-gray-600">
+              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: d.color }} />
               {d.label}
             </div>
           ))}

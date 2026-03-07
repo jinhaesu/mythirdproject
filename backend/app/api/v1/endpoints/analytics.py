@@ -543,15 +543,27 @@ async def generate_report(
                     total_impressions = 0
                     total_clicks = 0
                     total_reach = 0
-                    total_conv_value = 0.0
+                    total_purchase_value = 0.0
                     for row in daily:
                         row["roas"] = MetaAdsService._calc_roas(row)
                         total_spend += float(row.get("spend", 0) or 0)
                         total_impressions += int(row.get("impressions", 0) or 0)
                         total_clicks += int(row.get("clicks", 0) or 0)
                         total_reach += int(row.get("reach", 0) or 0)
-                        for av in (row.get("action_values") or []):
-                            total_conv_value += float(av.get("value", 0))
+                        # ROAS = purchase revenue / spend (only purchase-related values)
+                        roas_val = MetaAdsService._extract_roas_value(row.get("website_purchase_roas"))
+                        if roas_val and float(row.get("spend", 0) or 0) > 0:
+                            total_purchase_value += roas_val * float(row.get("spend", 0))
+                        else:
+                            roas_val = MetaAdsService._extract_roas_value(row.get("purchase_roas"))
+                            if roas_val and float(row.get("spend", 0) or 0) > 0:
+                                total_purchase_value += roas_val * float(row.get("spend", 0))
+                            else:
+                                # Fallback: sum purchase action_values
+                                purchase_types = {"offsite_conversion.fb_pixel_purchase", "purchase", "omni_purchase", "onsite_web_purchase"}
+                                for av in (row.get("action_values") or []):
+                                    if av.get("action_type") in purchase_types:
+                                        total_purchase_value += float(av.get("value", 0))
                     report_data["daily_data"] = daily
                     report_data["totals"] = {
                         "spend": total_spend,
@@ -560,8 +572,8 @@ async def generate_report(
                         "reach": total_reach,
                         "ctr": round(total_clicks / total_impressions * 100, 2) if total_impressions > 0 else 0,
                         "cpc": round(total_spend / total_clicks, 0) if total_clicks > 0 else 0,
-                        "conversion_value": total_conv_value,
-                        "roas": round(total_conv_value / total_spend, 2) if total_spend > 0 and total_conv_value > 0 else None,
+                        "conversion_value": total_purchase_value,
+                        "roas": round(total_purchase_value / total_spend, 2) if total_spend > 0 and total_purchase_value > 0 else None,
                     }
                 else:
                     logger.error(f"Meta report insights {resp.status_code}: {resp.text[:200]}")
@@ -882,7 +894,7 @@ class ScheduleUpdate(BaseModel):
 
 
 def _calc_next_run(sched):
-    now = datetime.now(timezone.utc)
+    now = datetime.utcnow()
     if sched.schedule_type == "weekly":
         days_ahead = (sched.day_of_week or 0) - now.weekday()
         if days_ahead <= 0:
@@ -893,7 +905,7 @@ def _calc_next_run(sched):
         m = now.month + 1 if now.day >= dom else now.month
         y = now.year + (1 if m > 12 else 0)
         m = m if m <= 12 else m - 12
-        return datetime(y, m, dom, 9, 0, 0, tzinfo=timezone.utc)
+        return datetime(y, m, dom, 9, 0, 0)
 
 
 def _sched_dict(s):
