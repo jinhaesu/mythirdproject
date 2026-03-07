@@ -262,13 +262,13 @@ export default function PerformanceDashboard() {
 
           {/* Daily Trend Chart */}
           {trendDays.length > 0 && (
-            <div className="bg-white border border-gray-200 rounded-xl p-5">
-              <h3 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
-                <TrendingUp size={16} className="text-blue-500" /> 일별 성과 추이
+            <div className="bg-white border border-gray-200 rounded-xl p-3">
+              <h3 className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1.5">
+                <TrendingUp size={14} className="text-blue-500" /> 일별 성과 추이
               </h3>
-              <div className="space-y-6">
+              <div className="space-y-3">
                 <div>
-                  <p className="text-xs text-gray-500 mb-2">지출</p>
+                  <p className="text-[10px] text-gray-500 mb-1">지출</p>
                   <MiniLineChart
                     data={trendDays.map((d: any) => ({ label: d.date_stop?.slice(5) || '', value: parseFloat(d.spend || 0) }))}
                     color="blue"
@@ -276,7 +276,7 @@ export default function PerformanceDashboard() {
                   />
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500 mb-2">노출수</p>
+                  <p className="text-[10px] text-gray-500 mb-1">노출수</p>
                   <MiniLineChart
                     data={trendDays.map((d: any) => ({ label: d.date_stop?.slice(5) || '', value: parseInt(d.impressions || 0) }))}
                     color="purple"
@@ -284,7 +284,7 @@ export default function PerformanceDashboard() {
                   />
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500 mb-2">CTR (%)</p>
+                  <p className="text-[10px] text-gray-500 mb-1">CTR (%)</p>
                   <MiniLineChart
                     data={trendDays.map((d: any) => ({ label: d.date_stop?.slice(5) || '', value: parseFloat(d.ctr || 0) }))}
                     color="green"
@@ -292,7 +292,7 @@ export default function PerformanceDashboard() {
                   />
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500 mb-2">ROAS</p>
+                  <p className="text-[10px] text-gray-500 mb-1">ROAS</p>
                   <MiniLineChart
                     data={trendDays.map((d: any) => ({ label: d.date_stop?.slice(5) || '', value: parseFloat(d.roas || 0) }))}
                     color="orange"
@@ -329,44 +329,44 @@ export default function PerformanceDashboard() {
           ) : analysis && !analysis.parse_error ? (
             <div className="space-y-4">
               {/* Health Banner */}
-              <div className={`rounded-xl p-5 border ${
+              <div className={`rounded-xl p-3 border ${
                 analysis.account_health === 'good' ? 'bg-green-50 border-green-200' :
                 analysis.account_health === 'warning' ? 'bg-yellow-50 border-yellow-200' :
                 'bg-red-50 border-red-200'
               }`}>
                 <div className="flex items-start gap-3">
-                  {analysis.account_health === 'good' ? <CheckCircle className="text-green-600 mt-0.5" size={20} /> :
-                   analysis.account_health === 'warning' ? <AlertTriangle className="text-yellow-600 mt-0.5" size={20} /> :
-                   <XCircle className="text-red-600 mt-0.5" size={20} />}
+                  {analysis.account_health === 'good' ? <CheckCircle className="text-green-600 mt-0.5" size={16} /> :
+                   analysis.account_health === 'warning' ? <AlertTriangle className="text-yellow-600 mt-0.5" size={16} /> :
+                   <XCircle className="text-red-600 mt-0.5" size={16} />}
                   <div>
-                    <h3 className="font-semibold text-gray-900">
+                    <h3 className="text-sm font-semibold text-gray-900">
                       계정 건강도: {analysis.account_health === 'good' ? '양호' : analysis.account_health === 'warning' ? '주의' : '위험'}
                     </h3>
-                    <p className="text-sm text-gray-700 mt-1">{analysis.health_summary}</p>
+                    <p className="text-xs text-gray-700 mt-1">{analysis.health_summary}</p>
                   </div>
                 </div>
               </div>
 
               {/* Action Items */}
               {analysis.action_items?.length > 0 && (
-                <div className="bg-white border border-gray-200 rounded-xl p-5">
-                  <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                    <Zap size={18} className="text-orange-500" /> 실행 액션 아이템
+                <div className="bg-white border border-gray-200 rounded-xl p-3">
+                  <h3 className="text-xs font-semibold text-gray-900 mb-3 flex items-center gap-1.5">
+                    <Zap size={14} className="text-orange-500" /> 실행 액션 아이템
                   </h3>
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     {analysis.action_items.map((item: any, i: number) => (
-                      <div key={i} className={`flex items-start gap-3 p-3 rounded-lg border ${
+                      <div key={i} className={`flex items-start gap-2 p-2.5 rounded-lg border ${
                         item.priority === 'high' ? 'border-red-200 bg-red-50' :
                         item.priority === 'medium' ? 'border-yellow-200 bg-yellow-50' : 'border-gray-200 bg-gray-50'
                       }`}>
-                        <span className={`text-xs font-bold px-2 py-0.5 rounded mt-0.5 ${
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded mt-0.5 ${
                           item.priority === 'high' ? 'bg-red-600 text-white' :
                           item.priority === 'medium' ? 'bg-yellow-600 text-white' : 'bg-gray-400 text-white'
                         }`}>{item.priority === 'high' ? '긴급' : item.priority === 'medium' ? '중간' : '낮음'}</span>
                         <div className="flex-1">
-                          <p className="text-sm font-medium text-gray-900">{item.action}</p>
-                          <p className="text-xs text-gray-500 mt-1">{item.reason}</p>
-                          {item.expected_impact && <p className="text-xs text-blue-600 mt-1">예상 효과: {item.expected_impact}</p>}
+                          <p className="text-xs font-medium text-gray-900">{item.action}</p>
+                          <p className="text-[10px] text-gray-500 mt-0.5">{item.reason}</p>
+                          {item.expected_impact && <p className="text-[10px] text-blue-600 mt-0.5">예상 효과: {item.expected_impact}</p>}
                           {item.target_id && item.type === 'pause_ad' && (
                             <button onClick={() => toggleStatus(item.target_id, 'ad', 'ACTIVE')}
                               className="mt-2 text-xs bg-red-600 text-white px-3 py-1 rounded-lg hover:bg-red-700">
@@ -382,16 +382,16 @@ export default function PerformanceDashboard() {
 
               {/* Creative Fatigue */}
               {analysis.creative_fatigue?.length > 0 && (
-                <div className="bg-white border border-gray-200 rounded-xl p-5">
-                  <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                    <Activity size={18} className="text-red-500" /> 소재 피로도 알림
+                <div className="bg-white border border-gray-200 rounded-xl p-3">
+                  <h3 className="text-xs font-semibold text-gray-900 mb-2 flex items-center gap-1.5">
+                    <Activity size={14} className="text-red-500" /> 소재 피로도 알림
                   </h3>
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     {analysis.creative_fatigue.map((item: any, i: number) => (
-                      <div key={i} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div key={i} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
                         <div>
-                          <p className="text-sm font-medium text-gray-900">{item.ad_name}</p>
-                          <p className="text-xs text-gray-500">빈도: {item.frequency}</p>
+                          <p className="text-xs font-medium text-gray-900">{item.ad_name}</p>
+                          <p className="text-[10px] text-gray-500">빈도: {item.frequency}</p>
                         </div>
                         <span className={`text-xs font-semibold px-2 py-1 rounded ${
                           item.recommendation === '교체' ? 'bg-red-100 text-red-700' :
@@ -405,20 +405,20 @@ export default function PerformanceDashboard() {
 
               {/* Budget Recommendations */}
               {analysis.budget_recommendations?.length > 0 && (
-                <div className="bg-white border border-gray-200 rounded-xl p-5">
-                  <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                    <DollarSign size={18} className="text-green-500" /> 예산 추천
+                <div className="bg-white border border-gray-200 rounded-xl p-3">
+                  <h3 className="text-xs font-semibold text-gray-900 mb-2 flex items-center gap-1.5">
+                    <DollarSign size={14} className="text-green-500" /> 예산 추천
                   </h3>
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     {analysis.budget_recommendations.map((item: any, i: number) => (
-                      <div key={i} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div key={i} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
                         <div>
-                          <p className="text-sm font-medium text-gray-900">{item.campaign_name}</p>
-                          <p className="text-xs text-gray-500">{item.reason}</p>
+                          <p className="text-xs font-medium text-gray-900">{item.campaign_name}</p>
+                          <p className="text-[10px] text-gray-500">{item.reason}</p>
                         </div>
                         <div className="text-right">
-                          <p className="text-xs text-gray-400">현재: {item.current_budget}</p>
-                          <p className="text-sm font-semibold text-blue-600">추천: {item.recommended_budget}</p>
+                          <p className="text-[10px] text-gray-400">현재: {item.current_budget}</p>
+                          <p className="text-xs font-semibold text-blue-600">추천: {item.recommended_budget}</p>
                         </div>
                       </div>
                     ))}
@@ -648,10 +648,10 @@ function MiniLineChart({ data, color, formatValue }: {
   if (data.length === 0) return null;
 
   const width = 600;
-  const height = 120;
-  const paddingTop = 20;
-  const paddingBottom = 24;
-  const paddingLeft = 10;
+  const height = 90;
+  const paddingTop = 12;
+  const paddingBottom = 20;
+  const paddingLeft = 52;
   const paddingRight = 10;
 
   const chartWidth = width - paddingLeft - paddingRight;
@@ -705,6 +705,15 @@ function MiniLineChart({ data, color, formatValue }: {
   // Show every Nth label to avoid overlap
   const labelStep = Math.max(1, Math.ceil(data.length / 10));
 
+  // Y-axis ticks
+  const yTickCount = 4;
+  const fmtShort = (n: number) => {
+    if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
+    if (n >= 1_000) return (n / 1_000).toFixed(0) + 'K';
+    if (Number.isInteger(n)) return n.toString();
+    return n.toFixed(1);
+  };
+
   return (
     <div className="relative w-full">
       <svg
@@ -713,6 +722,18 @@ function MiniLineChart({ data, color, formatValue }: {
         preserveAspectRatio="xMidYMid meet"
         onMouseLeave={() => setHoveredIndex(null)}
       >
+        {/* Y-axis grid lines and labels */}
+        {Array.from({ length: yTickCount }, (_, i) => {
+          const val = minVal + (range * i) / (yTickCount - 1);
+          const y = paddingTop + chartHeight - ((val - minVal) / range) * chartHeight;
+          return (
+            <g key={`y-${i}`}>
+              <line x1={paddingLeft} y1={y} x2={width - paddingRight} y2={y} stroke="#e5e7eb" strokeWidth={0.5} />
+              <text x={paddingLeft - 6} y={y + 3} textAnchor="end" fill="#9ca3af" fontSize={8}>{fmtShort(val)}</text>
+            </g>
+          );
+        })}
+
         {/* Area fill */}
         <path d={areaD} fill={c.areaFill} />
 

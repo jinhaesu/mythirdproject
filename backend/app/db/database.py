@@ -1,8 +1,12 @@
 """Database connection and session management."""
+import logging
+
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
 
 from app.core.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 settings = get_settings()
 
@@ -48,21 +52,35 @@ async def get_db() -> AsyncSession:
 
 async def init_db():
     """Initialize database tables and add missing columns."""
-    import logging
-    logger = logging.getLogger(__name__)
-
     # Ensure all models are registered with Base.metadata before create_all
     import app.models  # noqa: F401
 
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-        logger.info(f"Database tables ensured: {list(Base.metadata.tables.keys())}")
-        # Add meta_ig_account_id column if missing (create_all doesn't alter existing tables)
-        try:
+    table_names = list(Base.metadata.tables.keys())
+    logger.info(f"Registered models: {table_names}")
+
+    # Try create_all first
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        logger.info("create_all completed successfully")
+    except Exception as e:
+        logger.warning(f"create_all failed, trying individual tables: {e}")
+        # Fallback: create each table individually
+        for table in Base.metadata.sorted_tables:
+            try:
+                async with engine.begin() as conn:
+                    await conn.run_sync(table.create, checkfirst=True)
+                logger.info(f"Created table: {table.name}")
+            except Exception as te:
+                logger.warning(f"Table {table.name} already exists or error: {te}")
+
+    # Add meta_ig_account_id column if missing (create_all doesn't alter existing tables)
+    try:
+        async with engine.begin() as conn:
             await conn.execute(
                 __import__('sqlalchemy').text(
                     "ALTER TABLE users ADD COLUMN meta_ig_account_id VARCHAR(255)"
                 )
             )
-        except Exception:
-            pass  # Column already exists
+    except Exception:
+        pass  # Column already exists

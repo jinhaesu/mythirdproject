@@ -8,10 +8,12 @@ import {
   ChevronDown, ChevronRight, FileText, Mail,
   TrendingUp, TrendingDown, Award, Target, DollarSign,
   Eye, MousePointer, ArrowUpRight, ArrowDownRight,
-  BarChart3, Download, Printer,
+  BarChart3, Download,
 } from 'lucide-react';
 import { analyticsApi } from '@/lib/api';
 import toast from 'react-hot-toast';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
 
 const METRIC_OPTIONS = [
   { value: 'cpc', label: 'CPC' },
@@ -789,27 +791,61 @@ function ReportNewsletter({ data, onEmail }: { data: any; onEmail?: () => void }
   const ctrData = daily.map((d: any) => parseFloat(d.ctr || 0));
   const roasData = daily.map((d: any) => parseFloat(d.roas || 0));
 
-  const handlePrint = () => {
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const handleDownloadPDF = async () => {
     const el = document.getElementById('report-printable');
     if (!el) return;
-    const win = window.open('', '_blank');
-    if (!win) return;
-    win.document.write(`<!DOCTYPE html><html><head><title>성과 리포트 ${period.start} ~ ${period.end}</title>
-      <style>* { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
-      body { padding: 0; } @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
-      </style><link href="https://cdn.jsdelivr.net/npm/tailwindcss@2/dist/tailwind.min.css" rel="stylesheet"></head>
-      <body>${el.outerHTML}</body></html>`);
-    win.document.close();
-    setTimeout(() => { win.print(); }, 500);
+    setPdfLoading(true);
+    try {
+      const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      const imgWidth = pdfWidth - 16;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let yPos = 8;
+      if (imgHeight <= pdfHeight - 16) {
+        pdf.addImage(imgData, 'PNG', 8, yPos, imgWidth, imgHeight);
+      } else {
+        // Multi-page: slice the canvas into pages
+        const pageContentHeight = pdfHeight - 16;
+        const srcPageHeight = (pageContentHeight / imgWidth) * canvas.width;
+        let srcY = 0;
+        let page = 0;
+        while (srcY < canvas.height) {
+          if (page > 0) pdf.addPage();
+          const sliceHeight = Math.min(srcPageHeight, canvas.height - srcY);
+          const sliceCanvas = document.createElement('canvas');
+          sliceCanvas.width = canvas.width;
+          sliceCanvas.height = sliceHeight;
+          const ctx = sliceCanvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(canvas, 0, srcY, canvas.width, sliceHeight, 0, 0, canvas.width, sliceHeight);
+            const sliceImg = sliceCanvas.toDataURL('image/png');
+            const sliceImgHeight = (sliceHeight * imgWidth) / canvas.width;
+            pdf.addImage(sliceImg, 'PNG', 8, 8, imgWidth, sliceImgHeight);
+          }
+          srcY += sliceHeight;
+          page++;
+        }
+      }
+      pdf.save(`리포트_${period.start}_${period.end}.pdf`);
+      toast.success('PDF가 다운로드되었습니다.');
+    } catch (err) {
+      toast.error('PDF 생성에 실패했습니다.');
+    } finally {
+      setPdfLoading(false);
+    }
   };
 
   return (
     <div className="mt-6">
       {/* Action Bar */}
       <div className="flex items-center justify-end gap-2 mb-3 print:hidden">
-        <button onClick={handlePrint}
-          className="flex items-center gap-1.5 text-xs bg-gray-100 text-gray-700 px-3 py-2 rounded-lg hover:bg-gray-200 font-medium">
-          <Printer size={14} /> PDF 다운로드
+        <button onClick={handleDownloadPDF} disabled={pdfLoading}
+          className="flex items-center gap-1.5 text-xs bg-gray-100 text-gray-700 px-3 py-2 rounded-lg hover:bg-gray-200 font-medium disabled:opacity-50">
+          {pdfLoading ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />} {pdfLoading ? 'PDF 생성중...' : 'PDF 다운로드'}
         </button>
         {onEmail && (
           <button onClick={onEmail}
