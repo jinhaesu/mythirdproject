@@ -223,7 +223,8 @@ async def analyze_keyword(
 
     try:
         # ── Step 1: Fetch REAL data from APIs (no fake data) ──
-        market_svc = MarketDataService()
+        # Pass user's Meta token for Instagram access (has page/IG permissions)
+        market_svc = MarketDataService(user_meta_token=current_user.meta_access_token)
         real_data = await market_svc.fetch_all(kw.keyword, days=days)
         api_sources = real_data.get("api_sources", [])
         logger.info(f"Keyword '{kw.keyword}' real API sources: {api_sources}")
@@ -245,14 +246,14 @@ async def analyze_keyword(
             else:
                 platform_data["api_errors"]["youtube"] = "YouTube API 키가 설정되지 않았습니다."
 
-        # Instagram: real data only
+        # Instagram: real data only (uses user's Meta token for IG Business Account access)
         if real_data["instagram"]:
             platform_data["instagram"] = real_data["instagram"]
         else:
             if market_svc.has_instagram:
-                platform_data["api_errors"]["instagram"] = "Instagram API 호출에 실패했습니다."
+                platform_data["api_errors"]["instagram"] = "Instagram API 호출에 실패했습니다. Meta 계정 연동 및 Instagram 비즈니스 계정 연결을 확인해주세요."
             else:
-                platform_data["api_errors"]["instagram"] = "Instagram API 토큰이 설정되지 않았습니다."
+                platform_data["api_errors"]["instagram"] = "Instagram API 토큰이 설정되지 않았습니다. 설정에서 Meta 계정을 연동해주세요."
 
         # Naver: real data only
         if real_data["naver"]:

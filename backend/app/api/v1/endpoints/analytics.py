@@ -510,61 +510,231 @@ class ReportEmailRequest(BaseModel):
     report_data: Optional[dict] = None  # Pre-generated report data from frontend
 
 
+def _fmt_num(v) -> str:
+    """Format number with comma separators."""
+    try:
+        n = int(float(v or 0))
+        return f"{n:,}"
+    except (ValueError, TypeError):
+        return "0"
+
+def _fmt_spend(v) -> str:
+    """Format currency value."""
+    try:
+        n = float(v or 0)
+        return f"₩{n:,.0f}"
+    except (ValueError, TypeError):
+        return "₩0"
+
+def _fmt_roas(v) -> str:
+    """Format ROAS value."""
+    if v is None:
+        return "-"
+    try:
+        n = float(v)
+        return f"{n:.2f}" if n > 0 else "-"
+    except (ValueError, TypeError):
+        return "-"
+
 def _build_report_html(report: dict) -> str:
-    """Build HTML body from report data (handles both dict and string ai_report)."""
+    """Build full newsletter-style HTML matching the frontend ReportNewsletter component."""
     ai_report = report.get("ai_report")
     totals = report.get("totals", {})
+    daily = report.get("daily_data", [])
+    campaign = report.get("campaign_info")
+    period = report.get("period", {})
+    ai = ai_report if isinstance(ai_report, dict) else None
+    ai_text = ai_report if isinstance(ai_report, str) else None
+
+    grade = ai.get("overall_grade", "B") if ai else "B"
+    grade_colors = {"A": "#10b981", "B": "#3b82f6", "C": "#f59e0b", "D": "#f97316", "F": "#ef4444"}
+    grade_color = grade_colors.get(grade, "#3b82f6")
 
     parts = []
 
-    # KPI totals section
-    if totals:
-        parts.append('<table style="width:100%;border-collapse:collapse;margin-bottom:16px">')
-        kpi_items = [
-            ("총 지출", f"₩{totals.get('spend', 0):,.0f}"),
-            ("노출수", f"{totals.get('impressions', 0):,}"),
-            ("클릭수", f"{totals.get('clicks', 0):,}"),
-            ("CTR", f"{totals.get('ctr', 0):.2f}%"),
-            ("CPC", f"₩{totals.get('cpc', 0):,.0f}"),
-        ]
-        if totals.get("roas"):
-            kpi_items.append(("ROAS", f"{totals['roas']:.2f}x"))
-        if totals.get("conversion_value"):
-            kpi_items.append(("전환 매출", f"₩{totals['conversion_value']:,.0f}"))
-        parts.append("<tr>")
-        for label, value in kpi_items:
-            parts.append(f'<td style="padding:8px;text-align:center;border:1px solid #e5e7eb"><div style="font-size:11px;color:#6b7280">{label}</div><div style="font-size:16px;font-weight:bold;color:#111">{value}</div></td>')
-        parts.append("</tr></table>")
+    # ── Hero Header ──
+    headline = ai.get("headline", "성과 분석 리포트") if ai else "성과 분석 리포트"
+    period_text = f'{period.get("start", "")} ~ {period.get("end", "")}'
+    campaign_badge = f'<span style="margin-left:8px;padding:2px 8px;background:rgba(255,255,255,0.15);border-radius:4px;font-size:11px">{campaign["name"]}</span>' if campaign and campaign.get("name") else ""
+    grade_html = ""
+    if ai and ai.get("overall_grade"):
+        grade_html = f'''
+        <div style="position:absolute;top:24px;right:32px;text-align:center">
+            <div style="width:56px;height:56px;border-radius:16px;background:{grade_color};display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(0,0,0,0.2)">
+                <span style="font-size:28px;font-weight:900;color:white">{grade}</span>
+            </div>
+            <span style="font-size:11px;color:#93c5fd;margin-top:4px;display:block">{ai.get("grade_reason", "종합 등급")}</span>
+        </div>'''
 
-    # AI report section
-    if isinstance(ai_report, dict):
-        if ai_report.get("headline"):
-            parts.append(f'<h2 style="color:#1f2937;margin:16px 0 8px">{ai_report["headline"]}</h2>')
-        if ai_report.get("overall_grade"):
-            parts.append(f'<p style="font-size:18px;font-weight:bold;color:#3b82f6">종합 등급: {ai_report["overall_grade"]} — {ai_report.get("grade_reason", "")}</p>')
-        if ai_report.get("period_summary"):
-            parts.append(f'<p style="color:#374151">{ai_report["period_summary"]}</p>')
-        if ai_report.get("kpi_highlights"):
-            parts.append('<h3 style="color:#1f2937;margin-top:16px">KPI 하이라이트</h3><ul>')
-            for kpi in ai_report["kpi_highlights"]:
-                parts.append(f'<li><strong>{kpi.get("metric","")}</strong>: {kpi.get("value","")} ({kpi.get("change","")}) — {kpi.get("insight","")}</li>')
-            parts.append("</ul>")
-        if ai_report.get("daily_trend_insight"):
-            parts.append(f'<h3 style="color:#1f2937;margin-top:16px">일별 트렌드</h3><p>{ai_report["daily_trend_insight"]}</p>')
-        if ai_report.get("key_insights"):
-            parts.append('<h3 style="color:#1f2937;margin-top:16px">핵심 인사이트</h3><ul>')
-            for ins in ai_report["key_insights"]:
-                parts.append(f"<li>{ins}</li>")
-            parts.append("</ul>")
-        if ai_report.get("recommendations"):
-            parts.append('<h3 style="color:#1f2937;margin-top:16px">추천 사항</h3>')
-            for rec in ai_report["recommendations"]:
-                pcolor = {"high": "#ef4444", "medium": "#f59e0b", "low": "#10b981"}.get(rec.get("priority", ""), "#6b7280")
-                parts.append(f'<div style="margin:8px 0;padding:8px;border-left:3px solid {pcolor};background:#f9fafb"><strong>{rec.get("title","")}</strong><br>{rec.get("description","")} <em>(예상: {rec.get("expected_impact","")})</em></div>')
-    elif isinstance(ai_report, str):
-        parts.append(ai_report.replace("\n", "<br>"))
-    else:
-        parts.append("<p>리포트 데이터가 없습니다.</p>")
+    parts.append(f'''
+    <div style="background:linear-gradient(135deg,#0f172a,#1e3a5f,#312e81);padding:28px 32px;position:relative;border-radius:16px 16px 0 0">
+        {grade_html}
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <div style="width:28px;height:28px;background:rgba(255,255,255,0.2);border-radius:8px;display:flex;align-items:center;justify-content:center">
+                <span style="color:white;font-size:14px">📊</span>
+            </div>
+            <span style="color:#93c5fd;font-size:11px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase">Performance Report</span>
+        </div>
+        <h2 style="color:white;font-size:20px;font-weight:700;margin:0 0 8px;padding-right:80px;line-height:1.4">{headline}</h2>
+        <p style="color:#93c5fd;font-size:12px;margin:0">{period_text}{campaign_badge}</p>
+    </div>''')
+
+    # ── Period Summary ──
+    if ai and ai.get("period_summary"):
+        parts.append(f'''
+        <div style="margin:20px 24px 0;padding:14px 16px;background:#eff6ff;border:1px solid #dbeafe;border-radius:12px">
+            <p style="color:#4b5563;font-size:13px;line-height:1.7;margin:0">{ai["period_summary"]}</p>
+        </div>''')
+
+    # ── KPI Cards ──
+    if totals:
+        roas_val = totals.get("roas")
+        roas_color = "#10b981" if roas_val and float(roas_val) >= 1 else "#ef4444" if roas_val else "#6b7280"
+        kpi_cards = [
+            ("💰", "총 지출", _fmt_spend(totals.get("spend")), "#3b82f6", None),
+            ("👁", "노출", _fmt_num(totals.get("impressions")), "#8b5cf6", f"도달 {_fmt_num(totals.get('reach'))}"),
+            ("🖱", "클릭", _fmt_num(totals.get("clicks")), "#10b981", f"CTR {totals.get('ctr', 0):.2f}%"),
+            ("🎯", "CPC", _fmt_spend(totals.get("cpc")), "#f97316", None),
+            ("📈", "ROAS", _fmt_roas(roas_val), roas_color, f"전환매출 {_fmt_spend(totals.get('conversion_value'))}" if totals.get("conversion_value") else None),
+        ]
+        parts.append('<div style="margin:20px 24px 0">')
+        parts.append('<table style="width:100%;border-collapse:separate;border-spacing:8px 0"><tr>')
+        for icon, label, value, color, sub in kpi_cards:
+            sub_html = f'<div style="font-size:10px;color:#9ca3af;margin-top:2px">{sub}</div>' if sub else ""
+            parts.append(f'''
+            <td style="width:20%;background:#f9fafb;border:1px solid #f3f4f6;border-radius:12px;padding:12px 10px;text-align:center;vertical-align:top">
+                <div style="font-size:14px;margin-bottom:4px">{icon}</div>
+                <div style="font-size:10px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:0.5px">{label}</div>
+                <div style="font-size:18px;font-weight:700;color:{color};margin-top:4px">{value}</div>
+                {sub_html}
+            </td>''')
+        parts.append('</tr></table></div>')
+
+    # ── AI KPI Highlights ──
+    if ai and ai.get("kpi_highlights"):
+        parts.append('<div style="margin:24px 24px 0">')
+        parts.append('<h4 style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:1px;margin:0 0 12px">KPI 하이라이트</h4>')
+        parts.append('<table style="width:100%;border-collapse:separate;border-spacing:0 6px">')
+        for kpi in ai["kpi_highlights"]:
+            change = kpi.get("change", "")
+            if change.startswith("+"):
+                badge_bg, badge_color, arrow = "#dcfce7", "#15803d", "↑"
+            elif change.startswith("-"):
+                badge_bg, badge_color, arrow = "#fef2f2", "#dc2626", "↓"
+            else:
+                badge_bg, badge_color, arrow = "#dbeafe", "#2563eb", "→"
+            change_badge = f'<span style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;background:{badge_bg};color:{badge_color}">{change}</span>' if change else ""
+            parts.append(f'''
+            <tr><td style="background:#f9fafb;border:1px solid #f3f4f6;border-radius:8px;padding:10px 12px">
+                <div style="display:flex;align-items:center;gap:8px">
+                    <span style="font-size:16px">{arrow}</span>
+                    <div>
+                        <div style="font-size:12px;font-weight:700;color:#111827">{kpi.get("metric","")} {kpi.get("value","")} {change_badge}</div>
+                        <div style="font-size:11px;color:#6b7280;margin-top:2px">{kpi.get("insight","")}</div>
+                    </div>
+                </div>
+            </td></tr>''')
+        parts.append('</table></div>')
+
+    # ── Daily Data Table ──
+    if daily:
+        parts.append('<div style="margin:24px 24px 0">')
+        parts.append('<h4 style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:1px;margin:0 0 12px">일별 데이터</h4>')
+        parts.append('<div style="border:1px solid #e5e7eb;border-radius:12px;overflow:hidden">')
+        parts.append('''<table style="width:100%;border-collapse:collapse;font-size:12px">
+            <thead><tr style="background:#f9fafb;border-bottom:1px solid #e5e7eb">
+                <th style="text-align:left;padding:10px 12px;color:#6b7280;font-weight:600">날짜</th>
+                <th style="text-align:right;padding:10px 8px;color:#6b7280;font-weight:600">지출</th>
+                <th style="text-align:right;padding:10px 8px;color:#6b7280;font-weight:600">노출</th>
+                <th style="text-align:right;padding:10px 8px;color:#6b7280;font-weight:600">도달</th>
+                <th style="text-align:right;padding:10px 8px;color:#6b7280;font-weight:600">클릭</th>
+                <th style="text-align:right;padding:10px 8px;color:#6b7280;font-weight:600">CTR</th>
+                <th style="text-align:right;padding:10px 8px;color:#6b7280;font-weight:600">CPC</th>
+                <th style="text-align:right;padding:10px 8px;color:#6b7280;font-weight:600">ROAS</th>
+            </tr></thead><tbody>''')
+        for i, row in enumerate(daily):
+            bg = "#ffffff" if i % 2 == 0 else "#fafbfc"
+            roas_v = float(row.get("roas", 0) or 0)
+            roas_c = "#10b981" if roas_v >= 1 else "#ef4444" if roas_v > 0 else "#9ca3af"
+            date_val = row.get("date_stop") or row.get("date") or "-"
+            ctr_val = float(row.get("ctr", 0) or 0)
+            parts.append(f'''<tr style="background:{bg};border-bottom:1px solid #f3f4f6">
+                <td style="padding:8px 12px;color:#374151;font-weight:500">{date_val}</td>
+                <td style="padding:8px;text-align:right;color:#111827;font-weight:600">{_fmt_spend(row.get("spend"))}</td>
+                <td style="padding:8px;text-align:right;color:#4b5563">{_fmt_num(row.get("impressions"))}</td>
+                <td style="padding:8px;text-align:right;color:#4b5563">{_fmt_num(row.get("reach"))}</td>
+                <td style="padding:8px;text-align:right;color:#4b5563">{_fmt_num(row.get("clicks"))}</td>
+                <td style="padding:8px;text-align:right;color:#4b5563">{ctr_val:.2f}%</td>
+                <td style="padding:8px;text-align:right;color:#4b5563">{_fmt_spend(row.get("cpc"))}</td>
+                <td style="padding:8px;text-align:right;font-weight:700;color:{roas_c}">{_fmt_roas(row.get("roas"))}</td>
+            </tr>''')
+        # Totals footer
+        parts.append(f'''</tbody><tfoot><tr style="background:#1e293b">
+            <td style="padding:10px 12px;color:white;font-weight:700;font-size:12px">합계</td>
+            <td style="padding:10px 8px;text-align:right;color:white;font-weight:700;font-size:12px">{_fmt_spend(totals.get("spend"))}</td>
+            <td style="padding:10px 8px;text-align:right;color:white;font-size:12px">{_fmt_num(totals.get("impressions"))}</td>
+            <td style="padding:10px 8px;text-align:right;color:white;font-size:12px">{_fmt_num(totals.get("reach"))}</td>
+            <td style="padding:10px 8px;text-align:right;color:white;font-size:12px">{_fmt_num(totals.get("clicks"))}</td>
+            <td style="padding:10px 8px;text-align:right;color:white;font-size:12px">{totals.get("ctr", 0):.2f}%</td>
+            <td style="padding:10px 8px;text-align:right;color:white;font-size:12px">{_fmt_spend(totals.get("cpc"))}</td>
+            <td style="padding:10px 8px;text-align:right;color:white;font-weight:700;font-size:12px">{_fmt_roas(totals.get("roas"))}</td>
+        </tr></tfoot></table></div></div>''')
+
+    # ── AI Daily Trend Insight ──
+    if ai and ai.get("daily_trend_insight"):
+        parts.append(f'''
+        <div style="margin:16px 24px 0;padding:12px 14px;background:#eff6ff;border:1px solid #dbeafe;border-radius:10px">
+            <p style="font-size:12px;color:#1e40af;line-height:1.6;margin:0">{ai["daily_trend_insight"]}</p>
+        </div>''')
+
+    # ── Key Insights ──
+    if ai and ai.get("key_insights"):
+        parts.append('<div style="margin:24px 24px 0">')
+        parts.append('<h4 style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:1px;margin:0 0 12px">핵심 인사이트</h4>')
+        for i, insight in enumerate(ai["key_insights"]):
+            parts.append(f'''
+            <div style="display:flex;align-items:flex-start;gap:10px;background:linear-gradient(135deg,#fffbeb,#fff7ed);border:1px solid #fde68a;border-radius:10px;padding:12px;margin-bottom:8px">
+                <div style="width:24px;height:24px;background:#f59e0b;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px">
+                    <span style="color:white;font-size:11px;font-weight:900">{i+1}</span>
+                </div>
+                <p style="font-size:12px;color:#1f2937;line-height:1.6;margin:0">{insight}</p>
+            </div>''')
+        parts.append('</div>')
+
+    # ── Recommendations ──
+    if ai and ai.get("recommendations"):
+        parts.append('<div style="margin:24px 24px 0">')
+        parts.append('<h4 style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:1px;margin:0 0 12px">실행 추천</h4>')
+        for rec in ai["recommendations"]:
+            priority = rec.get("priority", "low")
+            if priority == "high":
+                border_c, bg_c, badge_bg, badge_label = "#fecaca", "#fef2f2", "#dc2626", "긴급"
+            elif priority == "medium":
+                border_c, bg_c, badge_bg, badge_label = "#fde68a", "#fffbeb", "#d97706", "중요"
+            else:
+                border_c, bg_c, badge_bg, badge_label = "#e5e7eb", "#f9fafb", "#6b7280", "참고"
+            impact_html = f'<div style="margin-top:6px;font-size:11px;color:#2563eb">🏆 예상 효과: {rec.get("expected_impact","")}</div>' if rec.get("expected_impact") else ""
+            parts.append(f'''
+            <div style="border:1px solid {border_c};background:{bg_c};border-radius:10px;padding:14px;margin-bottom:8px">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+                    <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:{badge_bg};color:white">{badge_label}</span>
+                    <span style="font-size:12px;font-weight:700;color:#111827">{rec.get("title","")}</span>
+                </div>
+                <p style="font-size:12px;color:#4b5563;line-height:1.6;margin:0">{rec.get("description","")}</p>
+                {impact_html}
+            </div>''')
+        parts.append('</div>')
+
+    # ── Fallback AI text ──
+    if not ai and ai_text:
+        parts.append(f'''
+        <div style="margin:24px;padding:20px;background:#f9fafb;border:1px solid #f3f4f6;border-radius:12px">
+            <h4 style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:1px;margin:0 0 8px">AI 분석</h4>
+            <div style="font-size:12px;color:#374151;white-space:pre-wrap;line-height:1.7">{ai_text}</div>
+        </div>''')
+
+    if not ai and not ai_text and not totals:
+        parts.append('<div style="padding:24px;text-align:center"><p style="color:#9ca3af">리포트 데이터가 없습니다.</p></div>')
 
     return "\n".join(parts)
 
@@ -736,13 +906,14 @@ async def send_report_email(
     report_body = _build_report_html(report)
 
     html_content = f"""
-    <div style="font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', Arial, sans-serif; max-width: 640px; margin: 0 auto; padding: 20px;">
-        <div style="background: linear-gradient(135deg, #1877F2, #E1306C); padding: 20px; border-radius: 12px; margin-bottom: 20px;">
-            <h1 style="color: white; margin: 0; font-size: 24px;">Meta-Commander 성과 리포트</h1>
-            <p style="color: rgba(255,255,255,0.8); margin: 8px 0 0;">기간: {request.start_date} ~ {request.end_date}</p>
+    <div style="font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', 'Segoe UI', Arial, sans-serif; max-width: 680px; margin: 0 auto; padding: 16px;">
+        <div style="border-radius:16px;overflow:hidden;border:1px solid #e5e7eb;box-shadow:0 4px 12px rgba(0,0,0,0.08);background:white">
+            {report_body}
+            <div style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:10px 24px;display:flex;justify-content:space-between">
+                <span style="font-size:11px;color:#9ca3af">Meta-Commander 자동 생성 리포트</span>
+                <span style="font-size:11px;color:#9ca3af">{datetime.now().strftime('%Y-%m-%d')}</span>
+            </div>
         </div>
-        <div style="padding: 20px; background: #f9fafb; border-radius: 8px; line-height: 1.8;">{report_body}</div>
-        <p style="color: #999; font-size: 12px; margin-top: 20px; text-align: center;">Meta-Commander에서 자동 생성된 리포트입니다.</p>
     </div>"""
 
     if not settings.RESEND_API_KEY:

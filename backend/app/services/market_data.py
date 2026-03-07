@@ -13,15 +13,16 @@ logger = logging.getLogger(__name__)
 class MarketDataService:
     """Fetches real market data from YouTube, Naver, and Instagram APIs."""
 
-    def __init__(self):
+    def __init__(self, user_meta_token: Optional[str] = None):
         settings = get_settings()
         self.youtube_key = settings.YOUTUBE_API_KEY
         self.naver_id = settings.NAVER_CLIENT_ID
         self.naver_secret = settings.NAVER_CLIENT_SECRET
-        self.meta_token = settings.META_ACCESS_TOKEN
+        # Prefer user's personal Meta token (has page/IG permissions) over app-level token
+        self.meta_token = user_meta_token or settings.META_ACCESS_TOKEN
         self.meta_graph_base = settings.META_GRAPH_API_BASE
         self.meta_api_version = settings.META_API_VERSION
-        logger.info(f"MarketDataService init: youtube={'YES' if self.youtube_key else 'NO'}, naver={'YES' if self.naver_id else 'NO'}, instagram={'YES' if self.meta_token else 'NO'}")
+        logger.info(f"MarketDataService init: youtube={'YES' if self.youtube_key else 'NO'}, naver={'YES' if self.naver_id else 'NO'}, instagram={'YES' if self.meta_token else 'NO'} (user_token={'YES' if user_meta_token else 'NO'})")
 
     @property
     def has_youtube(self) -> bool:
@@ -35,14 +36,18 @@ class MarketDataService:
     def has_instagram(self) -> bool:
         return bool(self.meta_token)
 
-    async def fetch_youtube_data(self, keyword: str) -> Optional[Dict[str, Any]]:
-        """Fetch YouTube search results for a keyword."""
+    async def fetch_youtube_data(self, keyword: str, days: int = 30) -> Optional[Dict[str, Any]]:
+        """Fetch YouTube search results for a keyword within the specified date range."""
         if not self.has_youtube:
             return None
 
         try:
+            # Date range filtering
+            published_after = (datetime.utcnow() - timedelta(days=days)).strftime("%Y-%m-%dT00:00:00Z")
+            published_before = datetime.utcnow().strftime("%Y-%m-%dT23:59:59Z")
+
             async with httpx.AsyncClient(timeout=15.0) as client:
-                # Search for videos
+                # Search for videos within date range
                 resp = await client.get(
                     "https://www.googleapis.com/youtube/v3/search",
                     params={
@@ -50,10 +55,12 @@ class MarketDataService:
                         "q": keyword,
                         "type": "video",
                         "maxResults": 20,
-                        "order": "relevance",
+                        "order": "date",
                         "key": self.youtube_key,
                         "regionCode": "KR",
                         "relevanceLanguage": "ko",
+                        "publishedAfter": published_after,
+                        "publishedBefore": published_before,
                     },
                 )
                 if resp.status_code != 200:
@@ -123,24 +130,30 @@ class MarketDataService:
                     "X-Naver-Client-Secret": self.naver_secret,
                 }
 
-                # Blog search (fetch 10 titles for sentiment keywords)
+                # Blog search (fetch recent posts sorted by date for period relevance)
                 blog_resp = await client.get(
                     "https://openapi.naver.com/v1/search/blog.json",
-                    params={"query": keyword, "display": 10, "sort": "sim"},
+                    params={"query": keyword, "display": 100, "sort": "date"},
                     headers=headers,
                 )
                 if blog_resp.status_code != 200:
                     logger.warning(f"Naver blog API error: {blog_resp.status_code} {blog_resp.text[:200]}")
                     return None
                 blog_data = blog_resp.json()
-                blog_count = blog_data.get("total", 0)
 
-                # Extract blog titles for keyword extraction
+                # Filter blog posts by date range and count only those within period
                 import re
+                cutoff_date = (datetime.utcnow() - timedelta(days=days)).strftime("%Y%m%d")
                 blog_titles = []
+                period_blog_count = 0
                 for item in blog_data.get("items", []):
-                    title = re.sub(r'<[^>]+>', '', item.get("title", ""))
-                    blog_titles.append(title)
+                    # Naver postdate format: "20260305"
+                    post_date = item.get("postdate", "")
+                    if post_date >= cutoff_date:
+                        period_blog_count += 1
+                        title = re.sub(r'<[^>]+>', '', item.get("title", ""))
+                        blog_titles.append(title)
+                blog_count = period_blog_count
 
                 # DataLab search trend
                 end_date = datetime.utcnow().strftime("%Y-%m-%d")
@@ -301,7 +314,7 @@ class MarketDataService:
             "naver": None,
         }
 
-        yt = await self.fetch_youtube_data(keyword)
+        yt = await self.fetch_youtube_data(keyword, days=days)
         if yt:
             result["youtube"] = yt
             result["api_sources"].append("youtube")
