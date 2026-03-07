@@ -67,7 +67,11 @@ export function AdsController() {
       creative_ids: selectedCreatives.length > 0 ? selectedCreatives.map((c) => c.id) : [],
     }),
     onSuccess: () => { refetchCampaigns(); toast.success('캠페인 생성 완료'); setCampaignName(''); setBudget(''); },
-    onError: (err: any) => toast.error(err?.response?.data?.detail || '캠페인 생성 실패'),
+    onError: (err: any) => {
+      const detail = err?.response?.data?.detail;
+      const msg = typeof detail === 'string' ? detail : '캠페인 생성 실패';
+      toast.error(msg);
+    },
   });
 
   const publishMutation = useMutation({
@@ -316,7 +320,7 @@ function CampaignCard({
             </div>
             <p className="text-sm text-gray-500">
               {campaign.objective === 'TRAFFIC' ? '트래픽' : campaign.objective === 'CONVERSIONS' ? '전환' : '리드'}
-              {' · '}{campaign.ads.length}개 광고
+              {' · '}{(campaign.ads || []).length}개 광고
             </p>
           </div>
           <button onClick={() => setExpanded(!expanded)} className="text-gray-400 hover:text-gray-600 p-1">
@@ -381,7 +385,7 @@ function CampaignCard({
           </div>
 
           {/* 광고 ON/OFF */}
-          {campaign.ads.length > 0 && (
+          {(campaign.ads || []).length > 0 && (
             <div>
               <p className="text-sm font-medium text-gray-700 mb-2">광고 관리</p>
               <div className="space-y-2">

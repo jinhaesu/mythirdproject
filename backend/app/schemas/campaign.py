@@ -76,7 +76,7 @@ class CampaignCreate(BaseModel):
     total_budget: float = Field(..., gt=0)
     daily_budget: Optional[float] = None
     targeting: Optional[TargetingConfig] = None
-    creative_ids: List[int] = Field(..., min_length=1)
+    creative_ids: List[int] = Field(default=[])
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
 
