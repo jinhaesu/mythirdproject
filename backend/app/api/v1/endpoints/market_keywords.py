@@ -15,6 +15,7 @@ from app.models.user import User
 from app.models.market_keyword import MarketKeyword
 from app.api.v1.endpoints.auth import get_current_user
 from app.services.ai import ClaudeService
+from app.services.market_data import MarketDataService
 
 logger = logging.getLogger(__name__)
 
@@ -213,9 +214,27 @@ async def analyze_keyword(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="키워드를 찾을 수 없습니다.")
 
     try:
+        # Fetch real data from available APIs
+        market_svc = MarketDataService()
+        real_data = await market_svc.fetch_all(kw.keyword)
+        api_sources = real_data.get("api_sources", [])
+
+        # Build context from real API data for AI to enhance
+        real_data_context = ""
+        if real_data["youtube"]:
+            yt = real_data["youtube"]
+            real_data_context += f"\n[실제 YouTube 데이터] 콘텐츠 수: {yt['content_count']}, 조회수: {yt['total_views']}, 댓글: {yt['total_comments']}"
+        if real_data["naver"]:
+            nv = real_data["naver"]
+            real_data_context += f"\n[실제 Naver 데이터] 블로그 수: {nv['blog_post_count']}, 검색량 지수: {nv['search_query_volume']}"
+        if real_data["instagram"]:
+            ig = real_data["instagram"]
+            real_data_context += f"\n[실제 Instagram 데이터] 해시태그 ID: {ig.get('hashtag_id', 'N/A')}"
+
         claude = ClaudeService()
 
         prompt = f"""당신은 소셜 미디어 마켓 분석 전문가입니다. "{kw.keyword}" 키워드에 대해 현실적인 시장 데이터를 생성해주세요.
+{f"아래 실제 API 데이터를 참고하여 이를 기반으로 현실적인 수치를 생성하세요:{real_data_context}" if real_data_context else ""}
 
 다음 JSON 형식으로 정확하게 응답해주세요 (JSON만 반환, 다른 텍스트 없이):
 {{
@@ -305,8 +324,27 @@ async def analyze_keyword(
 
         analysis = json.loads(content[start:end])
 
+        # Override AI-generated platform stats with real API data
+        platform_data = analysis.get("platform_data", {})
+        if real_data["youtube"]:
+            platform_data["youtube"] = real_data["youtube"]
+        if real_data["naver"]:
+            nv = real_data["naver"]
+            platform_data["naver"] = {
+                "blog_post_count": nv["blog_post_count"],
+                "search_query_volume": nv["search_query_volume"],
+            }
+            # If Naver daily_trend is available, merge into daily_trends
+            if nv.get("daily_trend"):
+                ai_trends = platform_data.get("daily_trends", [])
+                naver_map = {d["date"]: d["ratio"] for d in nv["daily_trend"]}
+                for trend in ai_trends:
+                    if trend["date"] in naver_map:
+                        trend["naver_searches"] = int(naver_map[trend["date"]] * nv["blog_post_count"] / 100)
+        platform_data["api_sources"] = api_sources
+
         # Save to DB
-        kw.platform_data = json.dumps(analysis.get("platform_data", {}), ensure_ascii=False)
+        kw.platform_data = json.dumps(platform_data, ensure_ascii=False)
         kw.sentiment_data = json.dumps(analysis.get("sentiment_data", {}), ensure_ascii=False)
         kw.hashtags = json.dumps(analysis.get("hashtags", []), ensure_ascii=False)
         kw.last_analyzed_at = datetime.utcnow()

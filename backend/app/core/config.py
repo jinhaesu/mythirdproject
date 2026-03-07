@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
     REPLICATE_API_TOKEN: str = ""
 
+    # Market Intelligence APIs
+    YOUTUBE_API_KEY: str = ""
+    NAVER_CLIENT_ID: str = ""
+    NAVER_CLIENT_SECRET: str = ""
+
     # Resend (Email)
     RESEND_API_KEY: str = ""
     RESEND_FROM_EMAIL: str = "onboarding@resend.dev"

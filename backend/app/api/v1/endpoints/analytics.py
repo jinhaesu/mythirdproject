@@ -133,7 +133,7 @@ async def get_ai_analysis(
 {context_text}
 
 JSON 형식:
-{{"account_health":"good|warning|critical","health_summary":"요약 2문장","action_items":[{{"priority":"high|medium|low","type":"pause_ad|increase_budget|decrease_budget|change_creative","target_id":"ID","target_name":"이름","action":"액션","reason":"이유","expected_impact":"효과"}}],"creative_fatigue":[{{"ad_name":"이름","frequency":"수치","recommendation":"교체|수정|유지"}}],"budget_recommendations":[{{"campaign_name":"이름","campaign_id":"ID","current_budget":"현재","recommended_budget":"추천","reason":"이유"}}],"next_steps":["실행사항 3개"]}}
+{{"account_health":"good|warning|critical","health_summary":"요약 2문장","action_items":[{{"priority":"high|medium|low","type":"pause_ad|increase_budget|decrease_budget|change_creative","target_id":"ID","target_name":"이름","action":"액션","reason":"이유","expected_impact":"효과"}}],"creative_fatigue":[{{"ad_name":"이름","frequency":"수치","recommendation":"교체|수정|유지"}}],"budget_recommendations":[{{"campaign_name":"이름","campaign_id":"ID","current_budget":"₩현재금액(원화)","recommended_budget":"₩추천금액(원화)","reason":"이유"}}],"next_steps":["실행사항 3개"]}}
 
 JSON만 반환."""
             }],
@@ -675,6 +675,12 @@ async def send_report_email(
         <div style="padding: 20px; background: #f9fafb; border-radius: 8px; line-height: 1.8;">{html_content}</div>
         <p style="color: #999; font-size: 12px; margin-top: 20px; text-align: center;">Meta-Commander에서 자동 생성된 리포트입니다.</p>
     </div>"""
+
+    if not settings.RESEND_API_KEY:
+        raise HTTPException(
+            status_code=400,
+            detail="이메일 발송을 위해 RESEND_API_KEY 환경변수를 설정해주세요. resend.com에서 무료 API 키를 발급받을 수 있습니다."
+        )
 
     try:
         resend.api_key = settings.RESEND_API_KEY

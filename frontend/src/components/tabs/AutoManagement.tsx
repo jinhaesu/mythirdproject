@@ -191,7 +191,10 @@ export function AutoManagement() {
     mutationFn: (req: { meta_campaign_id?: string; start_date: string; end_date: string; email: string }) =>
       analyticsApi.sendReportEmail(req),
     onSuccess: () => toast.success('이메일이 발송되었습니다.'),
-    onError: () => toast.error('이메일 발송에 실패했습니다.'),
+    onError: (err: any) => {
+      const detail = err?.response?.data?.detail;
+      toast.error(typeof detail === 'string' ? detail : '이메일 발송에 실패했습니다.');
+    },
   });
 
   const resetRuleForm = () => setRuleForm({

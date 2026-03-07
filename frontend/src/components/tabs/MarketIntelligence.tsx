@@ -45,6 +45,7 @@ interface PlatformData {
   naver: NaverMetrics;
   daily_trends: DailyTrend[];
   monthly_trends: MonthlyTrend[];
+  api_sources?: string[];
 }
 
 interface SentimentData {
@@ -502,6 +503,9 @@ export function MarketIntelligence() {
                       <Youtube size={18} className="text-red-600" />
                     </div>
                     <h4 className="font-semibold text-gray-800">YouTube</h4>
+                    {selectedKeyword.platform_data.api_sources?.includes('youtube') && (
+                      <span className="ml-auto text-[9px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-medium">API</span>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <div className="flex justify-between">
@@ -526,6 +530,9 @@ export function MarketIntelligence() {
                       <Instagram size={18} className="text-pink-600" />
                     </div>
                     <h4 className="font-semibold text-gray-800">Instagram</h4>
+                    {selectedKeyword.platform_data.api_sources?.includes('instagram') && (
+                      <span className="ml-auto text-[9px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-medium">API</span>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <div className="flex justify-between">
@@ -550,6 +557,9 @@ export function MarketIntelligence() {
                       <Globe size={18} className="text-green-600" />
                     </div>
                     <h4 className="font-semibold text-gray-800">Naver</h4>
+                    {selectedKeyword.platform_data.api_sources?.includes('naver') && (
+                      <span className="ml-auto text-[9px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-medium">API</span>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <div className="flex justify-between">

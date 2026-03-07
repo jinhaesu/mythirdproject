@@ -6,9 +6,10 @@ import {
   BarChart3, DollarSign, Eye, MousePointer, Target,
   Play, Pause, ChevronDown, ChevronRight, AlertTriangle, CheckCircle, XCircle,
   Loader2, RefreshCw, Zap, Activity, Users, Layers,
-  TrendingUp, TrendingDown, ToggleLeft, ToggleRight,
+  TrendingUp, TrendingDown, ToggleLeft, ToggleRight, Edit3, Check, X,
 } from 'lucide-react';
 import { analyticsApi } from '@/lib/api';
+import toast from 'react-hot-toast';
 
 type DatePreset = 'last_7d' | 'last_14d' | 'last_30d' | 'custom';
 
@@ -120,15 +121,36 @@ export default function PerformanceDashboard() {
     enabled: !!expandedCampaign,
   });
 
+  const [editingBudget, setEditingBudget] = useState<{ id: string; type: string } | null>(null);
+  const [budgetInput, setBudgetInput] = useState('');
+
   const statusMutation = useMutation({
     mutationFn: ({ id, type, status }: { id: string; type: string; status: string }) =>
       analyticsApi.updateStatus(id, type, status),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['account-overview'] }),
   });
 
+  const budgetMutation = useMutation({
+    mutationFn: ({ id, type, budget }: { id: string; type: string; budget: number }) =>
+      analyticsApi.updateBudgetMeta(id, type, budget * 100),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['account-overview'] });
+      queryClient.invalidateQueries({ queryKey: ['campaign-adsets'] });
+      toast.success('예산이 변경되었습니다.');
+      setEditingBudget(null);
+      setBudgetInput('');
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.detail || '예산 변경 실패'),
+  });
+
   const toggleStatus = (id: string, type: string, currentStatus: string) => {
     const newStatus = currentStatus === 'ACTIVE' ? 'PAUSED' : 'ACTIVE';
     statusMutation.mutate({ id, type, status: newStatus });
+  };
+
+  const startBudgetEdit = (id: string, type: string, currentBudget?: string) => {
+    setEditingBudget({ id, type });
+    setBudgetInput(currentBudget ? String(Math.round(parseFloat(currentBudget) / 100)) : '');
   };
 
   // Filter campaigns
@@ -494,11 +516,28 @@ export default function PerformanceDashboard() {
                           <div className="text-right"><p className="text-xs text-gray-400">ROAS</p><p className={`font-semibold ${ins.roas && ins.roas >= 1 ? 'text-green-600' : ins.roas ? 'text-red-600' : 'text-gray-400'}`}>{formatROAS(ins.roas)}</p></div>
                         </div>
                       )}
-                      <button onClick={(e) => { e.stopPropagation(); toggleStatus(camp.id, 'campaign', es); }}
-                        className={`p-2 rounded-lg ${es === 'ACTIVE' ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}
-                        title={es === 'ACTIVE' ? '일시중지' : '활성화'}>
-                        {es === 'ACTIVE' ? <Pause size={14} /> : <Play size={14} />}
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        {editingBudget?.id === camp.id ? (
+                          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                            <span className="text-[10px] text-gray-400">일예산 ₩</span>
+                            <input type="number" value={budgetInput} onChange={(e) => setBudgetInput(e.target.value)} autoFocus
+                              className="w-20 px-1.5 py-1 border rounded text-xs" placeholder="원" />
+                            <button onClick={() => budgetInput && budgetMutation.mutate({ id: camp.id, type: 'campaign', budget: Number(budgetInput) })}
+                              className="text-green-600 hover:text-green-800"><Check size={14} /></button>
+                            <button onClick={() => setEditingBudget(null)} className="text-gray-400 hover:text-gray-600"><X size={14} /></button>
+                          </div>
+                        ) : (
+                          <button onClick={(e) => { e.stopPropagation(); startBudgetEdit(camp.id, 'campaign', camp.daily_budget); }}
+                            className="p-2 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100" title="예산 변경">
+                            <Edit3 size={14} />
+                          </button>
+                        )}
+                        <button onClick={(e) => { e.stopPropagation(); toggleStatus(camp.id, 'campaign', es); }}
+                          className={`p-2 rounded-lg ${es === 'ACTIVE' ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}
+                          title={es === 'ACTIVE' ? '일시중지' : '활성화'}>
+                          {es === 'ACTIVE' ? <Pause size={14} /> : <Play size={14} />}
+                        </button>
+                      </div>
                     </div>
 
                     {isExpanded && (
@@ -528,9 +567,27 @@ export default function PerformanceDashboard() {
                                       <span className="text-sm font-medium">{adset.name}</span>
                                       <span className={`text-xs px-1.5 py-0.5 rounded ${adsetStatus === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{adsetStatusKo}</span>
                                     </div>
-                                    <button onClick={() => toggleStatus(adset.id, 'adset', adsetStatus)} className="text-xs px-2 py-1 rounded border hover:bg-gray-50">
-                                      {adsetStatus === 'ACTIVE' ? '중지' : '활성화'}
-                                    </button>
+                                    <div className="flex items-center gap-2">
+                                      {editingBudget?.id === adset.id ? (
+                                        <div className="flex items-center gap-1">
+                                          <span className="text-xs text-gray-400">일예산 ₩</span>
+                                          <input type="number" value={budgetInput} onChange={(e) => setBudgetInput(e.target.value)} autoFocus
+                                            className="w-20 px-1.5 py-0.5 border rounded text-xs" placeholder="원" />
+                                          <button onClick={() => budgetInput && budgetMutation.mutate({ id: adset.id, type: 'adset', budget: Number(budgetInput) })}
+                                            className="text-green-600 hover:text-green-800"><Check size={13} /></button>
+                                          <button onClick={() => setEditingBudget(null)} className="text-gray-400 hover:text-gray-600"><X size={13} /></button>
+                                        </div>
+                                      ) : (
+                                        <>
+                                          {adset.daily_budget && <span className="text-xs text-gray-400">일예산: {formatSpend(Number(adset.daily_budget) / 100)}</span>}
+                                          <button onClick={(e) => { e.stopPropagation(); startBudgetEdit(adset.id, 'adset', adset.daily_budget); }}
+                                            className="text-gray-400 hover:text-blue-600" title="예산 변경"><Edit3 size={12} /></button>
+                                        </>
+                                      )}
+                                      <button onClick={() => toggleStatus(adset.id, 'adset', adsetStatus)} className="text-xs px-2 py-1 rounded border hover:bg-gray-50">
+                                        {adsetStatus === 'ACTIVE' ? '중지' : '활성화'}
+                                      </button>
+                                    </div>
                                   </div>
                                   {adset.targeting && (
                                     <div className="text-xs text-gray-500 mb-2">
@@ -651,10 +708,10 @@ function MiniLineChart({ data, color, formatValue }: {
   if (data.length === 0) return null;
 
   const width = 600;
-  const height = 90;
-  const paddingTop = 12;
-  const paddingBottom = 20;
-  const paddingLeft = 52;
+  const height = 120;
+  const paddingTop = 20;
+  const paddingBottom = 16;
+  const paddingLeft = 44;
   const paddingRight = 10;
 
   const chartWidth = width - paddingLeft - paddingRight;
@@ -662,7 +719,6 @@ function MiniLineChart({ data, color, formatValue }: {
 
   const maxVal = Math.max(...data.map(d => d.value), 0.01);
   const minVal = Math.min(...data.map(d => d.value), 0);
-
   const range = maxVal - minVal || 1;
 
   const points = data.map((d, i) => ({
@@ -672,7 +728,6 @@ function MiniLineChart({ data, color, formatValue }: {
     label: d.label,
   }));
 
-  // Build smooth path using cardinal spline (catmull-rom -> bezier approximation)
   let pathD = '';
   if (points.length === 1) {
     pathD = `M ${points[0].x} ${points[0].y}`;
@@ -683,32 +738,27 @@ function MiniLineChart({ data, color, formatValue }: {
       const p1 = points[i];
       const p2 = points[i + 1];
       const p3 = points[Math.min(i + 2, points.length - 1)];
-
       const tension = 0.3;
       const cp1x = p1.x + (p2.x - p0.x) * tension;
       const cp1y = p1.y + (p2.y - p0.y) * tension;
       const cp2x = p2.x - (p3.x - p1.x) * tension;
       const cp2y = p2.y - (p3.y - p1.y) * tension;
-
       pathD += ` C ${cp1x},${cp1y} ${cp2x},${cp2y} ${p2.x},${p2.y}`;
     }
   }
 
-  // Area fill path
   const areaD = pathD + ` L ${points[points.length - 1].x},${paddingTop + chartHeight} L ${points[0].x},${paddingTop + chartHeight} Z`;
 
-  const colorMap: Record<string, { stroke: string; fill: string; dot: string; dotStroke: string; areaFill: string }> = {
-    blue: { stroke: '#3b82f6', fill: '#3b82f6', dot: '#ffffff', dotStroke: '#3b82f6', areaFill: 'rgba(59,130,246,0.1)' },
-    purple: { stroke: '#8b5cf6', fill: '#8b5cf6', dot: '#ffffff', dotStroke: '#8b5cf6', areaFill: 'rgba(139,92,246,0.1)' },
-    green: { stroke: '#10b981', fill: '#10b981', dot: '#ffffff', dotStroke: '#10b981', areaFill: 'rgba(16,185,129,0.1)' },
-    orange: { stroke: '#f97316', fill: '#f97316', dot: '#ffffff', dotStroke: '#f97316', areaFill: 'rgba(249,115,22,0.1)' },
+  const colorMap: Record<string, { stroke: string; fill: string; areaFill: string }> = {
+    blue: { stroke: '#3b82f6', fill: '#3b82f6', areaFill: 'rgba(59,130,246,0.08)' },
+    purple: { stroke: '#8b5cf6', fill: '#8b5cf6', areaFill: 'rgba(139,92,246,0.08)' },
+    green: { stroke: '#10b981', fill: '#10b981', areaFill: 'rgba(16,185,129,0.08)' },
+    orange: { stroke: '#f97316', fill: '#f97316', areaFill: 'rgba(249,115,22,0.08)' },
   };
   const c = colorMap[color] || colorMap.blue;
 
-  // Show every Nth label to avoid overlap
-  const labelStep = Math.max(1, Math.ceil(data.length / 10));
+  const labelStep = Math.max(1, Math.ceil(data.length / 8));
 
-  // Y-axis ticks
   const yTickCount = 4;
   const fmtShort = (n: number) => {
     if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
@@ -725,93 +775,45 @@ function MiniLineChart({ data, color, formatValue }: {
         preserveAspectRatio="xMidYMid meet"
         onMouseLeave={() => setHoveredIndex(null)}
       >
-        {/* Y-axis grid lines and labels */}
+        {/* Y-axis grid + labels */}
         {Array.from({ length: yTickCount }, (_, i) => {
           const val = minVal + (range * i) / (yTickCount - 1);
           const y = paddingTop + chartHeight - ((val - minVal) / range) * chartHeight;
           return (
             <g key={`y-${i}`}>
-              <line x1={paddingLeft} y1={y} x2={width - paddingRight} y2={y} stroke="#e5e7eb" strokeWidth={0.5} />
-              <text x={paddingLeft - 6} y={y + 3} textAnchor="end" fill="#9ca3af" fontSize={8}>{fmtShort(val)}</text>
+              <line x1={paddingLeft} y1={y} x2={width - paddingRight} y2={y} stroke="#f0f0f0" strokeWidth={0.5} />
+              <text x={paddingLeft - 4} y={y + 2.5} textAnchor="end" fill="#b0b0b0" fontSize={5.5} fontFamily="system-ui">{fmtShort(val)}</text>
             </g>
           );
         })}
 
-        {/* Area fill */}
         <path d={areaD} fill={c.areaFill} />
+        <path d={pathD} fill="none" stroke={c.stroke} strokeWidth={1.2} strokeLinecap="round" strokeLinejoin="round" />
 
-        {/* Line */}
-        <path d={pathD} fill="none" stroke={c.stroke} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
-
-        {/* Hover detector rects + dots */}
         {points.map((p, i) => {
           const isHovered = hoveredIndex === i;
           const rectWidth = data.length > 1 ? chartWidth / (data.length - 1) : chartWidth;
           const rectX = p.x - rectWidth / 2;
 
+          // Tooltip positioned above chart if point is near top
+          const tooltipY = p.y < paddingTop + 18 ? p.y + 14 : p.y - 18;
+          const tooltipTextY = p.y < paddingTop + 18 ? p.y + 22 : p.y - 10.5;
+
           return (
             <g key={i}>
-              {/* Invisible hover target */}
-              <rect
-                x={rectX}
-                y={paddingTop}
-                width={rectWidth}
-                height={chartHeight}
-                fill="transparent"
-                onMouseEnter={() => setHoveredIndex(i)}
-              />
+              <rect x={rectX} y={0} width={rectWidth} height={height} fill="transparent" onMouseEnter={() => setHoveredIndex(i)} />
+              <circle cx={p.x} cy={p.y} r={isHovered ? 3 : 1.5} fill={isHovered ? c.fill : '#fff'} stroke={c.stroke} strokeWidth={isHovered ? 1.5 : 1} style={{ transition: 'r 0.12s ease' }} />
 
-              {/* Dot */}
-              <circle
-                cx={p.x}
-                cy={p.y}
-                r={isHovered ? 3.5 : 2}
-                fill={isHovered ? c.fill : c.dot}
-                stroke={c.dotStroke}
-                strokeWidth={1.5}
-                style={{ transition: 'r 0.15s ease' }}
-              />
-
-              {/* Tooltip */}
               {isHovered && (
                 <g>
-                  {/* Vertical guide line */}
-                  <line x1={p.x} y1={paddingTop} x2={p.x} y2={paddingTop + chartHeight} stroke={c.stroke} strokeWidth={0.5} strokeDasharray="2,2" opacity={0.3} />
-
-                  {/* Tooltip background */}
-                  <rect
-                    x={p.x - 30}
-                    y={p.y - 22}
-                    width={60}
-                    height={15}
-                    rx={3}
-                    fill="#1f2937"
-                    opacity={0.9}
-                  />
-                  <text
-                    x={p.x}
-                    y={p.y - 12}
-                    textAnchor="middle"
-                    fill="white"
-                    fontSize={7.5}
-                    fontWeight={600}
-                  >
-                    {formatValue(p.value)}
-                  </text>
+                  <line x1={p.x} y1={paddingTop} x2={p.x} y2={paddingTop + chartHeight} stroke={c.stroke} strokeWidth={0.4} strokeDasharray="2,2" opacity={0.25} />
+                  <rect x={p.x - 28} y={tooltipY} width={56} height={13} rx={2.5} fill="#1f2937" opacity={0.92} />
+                  <text x={p.x} y={tooltipTextY} textAnchor="middle" fill="white" fontSize={6} fontWeight={600} fontFamily="system-ui">{formatValue(p.value)}</text>
                 </g>
               )}
 
-              {/* X-axis labels */}
               {i % labelStep === 0 && (
-                <text
-                  x={p.x}
-                  y={height - 4}
-                  textAnchor="middle"
-                  fill="#9ca3af"
-                  fontSize={7}
-                >
-                  {p.label}
-                </text>
+                <text x={p.x} y={height - 3} textAnchor="middle" fill="#c0c0c0" fontSize={5} fontFamily="system-ui">{p.label}</text>
               )}
             </g>
           );
