@@ -507,6 +507,66 @@ class ReportEmailRequest(BaseModel):
     start_date: str
     end_date: str
     email: EmailStr
+    report_data: Optional[dict] = None  # Pre-generated report data from frontend
+
+
+def _build_report_html(report: dict) -> str:
+    """Build HTML body from report data (handles both dict and string ai_report)."""
+    ai_report = report.get("ai_report")
+    totals = report.get("totals", {})
+
+    parts = []
+
+    # KPI totals section
+    if totals:
+        parts.append('<table style="width:100%;border-collapse:collapse;margin-bottom:16px">')
+        kpi_items = [
+            ("총 지출", f"₩{totals.get('spend', 0):,.0f}"),
+            ("노출수", f"{totals.get('impressions', 0):,}"),
+            ("클릭수", f"{totals.get('clicks', 0):,}"),
+            ("CTR", f"{totals.get('ctr', 0):.2f}%"),
+            ("CPC", f"₩{totals.get('cpc', 0):,.0f}"),
+        ]
+        if totals.get("roas"):
+            kpi_items.append(("ROAS", f"{totals['roas']:.2f}x"))
+        if totals.get("conversion_value"):
+            kpi_items.append(("전환 매출", f"₩{totals['conversion_value']:,.0f}"))
+        parts.append("<tr>")
+        for label, value in kpi_items:
+            parts.append(f'<td style="padding:8px;text-align:center;border:1px solid #e5e7eb"><div style="font-size:11px;color:#6b7280">{label}</div><div style="font-size:16px;font-weight:bold;color:#111">{value}</div></td>')
+        parts.append("</tr></table>")
+
+    # AI report section
+    if isinstance(ai_report, dict):
+        if ai_report.get("headline"):
+            parts.append(f'<h2 style="color:#1f2937;margin:16px 0 8px">{ai_report["headline"]}</h2>')
+        if ai_report.get("overall_grade"):
+            parts.append(f'<p style="font-size:18px;font-weight:bold;color:#3b82f6">종합 등급: {ai_report["overall_grade"]} — {ai_report.get("grade_reason", "")}</p>')
+        if ai_report.get("period_summary"):
+            parts.append(f'<p style="color:#374151">{ai_report["period_summary"]}</p>')
+        if ai_report.get("kpi_highlights"):
+            parts.append('<h3 style="color:#1f2937;margin-top:16px">KPI 하이라이트</h3><ul>')
+            for kpi in ai_report["kpi_highlights"]:
+                parts.append(f'<li><strong>{kpi.get("metric","")}</strong>: {kpi.get("value","")} ({kpi.get("change","")}) — {kpi.get("insight","")}</li>')
+            parts.append("</ul>")
+        if ai_report.get("daily_trend_insight"):
+            parts.append(f'<h3 style="color:#1f2937;margin-top:16px">일별 트렌드</h3><p>{ai_report["daily_trend_insight"]}</p>')
+        if ai_report.get("key_insights"):
+            parts.append('<h3 style="color:#1f2937;margin-top:16px">핵심 인사이트</h3><ul>')
+            for ins in ai_report["key_insights"]:
+                parts.append(f"<li>{ins}</li>")
+            parts.append("</ul>")
+        if ai_report.get("recommendations"):
+            parts.append('<h3 style="color:#1f2937;margin-top:16px">추천 사항</h3>')
+            for rec in ai_report["recommendations"]:
+                pcolor = {"high": "#ef4444", "medium": "#f59e0b", "low": "#10b981"}.get(rec.get("priority", ""), "#6b7280")
+                parts.append(f'<div style="margin:8px 0;padding:8px;border-left:3px solid {pcolor};background:#f9fafb"><strong>{rec.get("title","")}</strong><br>{rec.get("description","")} <em>(예상: {rec.get("expected_impact","")})</em></div>')
+    elif isinstance(ai_report, str):
+        parts.append(ai_report.replace("\n", "<br>"))
+    else:
+        parts.append("<p>리포트 데이터가 없습니다.</p>")
+
+    return "\n".join(parts)
 
 
 @router.post("/report")
@@ -657,51 +717,26 @@ async def send_report_email(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """리포트를 이메일로 발송."""
-    try:
-        report_request = ReportRequest(
-            campaign_id=request.campaign_id, meta_campaign_id=request.meta_campaign_id,
-            start_date=request.start_date, end_date=request.end_date,
-        )
-        report = await generate_report(report_request, current_user, db)
-    except Exception as e:
-        logger.error(f"Report generation failed for email: {e}")
-        raise HTTPException(status_code=500, detail=f"리포트 생성 실패: {str(e)}")
-
-    ai_report = report.get("ai_report", "리포트 데이터가 없습니다.")
-
-    # ai_report can be a parsed JSON dict or a plain string
-    if isinstance(ai_report, dict):
-        # Build HTML from structured report
-        parts = []
-        if ai_report.get("headline"):
-            parts.append(f"<h2>{ai_report['headline']}</h2>")
-        if ai_report.get("period_summary"):
-            parts.append(f"<p>{ai_report['period_summary']}</p>")
-        if ai_report.get("kpi_highlights"):
-            parts.append("<h3>KPI 하이라이트</h3><ul>")
-            for kpi in ai_report["kpi_highlights"]:
-                parts.append(f"<li><strong>{kpi.get('metric', '')}</strong>: {kpi.get('value', '')} ({kpi.get('change', '')}) - {kpi.get('insight', '')}</li>")
-            parts.append("</ul>")
-        if ai_report.get("daily_trend_insight"):
-            parts.append(f"<h3>일별 트렌드</h3><p>{ai_report['daily_trend_insight']}</p>")
-        if ai_report.get("key_insights"):
-            parts.append("<h3>핵심 인사이트</h3><ul>")
-            for insight in ai_report["key_insights"]:
-                parts.append(f"<li>{insight}</li>")
-            parts.append("</ul>")
-        if ai_report.get("recommendations"):
-            parts.append("<h3>추천 사항</h3><ul>")
-            for rec in ai_report["recommendations"]:
-                parts.append(f"<li><strong>[{rec.get('priority', '')}] {rec.get('title', '')}</strong>: {rec.get('description', '')} (예상 효과: {rec.get('expected_impact', '')})</li>")
-            parts.append("</ul>")
-        if ai_report.get("overall_grade"):
-            parts.append(f"<h3>종합 등급: {ai_report['overall_grade']}</h3><p>{ai_report.get('grade_reason', '')}</p>")
-        report_body = "\n".join(parts)
+    """리포트를 이메일로 발송. 프론트엔드에서 이미 생성된 리포트 데이터를 받아 전송."""
+    # Use pre-generated report data from frontend if available
+    if request.report_data:
+        report = request.report_data
     else:
-        report_body = str(ai_report).replace("\n", "<br>")
+        try:
+            report_request = ReportRequest(
+                campaign_id=request.campaign_id, meta_campaign_id=request.meta_campaign_id,
+                start_date=request.start_date, end_date=request.end_date,
+            )
+            report = await generate_report(report_request, current_user, db)
+        except Exception as e:
+            logger.error(f"Report generation failed for email: {e}")
+            raise HTTPException(status_code=500, detail=f"리포트 생성 실패: {str(e)}")
+
+    # Build email HTML from report data
+    report_body = _build_report_html(report)
+
     html_content = f"""
-    <div style="font-family: Arial, sans-serif; max-width: 640px; margin: 0 auto; padding: 20px;">
+    <div style="font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', Arial, sans-serif; max-width: 640px; margin: 0 auto; padding: 20px;">
         <div style="background: linear-gradient(135deg, #1877F2, #E1306C); padding: 20px; border-radius: 12px; margin-bottom: 20px;">
             <h1 style="color: white; margin: 0; font-size: 24px;">Meta-Commander 성과 리포트</h1>
             <p style="color: rgba(255,255,255,0.8); margin: 8px 0 0;">기간: {request.start_date} ~ {request.end_date}</p>

@@ -335,6 +335,7 @@ export const analyticsApi = {
     start_date: string;
     end_date: string;
     email: string;
+    report_data?: any;
   }) => {
     const { data } = await api.post('/analytics/report/email', request);
     return data;
@@ -499,8 +500,8 @@ export const marketApi = {
     await api.delete(`/market/keywords/${keywordId}`);
   },
 
-  analyzeKeyword: async (keywordId: string) => {
-    const { data } = await api.post(`/market/keywords/${keywordId}/analyze`);
+  analyzeKeyword: async (keywordId: string, days?: number) => {
+    const { data } = await api.post(`/market/keywords/${keywordId}/analyze`, days ? { days } : undefined);
     return data;
   },
 

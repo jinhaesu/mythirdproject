@@ -28,6 +28,10 @@ class KeywordCreate(BaseModel):
     keyword: str = Field(..., min_length=1, max_length=255)
 
 
+class AnalyzeRequest(BaseModel):
+    days: int = Field(default=30, ge=1, le=365)
+
+
 class PlatformMetrics(BaseModel):
     content_count: int = 0
     total_views: int = 0
@@ -201,10 +205,12 @@ async def remove_keyword(
 @router.post("/keywords/{keyword_id}/analyze", response_model=KeywordResponse)
 async def analyze_keyword(
     keyword_id: str,
+    body: Optional[AnalyzeRequest] = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Trigger AI analysis for a keyword - generates realistic market data."""
+    """Analyze keyword using real API data. Optional body: {days: 30}"""
+    days = body.days if body else 30
     result = await db.execute(
         select(MarketKeyword).where(
             MarketKeyword.id == keyword_id,
@@ -218,7 +224,7 @@ async def analyze_keyword(
     try:
         # ── Step 1: Fetch REAL data from APIs (no fake data) ──
         market_svc = MarketDataService()
-        real_data = await market_svc.fetch_all(kw.keyword)
+        real_data = await market_svc.fetch_all(kw.keyword, days=days)
         api_sources = real_data.get("api_sources", [])
         logger.info(f"Keyword '{kw.keyword}' real API sources: {api_sources}")
 
@@ -268,78 +274,88 @@ async def analyze_keyword(
             else:
                 platform_data["api_errors"]["naver"] = "Naver API 키가 설정되지 않았습니다."
 
-        # ── Step 2: Extract REAL sentiment + hashtags from API data ──
-        sentiment_data = {}
-        hashtags = []
+        # ── Step 2: Extract REAL sentiment + hashtags from ALL API data ──
+        import re as _re
+        all_hashtags: List[str] = []
+        sources_used: List[str] = []
+        total_positive_signals = 0
+        total_negative_signals = 0
+        total_neutral_signals = 0
+        pos_counter: Dict[str, int] = {}
+        neg_counter: Dict[str, int] = {}
 
-        # Collect hashtags from real YouTube video tags
-        if real_data["youtube"] and real_data["youtube"].get("tags"):
-            hashtags.extend(real_data["youtube"]["tags"])
+        positive_words = ["추천", "좋은", "최고", "인기", "만족", "효과", "혜택", "할인", "꿀팁", "대박", "완벽", "사랑", "굿", "꿀"]
+        negative_words = ["주의", "실패", "단점", "후회", "별로", "비추", "부작용", "피해", "문제", "최악", "짜증", "불만"]
 
-        # YouTube engagement-based sentiment (likes vs total engagement)
+        # ─── YouTube: engagement + tags ───
         if real_data["youtube"]:
             yt = real_data["youtube"]
+            sources_used.append("youtube")
             likes = yt.get("total_likes", 0)
             comments = yt.get("total_comments", 0)
-            if likes + comments > 0:
-                positive_ratio = round(likes / (likes + comments), 2) if likes > 0 else 0.3
-                negative_ratio = round(max(0, 1 - positive_ratio - 0.3), 2)
-                neutral_ratio = round(1 - positive_ratio - negative_ratio, 2)
-                sentiment_data = {
-                    "positive_ratio": positive_ratio,
-                    "negative_ratio": negative_ratio,
-                    "neutral_ratio": neutral_ratio,
-                    "positive_keywords": [],
-                    "negative_keywords": [],
-                    "emotion_keywords": [],
-                    "source": "youtube_engagement",
-                }
+            # Likes = positive engagement signal
+            total_positive_signals += likes
+            total_neutral_signals += comments
+            # Collect YouTube video tags
+            if yt.get("tags"):
+                all_hashtags.extend(yt["tags"])
 
-        # Extract keywords from Naver blog titles (real data)
+        # ─── Instagram: engagement + tags ───
+        if real_data["instagram"]:
+            ig = real_data["instagram"]
+            sources_used.append("instagram")
+            ig_likes = ig.get("total_views", 0)  # We stored likes as total_views
+            ig_comments = ig.get("total_comments", 0)
+            total_positive_signals += ig_likes
+            total_neutral_signals += ig_comments
+            # Collect Instagram hashtags
+            if ig.get("tags"):
+                all_hashtags.extend(ig["tags"])
+
+        # ─── Naver: blog title keyword analysis ───
         if real_data["naver"] and real_data["naver"].get("blog_titles"):
-            import re
+            sources_used.append("naver")
             titles = real_data["naver"]["blog_titles"]
-            positive_words = ["추천", "좋은", "최고", "인기", "만족", "효과", "혜택", "할인", "꿀팁", "대박"]
-            negative_words = ["주의", "실패", "단점", "후회", "별로", "비추", "부작용", "피해", "문제"]
-            pos_found = []
-            neg_found = []
             for title in titles:
                 for pw in positive_words:
                     if pw in title:
-                        pos_found.append({"keyword": pw, "count": 1})
+                        total_positive_signals += 1
+                        pos_counter[pw] = pos_counter.get(pw, 0) + 1
                 for nw in negative_words:
                     if nw in title:
-                        neg_found.append({"keyword": nw, "count": 1})
+                        total_negative_signals += 1
+                        neg_counter[nw] = neg_counter.get(nw, 0) + 1
 
-            # Deduplicate and count
-            pos_counter: Dict[str, int] = {}
-            for p in pos_found:
-                pos_counter[p["keyword"]] = pos_counter.get(p["keyword"], 0) + 1
-            neg_counter: Dict[str, int] = {}
-            for n in neg_found:
-                neg_counter[n["keyword"]] = neg_counter.get(n["keyword"], 0) + 1
+        # ─── Calculate combined sentiment ───
+        total = total_positive_signals + total_negative_signals + total_neutral_signals
+        if total > 0:
+            p_ratio = round(total_positive_signals / total, 2)
+            n_ratio = round(total_negative_signals / total, 2)
+            neu_ratio = round(1 - p_ratio - n_ratio, 2)
+        else:
+            p_ratio, n_ratio, neu_ratio = 0.0, 0.0, 0.0
 
-            pos_kws = [{"keyword": k, "count": v} for k, v in sorted(pos_counter.items(), key=lambda x: x[1], reverse=True)]
-            neg_kws = [{"keyword": k, "count": v} for k, v in sorted(neg_counter.items(), key=lambda x: x[1], reverse=True)]
+        pos_kws = [{"keyword": k, "count": v} for k, v in sorted(pos_counter.items(), key=lambda x: x[1], reverse=True)][:5]
+        neg_kws = [{"keyword": k, "count": v} for k, v in sorted(neg_counter.items(), key=lambda x: x[1], reverse=True)][:3]
 
-            total_signals = len(pos_found) + len(neg_found)
-            if total_signals > 0:
-                p_ratio = round(len(pos_found) / total_signals, 2)
-                n_ratio = round(len(neg_found) / total_signals, 2)
-            else:
-                p_ratio, n_ratio = 0.5, 0.1
+        sentiment_data = {
+            "positive_ratio": p_ratio,
+            "negative_ratio": n_ratio,
+            "neutral_ratio": neu_ratio,
+            "positive_keywords": pos_kws,
+            "negative_keywords": neg_kws,
+            "emotion_keywords": [],
+            "source": "+".join(sources_used) if sources_used else "no_data",
+        } if total > 0 else {}
 
-            sentiment_data = {
-                "positive_ratio": p_ratio,
-                "negative_ratio": n_ratio,
-                "neutral_ratio": round(1 - p_ratio - n_ratio, 2),
-                "positive_keywords": pos_kws[:5],
-                "negative_keywords": neg_kws[:3],
-                "emotion_keywords": [],
-                "source": "naver_blog_titles",
-            }
-
-        # Add keyword itself as hashtag if no tags found
+        # ─── Deduplicate hashtags ───
+        tag_order: Dict[str, int] = {}
+        for tag in all_hashtags:
+            t = tag.lower().strip()
+            if not t.startswith("#"):
+                t = f"#{t}"
+            tag_order[t] = tag_order.get(t, 0) + 1
+        hashtags = [t[0] for t in sorted(tag_order.items(), key=lambda x: x[1], reverse=True)[:20]]
         if not hashtags:
             hashtags = [f"#{kw.keyword}"]
 

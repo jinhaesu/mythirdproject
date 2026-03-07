@@ -248,6 +248,7 @@ export function MarketIntelligence() {
   const [compareMode, setCompareMode] = useState(false);
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [chartView, setChartView] = useState<'daily' | 'monthly'>('daily');
+  const [analysisDays, setAnalysisDays] = useState(30);
   const [styleUrl, setStyleUrl] = useState('');
   const { setSelectedStyle, setActiveTab } = useAppStore();
   const queryClient = useQueryClient();
@@ -291,7 +292,7 @@ export function MarketIntelligence() {
   });
 
   const analyzeMutation = useMutation({
-    mutationFn: (id: string) => marketApi.analyzeKeyword(id),
+    mutationFn: ({ id, days }: { id: string; days?: number }) => marketApi.analyzeKeyword(id, days),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['market-keywords'] });
       toast.success('키워드 분석이 완료되었습니다.');
@@ -448,11 +449,11 @@ export function MarketIntelligence() {
                   {!compareMode && (
                     <>
                       <button
-                        onClick={(e) => { e.stopPropagation(); analyzeMutation.mutate(kw.id); }}
+                        onClick={(e) => { e.stopPropagation(); analyzeMutation.mutate({ id: kw.id, days: analysisDays }); }}
                         className="opacity-0 group-hover:opacity-100 p-1 hover:bg-gray-100 rounded transition-all"
                         title="분석 실행"
                       >
-                        <RefreshCw size={14} className={`text-gray-500 ${analyzeMutation.isPending && analyzeMutation.variables === kw.id ? 'animate-spin' : ''}`} />
+                        <RefreshCw size={14} className={`text-gray-500 ${analyzeMutation.isPending && analyzeMutation.variables?.id === kw.id ? 'animate-spin' : ''}`} />
                       </button>
                       <button
                         onClick={(e) => { e.stopPropagation(); removeKeywordMutation.mutate(kw.id); }}
@@ -483,16 +484,35 @@ export function MarketIntelligence() {
       {selectedKeyword && !compareMode && (
         <>
           {/* Analysis trigger */}
+          {/* Period selector */}
+          <Card variant="bordered">
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-sm font-medium text-gray-700">분석 기간:</span>
+              {[7, 14, 30, 60, 90, 180].map((d) => (
+                <button key={d} onClick={() => setAnalysisDays(d)}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    analysisDays === d ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}>
+                  {d}일
+                </button>
+              ))}
+              <div className="ml-auto">
+                <Button
+                  onClick={() => analyzeMutation.mutate({ id: selectedKeyword.id, days: analysisDays })}
+                  loading={analyzeMutation.isPending}
+                  size="sm"
+                >
+                  <RefreshCw size={14} className="mr-1" /> 분석 실행
+                </Button>
+              </div>
+            </div>
+          </Card>
+
           {!selectedKeyword.platform_data && (
             <Card variant="bordered" className="text-center py-8">
               <Sparkles size={32} className="mx-auto mb-3 text-gray-400" />
               <p className="text-gray-600 mb-3">"{selectedKeyword.keyword}" 키워드의 분석 데이터가 없습니다</p>
-              <Button
-                onClick={() => analyzeMutation.mutate(selectedKeyword.id)}
-                loading={analyzeMutation.isPending}
-              >
-                <RefreshCw size={16} className="mr-1" /> AI 분석 시작
-              </Button>
+              <p className="text-sm text-gray-400">위에서 기간을 선택하고 분석 실행 버튼을 눌러주세요</p>
             </Card>
           )}
 
@@ -749,21 +769,12 @@ export function MarketIntelligence() {
                 </Card>
               )}
 
-              {/* Re-analyze button */}
-              <div className="flex justify-center">
-                <Button
-                  variant="outline"
-                  onClick={() => analyzeMutation.mutate(selectedKeyword.id)}
-                  loading={analyzeMutation.isPending}
-                >
-                  <RefreshCw size={16} className="mr-1" /> 다시 분석하기
-                </Button>
-                <p className="ml-3 text-xs text-gray-400 self-center">
-                  마지막 분석: {selectedKeyword.last_analyzed_at
-                    ? new Date(selectedKeyword.last_analyzed_at).toLocaleString('ko-KR')
-                    : '없음'}
-                </p>
-              </div>
+              {/* Last analyzed info */}
+              <p className="text-center text-xs text-gray-400">
+                마지막 분석: {selectedKeyword.last_analyzed_at
+                  ? new Date(selectedKeyword.last_analyzed_at).toLocaleString('ko-KR')
+                  : '없음'}
+              </p>
             </>
           )}
         </>

@@ -111,7 +111,7 @@ class MarketDataService:
             logger.warning(f"YouTube API error for '{keyword}': {e}")
             return None
 
-    async def fetch_naver_data(self, keyword: str) -> Optional[Dict[str, Any]]:
+    async def fetch_naver_data(self, keyword: str, days: int = 30) -> Optional[Dict[str, Any]]:
         """Fetch Naver blog search results and DataLab trend for a keyword."""
         if not self.has_naver:
             return None
@@ -142,9 +142,9 @@ class MarketDataService:
                     title = re.sub(r'<[^>]+>', '', item.get("title", ""))
                     blog_titles.append(title)
 
-                # DataLab search trend (last 30 days)
+                # DataLab search trend
                 end_date = datetime.utcnow().strftime("%Y-%m-%d")
-                start_date = (datetime.utcnow() - timedelta(days=30)).strftime("%Y-%m-%d")
+                start_date = (datetime.utcnow() - timedelta(days=days)).strftime("%Y-%m-%d")
 
                 datalab_headers = {
                     **headers,
@@ -189,6 +189,28 @@ class MarketDataService:
             logger.warning(f"Naver API error for '{keyword}': {e}")
             return None
 
+    async def _get_ig_user_id(self, client: httpx.AsyncClient) -> Optional[str]:
+        """Get Instagram Business Account ID from Meta token."""
+        try:
+            # Get pages connected to the token
+            resp = await client.get(
+                f"{self.meta_graph_base}/{self.meta_api_version}/me/accounts",
+                params={"access_token": self.meta_token, "fields": "instagram_business_account"},
+            )
+            if resp.status_code != 200:
+                logger.warning(f"Meta pages API error: {resp.status_code} {resp.text[:200]}")
+                return None
+            pages = resp.json().get("data", [])
+            for page in pages:
+                ig_account = page.get("instagram_business_account", {})
+                if ig_account.get("id"):
+                    return ig_account["id"]
+            logger.warning("No Instagram Business Account found on any connected page")
+            return None
+        except Exception as e:
+            logger.warning(f"Failed to get IG user ID: {e}")
+            return None
+
     async def fetch_instagram_hashtag_data(self, keyword: str) -> Optional[Dict[str, Any]]:
         """Fetch Instagram hashtag data using Meta Graph API."""
         if not self.has_instagram:
@@ -196,11 +218,18 @@ class MarketDataService:
 
         try:
             async with httpx.AsyncClient(timeout=15.0) as client:
+                # First get IG Business Account ID (required for hashtag search)
+                ig_user_id = await self._get_ig_user_id(client)
+                if not ig_user_id:
+                    logger.warning("Instagram: no IG Business Account ID available")
+                    return None
+
                 # Search for hashtag ID
                 search_resp = await client.get(
                     f"{self.meta_graph_base}/{self.meta_api_version}/ig_hashtag_search",
                     params={
                         "q": keyword,
+                        "user_id": ig_user_id,
                         "access_token": self.meta_token,
                     },
                 )
@@ -214,17 +243,56 @@ class MarketDataService:
                 if not hashtags:
                     return None
 
+                hashtag_id = hashtags[0].get("id")
+
+                # Get recent media for this hashtag
+                media_resp = await client.get(
+                    f"{self.meta_graph_base}/{self.meta_api_version}/{hashtag_id}/recent_media",
+                    params={
+                        "user_id": ig_user_id,
+                        "fields": "id,caption,like_count,comments_count,media_type",
+                        "access_token": self.meta_token,
+                    },
+                )
+
+                content_count = 0
+                total_likes = 0
+                total_comments = 0
+                ig_hashtags: List[str] = []
+
+                if media_resp.status_code == 200:
+                    media_data = media_resp.json().get("data", [])
+                    content_count = len(media_data)
+                    for media in media_data:
+                        total_likes += media.get("like_count", 0)
+                        total_comments += media.get("comments_count", 0)
+                        # Extract hashtags from captions
+                        caption = media.get("caption", "")
+                        if caption:
+                            import re
+                            found_tags = re.findall(r'#[\w가-힣]+', caption)
+                            ig_hashtags.extend(found_tags)
+                else:
+                    logger.warning(f"Instagram recent_media error: {media_resp.status_code} {media_resp.text[:200]}")
+
+                # Deduplicate hashtags
+                tag_counter: Dict[str, int] = {}
+                for tag in ig_hashtags:
+                    tag_counter[tag.lower()] = tag_counter.get(tag.lower(), 0) + 1
+                top_ig_tags = [t[0] for t in sorted(tag_counter.items(), key=lambda x: x[1], reverse=True)[:15]]
+
                 return {
-                    "content_count": 0,
-                    "total_views": 0,
-                    "total_comments": 0,
-                    "hashtag_id": hashtags[0].get("id"),
+                    "content_count": content_count,
+                    "total_views": total_likes,  # Instagram doesn't expose views, use likes
+                    "total_comments": total_comments,
+                    "hashtag_id": hashtag_id,
+                    "tags": top_ig_tags,
                 }
         except Exception as e:
             logger.warning(f"Instagram API error for '{keyword}': {e}")
             return None
 
-    async def fetch_all(self, keyword: str) -> Dict[str, Any]:
+    async def fetch_all(self, keyword: str, days: int = 30) -> Dict[str, Any]:
         """Fetch data from all available APIs and return combined result."""
         result = {
             "api_sources": [],
@@ -238,7 +306,7 @@ class MarketDataService:
             result["youtube"] = yt
             result["api_sources"].append("youtube")
 
-        naver = await self.fetch_naver_data(keyword)
+        naver = await self.fetch_naver_data(keyword, days=days)
         if naver:
             result["naver"] = naver
             result["api_sources"].append("naver")

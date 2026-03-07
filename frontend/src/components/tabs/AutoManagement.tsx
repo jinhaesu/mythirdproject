@@ -188,7 +188,7 @@ export function AutoManagement() {
   });
 
   const emailMutation = useMutation({
-    mutationFn: (req: { meta_campaign_id?: string; start_date: string; end_date: string; email: string }) =>
+    mutationFn: (req: { meta_campaign_id?: string; start_date: string; end_date: string; email: string; report_data?: any }) =>
       analyticsApi.sendReportEmail(req),
     onSuccess: () => toast.success('이메일이 발송되었습니다.'),
     onError: (err: any) => {
@@ -620,7 +620,7 @@ export function AutoManagement() {
         </div>
         <div className="mt-3 flex items-center gap-2">
           <input type="email" value={reportEmail} onChange={(e) => setReportEmail(e.target.value)} placeholder="이메일 주소" className="flex-1 px-3 py-2 border rounded-lg text-sm" />
-          <button onClick={() => emailMutation.mutate({ meta_campaign_id: reportCampaignId || undefined, start_date: reportDates.start, end_date: reportDates.end, email: reportEmail })}
+          <button onClick={() => emailMutation.mutate({ meta_campaign_id: reportCampaignId || undefined, start_date: reportDates.start, end_date: reportDates.end, email: reportEmail, report_data: savedReport || undefined })}
             disabled={!reportEmail || !reportDates.start || !reportDates.end || emailMutation.isPending}
             className="bg-purple-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2">
             <Mail size={14} /> {emailMutation.isPending ? '발송중...' : '이메일 발송'}
@@ -639,7 +639,7 @@ export function AutoManagement() {
 
         {savedReport && (
           <ReportNewsletter data={savedReport}
-            onEmail={reportEmail ? () => emailMutation.mutate({ meta_campaign_id: reportCampaignId || undefined, start_date: reportDates.start, end_date: reportDates.end, email: reportEmail }) : undefined} />
+            onEmail={reportEmail ? () => emailMutation.mutate({ meta_campaign_id: reportCampaignId || undefined, start_date: reportDates.start, end_date: reportDates.end, email: reportEmail, report_data: savedReport || undefined }) : undefined} />
         )}
         {reportMutation.isError && (
           <div className="mt-4 bg-red-50 rounded-lg p-4">
