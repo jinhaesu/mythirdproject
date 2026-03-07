@@ -531,7 +531,7 @@ async def generate_report(
                     f"{base_url}/{insights_endpoint}",
                     params={
                         "access_token": current_user.meta_access_token,
-                        "fields": "spend,impressions,reach,clicks,ctr,cpc,cpm,actions,cost_per_action_type,action_values,purchase_roas",
+                        "fields": "spend,impressions,reach,clicks,ctr,cpc,cpm,actions,cost_per_action_type,action_values,purchase_roas,website_purchase_roas",
                         "time_range": json.dumps({"since": request.start_date, "until": request.end_date}),
                         "time_increment": 1,
                     }
@@ -925,12 +925,17 @@ async def create_schedule(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    sched = ScheduledReport(id=str(uuid.uuid4()), user_id=str(current_user.id), **data.model_dump())
-    sched.next_run_at = _calc_next_run(sched)
-    db.add(sched)
-    await db.commit()
-    await db.refresh(sched)
-    return _sched_dict(sched)
+    try:
+        sched = ScheduledReport(id=str(uuid.uuid4()), user_id=str(current_user.id), **data.model_dump())
+        sched.next_run_at = _calc_next_run(sched)
+        db.add(sched)
+        await db.commit()
+        await db.refresh(sched)
+        return _sched_dict(sched)
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Failed to create schedule: {e}")
+        raise HTTPException(500, detail=f"스케줄 생성 중 오류: {str(e)}")
 
 
 @router.put("/schedules/{schedule_id}")

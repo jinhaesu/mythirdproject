@@ -137,16 +137,24 @@ async def register_keyword(
             detail=f"키워드 '{body.keyword}'가 이미 등록되어 있습니다.",
         )
 
-    kw = MarketKeyword(
-        id=str(uuid4()),
-        user_id=current_user.id,
-        keyword=body.keyword.strip(),
-        created_at=datetime.utcnow(),
-    )
-    db.add(kw)
-    await db.commit()
-    await db.refresh(kw)
-    return _serialize_keyword(kw)
+    try:
+        kw = MarketKeyword(
+            id=str(uuid4()),
+            user_id=current_user.id,
+            keyword=body.keyword.strip(),
+            created_at=datetime.utcnow(),
+        )
+        db.add(kw)
+        await db.commit()
+        await db.refresh(kw)
+        return _serialize_keyword(kw)
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Failed to register keyword '{body.keyword}': {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"키워드 등록 중 오류가 발생했습니다: {str(e)}",
+        )
 
 
 @router.get("/keywords", response_model=List[KeywordResponse])

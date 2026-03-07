@@ -8,9 +8,10 @@ import {
   ChevronDown, ChevronRight, FileText, Mail,
   TrendingUp, TrendingDown, Award, Target, DollarSign,
   Eye, MousePointer, ArrowUpRight, ArrowDownRight,
-  BarChart3,
+  BarChart3, Download, Printer,
 } from 'lucide-react';
 import { analyticsApi } from '@/lib/api';
+import toast from 'react-hot-toast';
 
 const METRIC_OPTIONS = [
   { value: 'cpc', label: 'CPC' },
@@ -130,52 +131,63 @@ export function AutoManagement() {
   // Rule mutations
   const createRuleMutation = useMutation({
     mutationFn: (data: any) => analyticsApi.createRule(data),
-    onSuccess: () => { refetchRules(); setShowRuleForm(false); resetRuleForm(); },
+    onSuccess: () => { refetchRules(); setShowRuleForm(false); resetRuleForm(); toast.success('룰이 생성되었습니다.'); },
+    onError: (err: any) => toast.error(err?.response?.data?.detail || '룰 생성에 실패했습니다.'),
   });
 
   const updateRuleMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: any }) => analyticsApi.updateRule(id, data),
-    onSuccess: () => refetchRules(),
+    onSuccess: () => { refetchRules(); toast.success('룰이 수정되었습니다.'); },
+    onError: () => toast.error('룰 수정에 실패했습니다.'),
   });
 
   const deleteRuleMutation = useMutation({
     mutationFn: (id: string) => analyticsApi.deleteRule(id),
-    onSuccess: () => refetchRules(),
+    onSuccess: () => { refetchRules(); toast.success('룰이 삭제되었습니다.'); },
+    onError: () => toast.error('룰 삭제에 실패했습니다.'),
   });
 
   const executeRulesMutation = useMutation({
     mutationFn: () => analyticsApi.executeRules(),
-    onSuccess: () => { refetchRules(); refetchLogs(); },
+    onSuccess: () => { refetchRules(); refetchLogs(); toast.success('룰 실행이 완료되었습니다.'); },
+    onError: () => toast.error('룰 실행에 실패했습니다.'),
   });
 
   const aiRecommendMutation = useMutation({
     mutationFn: () => analyticsApi.aiRecommendRules(overview),
+    onError: () => toast.error('AI 추천 생성에 실패했습니다.'),
   });
 
   // Schedule mutations
   const createScheduleMutation = useMutation({
     mutationFn: (data: any) => analyticsApi.createSchedule(data),
-    onSuccess: () => { refetchSchedules(); setShowScheduleForm(false); resetScheduleForm(); },
+    onSuccess: () => { refetchSchedules(); setShowScheduleForm(false); resetScheduleForm(); toast.success('스케줄이 생성되었습니다.'); },
+    onError: (err: any) => { toast.error(err?.response?.data?.detail || '스케줄 생성에 실패했습니다.'); },
   });
 
   const deleteScheduleMutation = useMutation({
     mutationFn: (id: string) => analyticsApi.deleteSchedule(id),
-    onSuccess: () => refetchSchedules(),
+    onSuccess: () => { refetchSchedules(); toast.success('스케줄이 삭제되었습니다.'); },
+    onError: () => toast.error('스케줄 삭제에 실패했습니다.'),
   });
 
   const updateScheduleMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: any }) => analyticsApi.updateSchedule(id, data),
-    onSuccess: () => refetchSchedules(),
+    onSuccess: () => { refetchSchedules(); toast.success('스케줄이 수정되었습니다.'); },
+    onError: () => toast.error('스케줄 수정에 실패했습니다.'),
   });
 
   const reportMutation = useMutation({
     mutationFn: (req: { meta_campaign_id?: string; start_date: string; end_date: string }) =>
       analyticsApi.generateReport(req),
+    onError: () => toast.error('리포트 생성에 실패했습니다.'),
   });
 
   const emailMutation = useMutation({
     mutationFn: (req: { meta_campaign_id?: string; start_date: string; end_date: string; email: string }) =>
       analyticsApi.sendReportEmail(req),
+    onSuccess: () => toast.success('이메일이 발송되었습니다.'),
+    onError: () => toast.error('이메일 발송에 실패했습니다.'),
   });
 
   const resetRuleForm = () => setRuleForm({
@@ -595,7 +607,8 @@ export function AutoManagement() {
         {emailMutation.isError && <p className="mt-2 text-sm text-red-600">이메일 발송에 실패했습니다.</p>}
 
         {reportMutation.isSuccess && (
-          <ReportNewsletter data={reportMutation.data as any} />
+          <ReportNewsletter data={reportMutation.data as any}
+            onEmail={reportEmail ? () => emailMutation.mutate({ meta_campaign_id: reportCampaignId || undefined, start_date: reportDates.start, end_date: reportDates.end, email: reportEmail }) : undefined} />
         )}
         {reportMutation.isError && (
           <div className="mt-4 bg-red-50 rounded-lg p-4">
@@ -750,8 +763,7 @@ function ReportSparkline({ data, color, height = 48 }: { data: number[]; color: 
   );
 }
 
-function ReportNewsletter({ data }: { data: any }) {
-  const [activeTab, setActiveTab] = useState<'overview' | 'daily' | 'insights'>('overview');
+function ReportNewsletter({ data, onEmail }: { data: any; onEmail?: () => void }) {
   const daily = data?.daily_data || [];
   const totals = data?.totals || {};
   const campaign = data?.campaign_info;
@@ -772,221 +784,166 @@ function ReportNewsletter({ data }: { data: any }) {
   const grade = ai?.overall_grade || 'B';
   const gradeGradient = gradeColors[grade] || gradeColors['B'];
 
-  // Prepare sparkline data
   const spendData = daily.map((d: any) => parseFloat(d.spend || 0));
   const clickData = daily.map((d: any) => parseInt(d.clicks || 0));
   const ctrData = daily.map((d: any) => parseFloat(d.ctr || 0));
   const roasData = daily.map((d: any) => parseFloat(d.roas || 0));
 
+  const handlePrint = () => {
+    const el = document.getElementById('report-printable');
+    if (!el) return;
+    const win = window.open('', '_blank');
+    if (!win) return;
+    win.document.write(`<!DOCTYPE html><html><head><title>성과 리포트 ${period.start} ~ ${period.end}</title>
+      <style>* { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+      body { padding: 0; } @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+      </style><link href="https://cdn.jsdelivr.net/npm/tailwindcss@2/dist/tailwind.min.css" rel="stylesheet"></head>
+      <body>${el.outerHTML}</body></html>`);
+    win.document.close();
+    setTimeout(() => { win.print(); }, 500);
+  };
+
   return (
-    <div className="mt-6 rounded-2xl overflow-hidden border border-gray-200 shadow-lg bg-white">
-      {/* Hero Header */}
-      <div className="bg-gradient-to-r from-slate-900 via-blue-900 to-indigo-900 px-8 py-8 relative overflow-hidden">
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-white rounded-full -translate-y-1/2 translate-x-1/3" />
-          <div className="absolute bottom-0 left-1/4 w-48 h-48 bg-blue-400 rounded-full translate-y-1/2" />
-        </div>
-        <div className="relative z-10">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center backdrop-blur">
-              <BarChart3 size={18} className="text-white" />
-            </div>
-            <span className="text-blue-200 text-xs font-medium tracking-wider uppercase">Performance Report</span>
-          </div>
-          {ai?.headline ? (
-            <h2 className="text-2xl font-bold text-white leading-snug">{ai.headline}</h2>
-          ) : (
-            <h2 className="text-2xl font-bold text-white">성과 분석 리포트</h2>
-          )}
-          <p className="text-blue-200 text-sm mt-2">
-            {period.start} ~ {period.end}
-            {campaign && <span className="ml-3 px-2 py-0.5 bg-white/10 rounded text-xs">{campaign.name}</span>}
-          </p>
-          {/* Grade Badge */}
-          {ai?.overall_grade && (
-            <div className="absolute top-8 right-8 flex flex-col items-center">
-              <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${gradeGradient} flex items-center justify-center shadow-lg`}>
-                <span className="text-3xl font-black text-white">{grade}</span>
-              </div>
-              <span className="text-xs text-blue-200 mt-1.5">{ai.grade_reason || '종합 등급'}</span>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Tab Navigation */}
-      <div className="flex border-b border-gray-200 bg-gray-50">
-        {[
-          { id: 'overview' as const, label: '핵심 지표', icon: <Target size={14} /> },
-          { id: 'daily' as const, label: '일별 추이', icon: <TrendingUp size={14} /> },
-          { id: 'insights' as const, label: 'AI 인사이트', icon: <Zap size={14} /> },
-        ].map((tab) => (
-          <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-1.5 px-6 py-3 text-sm font-medium transition-all border-b-2 ${
-              activeTab === tab.id
-                ? 'border-blue-600 text-blue-600 bg-white'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100'
-            }`}>
-            {tab.icon} {tab.label}
+    <div className="mt-6">
+      {/* Action Bar */}
+      <div className="flex items-center justify-end gap-2 mb-3 print:hidden">
+        <button onClick={handlePrint}
+          className="flex items-center gap-1.5 text-xs bg-gray-100 text-gray-700 px-3 py-2 rounded-lg hover:bg-gray-200 font-medium">
+          <Printer size={14} /> PDF 다운로드
+        </button>
+        {onEmail && (
+          <button onClick={onEmail}
+            className="flex items-center gap-1.5 text-xs bg-purple-100 text-purple-700 px-3 py-2 rounded-lg hover:bg-purple-200 font-medium">
+            <Mail size={14} /> 이메일 발송
           </button>
-        ))}
+        )}
       </div>
 
-      <div className="p-6">
-        {/* OVERVIEW TAB */}
-        {activeTab === 'overview' && (
-          <div className="space-y-6">
-            {/* Summary Text */}
-            {ai?.period_summary && (
-              <p className="text-gray-600 text-sm leading-relaxed bg-blue-50 rounded-xl p-4 border border-blue-100">
-                {ai.period_summary}
-              </p>
-            )}
-
-            {/* KPI Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-              <ReportKPICard
-                icon={<DollarSign size={18} />}
-                label="총 지출"
-                value={formatSpend(totals.spend)}
-                sparkData={spendData}
-                sparkColor="#3b82f6"
-                accent="blue"
-              />
-              <ReportKPICard
-                icon={<Eye size={18} />}
-                label="노출"
-                value={formatNum(totals.impressions)}
-                sub={`도달 ${formatNum(totals.reach)}`}
-                sparkData={daily.map((d: any) => parseInt(d.impressions || 0))}
-                sparkColor="#8b5cf6"
-                accent="purple"
-              />
-              <ReportKPICard
-                icon={<MousePointer size={18} />}
-                label="클릭"
-                value={formatNum(totals.clicks)}
-                sub={`CTR ${totals.ctr?.toFixed(2) || '0'}%`}
-                sparkData={clickData}
-                sparkColor="#10b981"
-                accent="green"
-              />
-              <ReportKPICard
-                icon={<Target size={18} />}
-                label="CPC"
-                value={formatCPC(totals.cpc)}
-                sparkData={daily.map((d: any) => parseFloat(d.cpc || 0))}
-                sparkColor="#f97316"
-                accent="orange"
-              />
-              <ReportKPICard
-                icon={<TrendingUp size={18} />}
-                label="ROAS"
-                value={formatROAS(totals.roas)}
-                sub={totals.conversion_value ? `전환매출 ${formatSpend(totals.conversion_value)}` : undefined}
-                sparkData={roasData}
-                sparkColor={totals.roas && totals.roas >= 1 ? '#10b981' : '#ef4444'}
-                accent={totals.roas && totals.roas >= 1 ? 'green' : 'red'}
-                highlight
-              />
+      <div id="report-printable" className="rounded-2xl overflow-hidden border border-gray-200 shadow-lg bg-white">
+        {/* Hero Header */}
+        <div className="bg-gradient-to-r from-slate-900 via-blue-900 to-indigo-900 px-8 py-7 relative overflow-hidden">
+          <div className="absolute inset-0 opacity-10">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-white rounded-full -translate-y-1/2 translate-x-1/3" />
+            <div className="absolute bottom-0 left-1/4 w-48 h-48 bg-blue-400 rounded-full translate-y-1/2" />
+          </div>
+          <div className="relative z-10">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-7 h-7 bg-white/20 rounded-lg flex items-center justify-center">
+                <BarChart3 size={16} className="text-white" />
+              </div>
+              <span className="text-blue-200 text-xs font-medium tracking-wider uppercase">Performance Report</span>
             </div>
-
-            {/* AI KPI Highlights */}
-            {ai?.kpi_highlights && ai.kpi_highlights.length > 0 && (
-              <div className="space-y-2">
-                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">KPI 하이라이트</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {ai.kpi_highlights.map((kpi: any, i: number) => (
-                    <div key={i} className="flex items-center gap-3 bg-gray-50 rounded-xl p-4 border border-gray-100 hover:border-blue-200 transition-colors">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                        kpi.change?.startsWith('+') ? 'bg-green-100' : kpi.change?.startsWith('-') ? 'bg-red-100' : 'bg-blue-100'
-                      }`}>
-                        {kpi.change?.startsWith('+') ? <ArrowUpRight size={18} className="text-green-600" /> :
-                         kpi.change?.startsWith('-') ? <ArrowDownRight size={18} className="text-red-600" /> :
-                         <TrendingUp size={18} className="text-blue-600" />}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-semibold text-gray-900">{kpi.metric}</span>
-                          <span className="text-xs font-bold text-gray-700">{kpi.value}</span>
-                          {kpi.change && (
-                            <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
-                              kpi.change.startsWith('+') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                            }`}>{kpi.change}</span>
-                          )}
-                        </div>
-                        <p className="text-xs text-gray-500 mt-0.5 truncate">{kpi.insight}</p>
-                      </div>
-                    </div>
-                  ))}
+            {ai?.headline ? (
+              <h2 className="text-xl font-bold text-white leading-snug pr-20">{ai.headline}</h2>
+            ) : (
+              <h2 className="text-xl font-bold text-white">성과 분석 리포트</h2>
+            )}
+            <p className="text-blue-200 text-xs mt-2">
+              {period.start} ~ {period.end}
+              {campaign && <span className="ml-2 px-2 py-0.5 bg-white/10 rounded text-xs">{campaign.name}</span>}
+            </p>
+            {ai?.overall_grade && (
+              <div className="absolute top-6 right-8 flex flex-col items-center">
+                <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${gradeGradient} flex items-center justify-center shadow-lg`}>
+                  <span className="text-2xl font-black text-white">{grade}</span>
                 </div>
+                <span className="text-xs text-blue-200 mt-1">{ai.grade_reason || '종합 등급'}</span>
               </div>
             )}
           </div>
-        )}
+        </div>
 
-        {/* DAILY TAB */}
-        {activeTab === 'daily' && (
-          <div className="space-y-6">
-            {/* Trend Charts */}
-            {daily.length > 0 && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-                  <h4 className="text-xs font-semibold text-gray-500 mb-3 uppercase tracking-wider">지출 추이</h4>
-                  <ReportSparkline data={spendData} color="#3b82f6" height={80} />
-                  <div className="flex justify-between text-xs text-gray-400 mt-1 px-1">
-                    <span>{daily[0]?.date_stop?.slice(5) || ''}</span>
-                    <span>{daily[daily.length - 1]?.date_stop?.slice(5) || ''}</span>
+        <div className="p-6 space-y-6">
+          {/* Period Summary */}
+          {ai?.period_summary && (
+            <p className="text-gray-600 text-sm leading-relaxed bg-blue-50 rounded-xl p-4 border border-blue-100">
+              {ai.period_summary}
+            </p>
+          )}
+
+          {/* KPI Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <ReportKPICard icon={<DollarSign size={16} />} label="총 지출" value={formatSpend(totals.spend)} sparkData={spendData} sparkColor="#3b82f6" accent="blue" />
+            <ReportKPICard icon={<Eye size={16} />} label="노출" value={formatNum(totals.impressions)} sub={`도달 ${formatNum(totals.reach)}`} sparkData={daily.map((d: any) => parseInt(d.impressions || 0))} sparkColor="#8b5cf6" accent="purple" />
+            <ReportKPICard icon={<MousePointer size={16} />} label="클릭" value={formatNum(totals.clicks)} sub={`CTR ${totals.ctr?.toFixed(2) || '0'}%`} sparkData={clickData} sparkColor="#10b981" accent="green" />
+            <ReportKPICard icon={<Target size={16} />} label="CPC" value={formatCPC(totals.cpc)} sparkData={daily.map((d: any) => parseFloat(d.cpc || 0))} sparkColor="#f97316" accent="orange" />
+            <ReportKPICard icon={<TrendingUp size={16} />} label="ROAS" value={formatROAS(totals.roas)} sub={totals.conversion_value ? `전환매출 ${formatSpend(totals.conversion_value)}` : undefined} sparkData={roasData} sparkColor={totals.roas && totals.roas >= 1 ? '#10b981' : '#ef4444'} accent={totals.roas && totals.roas >= 1 ? 'green' : 'red'} highlight />
+          </div>
+
+          {/* Trend Charts */}
+          {daily.length > 1 && (
+            <div>
+              <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">일별 추이</h4>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {[
+                  { label: '지출', data: spendData, color: '#3b82f6' },
+                  { label: 'ROAS', data: roasData, color: totals.roas >= 1 ? '#10b981' : '#ef4444' },
+                  { label: 'CTR (%)', data: ctrData, color: '#10b981' },
+                  { label: '클릭', data: clickData, color: '#f97316' },
+                ].map((chart) => (
+                  <div key={chart.label} className="bg-gray-50 rounded-xl p-3 border border-gray-100">
+                    <h5 className="text-xs font-medium text-gray-500 mb-2">{chart.label}</h5>
+                    <ReportSparkline data={chart.data} color={chart.color} height={60} />
+                    <div className="flex justify-between text-xs text-gray-400 mt-1">
+                      <span>{daily[0]?.date_stop?.slice(5) || ''}</span>
+                      <span>{daily[daily.length - 1]?.date_stop?.slice(5) || ''}</span>
+                    </div>
                   </div>
-                </div>
-                <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-                  <h4 className="text-xs font-semibold text-gray-500 mb-3 uppercase tracking-wider">ROAS 추이</h4>
-                  <ReportSparkline data={roasData} color={totals.roas >= 1 ? '#10b981' : '#ef4444'} height={80} />
-                  <div className="flex justify-between text-xs text-gray-400 mt-1 px-1">
-                    <span>{daily[0]?.date_stop?.slice(5) || ''}</span>
-                    <span>{daily[daily.length - 1]?.date_stop?.slice(5) || ''}</span>
-                  </div>
-                </div>
-                <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-                  <h4 className="text-xs font-semibold text-gray-500 mb-3 uppercase tracking-wider">CTR 추이 (%)</h4>
-                  <ReportSparkline data={ctrData} color="#10b981" height={80} />
-                  <div className="flex justify-between text-xs text-gray-400 mt-1 px-1">
-                    <span>{daily[0]?.date_stop?.slice(5) || ''}</span>
-                    <span>{daily[daily.length - 1]?.date_stop?.slice(5) || ''}</span>
-                  </div>
-                </div>
-                <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-                  <h4 className="text-xs font-semibold text-gray-500 mb-3 uppercase tracking-wider">클릭 추이</h4>
-                  <ReportSparkline data={clickData} color="#f97316" height={80} />
-                  <div className="flex justify-between text-xs text-gray-400 mt-1 px-1">
-                    <span>{daily[0]?.date_stop?.slice(5) || ''}</span>
-                    <span>{daily[daily.length - 1]?.date_stop?.slice(5) || ''}</span>
-                  </div>
-                </div>
+                ))}
               </div>
-            )}
+            </div>
+          )}
 
-            {ai?.daily_trend_insight && (
-              <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
-                <p className="text-sm text-blue-800 leading-relaxed">{ai.daily_trend_insight}</p>
+          {ai?.daily_trend_insight && (
+            <div className="bg-blue-50 rounded-xl p-3 border border-blue-100">
+              <p className="text-xs text-blue-800 leading-relaxed">{ai.daily_trend_insight}</p>
+            </div>
+          )}
+
+          {/* AI KPI Highlights */}
+          {ai?.kpi_highlights && ai.kpi_highlights.length > 0 && (
+            <div>
+              <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">KPI 하이라이트</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                {ai.kpi_highlights.map((kpi: any, i: number) => (
+                  <div key={i} className="flex items-center gap-3 bg-gray-50 rounded-lg p-3 border border-gray-100">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                      kpi.change?.startsWith('+') ? 'bg-green-100' : kpi.change?.startsWith('-') ? 'bg-red-100' : 'bg-blue-100'
+                    }`}>
+                      {kpi.change?.startsWith('+') ? <ArrowUpRight size={14} className="text-green-600" /> :
+                       kpi.change?.startsWith('-') ? <ArrowDownRight size={14} className="text-red-600" /> :
+                       <TrendingUp size={14} className="text-blue-600" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-gray-900">{kpi.metric} {kpi.value}</span>
+                        {kpi.change && <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${kpi.change.startsWith('+') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{kpi.change}</span>}
+                      </div>
+                      <p className="text-xs text-gray-500 truncate">{kpi.insight}</p>
+                    </div>
+                  </div>
+                ))}
               </div>
-            )}
+            </div>
+          )}
 
-            {/* Daily Data Table */}
-            {daily.length > 0 && (
+          {/* Daily Data Table */}
+          {daily.length > 0 && (
+            <div>
+              <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">일별 데이터</h4>
               <div className="rounded-xl border border-gray-200 overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
                     <thead>
                       <tr className="bg-gray-50 border-b border-gray-200">
-                        <th className="text-left py-3 px-4 text-gray-500 font-semibold">날짜</th>
-                        <th className="text-right py-3 px-3 text-gray-500 font-semibold">지출</th>
-                        <th className="text-right py-3 px-3 text-gray-500 font-semibold">노출</th>
-                        <th className="text-right py-3 px-3 text-gray-500 font-semibold">도달</th>
-                        <th className="text-right py-3 px-3 text-gray-500 font-semibold">클릭</th>
-                        <th className="text-right py-3 px-3 text-gray-500 font-semibold">CTR</th>
-                        <th className="text-right py-3 px-3 text-gray-500 font-semibold">CPC</th>
-                        <th className="text-right py-3 px-3 text-gray-500 font-semibold">ROAS</th>
+                        <th className="text-left py-2.5 px-3 text-gray-500 font-semibold">날짜</th>
+                        <th className="text-right py-2.5 px-2 text-gray-500 font-semibold">지출</th>
+                        <th className="text-right py-2.5 px-2 text-gray-500 font-semibold">노출</th>
+                        <th className="text-right py-2.5 px-2 text-gray-500 font-semibold">도달</th>
+                        <th className="text-right py-2.5 px-2 text-gray-500 font-semibold">클릭</th>
+                        <th className="text-right py-2.5 px-2 text-gray-500 font-semibold">CTR</th>
+                        <th className="text-right py-2.5 px-2 text-gray-500 font-semibold">CPC</th>
+                        <th className="text-right py-2.5 px-2 text-gray-500 font-semibold">ROAS</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
@@ -994,110 +951,96 @@ function ReportNewsletter({ data }: { data: any }) {
                         const roas = parseFloat(row.roas || 0);
                         return (
                           <tr key={i} className="hover:bg-blue-50/40 transition-colors">
-                            <td className="py-2.5 px-4 text-gray-700 font-medium">{row.date_stop || row.date || '-'}</td>
-                            <td className="py-2.5 px-3 text-right font-medium text-gray-900">{formatSpend(row.spend)}</td>
-                            <td className="py-2.5 px-3 text-right text-gray-600">{formatNum(row.impressions)}</td>
-                            <td className="py-2.5 px-3 text-right text-gray-600">{formatNum(row.reach)}</td>
-                            <td className="py-2.5 px-3 text-right text-gray-600">{formatNum(row.clicks)}</td>
-                            <td className="py-2.5 px-3 text-right text-gray-600">{parseFloat(row.ctr || '0').toFixed(2)}%</td>
-                            <td className="py-2.5 px-3 text-right text-gray-600">{formatCPC(row.cpc)}</td>
-                            <td className={`py-2.5 px-3 text-right font-semibold ${roas >= 1 ? 'text-green-600' : roas > 0 ? 'text-red-600' : 'text-gray-400'}`}>
-                              {formatROAS(row.roas)}
-                            </td>
+                            <td className="py-2 px-3 text-gray-700 font-medium">{row.date_stop || row.date || '-'}</td>
+                            <td className="py-2 px-2 text-right font-medium text-gray-900">{formatSpend(row.spend)}</td>
+                            <td className="py-2 px-2 text-right text-gray-600">{formatNum(row.impressions)}</td>
+                            <td className="py-2 px-2 text-right text-gray-600">{formatNum(row.reach)}</td>
+                            <td className="py-2 px-2 text-right text-gray-600">{formatNum(row.clicks)}</td>
+                            <td className="py-2 px-2 text-right text-gray-600">{parseFloat(row.ctr || '0').toFixed(2)}%</td>
+                            <td className="py-2 px-2 text-right text-gray-600">{formatCPC(row.cpc)}</td>
+                            <td className={`py-2 px-2 text-right font-semibold ${roas >= 1 ? 'text-green-600' : roas > 0 ? 'text-red-600' : 'text-gray-400'}`}>{formatROAS(row.roas)}</td>
                           </tr>
                         );
                       })}
                     </tbody>
-                    {/* Totals Row */}
                     <tfoot>
                       <tr className="bg-slate-800 text-white font-semibold">
-                        <td className="py-3 px-4 text-sm">합계</td>
-                        <td className="py-3 px-3 text-right text-sm">{formatSpend(totals.spend)}</td>
-                        <td className="py-3 px-3 text-right text-sm">{formatNum(totals.impressions)}</td>
-                        <td className="py-3 px-3 text-right text-sm">{formatNum(totals.reach)}</td>
-                        <td className="py-3 px-3 text-right text-sm">{formatNum(totals.clicks)}</td>
-                        <td className="py-3 px-3 text-right text-sm">{totals.ctr?.toFixed(2) || '0'}%</td>
-                        <td className="py-3 px-3 text-right text-sm">{formatCPC(totals.cpc)}</td>
-                        <td className="py-3 px-3 text-right text-sm">{formatROAS(totals.roas)}</td>
+                        <td className="py-2.5 px-3 text-xs">합계</td>
+                        <td className="py-2.5 px-2 text-right text-xs">{formatSpend(totals.spend)}</td>
+                        <td className="py-2.5 px-2 text-right text-xs">{formatNum(totals.impressions)}</td>
+                        <td className="py-2.5 px-2 text-right text-xs">{formatNum(totals.reach)}</td>
+                        <td className="py-2.5 px-2 text-right text-xs">{formatNum(totals.clicks)}</td>
+                        <td className="py-2.5 px-2 text-right text-xs">{totals.ctr?.toFixed(2) || '0'}%</td>
+                        <td className="py-2.5 px-2 text-right text-xs">{formatCPC(totals.cpc)}</td>
+                        <td className="py-2.5 px-2 text-right text-xs">{formatROAS(totals.roas)}</td>
                       </tr>
                     </tfoot>
                   </table>
                 </div>
               </div>
-            )}
-          </div>
-        )}
+            </div>
+          )}
 
-        {/* INSIGHTS TAB */}
-        {activeTab === 'insights' && (
-          <div className="space-y-6">
-            {ai ? (
-              <>
-                {/* Key Insights */}
-                {ai.key_insights?.length > 0 && (
-                  <div>
-                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">핵심 인사이트</h4>
-                    <div className="space-y-3">
-                      {ai.key_insights.map((insight: string, i: number) => (
-                        <div key={i} className="flex items-start gap-3 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-4 border border-amber-100">
-                          <div className="w-7 h-7 bg-amber-500 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
-                            <span className="text-white text-xs font-bold">{i + 1}</span>
-                          </div>
-                          <p className="text-sm text-gray-800 leading-relaxed">{insight}</p>
-                        </div>
-                      ))}
+          {/* AI Insights */}
+          {ai?.key_insights?.length > 0 && (
+            <div>
+              <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">핵심 인사이트</h4>
+              <div className="space-y-2">
+                {ai.key_insights.map((insight: string, i: number) => (
+                  <div key={i} className="flex items-start gap-3 bg-gradient-to-r from-amber-50 to-orange-50 rounded-lg p-3 border border-amber-100">
+                    <div className="w-6 h-6 bg-amber-500 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <span className="text-white text-xs font-bold">{i + 1}</span>
                     </div>
+                    <p className="text-xs text-gray-800 leading-relaxed">{insight}</p>
                   </div>
-                )}
+                ))}
+              </div>
+            </div>
+          )}
 
-                {/* Recommendations */}
-                {ai.recommendations?.length > 0 && (
-                  <div>
-                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">실행 추천</h4>
-                    <div className="space-y-3">
-                      {ai.recommendations.map((rec: any, i: number) => (
-                        <div key={i} className={`rounded-xl p-5 border transition-all hover:shadow-md ${
-                          rec.priority === 'high' ? 'border-red-200 bg-red-50/50 hover:border-red-300' :
-                          rec.priority === 'medium' ? 'border-yellow-200 bg-yellow-50/50 hover:border-yellow-300' :
-                          'border-gray-200 bg-gray-50/50 hover:border-gray-300'
-                        }`}>
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className={`text-xs font-bold px-2 py-0.5 rounded ${
-                              rec.priority === 'high' ? 'bg-red-600 text-white' :
-                              rec.priority === 'medium' ? 'bg-yellow-600 text-white' : 'bg-gray-500 text-white'
-                            }`}>{rec.priority === 'high' ? '긴급' : rec.priority === 'medium' ? '중요' : '참고'}</span>
-                            <h5 className="text-sm font-semibold text-gray-900">{rec.title}</h5>
-                          </div>
-                          <p className="text-sm text-gray-600 leading-relaxed">{rec.description}</p>
-                          {rec.expected_impact && (
-                            <div className="mt-2 flex items-center gap-1.5 text-xs text-blue-600 bg-blue-50 rounded-lg px-3 py-1.5 w-fit">
-                              <Award size={12} /> 예상 효과: {rec.expected_impact}
-                            </div>
-                          )}
-                        </div>
-                      ))}
+          {/* Recommendations */}
+          {ai?.recommendations?.length > 0 && (
+            <div>
+              <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">실행 추천</h4>
+              <div className="space-y-2">
+                {ai.recommendations.map((rec: any, i: number) => (
+                  <div key={i} className={`rounded-lg p-4 border ${
+                    rec.priority === 'high' ? 'border-red-200 bg-red-50/50' :
+                    rec.priority === 'medium' ? 'border-yellow-200 bg-yellow-50/50' : 'border-gray-200 bg-gray-50/50'
+                  }`}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${
+                        rec.priority === 'high' ? 'bg-red-600 text-white' :
+                        rec.priority === 'medium' ? 'bg-yellow-600 text-white' : 'bg-gray-500 text-white'
+                      }`}>{rec.priority === 'high' ? '긴급' : rec.priority === 'medium' ? '중요' : '참고'}</span>
+                      <h5 className="text-xs font-semibold text-gray-900">{rec.title}</h5>
                     </div>
+                    <p className="text-xs text-gray-600 leading-relaxed">{rec.description}</p>
+                    {rec.expected_impact && (
+                      <div className="mt-1.5 flex items-center gap-1 text-xs text-blue-600">
+                        <Award size={10} /> 예상 효과: {rec.expected_impact}
+                      </div>
+                    )}
                   </div>
-                )}
-              </>
-            ) : aiText ? (
-              <div className="bg-gray-50 rounded-xl p-6 border border-gray-100">
-                <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{aiText}</div>
+                ))}
               </div>
-            ) : (
-              <div className="text-center py-10 text-gray-400">
-                <Zap size={32} className="mx-auto mb-3 opacity-50" />
-                <p className="text-sm">AI 인사이트가 없습니다.</p>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+            </div>
+          )}
 
-      {/* Footer */}
-      <div className="bg-gray-50 border-t border-gray-200 px-6 py-3 flex items-center justify-between">
-        <span className="text-xs text-gray-400">Meta-Commander에서 자동 생성된 리포트</span>
-        <span className="text-xs text-gray-400">{new Date().toLocaleDateString('ko-KR')}</span>
+          {/* Fallback AI text */}
+          {!ai && aiText && (
+            <div className="bg-gray-50 rounded-xl p-5 border border-gray-100">
+              <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">AI 분석</h4>
+              <div className="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed">{aiText}</div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="bg-gray-50 border-t border-gray-200 px-6 py-2.5 flex items-center justify-between">
+          <span className="text-xs text-gray-400">Meta-Commander 자동 생성 리포트</span>
+          <span className="text-xs text-gray-400">{new Date().toLocaleDateString('ko-KR')}</span>
+        </div>
       </div>
     </div>
   );

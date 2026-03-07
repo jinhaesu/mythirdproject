@@ -77,7 +77,7 @@ export default function PerformanceDashboard() {
   const [customUntil, setCustomUntil] = useState('');
   const [expandedCampaign, setExpandedCampaign] = useState<string | null>(null);
   const [selectedCampaignForDeep, setSelectedCampaignForDeep] = useState<string | null>(null);
-  const [hidePaused, setHidePaused] = useState(false);
+  const [hidePaused, setHidePaused] = useState(true);
   const queryClient = useQueryClient();
 
   const isCustom = datePreset === 'custom' && customSince && customUntil;
@@ -215,8 +215,8 @@ export default function PerformanceDashboard() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">성과 분석 대시보드</h2>
-          <p className="text-sm text-gray-500 mt-1">Meta 광고 관리자 실시간 데이터</p>
+          <h2 className="text-xl font-bold text-gray-900">성과 분석 대시보드</h2>
+          <p className="text-xs text-gray-500 mt-1">Meta 광고 관리자 실시간 데이터</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <select
@@ -482,7 +482,7 @@ export default function PerformanceDashboard() {
                         <p className="text-xs text-gray-500 mt-0.5">{camp.objective}</p>
                       </div>
                       {ins && (
-                        <div className="flex items-center gap-6 text-sm">
+                        <div className="flex items-center gap-4 text-xs">
                           <div className="text-right"><p className="text-xs text-gray-400">지출</p><p className="font-semibold">{formatSpend(ins.spend)}</p></div>
                           <div className="text-right"><p className="text-xs text-gray-400">노출</p><p className="font-semibold">{formatNum(ins.impressions)}</p></div>
                           <div className="text-right"><p className="text-xs text-gray-400">클릭</p><p className="font-semibold">{formatNum(ins.clicks)}</p></div>
@@ -630,10 +630,10 @@ export default function PerformanceDashboard() {
 function KPICard({ icon, label, value, sub, color }: { icon: React.ReactNode; label: string; value: string; sub?: string; color: string }) {
   const colors: Record<string, string> = { blue: 'bg-blue-50 text-blue-600', purple: 'bg-purple-50 text-purple-600', green: 'bg-green-50 text-green-600', orange: 'bg-orange-50 text-orange-600' };
   return (
-    <div className="bg-white border border-gray-200 rounded-xl p-4">
-      <div className="flex items-center gap-2 mb-2"><div className={`p-1.5 rounded-lg ${colors[color]}`}>{icon}</div><span className="text-xs text-gray-500">{label}</span></div>
-      <p className="text-xl font-bold text-gray-900">{value}</p>
-      {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
+    <div className="bg-white border border-gray-200 rounded-xl p-3">
+      <div className="flex items-center gap-1.5 mb-1"><div className={`p-1 rounded-lg ${colors[color]}`}>{icon}</div><span className="text-xs text-gray-500">{label}</span></div>
+      <p className="text-lg font-bold text-gray-900">{value}</p>
+      {sub && <p className="text-xs text-gray-400">{sub}</p>}
     </div>
   );
 }

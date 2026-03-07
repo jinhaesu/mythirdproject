@@ -48,11 +48,15 @@ async def get_db() -> AsyncSession:
 
 async def init_db():
     """Initialize database tables and add missing columns."""
+    import logging
+    logger = logging.getLogger(__name__)
+
     # Ensure all models are registered with Base.metadata before create_all
     import app.models  # noqa: F401
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        logger.info(f"Database tables ensured: {list(Base.metadata.tables.keys())}")
         # Add meta_ig_account_id column if missing (create_all doesn't alter existing tables)
         try:
             await conn.execute(

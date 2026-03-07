@@ -67,7 +67,7 @@ class MetaAdsService:
         if not self.connected:
             return {"connected": False, "error": "Meta 계정이 연동되지 않았습니다."}
 
-        insight_fields = "spend,impressions,reach,clicks,ctr,cpc,cpm,actions,action_values,cost_per_action_type,frequency,purchase_roas"
+        insight_fields = "spend,impressions,reach,clicks,ctr,cpc,cpm,actions,action_values,cost_per_action_type,frequency,purchase_roas,website_purchase_roas"
 
         # Build date params
         account_params: Dict[str, Any] = {"fields": insight_fields}
@@ -153,9 +153,9 @@ class MetaAdsService:
         """Load adsets + ads for a single campaign (on-demand when user expands)."""
         adset_fields = (
             f"id,name,status,effective_status,targeting,daily_budget,lifetime_budget,"
-            f"insights.date_preset({date_preset}){{spend,impressions,clicks,ctr,cpc,cpm,actions,action_values,purchase_roas,frequency}},"
+            f"insights.date_preset({date_preset}){{spend,impressions,clicks,ctr,cpc,cpm,actions,action_values,purchase_roas,website_purchase_roas,frequency}},"
             f"ads{{id,name,status,effective_status,creative{{id,name,thumbnail_url}},"
-            f"insights.date_preset({date_preset}){{spend,impressions,clicks,ctr,cpc,actions,action_values,purchase_roas,frequency}}}}"
+            f"insights.date_preset({date_preset}){{spend,impressions,clicks,ctr,cpc,actions,action_values,purchase_roas,website_purchase_roas,frequency}}}}"
         )
         resp = await self._get(
             f"{campaign_id}/adsets",
@@ -306,7 +306,7 @@ class MetaAdsService:
         if not self.connected:
             return []
         params: Dict[str, Any] = {
-            "fields": "spend,impressions,clicks,ctr,cpc,cpm,reach,actions,action_values,purchase_roas",
+            "fields": "spend,impressions,clicks,ctr,cpc,cpm,reach,actions,action_values,purchase_roas,website_purchase_roas",
             "time_increment": 1,
         }
         if since and until:
@@ -328,19 +328,31 @@ class MetaAdsService:
         return self.build_context_from_overview(overview)
 
     @staticmethod
+    def _extract_roas_value(field_data) -> Optional[float]:
+        """Extract ROAS value from Meta's purchase_roas/website_purchase_roas field."""
+        if not field_data:
+            return None
+        if isinstance(field_data, list) and field_data:
+            val = float(field_data[0].get("value", 0))
+            return val if val > 0 else None
+        if isinstance(field_data, (int, float)) and float(field_data) > 0:
+            return float(field_data)
+        return None
+
+    @staticmethod
     def _calc_roas(insights: Dict) -> Optional[float]:
         """Calculate ROAS from insights data.
-        Priority: purchase_roas > purchase action_values > all action_values (total conversion value).
+        Priority: website_purchase_roas > purchase_roas > purchase action_values > all action_values.
         """
-        # 1) Try Meta's built-in purchase_roas field first
-        pr = insights.get("purchase_roas")
-        if pr:
-            if isinstance(pr, list) and pr:
-                val = float(pr[0].get("value", 0))
-                if val > 0:
-                    return round(val, 2)
-            elif isinstance(pr, (int, float)) and float(pr) > 0:
-                return round(float(pr), 2)
+        # 1) Try Meta's website_purchase_roas field (웹사이트 구매 ROAS)
+        val = MetaAdsService._extract_roas_value(insights.get("website_purchase_roas"))
+        if val:
+            return round(val, 2)
+
+        # 2) Try generic purchase_roas field
+        val = MetaAdsService._extract_roas_value(insights.get("purchase_roas"))
+        if val:
+            return round(val, 2)
 
         spend = float(insights.get("spend", 0) or 0)
         if spend <= 0:
