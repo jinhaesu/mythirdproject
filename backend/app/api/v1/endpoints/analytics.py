@@ -658,11 +658,15 @@ async def send_report_email(
     db: AsyncSession = Depends(get_db),
 ):
     """리포트를 이메일로 발송."""
-    report_request = ReportRequest(
-        campaign_id=request.campaign_id, meta_campaign_id=request.meta_campaign_id,
-        start_date=request.start_date, end_date=request.end_date,
-    )
-    report = await generate_report(report_request, current_user, db)
+    try:
+        report_request = ReportRequest(
+            campaign_id=request.campaign_id, meta_campaign_id=request.meta_campaign_id,
+            start_date=request.start_date, end_date=request.end_date,
+        )
+        report = await generate_report(report_request, current_user, db)
+    except Exception as e:
+        logger.error(f"Report generation failed for email: {e}")
+        raise HTTPException(status_code=500, detail=f"리포트 생성 실패: {str(e)}")
 
     ai_report = report.get("ai_report", "리포트 데이터가 없습니다.")
     html_content = ai_report.replace("\n", "<br>")
@@ -684,15 +688,25 @@ async def send_report_email(
 
     try:
         resend.api_key = settings.RESEND_API_KEY
-        resend.Emails.send({
-            "from": settings.RESEND_FROM_EMAIL,
+        from_email = settings.RESEND_FROM_EMAIL or "onboarding@resend.dev"
+        # Resend requires "Name <email>" format
+        if "<" not in from_email:
+            from_email = f"Meta-Commander <{from_email}>"
+        logger.info(f"Sending email from={from_email}, to={request.email}")
+        result = resend.Emails.send({
+            "from": from_email,
             "to": [request.email],
             "subject": f"[Meta-Commander] 성과 리포트 ({request.start_date} ~ {request.end_date})",
             "html": html_content,
         })
+        logger.info(f"Resend result: {result}")
         return {"success": True, "message": f"리포트가 {request.email}로 발송되었습니다."}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"이메일 발송 실패: {str(e)}")
+        logger.error(f"Email send error: {type(e).__name__}: {e}")
+        error_msg = str(e)
+        if "validation" in error_msg.lower() or "from" in error_msg.lower():
+            error_msg += " (Resend 무료 플랜은 onboarding@resend.dev에서만 발송 가능합니다. 커스텀 도메인을 등록하거나 RESEND_FROM_EMAIL을 확인하세요.)"
+        raise HTTPException(status_code=500, detail=f"이메일 발송 실패: {error_msg}")
 
 
 # ══════════════════════════════════════════════════

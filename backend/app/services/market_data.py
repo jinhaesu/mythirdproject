@@ -8,17 +8,18 @@ import httpx
 from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
-settings = get_settings()
 
 
 class MarketDataService:
     """Fetches real market data from YouTube, Naver, and Instagram APIs."""
 
     def __init__(self):
+        settings = get_settings()
         self.youtube_key = settings.YOUTUBE_API_KEY
         self.naver_id = settings.NAVER_CLIENT_ID
         self.naver_secret = settings.NAVER_CLIENT_SECRET
         self.meta_token = settings.META_ACCESS_TOKEN
+        logger.info(f"MarketDataService init: youtube={'YES' if self.youtube_key else 'NO'}, naver={'YES' if self.naver_id else 'NO'}, instagram={'YES' if self.meta_token else 'NO'}")
 
     @property
     def has_youtube(self) -> bool:
@@ -53,10 +54,12 @@ class MarketDataService:
                         "relevanceLanguage": "ko",
                     },
                 )
-                resp.raise_for_status()
+                if resp.status_code != 200:
+                    logger.warning(f"YouTube search API error: {resp.status_code} {resp.text[:200]}")
+                    return None
                 search_data = resp.json()
 
-                video_ids = [item["id"]["videoId"] for item in search_data.get("items", [])]
+                video_ids = [item["id"]["videoId"] for item in search_data.get("items", []) if item.get("id", {}).get("videoId")]
                 total_results = search_data.get("pageInfo", {}).get("totalResults", 0)
 
                 if not video_ids:
@@ -71,7 +74,9 @@ class MarketDataService:
                         "key": self.youtube_key,
                     },
                 )
-                stats_resp.raise_for_status()
+                if stats_resp.status_code != 200:
+                    logger.warning(f"YouTube videos API error: {stats_resp.status_code}")
+                    return {"content_count": total_results, "total_views": 0, "total_comments": 0}
                 stats_data = stats_resp.json()
 
                 total_views = 0
@@ -108,7 +113,9 @@ class MarketDataService:
                     params={"query": keyword, "display": 1, "sort": "sim"},
                     headers=headers,
                 )
-                blog_resp.raise_for_status()
+                if blog_resp.status_code != 200:
+                    logger.warning(f"Naver blog API error: {blog_resp.status_code} {blog_resp.text[:200]}")
+                    return None
                 blog_data = blog_resp.json()
                 blog_count = blog_data.get("total", 0)
 
@@ -116,9 +123,13 @@ class MarketDataService:
                 end_date = datetime.utcnow().strftime("%Y-%m-%d")
                 start_date = (datetime.utcnow() - timedelta(days=30)).strftime("%Y-%m-%d")
 
+                datalab_headers = {
+                    **headers,
+                    "Content-Type": "application/json",
+                }
                 trend_resp = await client.post(
                     "https://openapi.naver.com/v1/datalab/search",
-                    headers=headers,
+                    headers=datalab_headers,
                     json={
                         "startDate": start_date,
                         "endDate": end_date,
@@ -128,6 +139,7 @@ class MarketDataService:
                         ],
                     },
                 )
+                logger.info(f"Naver DataLab response status: {trend_resp.status_code}")
 
                 daily_searches: List[Dict] = []
                 search_volume = 0

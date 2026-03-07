@@ -218,6 +218,7 @@ async def analyze_keyword(
         market_svc = MarketDataService()
         real_data = await market_svc.fetch_all(kw.keyword)
         api_sources = real_data.get("api_sources", [])
+        logger.info(f"Keyword '{kw.keyword}' real API sources: {api_sources}, youtube={real_data.get('youtube')}, naver={real_data.get('naver')}")
 
         # Build context from real API data for AI to enhance
         real_data_context = ""
