@@ -202,6 +202,7 @@ export const campaignApi = {
     total_budget: number;
     daily_budget?: number;
     targeting?: any;
+    targeting_segments?: any[];
     creative_ids: number[];
     start_date?: string;
     end_date?: string;

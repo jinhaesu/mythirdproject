@@ -95,3 +95,14 @@ async def init_db():
             )
     except Exception:
         pass  # Column already exists
+
+    # Add targeting_segments column to campaigns if missing
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(
+                __import__('sqlalchemy').text(
+                    "ALTER TABLE campaigns ADD COLUMN targeting_segments TEXT"
+                )
+            )
+    except Exception:
+        pass  # Column already exists

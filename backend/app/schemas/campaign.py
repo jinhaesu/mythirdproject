@@ -76,6 +76,7 @@ class CampaignCreate(BaseModel):
     total_budget: float = Field(..., gt=0)
     daily_budget: Optional[float] = None
     targeting: Optional[TargetingConfig] = None
+    targeting_segments: Optional[list] = None  # 기획 세그먼트 배열
     creative_ids: List[int] = Field(default=[])
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None

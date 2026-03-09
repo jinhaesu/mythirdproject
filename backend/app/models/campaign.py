@@ -48,6 +48,7 @@ class Campaign(Base):
 
     # Targeting (JSON stored as text)
     targeting: Mapped[Optional[str]] = mapped_column(Text)  # JSON: age, gender, interests
+    targeting_segments: Mapped[Optional[str]] = mapped_column(Text)  # JSON array of targeting segments from planner
 
     # Meta integration
     meta_campaign_id: Mapped[Optional[str]] = mapped_column(String(255))
