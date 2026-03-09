@@ -7,6 +7,7 @@ import {
   Play, Pause, ChevronDown, ChevronRight, AlertTriangle, CheckCircle, XCircle,
   Loader2, RefreshCw, Zap, Activity, Users, Layers,
   TrendingUp, TrendingDown, ToggleLeft, ToggleRight, Edit3, Check, X,
+  Shield, Sparkles, ArrowRight, Lightbulb, Palette,
 } from 'lucide-react';
 import { analyticsApi } from '@/lib/api';
 import toast from 'react-hot-toast';
@@ -102,10 +103,12 @@ export default function PerformanceDashboard() {
     enabled: overview?.connected === true,
   });
 
-  const { data: aiAnalysis, isLoading: loadingAI, refetch: refetchAI } = useQuery({
+  const { data: aiAnalysis, isLoading: loadingAI, refetch: refetchAI, dataUpdatedAt } = useQuery({
     queryKey: ['ai-analysis', datePreset],
     queryFn: () => analyticsApi.getAIAnalysis(datePreset, overview),
     enabled: overview?.connected === true && !!overview?.campaigns?.length,
+    staleTime: Infinity,
+    gcTime: 60 * 60 * 1000,
   });
 
   const { data: deepData } = useQuery({
@@ -343,140 +346,278 @@ export default function PerformanceDashboard() {
             </div>
           )}
 
-          {/* AI Analysis */}
+          {/* AI 성과 분석 리포트 */}
           {loadingAI ? (
-            <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-xl p-6">
-              <div className="flex items-center gap-3">
-                <Loader2 size={20} className="animate-spin text-blue-600" />
-                <span className="text-blue-700">AI가 계정 데이터를 분석하고 있습니다...</span>
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-lg overflow-hidden">
+              <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-blue-600 px-6 py-5">
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center animate-pulse">
+                    <Sparkles size={22} className="text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-white">AI 성과 분석 리포트</h2>
+                    <p className="text-sm text-white/70 mt-0.5">데이터를 분석하고 있습니다...</p>
+                  </div>
+                </div>
+              </div>
+              <div className="p-6 space-y-4">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="animate-pulse">
+                    <div className="h-4 bg-gray-200 rounded-lg w-1/3 mb-3" />
+                    <div className="h-20 bg-gray-100 rounded-xl" />
+                  </div>
+                ))}
               </div>
             </div>
           ) : analysis && analysis.parse_error ? (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
-              <h3 className="text-sm font-semibold text-yellow-800 mb-2 flex items-center gap-2">
-                <AlertTriangle size={16} /> AI 분석 결과 (텍스트)
-              </h3>
-              <div className="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed max-h-96 overflow-y-auto">{analysis.raw_text}</div>
+            <div className="bg-white rounded-2xl border border-yellow-200 shadow-lg overflow-hidden">
+              <div className="bg-gradient-to-r from-yellow-500 to-amber-500 px-6 py-4">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle size={20} className="text-white" />
+                  <h2 className="text-base font-bold text-white">AI 분석 결과 (텍스트)</h2>
+                </div>
+              </div>
+              <div className="p-6">
+                <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed max-h-[500px] overflow-y-auto bg-gray-50 rounded-xl p-4 border border-gray-100">{analysis.raw_text}</div>
+              </div>
             </div>
           ) : !analysis && aiAnalysis?.error ? (
-            <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-              <p className="text-sm text-red-700">AI 분석 오류: {aiAnalysis.error}</p>
-              <button onClick={() => refetchAI()} className="mt-2 text-xs bg-red-600 text-white px-3 py-1 rounded-lg hover:bg-red-700">다시 시도</button>
+            <div className="bg-white rounded-2xl border border-red-200 shadow-lg overflow-hidden">
+              <div className="bg-gradient-to-r from-red-500 to-rose-500 px-6 py-4">
+                <div className="flex items-center gap-2">
+                  <XCircle size={20} className="text-white" />
+                  <h2 className="text-base font-bold text-white">AI 분석 오류</h2>
+                </div>
+              </div>
+              <div className="p-6 text-center">
+                <p className="text-sm text-gray-600 mb-4">{aiAnalysis.error}</p>
+                <button onClick={() => refetchAI()} className="bg-red-600 text-white px-5 py-2 rounded-xl hover:bg-red-700 transition-colors font-medium text-sm">
+                  <RefreshCw size={14} className="inline mr-1.5" />다시 시도
+                </button>
+              </div>
             </div>
           ) : analysis && !analysis.parse_error ? (
-            <div className="space-y-4">
-              {/* Health Banner */}
-              <div className={`rounded-xl p-3 border ${
-                analysis.account_health === 'good' ? 'bg-green-50 border-green-200' :
-                analysis.account_health === 'warning' ? 'bg-yellow-50 border-yellow-200' :
-                'bg-red-50 border-red-200'
-              }`}>
-                <div className="flex items-start gap-3">
-                  {analysis.account_health === 'good' ? <CheckCircle className="text-green-600 mt-0.5" size={16} /> :
-                   analysis.account_health === 'warning' ? <AlertTriangle className="text-yellow-600 mt-0.5" size={16} /> :
-                   <XCircle className="text-red-600 mt-0.5" size={16} />}
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-900">
-                      계정 건강도: {analysis.account_health === 'good' ? '양호' : analysis.account_health === 'warning' ? '주의' : '위험'}
-                    </h3>
-                    <p className="text-xs text-gray-700 mt-1">{analysis.health_summary}</p>
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-lg overflow-hidden">
+              {/* Gradient Header */}
+              <div className="relative bg-gradient-to-r from-indigo-600 via-purple-600 to-blue-600 px-6 py-5">
+                <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 20% 50%, white 1px, transparent 1px), radial-gradient(circle at 80% 20%, white 1px, transparent 1px)', backgroundSize: '60px 60px' }} />
+                <div className="relative flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-11 h-11 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center ring-2 ring-white/30">
+                      <Sparkles size={22} className="text-white" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-bold text-white tracking-tight">AI 성과 분석 리포트</h2>
+                      <p className="text-sm text-white/70 mt-0.5">
+                        {datePreset === 'last_7d' ? '최근 7일' : datePreset === 'last_14d' ? '최근 14일' : datePreset === 'last_30d' ? '최근 30일' : '사용자 지정'} 기간 분석
+                        {dataUpdatedAt ? ` · ${new Date(dataUpdatedAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })} 기준` : ''}
+                      </p>
+                    </div>
                   </div>
+                  <button
+                    onClick={() => refetchAI()}
+                    className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white text-sm font-medium px-4 py-2 rounded-xl transition-all"
+                  >
+                    <RefreshCw size={14} /> 재분석
+                  </button>
                 </div>
               </div>
 
-              {/* Action Items */}
-              {analysis.action_items?.length > 0 && (
-                <div className="bg-white border border-gray-200 rounded-xl p-3">
-                  <h3 className="text-xs font-semibold text-gray-900 mb-3 flex items-center gap-1.5">
-                    <Zap size={14} className="text-orange-500" /> 실행 액션 아이템
-                  </h3>
-                  <div className="space-y-2">
-                    {analysis.action_items.map((item: any, i: number) => (
-                      <div key={i} className={`flex items-start gap-2 p-2.5 rounded-lg border ${
-                        item.priority === 'high' ? 'border-red-200 bg-red-50' :
-                        item.priority === 'medium' ? 'border-yellow-200 bg-yellow-50' : 'border-gray-200 bg-gray-50'
-                      }`}>
-                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded mt-0.5 ${
-                          item.priority === 'high' ? 'bg-red-600 text-white' :
-                          item.priority === 'medium' ? 'bg-yellow-600 text-white' : 'bg-gray-400 text-white'
-                        }`}>{item.priority === 'high' ? '긴급' : item.priority === 'medium' ? '중간' : '낮음'}</span>
-                        <div className="flex-1">
-                          <p className="text-xs font-medium text-gray-900">{item.action}</p>
-                          <p className="text-[10px] text-gray-500 mt-0.5">{item.reason}</p>
-                          {item.expected_impact && <p className="text-[10px] text-blue-600 mt-0.5">예상 효과: {item.expected_impact}</p>}
-                          {item.target_id && item.type === 'pause_ad' && (
-                            <button onClick={() => toggleStatus(item.target_id, 'ad', 'ACTIVE')}
-                              className="mt-2 text-xs bg-red-600 text-white px-3 py-1 rounded-lg hover:bg-red-700">
-                              광고 중지 실행
-                            </button>
-                          )}
-                        </div>
+              <div className="p-6 space-y-6">
+                {/* 계정 건강도 */}
+                <div className={`rounded-xl p-5 ${
+                  analysis.account_health === 'good'
+                    ? 'bg-gradient-to-r from-emerald-50 to-green-50 border border-emerald-200'
+                    : analysis.account_health === 'warning'
+                      ? 'bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200'
+                      : 'bg-gradient-to-r from-red-50 to-rose-50 border border-red-200'
+                }`}>
+                  <div className="flex items-start gap-4">
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md ${
+                      analysis.account_health === 'good' ? 'bg-emerald-500' :
+                      analysis.account_health === 'warning' ? 'bg-amber-500' : 'bg-red-500'
+                    }`}>
+                      <Shield size={24} className="text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <h3 className="text-base font-bold text-gray-900">계정 건강도</h3>
+                        <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
+                          analysis.account_health === 'good' ? 'bg-emerald-100 text-emerald-700' :
+                          analysis.account_health === 'warning' ? 'bg-amber-100 text-amber-700' :
+                          'bg-red-100 text-red-700'
+                        }`}>
+                          {analysis.account_health === 'good' ? '양호' : analysis.account_health === 'warning' ? '주의' : '위험'}
+                        </span>
                       </div>
-                    ))}
+                      <p className="text-sm text-gray-600 leading-relaxed">{analysis.health_summary}</p>
+                    </div>
                   </div>
                 </div>
-              )}
 
-              {/* Creative Fatigue */}
-              {analysis.creative_fatigue?.length > 0 && (
-                <div className="bg-white border border-gray-200 rounded-xl p-3">
-                  <h3 className="text-xs font-semibold text-gray-900 mb-2 flex items-center gap-1.5">
-                    <Activity size={14} className="text-red-500" /> 소재 피로도 알림
-                  </h3>
-                  <div className="space-y-1.5">
-                    {analysis.creative_fatigue.map((item: any, i: number) => (
-                      <div key={i} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
-                        <div>
-                          <p className="text-xs font-medium text-gray-900">{item.ad_name}</p>
-                          <p className="text-[10px] text-gray-500">빈도: {item.frequency}</p>
-                        </div>
-                        <span className={`text-xs font-semibold px-2 py-1 rounded ${
-                          item.recommendation === '교체' ? 'bg-red-100 text-red-700' :
-                          item.recommendation === '수정' ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'
-                        }`}>{item.recommendation}</span>
+                {/* 실행 액션 아이템 */}
+                {analysis.action_items?.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-4">
+                      <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
+                        <Zap size={16} className="text-orange-600" />
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Budget Recommendations */}
-              {analysis.budget_recommendations?.length > 0 && (
-                <div className="bg-white border border-gray-200 rounded-xl p-3">
-                  <h3 className="text-xs font-semibold text-gray-900 mb-2 flex items-center gap-1.5">
-                    <DollarSign size={14} className="text-green-500" /> 예산 추천
-                  </h3>
-                  <div className="space-y-1.5">
-                    {analysis.budget_recommendations.map((item: any, i: number) => (
-                      <div key={i} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
-                        <div>
-                          <p className="text-xs font-medium text-gray-900">{item.campaign_name}</p>
-                          <p className="text-[10px] text-gray-500">{item.reason}</p>
+                      <h3 className="text-base font-bold text-gray-900">실행 액션 아이템</h3>
+                      <span className="text-xs bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full font-medium">{analysis.action_items.length}건</span>
+                    </div>
+                    <div className="space-y-3">
+                      {analysis.action_items.map((item: any, i: number) => (
+                        <div
+                          key={i}
+                          className={`rounded-xl border-l-4 bg-white border border-gray-100 shadow-sm hover:shadow-md transition-all duration-200 p-4 ${
+                            item.priority === 'high' ? 'border-l-red-500' :
+                            item.priority === 'medium' ? 'border-l-amber-500' : 'border-l-blue-400'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md ${
+                                  item.priority === 'high' ? 'bg-red-100 text-red-700' :
+                                  item.priority === 'medium' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'
+                                }`}>
+                                  {item.priority === 'high' ? '긴급' : item.priority === 'medium' ? '중간' : '낮음'}
+                                </span>
+                                {item.type && (
+                                  <span className="text-[11px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-md">
+                                    {item.type === 'pause_ad' ? '광고 중지' : item.type === 'increase_budget' ? '예산 증액' : item.type === 'decrease_budget' ? '예산 감액' : item.type === 'change_creative' ? '소재 변경' : item.type}
+                                  </span>
+                                )}
+                                {item.target_name && <span className="text-xs text-gray-400 truncate">{item.target_name}</span>}
+                              </div>
+                              <p className="text-sm font-semibold text-gray-900 mb-1">{item.action}</p>
+                              <p className="text-xs text-gray-500 leading-relaxed">{item.reason}</p>
+                              {item.expected_impact && (
+                                <div className="mt-2.5 inline-flex items-center gap-1.5 bg-emerald-50 px-2.5 py-1 rounded-lg">
+                                  <TrendingUp size={12} className="text-emerald-500" />
+                                  <span className="text-xs font-medium text-emerald-700">예상 효과: {item.expected_impact}</span>
+                                </div>
+                              )}
+                            </div>
+                            {item.target_id && item.type === 'pause_ad' && (
+                              <button
+                                onClick={() => toggleStatus(item.target_id, 'ad', 'ACTIVE')}
+                                className="flex-shrink-0 text-xs bg-red-600 text-white px-3.5 py-2 rounded-xl hover:bg-red-700 transition-colors font-medium shadow-sm"
+                              >
+                                광고 중지
+                              </button>
+                            )}
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <p className="text-[10px] text-gray-400">현재: {item.current_budget}</p>
-                          <p className="text-xs font-semibold text-blue-600">추천: {item.recommended_budget}</p>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 2-column: 소재 피로도 + 예산 추천 */}
+                {(analysis.creative_fatigue?.length > 0 || analysis.budget_recommendations?.length > 0) && (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* 소재 피로도 분석 */}
+                    {analysis.creative_fatigue?.length > 0 && (
+                      <div className="bg-gradient-to-br from-gray-50 to-purple-50/30 rounded-xl p-5 border border-gray-100">
+                        <div className="flex items-center gap-2 mb-4">
+                          <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
+                            <Palette size={16} className="text-purple-600" />
+                          </div>
+                          <h3 className="text-sm font-bold text-gray-900">소재 피로도 분석</h3>
+                          <span className="text-[10px] bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded-full font-medium">{analysis.creative_fatigue.length}</span>
+                        </div>
+                        <div className="space-y-2.5">
+                          {analysis.creative_fatigue.map((item: any, i: number) => (
+                            <div key={i} className="bg-white rounded-lg p-3.5 border border-gray-100 hover:border-purple-200 transition-colors">
+                              <div className="flex items-center justify-between mb-2.5">
+                                <p className="text-sm font-semibold text-gray-900 truncate flex-1 mr-2">{item.ad_name}</p>
+                                <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full flex-shrink-0 ${
+                                  item.recommendation === '교체' ? 'bg-red-100 text-red-700' :
+                                  item.recommendation === '수정' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
+                                }`}>
+                                  {item.recommendation}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-[11px] text-gray-400 flex-shrink-0 w-14">노출 빈도</span>
+                                <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full transition-all ${
+                                      item.recommendation === '교체' ? 'bg-gradient-to-r from-red-400 to-red-500' :
+                                      item.recommendation === '수정' ? 'bg-gradient-to-r from-amber-400 to-amber-500' : 'bg-gradient-to-r from-emerald-400 to-emerald-500'
+                                    }`}
+                                    style={{ width: `${Math.min(parseFloat(item.frequency || '0') / 5 * 100, 100)}%` }}
+                                  />
+                                </div>
+                                <span className="text-xs font-bold text-gray-700 flex-shrink-0 w-8 text-right">{item.frequency}</span>
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+                    )}
 
-              {/* Next Steps */}
-              {analysis.next_steps?.length > 0 && (
-                <div className="bg-blue-50 border border-blue-200 rounded-xl p-5">
-                  <h3 className="font-semibold text-blue-900 mb-3">우선 실행 사항</h3>
-                  <ol className="space-y-2">
-                    {analysis.next_steps.map((step: string, i: number) => (
-                      <li key={i} className="flex items-start gap-2 text-sm text-blue-800">
-                        <span className="bg-blue-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs flex-shrink-0 mt-0.5">{i + 1}</span>
-                        {step}
-                      </li>
-                    ))}
-                  </ol>
-                </div>
-              )}
+                    {/* 예산 최적화 추천 */}
+                    {analysis.budget_recommendations?.length > 0 && (
+                      <div className="bg-gradient-to-br from-gray-50 to-emerald-50/30 rounded-xl p-5 border border-gray-100">
+                        <div className="flex items-center gap-2 mb-4">
+                          <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
+                            <DollarSign size={16} className="text-emerald-600" />
+                          </div>
+                          <h3 className="text-sm font-bold text-gray-900">예산 최적화 추천</h3>
+                          <span className="text-[10px] bg-emerald-100 text-emerald-600 px-1.5 py-0.5 rounded-full font-medium">{analysis.budget_recommendations.length}</span>
+                        </div>
+                        <div className="space-y-2.5">
+                          {analysis.budget_recommendations.map((item: any, i: number) => (
+                            <div key={i} className="bg-white rounded-lg p-3.5 border border-gray-100 hover:border-emerald-200 transition-colors">
+                              <p className="text-sm font-semibold text-gray-900 mb-2.5">{item.campaign_name}</p>
+                              <div className="flex items-center gap-2 mb-2.5 bg-gray-50 rounded-lg p-2.5">
+                                <div className="flex-1 text-center">
+                                  <p className="text-[10px] text-gray-400 mb-0.5">현재 예산</p>
+                                  <p className="text-sm font-bold text-gray-500">{item.current_budget}</p>
+                                </div>
+                                <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                                  <ArrowRight size={14} className="text-blue-500" />
+                                </div>
+                                <div className="flex-1 text-center">
+                                  <p className="text-[10px] text-blue-500 mb-0.5">추천 예산</p>
+                                  <p className="text-sm font-bold text-blue-600">{item.recommended_budget}</p>
+                                </div>
+                              </div>
+                              <p className="text-xs text-gray-500 leading-relaxed">{item.reason}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 우선 실행 사항 */}
+                {analysis.next_steps?.length > 0 && (
+                  <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-5 border border-blue-100">
+                    <div className="flex items-center gap-2 mb-4">
+                      <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                        <Lightbulb size={16} className="text-blue-600" />
+                      </div>
+                      <h3 className="text-sm font-bold text-gray-900">우선 실행 사항</h3>
+                    </div>
+                    <div className="space-y-3">
+                      {analysis.next_steps.map((step: string, i: number) => (
+                        <div key={i} className="flex items-start gap-3">
+                          <div className="w-7 h-7 bg-gradient-to-br from-blue-600 to-indigo-600 text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5 shadow-sm">
+                            {i + 1}
+                          </div>
+                          <div className="flex-1 bg-white/80 backdrop-blur-sm rounded-lg px-4 py-3 border border-blue-100 shadow-sm">
+                            <p className="text-sm text-gray-800 leading-relaxed">{step}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           ) : null}
 
