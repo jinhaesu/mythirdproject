@@ -144,6 +144,39 @@ class MetaMarketingAPI:
         }
         return mapping.get(objective, "LINK_CLICKS")
 
+    async def get_pages(self) -> List[Dict]:
+        """광고 계정에 연결된 Facebook 페이지 조회."""
+        try:
+            result = await self._request("GET", "me/accounts", params={"fields": "id,name"})
+            return result.get("data", [])
+        except Exception:
+            return []
+
+    async def get_pixels(self) -> List[Dict]:
+        """광고 계정의 Pixel 목록 조회."""
+        try:
+            result = await self._request("GET", f"{self.ad_account_id}/adspixels", params={"fields": "id,name"})
+            return result.get("data", [])
+        except Exception:
+            return []
+
+    def _build_promoted_object(
+        self, objective: str, page_id: Optional[str] = None, pixel_id: Optional[str] = None
+    ) -> Optional[Dict]:
+        """캠페인 목표에 맞는 promoted_object 생성."""
+        if objective == "OUTCOME_SALES":
+            if pixel_id:
+                return {"pixel_id": pixel_id, "custom_event_type": "PURCHASE"}
+            elif page_id:
+                return {"page_id": page_id}
+        elif objective == "OUTCOME_LEADS":
+            if page_id:
+                return {"page_id": page_id}
+        elif objective == "OUTCOME_TRAFFIC":
+            if page_id:
+                return {"page_id": page_id}
+        return None
+
     async def create_adset(
         self,
         campaign_id: str,
@@ -151,6 +184,8 @@ class MetaMarketingAPI:
         daily_budget: int,  # In cents
         targeting: TargetingConfig,
         objective: Optional[str] = None,
+        page_id: Optional[str] = None,
+        pixel_id: Optional[str] = None,
         start_time: Optional[datetime] = None,
         end_time: Optional[datetime] = None,
     ) -> Dict[str, Any]:
@@ -159,7 +194,8 @@ class MetaMarketingAPI:
 
         Returns adset ID on success.
         """
-        optimization_goal = self._map_optimization_goal(objective or "OUTCOME_TRAFFIC")
+        obj = objective or "OUTCOME_TRAFFIC"
+        optimization_goal = self._map_optimization_goal(obj)
 
         data = {
             "name": name,
@@ -171,6 +207,11 @@ class MetaMarketingAPI:
             "targeting": self._build_targeting_spec(targeting),
             "status": "PAUSED"
         }
+
+        # promoted_object — 목표별 필수
+        promoted_object = self._build_promoted_object(obj, page_id, pixel_id)
+        if promoted_object:
+            data["promoted_object"] = promoted_object
 
         if start_time:
             data["start_time"] = start_time.isoformat()

@@ -259,6 +259,35 @@ async def publish_campaign(
     logger.info(f"[Publish] Meta API init: ad_account={meta_api.ad_account_id}, campaign='{campaign.name}', ads={len(ads)}")
 
     try:
+        # 0. Page ID / Pixel ID 확보
+        page_id = meta_user.meta_page_id
+        pixel_id = meta_user.meta_pixel_id
+
+        if not page_id:
+            # OAuth 때 저장 안 된 경우 실시간 조회
+            pages = await meta_api.get_pages()
+            if pages:
+                page_id = pages[0].get("id")
+                meta_user.meta_page_id = page_id
+                logger.info(f"[Publish] Fetched page_id: {page_id}")
+
+        if not pixel_id:
+            pixels = await meta_api.get_pixels()
+            if pixels:
+                pixel_id = pixels[0].get("id")
+                meta_user.meta_pixel_id = pixel_id
+                logger.info(f"[Publish] Fetched pixel_id: {pixel_id}")
+
+        if not page_id:
+            return PublishResponse(
+                success=False, meta_campaign_id=None, meta_adset_id=None,
+                status="FAILED",
+                message="Facebook 페이지가 없습니다. Meta Business Suite에서 페이지를 생성한 후 다시 시도해주세요."
+            )
+
+        await db.commit()  # page_id, pixel_id 저장
+        logger.info(f"[Publish] page_id={page_id}, pixel_id={pixel_id}")
+
         # 1. Create Campaign on Meta
         logger.info(f"Publishing campaign '{campaign.name}' to Meta...")
         campaign_result = await meta_api.create_campaign(
@@ -287,9 +316,8 @@ async def publish_campaign(
             total_budget = campaign.daily_budget or (campaign.total_budget / 7)
             for seg in segments:
                 seg_ratio = float(seg.get('ratio', 100 / len(segments))) / 100
-                seg_budget_cents = max(round(total_budget * seg_ratio * 100), 100)  # 최소 100센트
+                seg_budget_cents = max(round(total_budget * seg_ratio * 100), 100)
 
-                # 세그먼트 타겟팅 구성
                 seg_targeting = TargetingConfig()
                 if seg.get('age_range'):
                     ages = seg['age_range'].replace('세', '').split('-')
@@ -306,6 +334,8 @@ async def publish_campaign(
                     daily_budget=seg_budget_cents,
                     targeting=seg_targeting,
                     objective=meta_objective,
+                    page_id=page_id,
+                    pixel_id=pixel_id,
                     start_time=campaign.start_date,
                     end_time=campaign.end_date
                 )
@@ -314,7 +344,6 @@ async def publish_campaign(
                     adset_ids.append(adset_id)
                     logger.info(f"AdSet created: {seg_name} ({adset_id}) - budget: {seg_budget_cents}")
         else:
-            # 단일 광고세트
             targeting = TargetingConfig()
             if campaign.targeting:
                 try:
@@ -329,6 +358,8 @@ async def publish_campaign(
                 daily_budget=daily_budget_cents,
                 targeting=targeting,
                 objective=meta_objective,
+                page_id=page_id,
+                pixel_id=pixel_id,
                 start_time=campaign.start_date,
                 end_time=campaign.end_date
             )
@@ -342,7 +373,6 @@ async def publish_campaign(
 
         # 3. Create Ads - 첫 번째 광고세트에 배치
         if ads and meta_adset_id:
-            page_id = meta_user.meta_user_id or meta_user.meta_ad_account_id
             for ad in ads:
                 creative_result = await db.execute(
                     select(Creative).where(Creative.id == ad.creative_id)

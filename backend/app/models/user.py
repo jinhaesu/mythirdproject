@@ -30,6 +30,8 @@ class User(Base):
     meta_user_id: Mapped[Optional[str]] = mapped_column(String(255))
     meta_ad_account_id: Mapped[Optional[str]] = mapped_column(String(255))
     meta_ig_account_id: Mapped[Optional[str]] = mapped_column(String(255))
+    meta_page_id: Mapped[Optional[str]] = mapped_column(String(255))  # Facebook Page ID
+    meta_pixel_id: Mapped[Optional[str]] = mapped_column(String(255))  # Meta Conversion Pixel ID
 
     # Brand settings (JSON stored as text for simplicity)
     brand_settings: Mapped[Optional[str]] = mapped_column(Text)  # JSON: logo, colors, etc.

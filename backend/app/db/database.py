@@ -106,3 +106,15 @@ async def init_db():
             )
     except Exception:
         pass  # Column already exists
+
+    # Add meta_page_id and meta_pixel_id to users if missing
+    for col in ["meta_page_id", "meta_pixel_id"]:
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(
+                    __import__('sqlalchemy').text(
+                        f"ALTER TABLE users ADD COLUMN {col} VARCHAR(255)"
+                    )
+                )
+        except Exception:
+            pass

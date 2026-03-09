@@ -405,12 +405,32 @@ async def meta_oauth_callback(
         if ad_accounts and not current_user.meta_ad_account_id:
             current_user.meta_ad_account_id = ad_accounts[0].get("account_id")
 
-        # Save IG Business Account ID from pages
+        # Save Page ID and IG Business Account ID from pages
         for page in pages:
+            if not current_user.meta_page_id and page.get("id"):
+                current_user.meta_page_id = page["id"]
             ig_biz = page.get("instagram_business_account")
             if ig_biz and ig_biz.get("id"):
                 current_user.meta_ig_account_id = ig_biz["id"]
+            if current_user.meta_page_id and current_user.meta_ig_account_id:
                 break
+
+        # Fetch Pixel ID from ad account
+        ad_account_for_pixel = current_user.meta_ad_account_id
+        if ad_account_for_pixel:
+            pixel_prefix = ad_account_for_pixel if ad_account_for_pixel.startswith("act_") else f"act_{ad_account_for_pixel}"
+            try:
+                pixel_response = await client.get(
+                    f"{base_url}/{pixel_prefix}/adspixels",
+                    params={"access_token": long_lived_token, "fields": "id,name"}
+                )
+                if pixel_response.status_code == 200:
+                    pixels = pixel_response.json().get("data", [])
+                    if pixels:
+                        current_user.meta_pixel_id = pixels[0].get("id")
+                        logger.info(f"Saved pixel_id: {current_user.meta_pixel_id}")
+            except Exception as e:
+                logger.warning(f"Failed to fetch pixel: {e}")
 
         await db.commit()
 
@@ -475,6 +495,8 @@ async def disconnect_meta(
     current_user.meta_user_id = None
     current_user.meta_ad_account_id = None
     current_user.meta_ig_account_id = None
+    current_user.meta_page_id = None
+    current_user.meta_pixel_id = None
     await db.commit()
     return {"success": True, "message": "Meta 계정 연동이 해제되었습니다."}
 
