@@ -770,11 +770,22 @@ class AutoPlanResponse(BaseModel):
 
 async def _scrape_product_info(url: str) -> dict:
     """Scrape product info from URL."""
+    import logging
+    logger = logging.getLogger(__name__)
     try:
-        async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=15.0, follow_redirects=True, verify=True) as client:
             resp = await client.get(url, headers={
-                "User-Agent": "Mozilla/5.0 (compatible; MetaCommander/1.0)"
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+                "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
+                "Accept-Encoding": "gzip, deflate, br",
+                "Sec-Fetch-Dest": "document",
+                "Sec-Fetch-Mode": "navigate",
+                "Sec-Fetch-Site": "none",
+                "Sec-Fetch-User": "?1",
+                "Upgrade-Insecure-Requests": "1",
             })
+            logger.info(f"Scrape {url}: status={resp.status_code}")
             html = resp.text[:80000]
 
             def extract_meta(property_name: str) -> Optional[str]:
@@ -832,8 +843,15 @@ async def _scrape_product_info(url: str) -> dict:
                 "price": float(price) if price else None,
                 "source_url": url,
             }
-    except Exception:
-        return {"name": "", "description": "", "source_url": url}
+    except httpx.ConnectError as e:
+        logger.warning(f"Scrape connect error for {url}: {e}")
+        return {"name": "", "description": "", "source_url": url, "scrape_error": "연결 실패"}
+    except httpx.TimeoutException as e:
+        logger.warning(f"Scrape timeout for {url}: {e}")
+        return {"name": "", "description": "", "source_url": url, "scrape_error": "시간 초과"}
+    except Exception as e:
+        logger.warning(f"Scrape failed for {url}: {e}")
+        return {"name": "", "description": "", "source_url": url, "scrape_error": str(e)}
 
 
 @router.post("/auto-plan", response_model=AutoPlanResponse)
@@ -866,7 +884,7 @@ async def auto_plan_campaign(
         raise HTTPException(status_code=400, detail="제품 정보를 확인할 수 없습니다. 제품명을 직접 입력해주세요.")
 
     # Step 2: Get deep Meta context if available
-    svc = MetaAdsService(current_user)
+    svc = await MetaAdsService.create(current_user, db)
     meta_context_text = ""
     if svc.connected:
         try:

@@ -43,9 +43,13 @@ class Settings(BaseSettings):
 
     @property
     def allowed_emails_list(self) -> List[str]:
-        if not self.ALLOWED_EMAILS.strip():
+        raw = self.ALLOWED_EMAILS.strip().strip('\ufeff').replace('\r', '').replace('\n', ',')
+        if not raw:
             return []
-        return [e.strip().lower() for e in self.ALLOWED_EMAILS.split(",")]
+        # Support both comma and semicolon separators
+        import re
+        emails = re.split(r'[,;]+', raw)
+        return [e.strip().lower() for e in emails if e.strip()]
 
     # Chroma Vector DB (로컬 실행, API 키 불필요)
     CHROMA_PERSIST_DIRECTORY: str = "./chroma_data"

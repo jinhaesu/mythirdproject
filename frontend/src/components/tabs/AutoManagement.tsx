@@ -8,7 +8,7 @@ import {
   ChevronDown, ChevronRight, FileText, Mail,
   TrendingUp, TrendingDown, Award, Target, DollarSign,
   Eye, MousePointer, ArrowUpRight, ArrowDownRight,
-  BarChart3, Download,
+  BarChart3, Download, Activity, AlertTriangle, CheckCircle,
 } from 'lucide-react';
 import { analyticsApi } from '@/lib/api';
 import toast from 'react-hot-toast';
@@ -106,7 +106,7 @@ export function AutoManagement() {
   // Schedule form state
   const [schedForm, setSchedForm] = useState({
     name: '', schedule_type: 'weekly', day_of_week: 1, day_of_month: 1,
-    meta_campaign_id: '', lookback_days: 7, email_to: '',
+    send_hour: 9, meta_campaign_id: '', lookback_days: 7, email_to: '',
   });
 
   // Queries
@@ -229,7 +229,7 @@ export function AutoManagement() {
 
   const resetScheduleForm = () => setSchedForm({
     name: '', schedule_type: 'weekly', day_of_week: 1, day_of_month: 1,
-    meta_campaign_id: '', lookback_days: 7, email_to: '',
+    send_hour: 9, meta_campaign_id: '', lookback_days: 7, email_to: '',
   });
 
   const handleCreateRule = () => {
@@ -269,6 +269,7 @@ export function AutoManagement() {
       schedule_type: schedForm.schedule_type,
       day_of_week: schedForm.schedule_type === 'weekly' ? schedForm.day_of_week : undefined,
       day_of_month: schedForm.schedule_type === 'monthly' ? schedForm.day_of_month : undefined,
+      send_hour: schedForm.send_hour,
       meta_campaign_id: schedForm.meta_campaign_id || undefined,
       lookback_days: schedForm.lookback_days,
       email_to: schedForm.email_to || undefined,
@@ -671,7 +672,7 @@ export function AutoManagement() {
         {/* Schedule Form */}
         {showScheduleForm && (
           <div className="px-5 py-4 bg-gray-50 border-b border-gray-100">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
               <input placeholder="스케줄 이름" value={schedForm.name} onChange={(e) => setSchedForm(f => ({ ...f, name: e.target.value }))}
                 className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-200 focus:border-teal-400" />
               <select value={schedForm.schedule_type} onChange={(e) => setSchedForm(f => ({ ...f, schedule_type: e.target.value }))}
@@ -694,6 +695,12 @@ export function AutoManagement() {
                   ))}
                 </select>
               )}
+              <select value={schedForm.send_hour} onChange={(e) => setSchedForm(f => ({ ...f, send_hour: parseInt(e.target.value) }))}
+                className="px-3 py-2 border border-gray-200 rounded-lg text-sm">
+                {Array.from({ length: 24 }, (_, i) => (
+                  <option key={i} value={i}>{String(i).padStart(2, '0')}:00 발송</option>
+                ))}
+              </select>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
               <select value={schedForm.meta_campaign_id} onChange={(e) => setSchedForm(f => ({ ...f, meta_campaign_id: e.target.value }))}
@@ -729,7 +736,7 @@ export function AutoManagement() {
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium text-gray-900">{sched.name}</span>
                   <span className="text-xs bg-teal-100 text-teal-700 px-2 py-0.5 rounded">
-                    {sched.schedule_type === 'weekly' ? `매주 ${['일', '월', '화', '수', '목', '금', '토'][sched.day_of_week || 0]}요일` : `매월 ${sched.day_of_month}일`}
+                    {sched.schedule_type === 'weekly' ? `매주 ${['일', '월', '화', '수', '목', '금', '토'][sched.day_of_week || 0]}요일` : `매월 ${sched.day_of_month}일`} {String(sched.send_hour ?? 9).padStart(2, '0')}:00
                   </span>
                 </div>
                 <p className="text-xs text-gray-500 mt-0.5">
@@ -879,63 +886,74 @@ function ReportNewsletter({ data, onEmail }: { data: any; onEmail?: () => void }
   return (
     <div className="mt-6">
       {/* Action Bar */}
-      <div className="flex items-center justify-end gap-2 mb-3 print:hidden">
+      <div className="flex items-center justify-end gap-2 mb-4 print:hidden">
         <button onClick={handleDownloadPDF} disabled={pdfLoading}
-          className="flex items-center gap-1.5 text-xs bg-gray-100 text-gray-700 px-3 py-2 rounded-lg hover:bg-gray-200 font-medium disabled:opacity-50">
-          {pdfLoading ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />} {pdfLoading ? 'PDF 생성중...' : 'PDF 다운로드'}
+          className="flex items-center gap-2 text-sm bg-gradient-to-r from-gray-700 to-gray-800 text-white px-4 py-2.5 rounded-xl hover:from-gray-800 hover:to-gray-900 font-medium disabled:opacity-50 shadow-sm transition-all">
+          {pdfLoading ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />} {pdfLoading ? 'PDF 생성중...' : 'PDF 다운로드'}
         </button>
         {onEmail && (
           <button onClick={onEmail}
-            className="flex items-center gap-1.5 text-xs bg-purple-100 text-purple-700 px-3 py-2 rounded-lg hover:bg-purple-200 font-medium">
-            <Mail size={14} /> 이메일 발송
+            className="flex items-center gap-2 text-sm bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-4 py-2.5 rounded-xl hover:from-purple-700 hover:to-indigo-700 font-medium shadow-sm transition-all">
+            <Mail size={15} /> 이메일 발송
           </button>
         )}
       </div>
 
-      <div id="report-printable" className="rounded-2xl overflow-hidden border border-gray-200 shadow-lg bg-white">
+      <div id="report-printable" className="rounded-3xl overflow-hidden border border-gray-100 shadow-2xl bg-white">
         {/* Hero Header */}
-        <div className="bg-gradient-to-r from-slate-900 via-blue-900 to-indigo-900 px-8 py-7 relative overflow-hidden">
-          <div className="absolute inset-0 opacity-10">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-white rounded-full -translate-y-1/2 translate-x-1/3" />
-            <div className="absolute bottom-0 left-1/4 w-48 h-48 bg-blue-400 rounded-full translate-y-1/2" />
+        <div className="bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-800 px-10 py-10 relative overflow-hidden">
+          <div className="absolute inset-0">
+            <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-bl from-blue-400/20 to-transparent rounded-full -translate-y-1/2 translate-x-1/3" />
+            <div className="absolute bottom-0 left-0 w-72 h-72 bg-gradient-to-tr from-indigo-500/15 to-transparent rounded-full translate-y-1/3 -translate-x-1/4" />
+            <div className="absolute top-1/2 left-1/2 w-40 h-40 bg-blue-400/10 rounded-full -translate-x-1/2 -translate-y-1/2" />
           </div>
           <div className="relative z-10">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-7 h-7 bg-white/20 rounded-lg flex items-center justify-center">
-                <BarChart3 size={16} className="text-white" />
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-white/15 backdrop-blur-sm rounded-xl flex items-center justify-center border border-white/10">
+                <BarChart3 size={20} className="text-white" />
               </div>
-              <span className="text-blue-200 text-xs font-medium tracking-wider uppercase">Performance Report</span>
+              <div>
+                <span className="text-blue-300 text-[10px] font-semibold tracking-[0.2em] uppercase block">META-COMMANDER</span>
+                <span className="text-white/70 text-xs">Performance Report</span>
+              </div>
             </div>
             {ai?.headline ? (
-              <h2 className="text-xl font-bold text-white leading-snug pr-20">{ai.headline}</h2>
+              <h2 className="text-2xl font-bold text-white leading-snug pr-24 mb-2">{ai.headline}</h2>
             ) : (
-              <h2 className="text-xl font-bold text-white">성과 분석 리포트</h2>
+              <h2 className="text-2xl font-bold text-white mb-2">성과 분석 리포트</h2>
             )}
-            <p className="text-blue-200 text-xs mt-2">
-              {period.start} ~ {period.end}
-              {campaign && <span className="ml-2 px-2 py-0.5 bg-white/10 rounded text-xs">{campaign.name}</span>}
-            </p>
+            <div className="flex items-center gap-3 mt-3">
+              <span className="text-blue-200/80 text-sm font-medium bg-white/10 backdrop-blur-sm px-3 py-1 rounded-lg">
+                {period.start} ~ {period.end}
+              </span>
+              {campaign && <span className="text-blue-200/80 text-sm bg-white/10 backdrop-blur-sm px-3 py-1 rounded-lg">{campaign.name}</span>}
+            </div>
             {ai?.overall_grade && (
-              <div className="absolute top-6 right-8 flex flex-col items-center">
-                <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${gradeGradient} flex items-center justify-center shadow-lg`}>
-                  <span className="text-2xl font-black text-white">{grade}</span>
+              <div className="absolute top-8 right-10 flex flex-col items-center">
+                <div className={`w-20 h-20 rounded-2xl bg-gradient-to-br ${gradeGradient} flex items-center justify-center shadow-2xl ring-4 ring-white/10`}>
+                  <span className="text-3xl font-black text-white drop-shadow-lg">{grade}</span>
                 </div>
-                <span className="text-xs text-blue-200 mt-1">{ai.grade_reason || '종합 등급'}</span>
+                <span className="text-xs text-blue-200/80 mt-2 font-medium">{ai.grade_reason || '종합 등급'}</span>
               </div>
             )}
           </div>
         </div>
 
-        <div className="p-6 space-y-6">
+        <div className="p-8 space-y-8">
           {/* Period Summary */}
           {ai?.period_summary && (
-            <p className="text-gray-600 text-sm leading-relaxed bg-blue-50 rounded-xl p-4 border border-blue-100">
-              {ai.period_summary}
-            </p>
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-5 border border-blue-100/80">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <BarChart3 size={16} className="text-blue-600" />
+                </div>
+                <p className="text-gray-700 text-sm leading-relaxed">{ai.period_summary}</p>
+              </div>
+            </div>
           )}
 
           {/* KPI Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <ReportKPICard icon={<DollarSign size={16} />} label="총 지출" value={formatSpend(totals.spend)} sparkData={spendData} sparkColor="#3b82f6" accent="blue" />
             <ReportKPICard icon={<Eye size={16} />} label="노출" value={formatNum(totals.impressions)} sub={`도달 ${formatNum(totals.reach)}`} sparkData={daily.map((d: any) => parseInt(d.impressions || 0))} sparkColor="#8b5cf6" accent="purple" />
             <ReportKPICard icon={<MousePointer size={16} />} label="클릭" value={formatNum(totals.clicks)} sub={`CTR ${totals.ctr?.toFixed(2) || '0'}%`} sparkData={clickData} sparkColor="#10b981" accent="green" />
@@ -946,18 +964,20 @@ function ReportNewsletter({ data, onEmail }: { data: any; onEmail?: () => void }
           {/* Trend Charts */}
           {daily.length > 1 && (
             <div>
-              <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">일별 추이</h4>
+              <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-[0.15em] mb-4 flex items-center gap-2">
+                <Activity size={14} className="text-blue-500" /> 일별 추이
+              </h4>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {[
-                  { label: '지출', data: spendData, color: '#3b82f6' },
-                  { label: 'ROAS', data: roasData, color: totals.roas >= 1 ? '#10b981' : '#ef4444' },
-                  { label: 'CTR (%)', data: ctrData, color: '#10b981' },
-                  { label: '클릭', data: clickData, color: '#f97316' },
+                  { label: '지출', data: spendData, color: '#3b82f6', bg: 'from-blue-50 to-blue-100/50' },
+                  { label: 'ROAS', data: roasData, color: totals.roas >= 1 ? '#10b981' : '#ef4444', bg: totals.roas >= 1 ? 'from-emerald-50 to-green-100/50' : 'from-red-50 to-red-100/50' },
+                  { label: 'CTR (%)', data: ctrData, color: '#10b981', bg: 'from-emerald-50 to-teal-100/50' },
+                  { label: '클릭', data: clickData, color: '#f97316', bg: 'from-orange-50 to-amber-100/50' },
                 ].map((chart) => (
-                  <div key={chart.label} className="bg-gray-50 rounded-xl p-3 border border-gray-100">
-                    <h5 className="text-xs font-medium text-gray-500 mb-2">{chart.label}</h5>
+                  <div key={chart.label} className={`bg-gradient-to-br ${chart.bg} rounded-2xl p-4 border border-gray-100/80`}>
+                    <h5 className="text-xs font-semibold text-gray-500 mb-3">{chart.label}</h5>
                     <ReportSparkline data={chart.data} color={chart.color} height={60} />
-                    <div className="flex justify-between text-xs text-gray-400 mt-1">
+                    <div className="flex justify-between text-[10px] text-gray-400 mt-2 font-medium">
                       <span>{daily[0]?.date_stop?.slice(5) || ''}</span>
                       <span>{daily[daily.length - 1]?.date_stop?.slice(5) || ''}</span>
                     </div>
@@ -968,31 +988,33 @@ function ReportNewsletter({ data, onEmail }: { data: any; onEmail?: () => void }
           )}
 
           {ai?.daily_trend_insight && (
-            <div className="bg-blue-50 rounded-xl p-3 border border-blue-100">
-              <p className="text-xs text-blue-800 leading-relaxed">{ai.daily_trend_insight}</p>
+            <div className="bg-gradient-to-r from-sky-50 to-blue-50 rounded-2xl p-4 border border-sky-100">
+              <p className="text-sm text-blue-800 leading-relaxed">{ai.daily_trend_insight}</p>
             </div>
           )}
 
           {/* AI KPI Highlights */}
           {ai?.kpi_highlights && ai.kpi_highlights.length > 0 && (
             <div>
-              <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">KPI 하이라이트</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-[0.15em] mb-4 flex items-center gap-2">
+                <Zap size={14} className="text-amber-500" /> KPI 하이라이트
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {ai.kpi_highlights.map((kpi: any, i: number) => (
-                  <div key={i} className="flex items-center gap-3 bg-gray-50 rounded-lg p-3 border border-gray-100">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                      kpi.change?.startsWith('+') ? 'bg-green-100' : kpi.change?.startsWith('-') ? 'bg-red-100' : 'bg-blue-100'
+                  <div key={i} className="flex items-center gap-4 bg-white rounded-xl p-4 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                      kpi.change?.startsWith('+') ? 'bg-gradient-to-br from-green-100 to-emerald-100' : kpi.change?.startsWith('-') ? 'bg-gradient-to-br from-red-100 to-rose-100' : 'bg-gradient-to-br from-blue-100 to-indigo-100'
                     }`}>
-                      {kpi.change?.startsWith('+') ? <ArrowUpRight size={14} className="text-green-600" /> :
-                       kpi.change?.startsWith('-') ? <ArrowDownRight size={14} className="text-red-600" /> :
-                       <TrendingUp size={14} className="text-blue-600" />}
+                      {kpi.change?.startsWith('+') ? <ArrowUpRight size={16} className="text-green-600" /> :
+                       kpi.change?.startsWith('-') ? <ArrowDownRight size={16} className="text-red-600" /> :
+                       <TrendingUp size={16} className="text-blue-600" />}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-semibold text-gray-900">{kpi.metric} {kpi.value}</span>
-                        {kpi.change && <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${kpi.change.startsWith('+') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{kpi.change}</span>}
+                        <span className="text-sm font-bold text-gray-900">{kpi.metric} {kpi.value}</span>
+                        {kpi.change && <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${kpi.change.startsWith('+') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{kpi.change}</span>}
                       </div>
-                      <p className="text-xs text-gray-500 truncate">{kpi.insight}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{kpi.insight}</p>
                     </div>
                   </div>
                 ))}
@@ -1003,49 +1025,51 @@ function ReportNewsletter({ data, onEmail }: { data: any; onEmail?: () => void }
           {/* Daily Data Table */}
           {daily.length > 0 && (
             <div>
-              <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">일별 데이터</h4>
-              <div className="rounded-xl border border-gray-200 overflow-hidden">
+              <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-[0.15em] mb-4 flex items-center gap-2">
+                <Calendar size={14} className="text-indigo-500" /> 일별 데이터
+              </h4>
+              <div className="rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
                     <thead>
-                      <tr className="bg-gray-50 border-b border-gray-200">
-                        <th className="text-left py-2.5 px-3 text-gray-500 font-semibold">날짜</th>
-                        <th className="text-right py-2.5 px-2 text-gray-500 font-semibold">지출</th>
-                        <th className="text-right py-2.5 px-2 text-gray-500 font-semibold">노출</th>
-                        <th className="text-right py-2.5 px-2 text-gray-500 font-semibold">도달</th>
-                        <th className="text-right py-2.5 px-2 text-gray-500 font-semibold">클릭</th>
-                        <th className="text-right py-2.5 px-2 text-gray-500 font-semibold">CTR</th>
-                        <th className="text-right py-2.5 px-2 text-gray-500 font-semibold">CPC</th>
-                        <th className="text-right py-2.5 px-2 text-gray-500 font-semibold">ROAS</th>
+                      <tr className="bg-gradient-to-r from-slate-50 to-gray-50">
+                        <th className="text-left py-3 px-4 text-gray-500 font-semibold text-xs">날짜</th>
+                        <th className="text-right py-3 px-3 text-gray-500 font-semibold text-xs">지출</th>
+                        <th className="text-right py-3 px-3 text-gray-500 font-semibold text-xs">노출</th>
+                        <th className="text-right py-3 px-3 text-gray-500 font-semibold text-xs">도달</th>
+                        <th className="text-right py-3 px-3 text-gray-500 font-semibold text-xs">클릭</th>
+                        <th className="text-right py-3 px-3 text-gray-500 font-semibold text-xs">CTR</th>
+                        <th className="text-right py-3 px-3 text-gray-500 font-semibold text-xs">CPC</th>
+                        <th className="text-right py-3 px-3 text-gray-500 font-semibold text-xs">ROAS</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody>
                       {daily.map((row: any, i: number) => {
                         const roas = parseFloat(row.roas || 0);
                         return (
-                          <tr key={i} className="hover:bg-blue-50/40 transition-colors">
-                            <td className="py-2 px-3 text-gray-700 font-medium">{row.date_stop || row.date || '-'}</td>
-                            <td className="py-2 px-2 text-right font-medium text-gray-900">{formatSpend(row.spend)}</td>
-                            <td className="py-2 px-2 text-right text-gray-600">{formatNum(row.impressions)}</td>
-                            <td className="py-2 px-2 text-right text-gray-600">{formatNum(row.reach)}</td>
-                            <td className="py-2 px-2 text-right text-gray-600">{formatNum(row.clicks)}</td>
-                            <td className="py-2 px-2 text-right text-gray-600">{parseFloat(row.ctr || '0').toFixed(2)}%</td>
-                            <td className="py-2 px-2 text-right text-gray-600">{formatCPC(row.cpc)}</td>
-                            <td className={`py-2 px-2 text-right font-semibold ${roas >= 1 ? 'text-green-600' : roas > 0 ? 'text-red-600' : 'text-gray-400'}`}>{formatROAS(row.roas)}</td>
+                          <tr key={i} className={`hover:bg-blue-50/60 transition-colors ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/40'}`}>
+                            <td className="py-2.5 px-4 text-gray-700 font-medium">{row.date_stop || row.date || '-'}</td>
+                            <td className="py-2.5 px-3 text-right font-semibold text-gray-900">{formatSpend(row.spend)}</td>
+                            <td className="py-2.5 px-3 text-right text-gray-600">{formatNum(row.impressions)}</td>
+                            <td className="py-2.5 px-3 text-right text-gray-600">{formatNum(row.reach)}</td>
+                            <td className="py-2.5 px-3 text-right text-gray-600">{formatNum(row.clicks)}</td>
+                            <td className="py-2.5 px-3 text-right text-gray-600">{parseFloat(row.ctr || '0').toFixed(2)}%</td>
+                            <td className="py-2.5 px-3 text-right text-gray-600">{formatCPC(row.cpc)}</td>
+                            <td className={`py-2.5 px-3 text-right font-bold ${roas >= 1 ? 'text-emerald-600' : roas > 0 ? 'text-red-500' : 'text-gray-400'}`}>{formatROAS(row.roas)}</td>
                           </tr>
                         );
                       })}
                     </tbody>
                     <tfoot>
-                      <tr className="bg-slate-800 text-white font-semibold">
-                        <td className="py-2.5 px-3 text-xs">합계</td>
-                        <td className="py-2.5 px-2 text-right text-xs">{formatSpend(totals.spend)}</td>
-                        <td className="py-2.5 px-2 text-right text-xs">{formatNum(totals.impressions)}</td>
-                        <td className="py-2.5 px-2 text-right text-xs">{formatNum(totals.reach)}</td>
-                        <td className="py-2.5 px-2 text-right text-xs">{formatNum(totals.clicks)}</td>
-                        <td className="py-2.5 px-2 text-right text-xs">{totals.ctr?.toFixed(2) || '0'}%</td>
-                        <td className="py-2.5 px-2 text-right text-xs">{formatCPC(totals.cpc)}</td>
-                        <td className="py-2.5 px-2 text-right text-xs">{formatROAS(totals.roas)}</td>
+                      <tr className="bg-gradient-to-r from-slate-800 to-slate-900 text-white">
+                        <td className="py-3 px-4 text-sm font-bold">합계</td>
+                        <td className="py-3 px-3 text-right text-sm font-bold">{formatSpend(totals.spend)}</td>
+                        <td className="py-3 px-3 text-right text-sm">{formatNum(totals.impressions)}</td>
+                        <td className="py-3 px-3 text-right text-sm">{formatNum(totals.reach)}</td>
+                        <td className="py-3 px-3 text-right text-sm">{formatNum(totals.clicks)}</td>
+                        <td className="py-3 px-3 text-right text-sm">{totals.ctr?.toFixed(2) || '0'}%</td>
+                        <td className="py-3 px-3 text-right text-sm">{formatCPC(totals.cpc)}</td>
+                        <td className="py-3 px-3 text-right text-sm font-bold">{formatROAS(totals.roas)}</td>
                       </tr>
                     </tfoot>
                   </table>
@@ -1057,14 +1081,16 @@ function ReportNewsletter({ data, onEmail }: { data: any; onEmail?: () => void }
           {/* AI Insights */}
           {ai?.key_insights?.length > 0 && (
             <div>
-              <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">핵심 인사이트</h4>
-              <div className="space-y-2">
+              <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-[0.15em] mb-4 flex items-center gap-2">
+                <AlertTriangle size={14} className="text-amber-500" /> 핵심 인사이트
+              </h4>
+              <div className="space-y-3">
                 {ai.key_insights.map((insight: string, i: number) => (
-                  <div key={i} className="flex items-start gap-3 bg-gradient-to-r from-amber-50 to-orange-50 rounded-lg p-3 border border-amber-100">
-                    <div className="w-6 h-6 bg-amber-500 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <span className="text-white text-xs font-bold">{i + 1}</span>
+                  <div key={i} className="flex items-start gap-4 bg-gradient-to-r from-amber-50 via-orange-50 to-yellow-50 rounded-xl p-4 border border-amber-100/80 shadow-sm">
+                    <div className="w-8 h-8 bg-gradient-to-br from-amber-500 to-orange-500 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm">
+                      <span className="text-white text-xs font-black">{i + 1}</span>
                     </div>
-                    <p className="text-xs text-gray-800 leading-relaxed">{insight}</p>
+                    <p className="text-sm text-gray-800 leading-relaxed pt-1">{insight}</p>
                   </div>
                 ))}
               </div>
@@ -1074,24 +1100,27 @@ function ReportNewsletter({ data, onEmail }: { data: any; onEmail?: () => void }
           {/* Recommendations */}
           {ai?.recommendations?.length > 0 && (
             <div>
-              <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">실행 추천</h4>
-              <div className="space-y-2">
+              <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-[0.15em] mb-4 flex items-center gap-2">
+                <CheckCircle size={14} className="text-green-500" /> 실행 추천
+              </h4>
+              <div className="space-y-3">
                 {ai.recommendations.map((rec: any, i: number) => (
-                  <div key={i} className={`rounded-lg p-4 border ${
-                    rec.priority === 'high' ? 'border-red-200 bg-red-50/50' :
-                    rec.priority === 'medium' ? 'border-yellow-200 bg-yellow-50/50' : 'border-gray-200 bg-gray-50/50'
+                  <div key={i} className={`rounded-xl p-5 border-l-4 shadow-sm ${
+                    rec.priority === 'high' ? 'border-l-red-500 bg-gradient-to-r from-red-50 to-white border border-red-100' :
+                    rec.priority === 'medium' ? 'border-l-yellow-500 bg-gradient-to-r from-yellow-50 to-white border border-yellow-100' :
+                    'border-l-gray-400 bg-gradient-to-r from-gray-50 to-white border border-gray-100'
                   }`}>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
                         rec.priority === 'high' ? 'bg-red-600 text-white' :
-                        rec.priority === 'medium' ? 'bg-yellow-600 text-white' : 'bg-gray-500 text-white'
+                        rec.priority === 'medium' ? 'bg-yellow-500 text-white' : 'bg-gray-500 text-white'
                       }`}>{rec.priority === 'high' ? '긴급' : rec.priority === 'medium' ? '중요' : '참고'}</span>
-                      <h5 className="text-xs font-semibold text-gray-900">{rec.title}</h5>
+                      <h5 className="text-sm font-bold text-gray-900">{rec.title}</h5>
                     </div>
-                    <p className="text-xs text-gray-600 leading-relaxed">{rec.description}</p>
+                    <p className="text-sm text-gray-600 leading-relaxed">{rec.description}</p>
                     {rec.expected_impact && (
-                      <div className="mt-1.5 flex items-center gap-1 text-xs text-blue-600">
-                        <Award size={10} /> 예상 효과: {rec.expected_impact}
+                      <div className="mt-2 flex items-center gap-1.5 text-xs text-blue-600 font-medium bg-blue-50 px-3 py-1.5 rounded-lg w-fit">
+                        <Award size={12} /> 예상 효과: {rec.expected_impact}
                       </div>
                     )}
                   </div>
@@ -1102,17 +1131,22 @@ function ReportNewsletter({ data, onEmail }: { data: any; onEmail?: () => void }
 
           {/* Fallback AI text */}
           {!ai && aiText && (
-            <div className="bg-gray-50 rounded-xl p-5 border border-gray-100">
-              <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">AI 분석</h4>
-              <div className="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed">{aiText}</div>
+            <div className="bg-gradient-to-br from-gray-50 to-slate-50 rounded-2xl p-6 border border-gray-100">
+              <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-[0.15em] mb-3">AI 분석</h4>
+              <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{aiText}</div>
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <div className="bg-gray-50 border-t border-gray-200 px-6 py-2.5 flex items-center justify-between">
-          <span className="text-xs text-gray-400">Meta-Commander 자동 생성 리포트</span>
-          <span className="text-xs text-gray-400">{new Date().toLocaleDateString('ko-KR')}</span>
+        <div className="bg-gradient-to-r from-slate-50 to-gray-50 border-t border-gray-100 px-8 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-5 h-5 bg-gradient-to-r from-blue-600 to-indigo-600 rounded flex items-center justify-center">
+              <span className="text-white text-[8px] font-bold">M</span>
+            </div>
+            <span className="text-xs text-gray-400 font-medium">Meta-Commander 자동 생성 리포트</span>
+          </div>
+          <span className="text-xs text-gray-400">{new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
         </div>
       </div>
     </div>
@@ -1124,27 +1158,27 @@ function ReportKPICard({ icon, label, value, sub, sparkData, sparkColor, accent,
   sparkData: number[]; sparkColor: string; accent: string; highlight?: boolean;
 }) {
   const accentBg: Record<string, string> = {
-    blue: 'bg-blue-50', purple: 'bg-purple-50', green: 'bg-green-50',
+    blue: 'bg-blue-50', purple: 'bg-purple-50', green: 'bg-emerald-50',
     orange: 'bg-orange-50', red: 'bg-red-50',
   };
   const accentText: Record<string, string> = {
-    blue: 'text-blue-600', purple: 'text-purple-600', green: 'text-green-600',
+    blue: 'text-blue-600', purple: 'text-purple-600', green: 'text-emerald-600',
     orange: 'text-orange-600', red: 'text-red-600',
   };
 
   return (
-    <div className={`rounded-xl p-4 border transition-all hover:shadow-md ${
-      highlight ? 'border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 ring-1 ring-blue-100' : 'border-gray-200 bg-white hover:border-gray-300'
+    <div className={`rounded-2xl p-4 border transition-all hover:shadow-lg hover:-translate-y-0.5 ${
+      highlight ? 'border-blue-200 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 ring-1 ring-blue-100 shadow-blue-100/50 shadow-md' : 'border-gray-100 bg-white hover:border-gray-200 shadow-sm'
     }`}>
-      <div className="flex items-center gap-2 mb-2">
-        <div className={`p-1.5 rounded-lg ${accentBg[accent]} ${accentText[accent]}`}>{icon}</div>
-        <span className="text-xs text-gray-500 font-medium">{label}</span>
+      <div className="flex items-center gap-2 mb-3">
+        <div className={`p-2 rounded-xl ${accentBg[accent]} ${accentText[accent]}`}>{icon}</div>
+        <span className="text-xs text-gray-500 font-semibold">{label}</span>
       </div>
-      <p className="text-xl font-bold text-gray-900">{value}</p>
-      {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
+      <p className="text-2xl font-black text-gray-900 tracking-tight">{value}</p>
+      {sub && <p className="text-xs text-gray-400 mt-1 font-medium">{sub}</p>}
       {sparkData.length > 1 && (
-        <div className="mt-2 -mx-1">
-          <ReportSparkline data={sparkData} color={sparkColor} height={32} />
+        <div className="mt-3 -mx-1">
+          <ReportSparkline data={sparkData} color={sparkColor} height={36} />
         </div>
       )}
     </div>

@@ -15,6 +15,7 @@ class ScheduledReport(Base):
     schedule_type = Column(String, nullable=False)  # weekly, monthly
     day_of_week = Column(Integer, nullable=True)  # 0-6
     day_of_month = Column(Integer, nullable=True)  # 1-28
+    send_hour = Column(Integer, default=9)  # 0-23 (KST)
 
     meta_campaign_id = Column(String, nullable=True)
     lookback_days = Column(Integer, default=7)

@@ -65,8 +65,8 @@ async def chat(
 
     client = Anthropic(api_key=settings.ANTHROPIC_API_KEY)
 
-    # Build deep Meta context
-    svc = MetaAdsService(current_user)
+    # Build deep Meta context (전체 계정 공유)
+    svc = await MetaAdsService.create(current_user, db)
     meta_context = ""
     if svc.connected:
         try:

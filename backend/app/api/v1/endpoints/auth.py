@@ -22,6 +22,14 @@ settings = get_settings()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/verify-magic-link")
 
 
+async def get_shared_meta_credentials(db: AsyncSession):
+    """전체 계정에서 공유하는 Meta 인증 정보를 가져온다 (최초 1회 인증으로 전체 공유)."""
+    result = await db.execute(
+        select(User).where(User.meta_access_token.isnot(None), User.meta_access_token != "").limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
 async def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],
     db: AsyncSession = Depends(get_db)
@@ -60,10 +68,12 @@ async def send_magic_link(
 
     # Check email whitelist
     allowed = settings.allowed_emails_list
+    logger.info(f"Login attempt: {email}, allowed_list: {allowed}")
     if allowed and email not in allowed:
+        logger.warning(f"Email rejected: '{email}' not in {allowed}")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="허가되지 않은 이메일입니다."
+            detail=f"허가되지 않은 이메일입니다. ({email})"
         )
 
     # Create magic link token
@@ -162,8 +172,14 @@ async def verify_magic_link(
 
 
 @router.get("/me", response_model=UserResponse)
-async def get_me(current_user: User = Depends(get_current_user)):
-    """Get current user info."""
+async def get_me(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get current user info. Meta 인증은 전체 계정 공유."""
+    # Meta 인증 정보는 전체 계정에서 공유
+    meta_user = current_user if current_user.meta_access_token else await get_shared_meta_credentials(db)
+    meta_connected = bool(meta_user and meta_user.meta_access_token)
     return UserResponse(
         id=current_user.id,
         email=current_user.email,
@@ -171,10 +187,10 @@ async def get_me(current_user: User = Depends(get_current_user)):
         company_name=current_user.company_name,
         is_active=current_user.is_active,
         created_at=current_user.created_at,
-        meta_connected=bool(current_user.meta_access_token),
-        meta_user_id=current_user.meta_user_id,
-        meta_ad_account_id=current_user.meta_ad_account_id,
-        meta_ig_account_id=current_user.meta_ig_account_id,
+        meta_connected=meta_connected,
+        meta_user_id=meta_user.meta_user_id if meta_user else None,
+        meta_ad_account_id=meta_user.meta_ad_account_id if meta_user else None,
+        meta_ig_account_id=meta_user.meta_ig_account_id if meta_user else None,
         brand_settings=None,
     )
 
@@ -466,20 +482,22 @@ async def disconnect_meta(
 @router.get("/meta/status")
 async def get_meta_connection_status(
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
-    """Meta 연결 상태 확인."""
-    connected = bool(current_user.meta_access_token)
+    """Meta 연결 상태 확인 (전체 계정 공유)."""
+    meta_user = current_user if current_user.meta_access_token else await get_shared_meta_credentials(db)
+    connected = bool(meta_user and meta_user.meta_access_token)
     result = {
         "connected": connected,
-        "meta_user_id": current_user.meta_user_id,
-        "meta_ad_account_id": current_user.meta_ad_account_id,
+        "meta_user_id": meta_user.meta_user_id if meta_user else None,
+        "meta_ad_account_id": meta_user.meta_ad_account_id if meta_user else None,
     }
 
     # Verify token is still valid
-    if connected:
+    if connected and meta_user:
         from app.services.meta import MetaGraphAPI
         try:
-            meta_api = MetaGraphAPI(current_user.meta_access_token)
+            meta_api = MetaGraphAPI(meta_user.meta_access_token)
             profile = await meta_api.get_user_profile()
             result["meta_name"] = profile.get("name")
             result["token_valid"] = True

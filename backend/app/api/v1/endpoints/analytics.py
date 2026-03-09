@@ -26,7 +26,7 @@ from app.schemas.analytics import (
     PerformanceDashboardResponse,
     LearnFromPerformanceRequest, LearnFromPerformanceResponse
 )
-from app.api.v1.endpoints.auth import get_current_user
+from app.api.v1.endpoints.auth import get_current_user, get_shared_meta_credentials
 from app.services.ai import ClaudeService
 from app.services.meta_ads_service import MetaAdsService
 from app.services.rule_engine import run_rules
@@ -34,6 +34,23 @@ from app.services.rule_engine import run_rules
 logger = logging.getLogger(__name__)
 router = APIRouter()
 settings = get_settings()
+
+
+async def _get_meta_svc(current_user: User, db: AsyncSession) -> MetaAdsService:
+    """Meta 인증 전체 계정 공유 방식으로 MetaAdsService 생성."""
+    shared = await get_shared_meta_credentials(db) if not current_user.meta_access_token else None
+    return MetaAdsService(current_user, shared_meta_user=shared)
+
+
+def _get_meta_token_and_account(current_user: User, shared_meta_user=None):
+    """현재 유저 또는 공유 Meta 인증에서 토큰/계정 가져오기."""
+    source = current_user if current_user.meta_access_token else shared_meta_user
+    if not source or not source.meta_access_token:
+        return None, None
+    ad_account_id = source.meta_ad_account_id or ""
+    if ad_account_id and not ad_account_id.startswith("act_"):
+        ad_account_id = f"act_{ad_account_id}"
+    return source.meta_access_token, ad_account_id
 
 # Throttle for background rule runs
 _last_auto_run: dict[str, datetime] = {}
@@ -49,9 +66,10 @@ async def get_account_overview(
     since: Optional[str] = Query(default=None),
     until: Optional[str] = Query(default=None),
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """Get complete ad account overview: all campaigns, ad sets, ads with insights."""
-    svc = MetaAdsService(current_user)
+    svc = await MetaAdsService.create(current_user, db)
     if not svc.connected:
         return {"connected": False, "error": "Meta 계정을 먼저 연동해주세요."}
 
@@ -68,9 +86,10 @@ async def get_campaign_adsets(
     campaign_id: str,
     date_preset: str = Query(default="last_7d"),
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """Load adsets + ads for a single campaign (on-demand when user expands)."""
-    svc = MetaAdsService(current_user)
+    svc = await MetaAdsService.create(current_user, db)
     if not svc.connected:
         raise HTTPException(status_code=400, detail="Meta 계정이 연동되지 않았습니다.")
     adsets = await svc.get_campaign_adsets(campaign_id, date_preset)
@@ -86,9 +105,10 @@ async def get_campaign_deep_analysis(
     campaign_id: str,
     date_preset: str = Query(default="last_7d"),
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """Deep analysis of a single campaign: daily trend, demographics, placements."""
-    svc = MetaAdsService(current_user)
+    svc = await MetaAdsService.create(current_user, db)
     if not svc.connected:
         raise HTTPException(status_code=400, detail="Meta 계정이 연동되지 않았습니다.")
 
@@ -107,11 +127,12 @@ async def get_ai_analysis(
     request: AIAnalysisRequest = AIAnalysisRequest(),
     date_preset: str = Query(default="last_7d"),
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     AI-powered analysis. Accepts cached overview data to avoid double-fetching.
     """
-    svc = MetaAdsService(current_user)
+    svc = await MetaAdsService.create(current_user, db)
     if not svc.connected:
         return {"connected": False, "recommendations": [], "error": "Meta 계정을 연동해주세요."}
 
@@ -176,9 +197,10 @@ class BudgetUpdateRequest(BaseModel):
 async def update_status(
     request: StatusUpdateRequest,
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """Toggle campaign/adset/ad status on Meta."""
-    svc = MetaAdsService(current_user)
+    svc = await MetaAdsService.create(current_user, db)
     if not svc.connected:
         raise HTTPException(status_code=400, detail="Meta 계정이 연동되지 않았습니다.")
 
@@ -201,9 +223,10 @@ async def update_status(
 async def update_budget(
     request: BudgetUpdateRequest,
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """Update budget for campaign or ad set on Meta."""
-    svc = MetaAdsService(current_user)
+    svc = await MetaAdsService.create(current_user, db)
     if not svc.connected:
         raise HTTPException(status_code=400, detail="Meta 계정이 연동되지 않았습니다.")
 
@@ -230,9 +253,10 @@ async def get_account_trend(
     since: Optional[str] = Query(default=None),
     until: Optional[str] = Query(default=None),
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """Get daily account-level trend for charts."""
-    svc = MetaAdsService(current_user)
+    svc = await MetaAdsService.create(current_user, db)
     if not svc.connected:
         return {"connected": False, "data": []}
 
@@ -432,7 +456,7 @@ async def get_overall_summary(
 ):
     """Get overall performance summary."""
     # If Meta connected, use real data
-    svc = MetaAdsService(current_user)
+    svc = await MetaAdsService.create(current_user, db)
     if svc.connected:
         overview = await svc.get_account_overview(f"last_{days}d")
         return {
@@ -476,9 +500,10 @@ async def get_overall_summary(
 async def get_meta_campaigns(
     date_preset: str = Query(default="last_7d"),
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """Meta API에서 실제 캠페인 목록 직접 조회."""
-    svc = MetaAdsService(current_user)
+    svc = await MetaAdsService.create(current_user, db)
     if not svc.connected:
         return {"connected": False, "campaigns": [], "message": "Meta 계정을 연동해주세요."}
 
@@ -749,8 +774,12 @@ async def generate_report(
     report_data = {"period": {"start": request.start_date, "end": request.end_date}}
     base_url = f"{settings.META_GRAPH_API_BASE}/{settings.META_API_VERSION}"
 
-    if current_user.meta_access_token and current_user.meta_ad_account_id:
-        ad_account_id = current_user.meta_ad_account_id
+    # Meta 인증 전체 계정 공유
+    meta_source = current_user if current_user.meta_access_token else await get_shared_meta_credentials(db)
+    meta_token, meta_ad_account = _get_meta_token_and_account(current_user, meta_source)
+
+    if meta_token and meta_ad_account:
+        ad_account_id = meta_ad_account
         if not ad_account_id.startswith("act_"):
             ad_account_id = f"act_{ad_account_id}"
         # Use campaign-level or account-level endpoint
@@ -760,7 +789,7 @@ async def generate_report(
                 resp = await client.get(
                     f"{base_url}/{insights_endpoint}",
                     params={
-                        "access_token": current_user.meta_access_token,
+                        "access_token": meta_token,
                         "fields": "spend,impressions,reach,clicks,ctr,cpc,cpm,actions,cost_per_action_type,action_values,purchase_roas,website_purchase_roas",
                         "time_range": json.dumps({"since": request.start_date, "until": request.end_date}),
                         "time_increment": 1,
@@ -812,7 +841,7 @@ async def generate_report(
                     camp_resp = await client.get(
                         f"{base_url}/{request.meta_campaign_id}",
                         params={
-                            "access_token": current_user.meta_access_token,
+                            "access_token": meta_token,
                             "fields": "name,status,objective",
                         }
                     )
@@ -1213,7 +1242,7 @@ async def execute_rules(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    svc = MetaAdsService(current_user)
+    svc = await MetaAdsService.create(current_user, db)
     if not svc.connected:
         raise HTTPException(400, "Meta 계정을 먼저 연동해주세요.")
     results = await run_rules(db, str(current_user.id), svc)
@@ -1246,9 +1275,10 @@ async def get_rule_logs(
 async def ai_recommend_rules(
     request: AIAnalysisRequest = AIAnalysisRequest(),
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """AI 기반 자동 관리 룰 추천."""
-    svc = MetaAdsService(current_user)
+    svc = await MetaAdsService.create(current_user, db)
     if not svc.connected:
         raise HTTPException(400, "Meta 계정을 먼저 연동해주세요.")
 
@@ -1296,6 +1326,7 @@ class ScheduleCreate(BaseModel):
     schedule_type: str
     day_of_week: Optional[int] = None
     day_of_month: Optional[int] = None
+    send_hour: int = 9
     meta_campaign_id: Optional[str] = None
     lookback_days: int = 7
     email_to: Optional[str] = None
@@ -1306,29 +1337,38 @@ class ScheduleUpdate(BaseModel):
     schedule_type: Optional[str] = None
     day_of_week: Optional[int] = None
     day_of_month: Optional[int] = None
+    send_hour: Optional[int] = None
     lookback_days: Optional[int] = None
     email_to: Optional[str] = None
 
 
 def _calc_next_run(sched):
     now = datetime.utcnow()
+    hour = sched.send_hour if sched.send_hour is not None else 9
+    # KST(UTC+9) → UTC 변환
+    utc_hour = (hour - 9) % 24
     if sched.schedule_type == "weekly":
         days_ahead = (sched.day_of_week or 0) - now.weekday()
         if days_ahead <= 0:
             days_ahead += 7
-        return now.replace(hour=9, minute=0, second=0, microsecond=0) + timedelta(days=days_ahead)
+        target = now.replace(hour=utc_hour, minute=0, second=0, microsecond=0) + timedelta(days=days_ahead)
+        # KST 기준으로 하루가 넘어가는 경우 보정 (예: KST 0~8시 → UTC 전날)
+        if hour < 9:
+            target -= timedelta(days=1)
+        return target
     else:
         dom = sched.day_of_month or 1
         m = now.month + 1 if now.day >= dom else now.month
         y = now.year + (1 if m > 12 else 0)
         m = m if m <= 12 else m - 12
-        return datetime(y, m, dom, 9, 0, 0)
+        return datetime(y, m, dom, utc_hour, 0, 0)
 
 
 def _sched_dict(s):
     return {
         "id": s.id, "name": s.name, "schedule_type": s.schedule_type,
         "day_of_week": s.day_of_week, "day_of_month": s.day_of_month,
+        "send_hour": s.send_hour if s.send_hour is not None else 9,
         "meta_campaign_id": s.meta_campaign_id, "lookback_days": s.lookback_days,
         "email_to": s.email_to, "enabled": s.enabled,
         "last_run_at": s.last_run_at.isoformat() if s.last_run_at else None,

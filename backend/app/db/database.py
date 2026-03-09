@@ -84,3 +84,14 @@ async def init_db():
             )
     except Exception:
         pass  # Column already exists
+
+    # Add send_hour column to scheduled_reports if missing
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(
+                __import__('sqlalchemy').text(
+                    "ALTER TABLE scheduled_reports ADD COLUMN send_hour INTEGER DEFAULT 9"
+                )
+            )
+    except Exception:
+        pass  # Column already exists

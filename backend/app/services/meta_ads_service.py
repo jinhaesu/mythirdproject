@@ -15,13 +15,27 @@ settings = get_settings()
 class MetaAdsService:
     """Fetch Meta ad account data with minimal API calls using field expansion."""
 
-    def __init__(self, user: User):
+    def __init__(self, user: User, shared_meta_user: User = None):
         self.user = user
-        self.access_token = user.meta_access_token
-        self.ad_account_id = user.meta_ad_account_id or ""
+        # Meta 인증은 전체 계정 공유: 현재 유저에게 없으면 공유 유저에서 가져옴
+        meta_source = user if user.meta_access_token else shared_meta_user
+        self.access_token = meta_source.meta_access_token if meta_source else None
+        self.ad_account_id = (meta_source.meta_ad_account_id if meta_source else None) or ""
         if self.ad_account_id and not self.ad_account_id.startswith("act_"):
             self.ad_account_id = f"act_{self.ad_account_id}"
         self.base_url = f"{settings.META_GRAPH_API_BASE}/{settings.META_API_VERSION}"
+
+    @classmethod
+    async def create(cls, user: User, db=None) -> "MetaAdsService":
+        """Meta 인증 전체 계정 공유 방식으로 인스턴스 생성 (async factory)."""
+        shared = None
+        if not user.meta_access_token and db is not None:
+            from sqlalchemy import select as sa_select
+            result = await db.execute(
+                sa_select(User).where(User.meta_access_token.isnot(None), User.meta_access_token != "").limit(1)
+            )
+            shared = result.scalar_one_or_none()
+        return cls(user, shared_meta_user=shared)
 
     @property
     def connected(self) -> bool:
