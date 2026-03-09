@@ -270,7 +270,8 @@ async def publish_campaign(
         if not meta_campaign_id:
             raise Exception(f"Meta 캠페인 생성 실패: {campaign_result}")
         campaign.meta_campaign_id = meta_campaign_id
-        logger.info(f"Meta campaign created: {meta_campaign_id}")
+        meta_objective = meta_api._map_objective(campaign.objective)
+        logger.info(f"Meta campaign created: {meta_campaign_id}, objective={meta_objective}")
 
         # 2. Create AdSets - 기획 세그먼트별 or 단일
         adset_ids = []
@@ -304,6 +305,7 @@ async def publish_campaign(
                     name=f"{campaign.name} - {seg_name}",
                     daily_budget=seg_budget_cents,
                     targeting=seg_targeting,
+                    objective=meta_objective,
                     start_time=campaign.start_date,
                     end_time=campaign.end_date
                 )
@@ -326,6 +328,7 @@ async def publish_campaign(
                 name=f"{campaign.name} - AdSet",
                 daily_budget=daily_budget_cents,
                 targeting=targeting,
+                objective=meta_objective,
                 start_time=campaign.start_date,
                 end_time=campaign.end_date
             )

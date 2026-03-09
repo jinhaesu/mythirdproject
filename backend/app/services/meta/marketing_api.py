@@ -135,27 +135,39 @@ class MetaMarketingAPI:
             }
         )
 
+    def _map_optimization_goal(self, objective: str) -> str:
+        """캠페인 목표에 맞는 광고세트 최적화 목표 매핑."""
+        mapping = {
+            "OUTCOME_TRAFFIC": "LINK_CLICKS",
+            "OUTCOME_SALES": "OFFSITE_CONVERSIONS",
+            "OUTCOME_LEADS": "LEAD_GENERATION",
+        }
+        return mapping.get(objective, "LINK_CLICKS")
+
     async def create_adset(
         self,
         campaign_id: str,
         name: str,
         daily_budget: int,  # In cents
         targeting: TargetingConfig,
+        objective: Optional[str] = None,
         start_time: Optional[datetime] = None,
         end_time: Optional[datetime] = None,
-        optimization_goal: str = "LINK_CLICKS"
     ) -> Dict[str, Any]:
         """
         Create an ad set within a campaign.
 
         Returns adset ID on success.
         """
+        optimization_goal = self._map_optimization_goal(objective or "OUTCOME_TRAFFIC")
+
         data = {
             "name": name,
             "campaign_id": campaign_id,
             "daily_budget": daily_budget,
             "billing_event": "IMPRESSIONS",
             "optimization_goal": optimization_goal,
+            "bid_strategy": "LOWEST_COST_WITHOUT_CAP",
             "targeting": self._build_targeting_spec(targeting),
             "status": "PAUSED"
         }
