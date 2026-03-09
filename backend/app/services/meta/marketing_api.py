@@ -131,7 +131,7 @@ class MetaMarketingAPI:
                 "objective": self._map_objective(objective),
                 "status": status,
                 "special_ad_categories": ["NONE"],
-                "is_budget_schedule_enabled": False,
+                "is_adset_budget_sharing_enabled": False,
             }
         )
 
