@@ -271,7 +271,7 @@ async def publish_campaign(
             total_budget = campaign.daily_budget or (campaign.total_budget / 7)
             for seg in segments:
                 seg_ratio = float(seg.get('ratio', 100 / len(segments))) / 100
-                seg_budget_cents = max(int(total_budget * seg_ratio * 100), 100)  # 최소 $1
+                seg_budget_cents = max(round(total_budget * seg_ratio * 100), 100)  # 최소 100센트
 
                 # 세그먼트 타겟팅 구성
                 seg_targeting = TargetingConfig()
@@ -305,7 +305,7 @@ async def publish_campaign(
                 except Exception:
                     pass
 
-            daily_budget_cents = int((campaign.daily_budget or campaign.total_budget / 7) * 100)
+            daily_budget_cents = round((campaign.daily_budget or campaign.total_budget / 7) * 100)
             adset_result = await meta_api.create_adset(
                 campaign_id=meta_campaign_id,
                 name=f"{campaign.name} - AdSet",

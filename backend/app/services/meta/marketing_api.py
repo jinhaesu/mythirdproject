@@ -1,12 +1,15 @@
 """Meta Marketing API integration for ad management."""
 from typing import Optional, List, Dict, Any
 from datetime import datetime
+import json as json_module
+import logging
 import httpx
 
 from app.core.config import get_settings
 from app.schemas.campaign import TargetingConfig, CampaignObjective
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 
 class MetaMarketingAPI:
@@ -14,7 +17,9 @@ class MetaMarketingAPI:
 
     def __init__(self, access_token: str, ad_account_id: str):
         self.access_token = access_token
-        self.ad_account_id = ad_account_id
+        # act_ 접두사 정규화 — 이중 접두사 방지
+        raw = ad_account_id or ""
+        self.ad_account_id = raw if raw.startswith("act_") else f"act_{raw}"
         self.base_url = f"{settings.META_GRAPH_API_BASE}/{settings.META_API_VERSION}"
 
     async def _request(
@@ -28,13 +33,32 @@ class MetaMarketingAPI:
         params = params or {}
         params["access_token"] = self.access_token
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=30.0) as client:
             url = f"{self.base_url}/{endpoint}"
             if method == "GET":
                 response = await client.get(url, params=params)
             else:
+                # nested dict는 JSON 문자열로 변환해서 form data로 전송
+                if data:
+                    flat_data = {}
+                    for k, v in data.items():
+                        if isinstance(v, (dict, list)):
+                            flat_data[k] = json_module.dumps(v)
+                        else:
+                            flat_data[k] = v
+                    data = flat_data
                 response = await client.request(method, url, params=params, data=data)
-            response.raise_for_status()
+
+            if response.status_code >= 400:
+                error_body = response.text
+                logger.error(f"Meta API error {response.status_code}: {error_body}")
+                try:
+                    error_json = response.json()
+                    error_msg = error_json.get("error", {}).get("message", error_body)
+                except Exception:
+                    error_msg = error_body
+                raise Exception(f"Meta API 오류 ({response.status_code}): {error_msg}")
+
             return response.json()
 
     def _map_objective(self, objective: CampaignObjective) -> str:
@@ -76,7 +100,7 @@ class MetaMarketingAPI:
         """Get ad account information."""
         return await self._request(
             "GET",
-            f"act_{self.ad_account_id}",
+            f"{self.ad_account_id}",
             params={"fields": "id,name,currency,timezone_name,amount_spent"}
         )
 
@@ -93,7 +117,7 @@ class MetaMarketingAPI:
         """
         return await self._request(
             "POST",
-            f"act_{self.ad_account_id}/campaigns",
+            f"{self.ad_account_id}/campaigns",
             data={
                 "name": name,
                 "objective": self._map_objective(objective),
@@ -134,7 +158,7 @@ class MetaMarketingAPI:
 
         return await self._request(
             "POST",
-            f"act_{self.ad_account_id}/adsets",
+            f"{self.ad_account_id}/adsets",
             data=data
         )
 
@@ -176,7 +200,7 @@ class MetaMarketingAPI:
 
         return await self._request(
             "POST",
-            f"act_{self.ad_account_id}/adcreatives",
+            f"{self.ad_account_id}/adcreatives",
             data={
                 "name": name,
                 "object_story_spec": object_story_spec
@@ -197,7 +221,7 @@ class MetaMarketingAPI:
         """
         return await self._request(
             "POST",
-            f"act_{self.ad_account_id}/ads",
+            f"{self.ad_account_id}/ads",
             data={
                 "name": name,
                 "adset_id": adset_id,
@@ -294,7 +318,7 @@ class MetaMarketingAPI:
         """Upload image from URL for ad creative."""
         return await self._request(
             "POST",
-            f"act_{self.ad_account_id}/adimages",
+            f"{self.ad_account_id}/adimages",
             data={"url": image_url}
         )
 
@@ -306,7 +330,7 @@ class MetaMarketingAPI:
         """Upload video from URL for ad creative."""
         return await self._request(
             "POST",
-            f"act_{self.ad_account_id}/advideos",
+            f"{self.ad_account_id}/advideos",
             data={
                 "file_url": video_url,
                 "title": title
