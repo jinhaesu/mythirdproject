@@ -96,9 +96,13 @@ class MetaMarketingAPI:
             spec["genders"] = [gender_map[g] for g in targeting.genders if g in gender_map]
 
         if targeting.interests.interests:
-            spec["flexible_spec"] = [{
-                "interests": [{"id": i} for i in targeting.interests.interests]
-            }]
+            # Meta는 숫자 ID만 허용 — 문자열 관심사명은 제외
+            valid_interests = [
+                {"id": i} for i in targeting.interests.interests
+                if str(i).isdigit()
+            ]
+            if valid_interests:
+                spec["flexible_spec"] = [{"interests": valid_interests}]
 
         if targeting.geo.cities:
             spec["geo_locations"]["cities"] = [
