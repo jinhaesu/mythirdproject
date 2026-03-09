@@ -35,6 +35,7 @@ class MetaMarketingAPI:
 
         async with httpx.AsyncClient(timeout=30.0) as client:
             url = f"{self.base_url}/{endpoint}"
+            logger.info(f"Meta API {method} {endpoint} data_keys={list((data or {}).keys())}")
             if method == "GET":
                 response = await client.get(url, params=params)
             else:
@@ -51,13 +52,20 @@ class MetaMarketingAPI:
 
             if response.status_code >= 400:
                 error_body = response.text
-                logger.error(f"Meta API error {response.status_code}: {error_body}")
+                logger.error(f"Meta API error {response.status_code} [{method} {endpoint}]: {error_body}")
                 try:
                     error_json = response.json()
-                    error_msg = error_json.get("error", {}).get("message", error_body)
+                    error_obj = error_json.get("error", {})
+                    # Meta provides error_user_msg for more detail
+                    error_msg = error_obj.get("error_user_msg") or error_obj.get("message", error_body)
+                    error_code = error_obj.get("code", "")
+                    error_subcode = error_obj.get("error_subcode", "")
+                    detail = f"{error_msg}"
+                    if error_subcode:
+                        detail += f" (code={error_code}, subcode={error_subcode})"
                 except Exception:
-                    error_msg = error_body
-                raise Exception(f"Meta API 오류 ({response.status_code}): {error_msg}")
+                    detail = error_body
+                raise Exception(f"Meta API 오류 ({response.status_code}): {detail}")
 
             return response.json()
 
@@ -122,7 +130,7 @@ class MetaMarketingAPI:
                 "name": name,
                 "objective": self._map_objective(objective),
                 "status": status,
-                "special_ad_categories": []
+                "special_ad_categories": ["NONE"]
             }
         )
 
