@@ -155,10 +155,21 @@ export function AdsController() {
 
   const publishMutation = useMutation({
     mutationFn: (campaignId: number) => campaignApi.publish(campaignId),
-    onSuccess: (data) => { data.success ? (refetchCampaigns(), toast.success(data.message)) : toast.error(data.message || '발행 실패'); },
+    onSuccess: (data) => {
+      if (data.success) {
+        refetchCampaigns();
+        toast.success(data.message || 'Meta 발행 완료');
+      } else {
+        toast.error(data.message || '발행 실패');
+      }
+    },
     onError: (err: any) => {
       const detail = err?.response?.data?.detail;
-      const msg = typeof detail === 'string' ? detail : '발행 실패 - Meta 계정 연동 상태를 확인해주세요.';
+      const message = err?.response?.data?.message;
+      const msg = typeof detail === 'string' ? detail
+        : typeof message === 'string' ? message
+        : Array.isArray(detail) ? detail.map((d: any) => d.msg).join(', ')
+        : err?.message || '발행 실패 - 네트워크 또는 서버 오류';
       toast.error(msg);
     },
   });

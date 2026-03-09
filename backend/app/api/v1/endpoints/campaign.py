@@ -208,15 +208,23 @@ async def publish_campaign(
     """
     # 공유 Meta 인증 사용
     meta_user = current_user
+    logger.info(f"[Publish] user={current_user.id}, has_token={bool(current_user.meta_access_token)}, ad_account={current_user.meta_ad_account_id}")
     if not meta_user.meta_access_token:
         shared = await get_shared_meta_credentials(db)
         if shared:
             meta_user = shared
+            logger.info(f"[Publish] Using shared credentials from user={shared.id}, ad_account={shared.meta_ad_account_id}")
+        else:
+            logger.warning("[Publish] No shared credentials found")
 
     if not meta_user.meta_access_token or not meta_user.meta_ad_account_id:
-        raise HTTPException(
-            status_code=400,
-            detail="Meta 계정이 연동되지 않았습니다. 설정에서 Meta를 연동해주세요."
+        logger.error(f"[Publish] Missing credentials: token={bool(meta_user.meta_access_token)}, ad_account={meta_user.meta_ad_account_id}")
+        return PublishResponse(
+            success=False,
+            meta_campaign_id=None,
+            meta_adset_id=None,
+            status="FAILED",
+            message="Meta 계정이 연동되지 않았습니다. 설정에서 Meta를 연동해주세요."
         )
 
     # Get campaign
@@ -227,10 +235,16 @@ async def publish_campaign(
     campaign = result.scalar_one_or_none()
 
     if not campaign:
-        raise HTTPException(status_code=404, detail="캠페인을 찾을 수 없습니다.")
+        return PublishResponse(
+            success=False, meta_campaign_id=None, meta_adset_id=None,
+            status="FAILED", message="캠페인을 찾을 수 없습니다."
+        )
 
     if campaign.status not in [CampaignStatus.DRAFT, CampaignStatus.PAUSED]:
-        raise HTTPException(status_code=400, detail=f"현재 상태({campaign.status.value})에서는 발행할 수 없습니다.")
+        return PublishResponse(
+            success=False, meta_campaign_id=None, meta_adset_id=None,
+            status="FAILED", message=f"현재 상태({campaign.status.value})에서는 발행할 수 없습니다."
+        )
 
     # Get ads
     ads_result = await db.execute(
@@ -242,6 +256,7 @@ async def publish_campaign(
         meta_user.meta_access_token,
         meta_user.meta_ad_account_id
     )
+    logger.info(f"[Publish] Meta API init: ad_account={meta_api.ad_account_id}, campaign='{campaign.name}', ads={len(ads)}")
 
     try:
         # 1. Create Campaign on Meta
@@ -377,10 +392,14 @@ async def publish_campaign(
 
     except Exception as e:
         logger.error(f"Campaign publish failed: {e}", exc_info=True)
+        error_msg = str(e)
+        logger.error(f"[Publish] Failed: {error_msg}", exc_info=True)
         return PublishResponse(
             success=False,
+            meta_campaign_id=campaign.meta_campaign_id,
+            meta_adset_id=None,
             status="FAILED",
-            message=f"발행 실패: {str(e)}"
+            message=f"발행 실패: {error_msg}"
         )
 
 
