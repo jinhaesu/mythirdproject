@@ -447,6 +447,41 @@ async def list_campaigns(
     return responses
 
 
+@router.delete("/{campaign_id}")
+async def delete_campaign(
+    campaign_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """캠페인 삭제 (DRAFT/COMPLETED 상태만 가능)."""
+    result = await db.execute(
+        select(Campaign)
+        .where(Campaign.id == campaign_id, Campaign.user_id == current_user.id)
+    )
+    campaign = result.scalar_one_or_none()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="캠페인을 찾을 수 없습니다.")
+
+    if campaign.status not in [CampaignStatus.DRAFT, CampaignStatus.COMPLETED]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"현재 상태({campaign.status.value})에서는 삭제할 수 없습니다. 초안 또는 완료 상태에서만 삭제 가능합니다."
+        )
+
+    # Delete associated ads first
+    ads_result = await db.execute(
+        select(Ad).where(Ad.campaign_id == campaign.id)
+    )
+    ads = ads_result.scalars().all()
+    for ad in ads:
+        await db.delete(ad)
+
+    await db.delete(campaign)
+    await db.commit()
+
+    return {"success": True, "message": "캠페인이 삭제되었습니다."}
+
+
 @router.patch("/{campaign_id}", response_model=CampaignResponse)
 async def update_campaign(
     campaign_id: int,

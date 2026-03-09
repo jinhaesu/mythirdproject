@@ -3,9 +3,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import {
-  Target, DollarSign, Zap, Upload, CheckCircle,
-  Play, Pause, Settings, ChevronDown, ChevronUp, RefreshCw, Info, X,
-  Users, MapPin, Crosshair, Layers, Edit3, Eye
+  Target, Zap, Upload, CheckCircle, Trash2,
+  Play, Pause, ChevronDown, ChevronUp, RefreshCw, Info, X,
+  Users, MapPin, Crosshair, Layers, Eye
 } from 'lucide-react';
 import { Button, Input, Card, CardTitle, Select } from '@/components/ui';
 import { campaignApi } from '@/lib/api';
@@ -640,6 +640,21 @@ function CampaignCard({
     onError: () => toast.error('동기화 실패'),
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: () => campaignApi.delete(campaign.id),
+    onSuccess: () => { onRefresh(); toast.success('캠페인이 삭제되었습니다'); },
+    onError: (err: any) => {
+      const detail = err?.response?.data?.detail;
+      toast.error(typeof detail === 'string' ? detail : '삭제 실패');
+    },
+  });
+
+  const handleDelete = () => {
+    if (window.confirm(`"${campaign.name}" 캠페인을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`)) {
+      deleteMutation.mutate();
+    }
+  };
+
   const statusConfig: Record<string, { color: string; label: string }> = {
     DRAFT: { color: 'bg-gray-100 text-gray-700', label: '초안' },
     PENDING_REVIEW: { color: 'bg-yellow-100 text-yellow-700', label: '검토 대기' },
@@ -735,6 +750,12 @@ function CampaignCard({
                 성과 분석
               </Button>
             </>
+          )}
+          {(campaign.status === 'DRAFT' || campaign.status === 'COMPLETED') && (
+            <Button size="sm" variant="outline" onClick={handleDelete} loading={deleteMutation.isPending}
+              className="text-red-600 border-red-200 hover:bg-red-50">
+              <Trash2 size={14} className="mr-1" /> 삭제
+            </Button>
           )}
         </div>
       </div>

@@ -149,6 +149,7 @@ export interface Campaign {
   daily_budget?: number;
   spent_amount: number;
   targeting?: TargetingConfig;
+  targeting_segments?: any[];
   meta_campaign_id?: string;
   start_date?: string;
   end_date?: string;

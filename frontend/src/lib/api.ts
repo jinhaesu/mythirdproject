@@ -211,6 +211,11 @@ export const campaignApi = {
     return data;
   },
 
+  delete: async (campaignId: number) => {
+    const { data } = await api.delete(`/campaign/${campaignId}`);
+    return data;
+  },
+
   publish: async (campaignId: number) => {
     const { data } = await api.post<{
       success: boolean;
