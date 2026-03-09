@@ -361,21 +361,24 @@ export default function PerformanceDashboard() {
                 </div>
               </div>
               <div className="p-6 space-y-4">
-                {[1, 2, 3].map(i => (
+                {[1, 2, 3, 4, 5].map(i => (
                   <div key={i} className="animate-pulse">
-                    <div className="h-4 bg-gray-200 rounded-lg w-1/3 mb-3" />
-                    <div className="h-20 bg-gray-100 rounded-xl" />
+                    <div className="h-4 bg-gray-200 rounded-lg w-1/4 mb-3" />
+                    <div className="h-24 bg-gray-100 rounded-xl" />
                   </div>
                 ))}
               </div>
             </div>
           ) : analysis && analysis.parse_error ? (
             <div className="bg-white rounded-2xl border border-yellow-200 shadow-lg overflow-hidden">
-              <div className="bg-gradient-to-r from-yellow-500 to-amber-500 px-6 py-4">
+              <div className="bg-gradient-to-r from-yellow-500 to-amber-500 px-6 py-4 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <AlertTriangle size={20} className="text-white" />
                   <h2 className="text-base font-bold text-white">AI 분석 결과 (텍스트)</h2>
                 </div>
+                <button onClick={() => refetchAI()} className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 text-white text-sm font-medium px-4 py-2 rounded-xl transition-all">
+                  <RefreshCw size={14} /> 재분석
+                </button>
               </div>
               <div className="p-6">
                 <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed max-h-[500px] overflow-y-auto bg-gray-50 rounded-xl p-4 border border-gray-100">{analysis.raw_text}</div>
@@ -424,7 +427,7 @@ export default function PerformanceDashboard() {
               </div>
 
               <div className="p-6 space-y-6">
-                {/* 계정 건강도 */}
+                {/* ① 계정 건강도 */}
                 <div className={`rounded-xl p-5 ${
                   analysis.account_health === 'good'
                     ? 'bg-gradient-to-r from-emerald-50 to-green-50 border border-emerald-200'
@@ -455,153 +458,224 @@ export default function PerformanceDashboard() {
                   </div>
                 </div>
 
-                {/* 실행 액션 아이템 */}
+                {/* ② 실행 액션 아이템 (5-8건) */}
                 {analysis.action_items?.length > 0 && (
                   <div>
                     <div className="flex items-center gap-2 mb-4">
                       <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
                         <Zap size={16} className="text-orange-600" />
                       </div>
-                      <h3 className="text-base font-bold text-gray-900">실행 액션 아이템</h3>
+                      <h3 className="text-base font-bold text-gray-900">긴급 액션 아이템</h3>
                       <span className="text-xs bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full font-medium">{analysis.action_items.length}건</span>
                     </div>
-                    <div className="space-y-3">
-                      {analysis.action_items.map((item: any, i: number) => (
-                        <div
-                          key={i}
-                          className={`rounded-xl border-l-4 bg-white border border-gray-100 shadow-sm hover:shadow-md transition-all duration-200 p-4 ${
-                            item.priority === 'high' ? 'border-l-red-500' :
-                            item.priority === 'medium' ? 'border-l-amber-500' : 'border-l-blue-400'
-                          }`}
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-2">
-                                <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md ${
-                                  item.priority === 'high' ? 'bg-red-100 text-red-700' :
-                                  item.priority === 'medium' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'
-                                }`}>
-                                  {item.priority === 'high' ? '긴급' : item.priority === 'medium' ? '중간' : '낮음'}
-                                </span>
-                                {item.type && (
-                                  <span className="text-[11px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-md">
-                                    {item.type === 'pause_ad' ? '광고 중지' : item.type === 'increase_budget' ? '예산 증액' : item.type === 'decrease_budget' ? '예산 감액' : item.type === 'change_creative' ? '소재 변경' : item.type}
+                    <div className="grid grid-cols-1 gap-3">
+                      {analysis.action_items.map((item: any, i: number) => {
+                        const typeLabel: Record<string, string> = { pause_ad: '광고 중지', increase_budget: '예산 증액', decrease_budget: '예산 감액', change_creative: '소재 변경', optimize_target: '타겟 최적화' };
+                        const typeIcon: Record<string, string> = { pause_ad: 'text-red-500', increase_budget: 'text-emerald-500', decrease_budget: 'text-amber-500', change_creative: 'text-purple-500', optimize_target: 'text-blue-500' };
+                        return (
+                          <div
+                            key={i}
+                            className={`rounded-xl border-l-4 bg-white border border-gray-100 shadow-sm hover:shadow-md transition-all duration-200 p-4 ${
+                              item.priority === 'high' ? 'border-l-red-500' :
+                              item.priority === 'medium' ? 'border-l-amber-500' : 'border-l-blue-400'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex flex-wrap items-center gap-1.5 mb-2">
+                                  <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md ${
+                                    item.priority === 'high' ? 'bg-red-100 text-red-700' :
+                                    item.priority === 'medium' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'
+                                  }`}>
+                                    {item.priority === 'high' ? '긴급' : item.priority === 'medium' ? '중간' : '낮음'}
                                   </span>
-                                )}
-                                {item.target_name && <span className="text-xs text-gray-400 truncate">{item.target_name}</span>}
-                              </div>
-                              <p className="text-sm font-semibold text-gray-900 mb-1">{item.action}</p>
-                              <p className="text-xs text-gray-500 leading-relaxed">{item.reason}</p>
-                              {item.expected_impact && (
-                                <div className="mt-2.5 inline-flex items-center gap-1.5 bg-emerald-50 px-2.5 py-1 rounded-lg">
-                                  <TrendingUp size={12} className="text-emerald-500" />
-                                  <span className="text-xs font-medium text-emerald-700">예상 효과: {item.expected_impact}</span>
+                                  {item.type && (
+                                    <span className={`text-[11px] font-medium bg-gray-50 border border-gray-200 px-2 py-0.5 rounded-md ${typeIcon[item.type] || 'text-gray-500'}`}>
+                                      {typeLabel[item.type] || item.type}
+                                    </span>
+                                  )}
+                                  {item.target_name && <span className="text-xs text-gray-400 truncate max-w-[200px]">{item.target_name}</span>}
                                 </div>
+                                <p className="text-sm font-semibold text-gray-900 mb-1">{item.action}</p>
+                                <p className="text-xs text-gray-500 leading-relaxed">{item.reason}</p>
+                                {item.expected_impact && (
+                                  <div className="mt-2.5 inline-flex items-center gap-1.5 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-lg">
+                                    <TrendingUp size={12} className="text-emerald-500" />
+                                    <span className="text-xs font-medium text-emerald-700">{item.expected_impact}</span>
+                                  </div>
+                                )}
+                              </div>
+                              {item.target_id && item.type === 'pause_ad' && (
+                                <button
+                                  onClick={() => toggleStatus(item.target_id, 'ad', 'ACTIVE')}
+                                  className="flex-shrink-0 text-xs bg-red-600 text-white px-3.5 py-2 rounded-xl hover:bg-red-700 transition-colors font-medium shadow-sm"
+                                >
+                                  중지 실행
+                                </button>
                               )}
                             </div>
-                            {item.target_id && item.type === 'pause_ad' && (
-                              <button
-                                onClick={() => toggleStatus(item.target_id, 'ad', 'ACTIVE')}
-                                className="flex-shrink-0 text-xs bg-red-600 text-white px-3.5 py-2 rounded-xl hover:bg-red-700 transition-colors font-medium shadow-sm"
-                              >
-                                광고 중지
-                              </button>
-                            )}
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 )}
 
-                {/* 2-column: 소재 피로도 + 예산 추천 */}
-                {(analysis.creative_fatigue?.length > 0 || analysis.budget_recommendations?.length > 0) && (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* 소재 피로도 분석 */}
-                    {analysis.creative_fatigue?.length > 0 && (
-                      <div className="bg-gradient-to-br from-gray-50 to-purple-50/30 rounded-xl p-5 border border-gray-100">
-                        <div className="flex items-center gap-2 mb-4">
-                          <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
-                            <Palette size={16} className="text-purple-600" />
-                          </div>
-                          <h3 className="text-sm font-bold text-gray-900">소재 피로도 분석</h3>
-                          <span className="text-[10px] bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded-full font-medium">{analysis.creative_fatigue.length}</span>
-                        </div>
-                        <div className="space-y-2.5">
-                          {analysis.creative_fatigue.map((item: any, i: number) => (
-                            <div key={i} className="bg-white rounded-lg p-3.5 border border-gray-100 hover:border-purple-200 transition-colors">
-                              <div className="flex items-center justify-between mb-2.5">
-                                <p className="text-sm font-semibold text-gray-900 truncate flex-1 mr-2">{item.ad_name}</p>
-                                <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full flex-shrink-0 ${
-                                  item.recommendation === '교체' ? 'bg-red-100 text-red-700' :
-                                  item.recommendation === '수정' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
-                                }`}>
-                                  {item.recommendation}
-                                </span>
+                {/* ③ 소재 피로도 분석 (5-8건) - Full Width */}
+                {analysis.creative_fatigue?.length > 0 && (
+                  <div className="bg-gradient-to-br from-purple-50/50 to-pink-50/30 rounded-xl p-5 border border-purple-100">
+                    <div className="flex items-center gap-2 mb-4">
+                      <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
+                        <Palette size={16} className="text-purple-600" />
+                      </div>
+                      <h3 className="text-base font-bold text-gray-900">소재 피로도 분석</h3>
+                      <span className="text-xs bg-purple-100 text-purple-600 px-2 py-0.5 rounded-full font-medium">{analysis.creative_fatigue.length}건</span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {analysis.creative_fatigue.map((item: any, i: number) => {
+                        const st = (item.status || item.recommendation || '유지').toString();
+                        const isReplace = st.includes('교체');
+                        const isModify = st.includes('수정');
+                        const statusLabel = isReplace ? '교체' : isModify ? '수정' : '유지';
+                        const freq = parseFloat(item.frequency || '0');
+                        return (
+                          <div key={i} className="bg-white rounded-xl p-4 border border-gray-100 hover:border-purple-200 hover:shadow-md transition-all">
+                            <div className="flex items-center justify-between mb-3">
+                              <p className="text-sm font-bold text-gray-900 truncate flex-1 mr-2">{item.ad_name}</p>
+                              <span className={`text-[11px] font-bold px-3 py-1 rounded-full flex-shrink-0 ${
+                                isReplace ? 'bg-red-100 text-red-700 ring-1 ring-red-200' :
+                                isModify ? 'bg-amber-100 text-amber-700 ring-1 ring-amber-200' : 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200'
+                              }`}>
+                                {statusLabel}
+                              </span>
+                            </div>
+                            <div className="mb-2.5">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-[11px] text-gray-400">노출 빈도</span>
+                                <span className={`text-sm font-black ${isReplace ? 'text-red-600' : isModify ? 'text-amber-600' : 'text-emerald-600'}`}>{freq.toFixed(1)}x</span>
                               </div>
-                              <div className="flex items-center gap-2">
-                                <span className="text-[11px] text-gray-400 flex-shrink-0 w-14">노출 빈도</span>
-                                <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
-                                  <div
-                                    className={`h-full rounded-full transition-all ${
-                                      item.recommendation === '교체' ? 'bg-gradient-to-r from-red-400 to-red-500' :
-                                      item.recommendation === '수정' ? 'bg-gradient-to-r from-amber-400 to-amber-500' : 'bg-gradient-to-r from-emerald-400 to-emerald-500'
-                                    }`}
-                                    style={{ width: `${Math.min(parseFloat(item.frequency || '0') / 5 * 100, 100)}%` }}
-                                  />
-                                </div>
-                                <span className="text-xs font-bold text-gray-700 flex-shrink-0 w-8 text-right">{item.frequency}</span>
+                              <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full transition-all duration-500 ${
+                                    isReplace ? 'bg-gradient-to-r from-red-400 to-red-500' :
+                                    isModify ? 'bg-gradient-to-r from-amber-400 to-amber-500' : 'bg-gradient-to-r from-emerald-400 to-emerald-500'
+                                  }`}
+                                  style={{ width: `${Math.min(freq / 4 * 100, 100)}%` }}
+                                />
+                              </div>
+                              <div className="flex justify-between mt-0.5">
+                                <span className="text-[10px] text-gray-300">0</span>
+                                <span className="text-[10px] text-gray-300">4+</span>
                               </div>
                             </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* 예산 최적화 추천 */}
-                    {analysis.budget_recommendations?.length > 0 && (
-                      <div className="bg-gradient-to-br from-gray-50 to-emerald-50/30 rounded-xl p-5 border border-gray-100">
-                        <div className="flex items-center gap-2 mb-4">
-                          <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
-                            <DollarSign size={16} className="text-emerald-600" />
+                            {(item.detail || (st.length > 3 ? st : null)) && (
+                              <p className="text-xs text-gray-500 leading-relaxed">{item.detail || st}</p>
+                            )}
                           </div>
-                          <h3 className="text-sm font-bold text-gray-900">예산 최적화 추천</h3>
-                          <span className="text-[10px] bg-emerald-100 text-emerald-600 px-1.5 py-0.5 rounded-full font-medium">{analysis.budget_recommendations.length}</span>
-                        </div>
-                        <div className="space-y-2.5">
-                          {analysis.budget_recommendations.map((item: any, i: number) => (
-                            <div key={i} className="bg-white rounded-lg p-3.5 border border-gray-100 hover:border-emerald-200 transition-colors">
-                              <p className="text-sm font-semibold text-gray-900 mb-2.5">{item.campaign_name}</p>
-                              <div className="flex items-center gap-2 mb-2.5 bg-gray-50 rounded-lg p-2.5">
-                                <div className="flex-1 text-center">
-                                  <p className="text-[10px] text-gray-400 mb-0.5">현재 예산</p>
-                                  <p className="text-sm font-bold text-gray-500">{item.current_budget}</p>
-                                </div>
-                                <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                                  <ArrowRight size={14} className="text-blue-500" />
-                                </div>
-                                <div className="flex-1 text-center">
-                                  <p className="text-[10px] text-blue-500 mb-0.5">추천 예산</p>
-                                  <p className="text-sm font-bold text-blue-600">{item.recommended_budget}</p>
-                                </div>
-                              </div>
-                              <p className="text-xs text-gray-500 leading-relaxed">{item.reason}</p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
 
-                {/* 우선 실행 사항 */}
+                {/* ④ 예산 최적화 추천 (5-8건) - Full Width */}
+                {analysis.budget_recommendations?.length > 0 && (
+                  <div className="bg-gradient-to-br from-emerald-50/50 to-cyan-50/30 rounded-xl p-5 border border-emerald-100">
+                    <div className="flex items-center gap-2 mb-4">
+                      <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
+                        <DollarSign size={16} className="text-emerald-600" />
+                      </div>
+                      <h3 className="text-base font-bold text-gray-900">예산 최적화 추천</h3>
+                      <span className="text-xs bg-emerald-100 text-emerald-600 px-2 py-0.5 rounded-full font-medium">{analysis.budget_recommendations.length}건</span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {analysis.budget_recommendations.map((item: any, i: number) => {
+                        const changeStr = (item.change || '').toString();
+                        const isUp = changeStr.includes('+');
+                        const isDown = changeStr.includes('-');
+                        return (
+                          <div key={i} className="bg-white rounded-xl p-4 border border-gray-100 hover:border-emerald-200 hover:shadow-md transition-all">
+                            <div className="flex items-center justify-between mb-3">
+                              <p className="text-sm font-bold text-gray-900 truncate flex-1 mr-2">{item.campaign_name}</p>
+                              {changeStr && (
+                                <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full flex-shrink-0 ${
+                                  isUp ? 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200' :
+                                  isDown ? 'bg-red-100 text-red-700 ring-1 ring-red-200' : 'bg-gray-100 text-gray-600 ring-1 ring-gray-200'
+                                }`}>
+                                  {isUp ? '↑' : isDown ? '↓' : '→'} {changeStr}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 mb-3 bg-gray-50 rounded-lg p-3">
+                              <div className="flex-1 text-center">
+                                <p className="text-[10px] text-gray-400 mb-0.5">현재</p>
+                                <p className="text-sm font-bold text-gray-500">{item.current_budget}</p>
+                              </div>
+                              <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center" style={{ background: isUp ? '#d1fae5' : isDown ? '#fee2e2' : '#f3f4f6' }}>
+                                <ArrowRight size={14} className={isUp ? 'text-emerald-600' : isDown ? 'text-red-500' : 'text-gray-400'} />
+                              </div>
+                              <div className="flex-1 text-center">
+                                <p className={`text-[10px] mb-0.5 ${isUp ? 'text-emerald-500' : isDown ? 'text-red-500' : 'text-blue-500'}`}>추천</p>
+                                <p className={`text-sm font-bold ${isUp ? 'text-emerald-600' : isDown ? 'text-red-600' : 'text-blue-600'}`}>{item.recommended_budget}</p>
+                              </div>
+                            </div>
+                            <p className="text-xs text-gray-500 leading-relaxed">{item.reason}</p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* ⑤ 핵심 캠페인 피드백 (5-8건) */}
+                {analysis.campaign_feedback?.length > 0 && (
+                  <div className="bg-gradient-to-br from-indigo-50/50 to-blue-50/30 rounded-xl p-5 border border-indigo-100">
+                    <div className="flex items-center gap-2 mb-4">
+                      <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center">
+                        <Target size={16} className="text-indigo-600" />
+                      </div>
+                      <h3 className="text-base font-bold text-gray-900">캠페인별 성과 피드백</h3>
+                      <span className="text-xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full font-medium">{analysis.campaign_feedback.length}건</span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {analysis.campaign_feedback.map((item: any, i: number) => {
+                        const gradeConfig: Record<string, { bg: string; text: string; ring: string; label: string }> = {
+                          A: { bg: 'bg-emerald-100', text: 'text-emerald-700', ring: 'ring-emerald-300', label: 'A 최우수' },
+                          B: { bg: 'bg-blue-100', text: 'text-blue-700', ring: 'ring-blue-300', label: 'B 우수' },
+                          C: { bg: 'bg-amber-100', text: 'text-amber-700', ring: 'ring-amber-300', label: 'C 보통' },
+                          D: { bg: 'bg-orange-100', text: 'text-orange-700', ring: 'ring-orange-300', label: 'D 미흡' },
+                          F: { bg: 'bg-red-100', text: 'text-red-700', ring: 'ring-red-300', label: 'F 부진' },
+                        };
+                        const gc = gradeConfig[item.grade] || gradeConfig.C;
+                        return (
+                          <div key={i} className="bg-white rounded-xl p-4 border border-gray-100 hover:border-indigo-200 hover:shadow-md transition-all">
+                            <div className="flex items-start justify-between gap-2 mb-2.5">
+                              <p className="text-sm font-bold text-gray-900 truncate flex-1">{item.campaign_name}</p>
+                              <span className={`text-[11px] font-bold px-2.5 py-1 rounded-lg flex-shrink-0 ring-1 ${gc.bg} ${gc.text} ${gc.ring}`}>
+                                {gc.label}
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-600 leading-relaxed mb-2.5">{item.summary}</p>
+                            {item.kpi_highlight && (
+                              <div className="bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-2">
+                                <p className="text-[11px] font-medium text-indigo-700">{item.kpi_highlight}</p>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* ⑥ 우선 실행 사항 */}
                 {analysis.next_steps?.length > 0 && (
                   <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-5 border border-blue-100">
                     <div className="flex items-center gap-2 mb-4">
                       <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
                         <Lightbulb size={16} className="text-blue-600" />
                       </div>
-                      <h3 className="text-sm font-bold text-gray-900">우선 실행 사항</h3>
+                      <h3 className="text-base font-bold text-gray-900">우선 실행 사항</h3>
                     </div>
                     <div className="space-y-3">
                       {analysis.next_steps.map((step: string, i: number) => (

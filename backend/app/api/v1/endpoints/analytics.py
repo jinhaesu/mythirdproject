@@ -146,14 +146,14 @@ async def get_ai_analysis(
     try:
         response = claude.client.messages.create(
             model=claude.model,
-            max_tokens=4096,
+            max_tokens=16384,
             messages=[{
                 "role": "user",
-                "content": f"""Meta 광고 계정 데이터를 상세하게 분석해 JSON으로 반환해주세요.
+                "content": f"""Meta 광고 계정 데이터를 분석해 JSON으로 반환하세요.
 
 {context_text}
 
-반드시 아래 JSON 형식을 지켜서 응답하세요. 각 항목을 충분히 상세하게 작성하세요.
+아래 JSON 형식으로 응답하세요. 반드시 ```json 블록으로 감싸세요.
 
 ```json
 {{
@@ -161,41 +161,51 @@ async def get_ai_analysis(
   "health_summary": "계정 상태 요약 2-3문장",
   "action_items": [
     {{
-      "priority": "high 또는 medium 또는 low",
-      "type": "pause_ad 또는 increase_budget 또는 decrease_budget 또는 change_creative",
-      "target_id": "대상 ID",
-      "target_name": "대상 이름",
-      "action": "구체적 액션 설명",
-      "reason": "이유",
-      "expected_impact": "예상 효과"
+      "priority": "high/medium/low",
+      "type": "pause_ad/increase_budget/decrease_budget/change_creative/optimize_target",
+      "target_name": "대상 캠페인/광고 이름",
+      "action": "구체적 액션 1문장",
+      "reason": "이유 1문장",
+      "expected_impact": "예상 효과 1문장"
     }}
   ],
   "creative_fatigue": [
     {{
       "ad_name": "광고 이름",
-      "frequency": "빈도 수치",
-      "recommendation": "교체 또는 수정 또는 유지"
+      "frequency": 2.1,
+      "status": "교체 또는 수정 또는 유지",
+      "detail": "상세 설명 1문장"
     }}
   ],
   "budget_recommendations": [
     {{
       "campaign_name": "캠페인 이름",
-      "campaign_id": "캠페인 ID",
-      "current_budget": "₩현재금액",
-      "recommended_budget": "₩추천금액",
-      "reason": "추천 이유"
+      "current_budget": "현재금액 (예: ₩50만)",
+      "recommended_budget": "추천금액 (예: ₩70만)",
+      "change": "+40% 또는 -30% 또는 유지",
+      "reason": "추천 이유 1문장"
+    }}
+  ],
+  "campaign_feedback": [
+    {{
+      "campaign_name": "캠페인 이름",
+      "grade": "A/B/C/D/F",
+      "summary": "핵심 피드백 1-2문장",
+      "kpi_highlight": "CTR 3.2% | CPC ₩450 | ROAS 2.1x 등 주요 KPI"
     }}
   ],
   "next_steps": ["실행사항1", "실행사항2", "실행사항3"]
 }}
 ```
 
-규칙:
-- action_items는 최소 2개 이상
-- creative_fatigue는 광고가 있으면 최소 1개 이상
-- budget_recommendations는 캠페인이 있으면 최소 1개 이상
-- next_steps는 정확히 3개
-- JSON만 출력하세요"""
+중요 규칙:
+- action_items: 5~8개 필수
+- creative_fatigue: 5~8개 필수. frequency는 순수 숫자만(예: 2.1). status는 "교체"/"수정"/"유지" 3글자만
+- budget_recommendations: 5~8개 필수. change는 "+30%"/"-40%"/"유지" 형식만
+- campaign_feedback: 5~8개 필수. grade는 A/B/C/D/F 한 글자만
+- next_steps: 정확히 3개
+- 각 텍스트 필드는 1-2문장으로 간결하게 작성
+- JSON 외 다른 텍스트 출력 금지"""
             }],
         )
 
