@@ -305,8 +305,8 @@ export const analyticsApi = {
     return data;
   },
 
-  getAccountTrend: async (days = 30, since?: string, until?: string) => {
-    const params: any = { days };
+  getAccountTrend: async (days = 30, since?: string, until?: string, timeIncrement = 1) => {
+    const params: any = { days, time_increment: timeIncrement };
     if (since && until) { params.since = since; params.until = until; }
     const { data } = await api.get('/analytics/account-trend', { params });
     return data;

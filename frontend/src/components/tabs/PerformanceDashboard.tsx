@@ -80,6 +80,7 @@ export default function PerformanceDashboard() {
   const [expandedCampaign, setExpandedCampaign] = useState<string | null>(null);
   const [selectedCampaignForDeep, setSelectedCampaignForDeep] = useState<string | null>(null);
   const [hidePaused, setHidePaused] = useState(true);
+  const [trendView, setTrendView] = useState<'daily' | 'weekly'>('daily');
   const queryClient = useQueryClient();
 
   const isCustom = datePreset === 'custom' && customSince && customUntil && customSince <= customUntil;
@@ -95,13 +96,40 @@ export default function PerformanceDashboard() {
   });
 
   const daysMap: Record<string, number> = { last_7d: 7, last_14d: 14, last_30d: 30 };
+  const trendDaysCount = trendView === 'weekly' ? 56 : (daysMap[datePreset] || 7);
+  const trendIncrement = trendView === 'weekly' ? 7 : 1;
   const { data: trendData } = useQuery({
-    queryKey: ['account-trend', datePreset, customSince, customUntil],
+    queryKey: ['account-trend', datePreset, customSince, customUntil, trendView],
     queryFn: () => isCustom
-      ? analyticsApi.getAccountTrend(30, customSince, customUntil)
-      : analyticsApi.getAccountTrend(daysMap[datePreset] || 7),
+      ? analyticsApi.getAccountTrend(30, customSince, customUntil, trendIncrement)
+      : analyticsApi.getAccountTrend(trendDaysCount, undefined, undefined, trendIncrement),
     enabled: overview?.connected === true,
   });
+
+  // 주간 비교: 이번주 vs 지난주
+  const weeklyComparison = useMemo(() => {
+    if (trendView !== 'weekly' || !trendData?.data?.length) return null;
+    const weeks = trendData.data;
+    if (weeks.length < 2) return null;
+    const thisWeek = weeks[weeks.length - 1];
+    const lastWeek = weeks[weeks.length - 2];
+    const calc = (key: string) => {
+      const cur = parseFloat(thisWeek[key] || '0');
+      const prev = parseFloat(lastWeek[key] || '0');
+      const change = prev > 0 ? ((cur - prev) / prev * 100) : 0;
+      return { cur, prev, change };
+    };
+    return {
+      spend: calc('spend'),
+      impressions: calc('impressions'),
+      clicks: calc('clicks'),
+      ctr: calc('ctr'),
+      cpc: calc('cpc'),
+      roas: { cur: parseFloat(thisWeek.roas || '0'), prev: parseFloat(lastWeek.roas || '0'), change: parseFloat(lastWeek.roas || '0') > 0 ? ((parseFloat(thisWeek.roas || '0') - parseFloat(lastWeek.roas || '0')) / parseFloat(lastWeek.roas || '0') * 100) : 0 },
+      thisWeekLabel: `${thisWeek.date_start?.slice(5)} ~ ${thisWeek.date_stop?.slice(5)}`,
+      lastWeekLabel: `${lastWeek.date_start?.slice(5)} ~ ${lastWeek.date_stop?.slice(5)}`,
+    };
+  }, [trendView, trendData]);
 
   const { data: aiAnalysis, isLoading: loadingAI, refetch: refetchAI, dataUpdatedAt } = useQuery({
     queryKey: ['ai-analysis', datePreset],
@@ -279,52 +307,120 @@ export default function PerformanceDashboard() {
         </div>
       ) : (
         <>
-          {/* KPI Cards */}
+          {/* KPI Cards - ROAS 최우선 */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <KPICard icon={<TrendingUp size={20} />} label="ROAS" value={formatROAS(accountROAS)} sub={accountROAS ? `광고비 대비 ${(accountROAS * 100).toFixed(0)}% 수익` : '데이터 없음'} color="orange" />
             <KPICard icon={<DollarSign size={20} />} label="총 지출" value={formatSpend(accountInsights.spend)} color="blue" />
-            <KPICard icon={<Eye size={20} />} label="노출" value={formatNum(accountInsights.impressions)} color="purple" />
             <KPICard icon={<MousePointer size={20} />} label="클릭" value={formatNum(accountInsights.clicks)} sub={`CTR ${parseFloat(accountInsights.ctr || '0').toFixed(2)}%`} color="green" />
-            <KPICard icon={<Target size={20} />} label="CPC" value={formatCPC(accountInsights.cpc)} sub={`CPM ${formatMoney(accountInsights.cpm)}`} color="orange" />
-            <KPICard icon={<TrendingUp size={20} />} label="ROAS" value={formatROAS(accountROAS)} sub={accountROAS ? `${(accountROAS * 100).toFixed(0)}% 수익률` : '데이터 없음'} color="blue" />
+            <KPICard icon={<Target size={20} />} label="CPC" value={formatCPC(accountInsights.cpc)} sub={`CPM ${formatMoney(accountInsights.cpm)}`} color="purple" />
+            <KPICard icon={<Eye size={20} />} label="노출" value={formatNum(accountInsights.impressions)} sub={`도달 ${formatNum(accountInsights.reach)}`} color="blue" />
           </div>
 
-          {/* Daily Trend Chart */}
+          {/* Trend Chart with Daily/Weekly Toggle */}
           {trendDays.length > 0 && (
-            <div className="bg-white border border-gray-200 rounded-xl p-3">
-              <h3 className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1.5">
-                <TrendingUp size={14} className="text-blue-500" /> 일별 성과 추이
-              </h3>
+            <div className="bg-white border border-gray-200 rounded-xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
+                  <TrendingUp size={14} className="text-blue-500" />
+                  {trendView === 'daily' ? '일별' : '주간'} 성과 추이
+                </h3>
+                <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
+                  <button
+                    onClick={() => setTrendView('daily')}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                      trendView === 'daily' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >일별</button>
+                  <button
+                    onClick={() => setTrendView('weekly')}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                      trendView === 'weekly' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >주간</button>
+                </div>
+              </div>
+
+              {/* 주간 비교 카드 (이번주 vs 지난주) */}
+              {trendView === 'weekly' && weeklyComparison && (
+                <div className="mb-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-xs font-bold text-gray-800">이번주 vs 지난주 비교</h4>
+                    <div className="flex items-center gap-3 text-[10px] text-gray-400">
+                      <span>이번주: {weeklyComparison.thisWeekLabel}</span>
+                      <span>지난주: {weeklyComparison.lastWeekLabel}</span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 md:grid-cols-6 gap-2.5">
+                    {([
+                      { label: 'ROAS', data: weeklyComparison.roas, fmt: (v: number) => v.toFixed(2) + 'x', good: 'up' },
+                      { label: '지출', data: weeklyComparison.spend, fmt: (v: number) => formatSpend(v), good: 'down' },
+                      { label: '노출', data: weeklyComparison.impressions, fmt: (v: number) => formatNum(v), good: 'up' },
+                      { label: '클릭', data: weeklyComparison.clicks, fmt: (v: number) => formatNum(v), good: 'up' },
+                      { label: 'CTR', data: weeklyComparison.ctr, fmt: (v: number) => v.toFixed(2) + '%', good: 'up' },
+                      { label: 'CPC', data: weeklyComparison.cpc, fmt: (v: number) => formatCPC(v), good: 'down' },
+                    ] as const).map((m, i) => {
+                      const isPositive = m.data.change > 0;
+                      const isGood = (m.good === 'up' && isPositive) || (m.good === 'down' && !isPositive);
+                      const changeAbs = Math.abs(m.data.change);
+                      return (
+                        <div key={i} className="bg-white rounded-lg p-2.5 border border-gray-100">
+                          <p className="text-[10px] text-gray-400 mb-1">{m.label}</p>
+                          <p className="text-sm font-bold text-gray-900">{m.fmt(m.data.cur)}</p>
+                          <div className={`flex items-center gap-0.5 mt-1 ${isGood ? 'text-emerald-600' : changeAbs < 3 ? 'text-gray-400' : 'text-red-500'}`}>
+                            {isPositive ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
+                            <span className="text-[10px] font-semibold">{isPositive ? '+' : ''}{m.data.change.toFixed(1)}%</span>
+                          </div>
+                          <p className="text-[9px] text-gray-300 mt-0.5">전주 {m.fmt(m.data.prev)}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-3">
+                <div>
+                  <p className="text-[10px] text-gray-500 mb-1">ROAS</p>
+                  <MiniLineChart
+                    data={trendDays.map((d: any) => ({
+                      label: trendView === 'weekly' ? `${d.date_start?.slice(5)}~${d.date_stop?.slice(5)}` : d.date_stop?.slice(5) || '',
+                      value: parseFloat(d.roas || 0)
+                    }))}
+                    color="orange"
+                    formatValue={(v) => v.toFixed(2) + 'x'}
+                  />
+                </div>
                 <div>
                   <p className="text-[10px] text-gray-500 mb-1">지출</p>
                   <MiniLineChart
-                    data={trendDays.map((d: any) => ({ label: d.date_stop?.slice(5) || '', value: parseFloat(d.spend || 0) }))}
+                    data={trendDays.map((d: any) => ({
+                      label: trendView === 'weekly' ? `${d.date_start?.slice(5)}~${d.date_stop?.slice(5)}` : d.date_stop?.slice(5) || '',
+                      value: parseFloat(d.spend || 0)
+                    }))}
                     color="blue"
                     formatValue={(v) => formatSpend(v)}
                   />
                 </div>
                 <div>
-                  <p className="text-[10px] text-gray-500 mb-1">노출수</p>
-                  <MiniLineChart
-                    data={trendDays.map((d: any) => ({ label: d.date_stop?.slice(5) || '', value: parseInt(d.impressions || 0) }))}
-                    color="purple"
-                    formatValue={(v) => formatNum(v)}
-                  />
-                </div>
-                <div>
                   <p className="text-[10px] text-gray-500 mb-1">CTR (%)</p>
                   <MiniLineChart
-                    data={trendDays.map((d: any) => ({ label: d.date_stop?.slice(5) || '', value: parseFloat(d.ctr || 0) }))}
+                    data={trendDays.map((d: any) => ({
+                      label: trendView === 'weekly' ? `${d.date_start?.slice(5)}~${d.date_stop?.slice(5)}` : d.date_stop?.slice(5) || '',
+                      value: parseFloat(d.ctr || 0)
+                    }))}
                     color="green"
                     formatValue={(v) => `${v.toFixed(2)}%`}
                   />
                 </div>
                 <div>
-                  <p className="text-[10px] text-gray-500 mb-1">ROAS</p>
+                  <p className="text-[10px] text-gray-500 mb-1">CPC</p>
                   <MiniLineChart
-                    data={trendDays.map((d: any) => ({ label: d.date_stop?.slice(5) || '', value: parseFloat(d.roas || 0) }))}
-                    color="orange"
-                    formatValue={(v) => v.toFixed(2)}
+                    data={trendDays.map((d: any) => ({
+                      label: trendView === 'weekly' ? `${d.date_start?.slice(5)}~${d.date_stop?.slice(5)}` : d.date_stop?.slice(5) || '',
+                      value: parseFloat(d.cpc || 0)
+                    }))}
+                    color="purple"
+                    formatValue={(v) => formatCPC(v)}
                   />
                 </div>
               </div>

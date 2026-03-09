@@ -86,7 +86,7 @@ async def get_user_meta_context(user: User) -> Dict[str, Any]:
                 parts.append(f"활성 캠페인: {info['active_campaigns']}개, 일시중지: {info.get('paused_campaigns', 0)}개")
 
             if info.get("last_7d_spend"):
-                parts.append(f"최근 7일 지출: ${info['last_7d_spend']}, 노출: {info.get('last_7d_impressions', 'N/A')}, 클릭: {info.get('last_7d_clicks', 'N/A')}")
+                parts.append(f"최근 7일 지출: ₩{info['last_7d_spend']}, 노출: {info.get('last_7d_impressions', 'N/A')}, 클릭: {info.get('last_7d_clicks', 'N/A')}")
 
             if context["campaigns"]:
                 campaign_names = [c.get("name", "N/A") for c in context["campaigns"][:5]]

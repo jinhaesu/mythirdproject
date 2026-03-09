@@ -281,8 +281,8 @@ class MetaAdsService:
         acct = overview.get("account_insights", {})
         if acct:
             lines.append(f"\n[계정 전체 성과]")
-            lines.append(f"- 총 지출: ${acct.get('spend', '0')}, 노출: {acct.get('impressions', '0')}, 도달: {acct.get('reach', '0')}")
-            lines.append(f"- 클릭: {acct.get('clicks', '0')}, CTR: {acct.get('ctr', '0')}%, CPC: ${acct.get('cpc', '0')}")
+            lines.append(f"- 총 지출: ₩{acct.get('spend', '0')}, 노출: {acct.get('impressions', '0')}, 도달: {acct.get('reach', '0')}")
+            lines.append(f"- 클릭: {acct.get('clicks', '0')}, CTR: {acct.get('ctr', '0')}%, CPC: ₩{acct.get('cpc', '0')}, ROAS: {acct.get('roas', 'N/A')}")
             for action in (acct.get("actions") or [])[:5]:
                 lines.append(f"- {action.get('action_type', '')}: {action.get('value', 0)}")
 
@@ -292,11 +292,11 @@ class MetaAdsService:
             lines.append(f"  목적: {camp.get('objective', 'N/A')}")
             budget = camp.get("daily_budget")
             if budget:
-                lines.append(f"  일예산: ${int(budget)/100:.0f}")
+                lines.append(f"  일예산: ₩{int(budget)/100:.0f}")
 
             ins = camp.get("insights")
             if ins:
-                lines.append(f"  지출: ${ins.get('spend', '0')}, 노출: {ins.get('impressions', '0')}, 클릭: {ins.get('clicks', '0')}, CTR: {ins.get('ctr', '0')}%")
+                lines.append(f"  지출: ₩{ins.get('spend', '0')}, 노출: {ins.get('impressions', '0')}, 클릭: {ins.get('clicks', '0')}, CTR: {ins.get('ctr', '0')}%, ROAS: {ins.get('roas', 'N/A')}")
 
             for adset in camp.get("adsets", [])[:5]:
                 lines.append(f"  [광고세트] {adset.get('name', '')} ({adset.get('effective_status', '')})")
@@ -305,30 +305,30 @@ class MetaAdsService:
                     lines.append(f"    타겟: {t.get('age_min','?')}-{t.get('age_max','?')}세")
                 adset_ins = adset.get("insights")
                 if adset_ins:
-                    lines.append(f"    지출: ${adset_ins.get('spend','0')}, CTR: {adset_ins.get('ctr','0')}%")
+                    lines.append(f"    지출: ₩{adset_ins.get('spend','0')}, CTR: {adset_ins.get('ctr','0')}%, ROAS: {adset_ins.get('roas', 'N/A')}")
 
                 for ad in adset.get("ads", [])[:5]:
                     ad_ins = ad.get("insights")
                     if ad_ins:
-                        lines.append(f"    [광고] {ad.get('name','')} - 지출: ${ad_ins.get('spend','0')}, CTR: {ad_ins.get('ctr','0')}%")
+                        lines.append(f"    [광고] {ad.get('name','')} - 지출: ₩{ad_ins.get('spend','0')}, CTR: {ad_ins.get('ctr','0')}%, ROAS: {ad_ins.get('roas', 'N/A')}")
 
         return "\n".join(lines)
 
     async def get_account_daily_trend(self, days: int = 30,
-                                      since: Optional[str] = None, until: Optional[str] = None) -> List[Dict]:
-        """Get daily account-level metrics for trend charts."""
+                                      since: Optional[str] = None, until: Optional[str] = None,
+                                      time_increment: int = 1) -> List[Dict]:
+        """Get account-level metrics for trend charts. time_increment=1 daily, 7 weekly."""
         if not self.connected:
             return []
         params: Dict[str, Any] = {
             "fields": "spend,impressions,clicks,ctr,cpc,cpm,reach,actions,action_values,purchase_roas,website_purchase_roas",
-            "time_increment": 1,
+            "time_increment": time_increment,
         }
         if since and until:
             params["time_range"] = f'{{"since":"{since}","until":"{until}"}}'
         else:
             params["date_preset"] = f"last_{days}d"
         resp = await self._get(f"{self.ad_account_id}/insights", params)
-        # Compute ROAS for each daily row
         data = resp.get("data", [])
         for row in data:
             row["roas"] = self._calc_roas(row)

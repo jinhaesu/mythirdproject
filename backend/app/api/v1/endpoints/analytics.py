@@ -149,7 +149,11 @@ async def get_ai_analysis(
             max_tokens=16384,
             messages=[{
                 "role": "user",
-                "content": f"""Meta 광고 계정 데이터를 분석해 JSON으로 반환하세요.
+                "content": f"""당신은 ROAS(광고비 대비 매출) 중심의 퍼포먼스 마케팅 전문가입니다.
+Meta 광고 계정 데이터를 분석해 JSON으로 반환하세요.
+
+분석 우선순위: ROAS > CPA(전환당비용) > 전환수 > CTR > CPC > 노출/클릭
+모든 금액은 반드시 원화(₩)로 표시하세요. 달러($) 사용 금지.
 
 {context_text}
 
@@ -158,15 +162,15 @@ async def get_ai_analysis(
 ```json
 {{
   "account_health": "good 또는 warning 또는 critical",
-  "health_summary": "계정 상태 요약 2-3문장",
+  "health_summary": "ROAS 기준으로 계정 상태 요약 2-3문장. 전체 ROAS, 전환 효율, 비용 효율 순으로 언급.",
   "action_items": [
     {{
       "priority": "high/medium/low",
       "type": "pause_ad/increase_budget/decrease_budget/change_creative/optimize_target",
       "target_name": "대상 캠페인/광고 이름",
-      "action": "구체적 액션 1문장",
+      "action": "구체적 액션 1문장 (ROAS 영향 중심)",
       "reason": "이유 1문장",
-      "expected_impact": "예상 효과 1문장"
+      "expected_impact": "ROAS 또는 전환 개선 예상 효과 1문장"
     }}
   ],
   "creative_fatigue": [
@@ -174,7 +178,7 @@ async def get_ai_analysis(
       "ad_name": "광고 이름",
       "frequency": 2.1,
       "status": "교체 또는 수정 또는 유지",
-      "detail": "상세 설명 1문장"
+      "detail": "ROAS/전환 영향 포함 1문장"
     }}
   ],
   "budget_recommendations": [
@@ -183,27 +187,30 @@ async def get_ai_analysis(
       "current_budget": "현재금액 (예: ₩50만)",
       "recommended_budget": "추천금액 (예: ₩70만)",
       "change": "+40% 또는 -30% 또는 유지",
-      "reason": "추천 이유 1문장"
+      "reason": "ROAS 기반 추천 이유 1문장"
     }}
   ],
   "campaign_feedback": [
     {{
       "campaign_name": "캠페인 이름",
       "grade": "A/B/C/D/F",
-      "summary": "핵심 피드백 1-2문장",
-      "kpi_highlight": "CTR 3.2% | CPC ₩450 | ROAS 2.1x 등 주요 KPI"
+      "summary": "ROAS 중심 핵심 피드백 1-2문장",
+      "kpi_highlight": "ROAS 2.1x | CPA ₩5,200 | 전환 45건 | CTR 3.2% 등"
     }}
   ],
-  "next_steps": ["실행사항1", "실행사항2", "실행사항3"]
+  "next_steps": ["ROAS 개선 중심 실행사항1", "실행사항2", "실행사항3"]
 }}
 ```
 
 중요 규칙:
-- action_items: 5~8개 필수
+- 분석의 핵심 기준은 ROAS(매출/광고비)이며, CTR은 보조 지표로만 활용
+- action_items: 5~8개 필수. ROAS 영향도 높은 순으로 정렬
 - creative_fatigue: 5~8개 필수. frequency는 순수 숫자만(예: 2.1). status는 "교체"/"수정"/"유지" 3글자만
-- budget_recommendations: 5~8개 필수. change는 "+30%"/"-40%"/"유지" 형식만
-- campaign_feedback: 5~8개 필수. grade는 A/B/C/D/F 한 글자만
+- budget_recommendations: 5~8개 필수. ROAS 높은 캠페인에 증액, 낮은 캠페인에 감액. change는 "+30%"/"-40%"/"유지" 형식만
+- campaign_feedback: 5~8개 필수. grade 기준은 ROAS가 최우선. A/B/C/D/F 한 글자만
+- campaign_feedback의 kpi_highlight는 ROAS를 맨 앞에 배치
 - next_steps: 정확히 3개
+- 모든 금액은 ₩ 원화만 사용 ($ 달러 금지)
 - 각 텍스트 필드는 1-2문장으로 간결하게 작성
 - JSON 외 다른 텍스트 출력 금지"""
             }],
@@ -355,15 +362,16 @@ async def get_account_trend(
     days: int = Query(default=30, le=90),
     since: Optional[str] = Query(default=None),
     until: Optional[str] = Query(default=None),
+    time_increment: int = Query(default=1, ge=1, le=30),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get daily account-level trend for charts."""
+    """Get account-level trend for charts. time_increment=1 daily, 7 weekly."""
     svc = await MetaAdsService.create(current_user, db)
     if not svc.connected:
         return {"connected": False, "data": []}
 
-    data = await svc.get_account_daily_trend(days, since=since, until=until)
+    data = await svc.get_account_daily_trend(days, since=since, until=until, time_increment=time_increment)
     return {"connected": True, "data": data}
 
 
