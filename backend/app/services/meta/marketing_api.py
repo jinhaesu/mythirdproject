@@ -85,6 +85,9 @@ class MetaMarketingAPI:
             "age_max": targeting.age_range.max_age,
             "geo_locations": {
                 "countries": targeting.geo.countries
+            },
+            "targeting_automation": {
+                "advantage_audience": 0  # 수동 타겟팅 (기획 세그먼트 기반)
             }
         }
 
