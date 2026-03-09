@@ -43,16 +43,86 @@ router = APIRouter()
 # ──────────────────────────────────────────────
 
 def _parse_json_response(text: str) -> dict:
-    """Extract and parse JSON from Claude's text response."""
+    """Extract and parse JSON from Claude's text response with robust error recovery."""
+    import logging
+    _logger = logging.getLogger(__name__)
+
+    # 1. Try extracting from ```json ... ``` block first
+    if "```json" in text:
+        block = text.split("```json")[1].split("```")[0].strip()
+        try:
+            return json.loads(block)
+        except json.JSONDecodeError:
+            pass
+    elif "```" in text:
+        parts = text.split("```")
+        if len(parts) >= 3:
+            block = parts[1].strip()
+            if block.startswith("json"):
+                block = block[4:].strip()
+            try:
+                return json.loads(block)
+            except json.JSONDecodeError:
+                pass
+
+    # 2. Balanced brace matching for nested JSON
     start = text.find("{")
-    end = text.rfind("}") + 1
+    if start >= 0:
+        depth = 0
+        in_string = False
+        escape = False
+        for i in range(start, len(text)):
+            c = text[i]
+            if escape:
+                escape = False
+                continue
+            if c == '\\':
+                escape = True
+                continue
+            if c == '"' and not escape:
+                in_string = not in_string
+                continue
+            if in_string:
+                continue
+            if c == '{':
+                depth += 1
+            elif c == '}':
+                depth -= 1
+                if depth == 0:
+                    try:
+                        return json.loads(text[start:i + 1])
+                    except json.JSONDecodeError:
+                        break
+
+    # 3. Aggressive cleanup: fix common JSON issues from AI
+    cleaned = text
+    # Remove markdown
+    for prefix in ["```json", "```"]:
+        cleaned = cleaned.replace(prefix, "")
+    cleaned = cleaned.strip()
+
+    start = cleaned.find("{")
+    end = cleaned.rfind("}") + 1
     if start >= 0 and end > start:
-        return json.loads(text[start:end])
-    # Try to find a JSON array
+        json_str = cleaned[start:end]
+        # Fix trailing commas before } or ]
+        json_str = re.sub(r',\s*([}\]])', r'\1', json_str)
+        # Fix unquoted keys (simple cases)
+        json_str = re.sub(r'(?<=\{|,)\s*(\w+)\s*:', r' "\1":', json_str)
+        try:
+            return json.loads(json_str)
+        except json.JSONDecodeError as e:
+            _logger.warning(f"JSON parse after cleanup failed: {e}")
+
+    # 4. Try array
     start = text.find("[")
     end = text.rfind("]") + 1
     if start >= 0 and end > start:
-        return json.loads(text[start:end])
+        try:
+            return json.loads(text[start:end])
+        except json.JSONDecodeError:
+            pass
+
     raise ValueError("JSON을 파싱할 수 없습니다.")
 
 
@@ -992,17 +1062,35 @@ creative_recommendation 규칙:
 카피는 최소 3개 변형을 생성하세요.
 JSON만 출력하세요."""
 
-    try:
-        response = claude.client.messages.create(
-            model=claude.model,
-            max_tokens=4096,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        result = _parse_json_response(response.content[0].text)
-    except (json.JSONDecodeError, ValueError, IndexError) as e:
-        raise HTTPException(status_code=500, detail=f"AI 응답 파싱 실패: {str(e)}")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"AI 서비스 오류: {str(e)}")
+    import logging as _logging
+    _log = _logging.getLogger(__name__)
+    result = None
+    last_error = None
+
+    # Try with primary model, then fallback with smaller prompt if parsing fails
+    models_to_try = [claude.model, "claude-sonnet-4-6"]
+    for model_id in models_to_try:
+        try:
+            response = claude.client.messages.create(
+                model=model_id,
+                max_tokens=8192,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            raw_text = response.content[0].text
+            _log.info(f"Campaign plan AI response length: {len(raw_text)} chars, model: {model_id}")
+            result = _parse_json_response(raw_text)
+            break
+        except (json.JSONDecodeError, ValueError) as e:
+            last_error = e
+            _log.warning(f"JSON parse failed with {model_id}: {e}, raw[:500]={raw_text[:500] if 'raw_text' in dir() else 'N/A'}")
+            continue
+        except Exception as e:
+            last_error = e
+            _log.error(f"AI call failed with {model_id}: {e}")
+            continue
+
+    if result is None:
+        raise HTTPException(status_code=500, detail=f"AI 응답 파싱 실패: {str(last_error)}")
 
     return AutoPlanResponse(
         product_info=product_info,

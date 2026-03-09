@@ -351,6 +351,18 @@ export default function PerformanceDashboard() {
                 <span className="text-blue-700">AI가 계정 데이터를 분석하고 있습니다...</span>
               </div>
             </div>
+          ) : analysis && analysis.parse_error ? (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+              <h3 className="text-sm font-semibold text-yellow-800 mb-2 flex items-center gap-2">
+                <AlertTriangle size={16} /> AI 분석 결과 (텍스트)
+              </h3>
+              <div className="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed max-h-96 overflow-y-auto">{analysis.raw_text}</div>
+            </div>
+          ) : !analysis && aiAnalysis?.error ? (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+              <p className="text-sm text-red-700">AI 분석 오류: {aiAnalysis.error}</p>
+              <button onClick={() => refetchAI()} className="mt-2 text-xs bg-red-600 text-white px-3 py-1 rounded-lg hover:bg-red-700">다시 시도</button>
+            </div>
           ) : analysis && !analysis.parse_error ? (
             <div className="space-y-4">
               {/* Health Banner */}

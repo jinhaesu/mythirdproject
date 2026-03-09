@@ -813,8 +813,38 @@ function ReportNewsletter({ data, onEmail }: { data: any; onEmail?: () => void }
   const daily = data?.daily_data || [];
   const totals = data?.totals || {};
   const campaign = data?.campaign_info;
-  const ai = typeof data?.ai_report === 'object' ? data.ai_report : null;
-  const aiText = typeof data?.ai_report === 'string' ? data.ai_report : null;
+  // Try to parse AI report: if string, attempt client-side JSON extraction
+  let ai = typeof data?.ai_report === 'object' ? data.ai_report : null;
+  let aiText = typeof data?.ai_report === 'string' ? data.ai_report : null;
+  if (!ai && aiText) {
+    try {
+      // Try ```json block
+      let jsonStr = aiText;
+      if (jsonStr.includes('```json')) {
+        jsonStr = jsonStr.split('```json')[1].split('```')[0].trim();
+      } else if (jsonStr.includes('```')) {
+        const parts = jsonStr.split('```');
+        if (parts.length >= 3) {
+          jsonStr = parts[1].trim();
+          if (jsonStr.startsWith('json')) jsonStr = jsonStr.slice(4).trim();
+        }
+      }
+      // Try balanced brace extraction
+      const start = jsonStr.indexOf('{');
+      if (start >= 0) {
+        let depth = 0, inStr = false, esc = false;
+        for (let i = start; i < jsonStr.length; i++) {
+          const c = jsonStr[i];
+          if (esc) { esc = false; continue; }
+          if (c === '\\') { esc = true; continue; }
+          if (c === '"') { inStr = !inStr; continue; }
+          if (inStr) continue;
+          if (c === '{') depth++;
+          else if (c === '}') { depth--; if (depth === 0) { ai = JSON.parse(jsonStr.slice(start, i + 1)); aiText = null; break; } }
+        }
+      }
+    } catch { /* keep aiText as fallback */ }
+  }
   const period = data?.period || {};
 
   const formatROAS = (v: any) => {

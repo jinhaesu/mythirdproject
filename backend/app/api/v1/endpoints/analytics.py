@@ -146,32 +146,125 @@ async def get_ai_analysis(
     try:
         response = claude.client.messages.create(
             model=claude.model,
-            max_tokens=2048,
+            max_tokens=4096,
             messages=[{
                 "role": "user",
-                "content": f"""Meta 광고 계정 데이터를 분석해 JSON으로 반환. 간결하게.
+                "content": f"""Meta 광고 계정 데이터를 상세하게 분석해 JSON으로 반환해주세요.
 
 {context_text}
 
-JSON 형식:
-{{"account_health":"good|warning|critical","health_summary":"요약 2문장","action_items":[{{"priority":"high|medium|low","type":"pause_ad|increase_budget|decrease_budget|change_creative","target_id":"ID","target_name":"이름","action":"액션","reason":"이유","expected_impact":"효과"}}],"creative_fatigue":[{{"ad_name":"이름","frequency":"수치","recommendation":"교체|수정|유지"}}],"budget_recommendations":[{{"campaign_name":"이름","campaign_id":"ID","current_budget":"₩현재금액(원화)","recommended_budget":"₩추천금액(원화)","reason":"이유"}}],"next_steps":["실행사항 3개"]}}
+반드시 아래 JSON 형식을 지켜서 응답하세요. 각 항목을 충분히 상세하게 작성하세요.
 
-JSON만 반환."""
+```json
+{{
+  "account_health": "good 또는 warning 또는 critical",
+  "health_summary": "계정 상태 요약 2-3문장",
+  "action_items": [
+    {{
+      "priority": "high 또는 medium 또는 low",
+      "type": "pause_ad 또는 increase_budget 또는 decrease_budget 또는 change_creative",
+      "target_id": "대상 ID",
+      "target_name": "대상 이름",
+      "action": "구체적 액션 설명",
+      "reason": "이유",
+      "expected_impact": "예상 효과"
+    }}
+  ],
+  "creative_fatigue": [
+    {{
+      "ad_name": "광고 이름",
+      "frequency": "빈도 수치",
+      "recommendation": "교체 또는 수정 또는 유지"
+    }}
+  ],
+  "budget_recommendations": [
+    {{
+      "campaign_name": "캠페인 이름",
+      "campaign_id": "캠페인 ID",
+      "current_budget": "₩현재금액",
+      "recommended_budget": "₩추천금액",
+      "reason": "추천 이유"
+    }}
+  ],
+  "next_steps": ["실행사항1", "실행사항2", "실행사항3"]
+}}
+```
+
+규칙:
+- action_items는 최소 2개 이상
+- creative_fatigue는 광고가 있으면 최소 1개 이상
+- budget_recommendations는 캠페인이 있으면 최소 1개 이상
+- next_steps는 정확히 3개
+- JSON만 출력하세요"""
             }],
         )
 
         raw = response.content[0].text.strip()
-        # Parse JSON from response
+        logger.info(f"AI analysis response length: {len(raw)}")
+
+        # Parse JSON from response - try multiple methods
+        parsed = None
+
+        # Method 1: ```json block
         if "```json" in raw:
-            raw = raw.split("```json")[1].split("```")[0].strip()
-        elif "```" in raw:
-            raw = raw.split("```")[1].split("```")[0].strip()
+            block = raw.split("```json")[1].split("```")[0].strip()
+            try:
+                parsed = json.loads(block)
+            except json.JSONDecodeError:
+                pass
 
-        analysis = json.loads(raw)
-        return {"connected": True, "analysis": analysis}
+        # Method 2: ``` block
+        if not parsed and "```" in raw:
+            parts = raw.split("```")
+            if len(parts) >= 3:
+                block = parts[1].strip()
+                if block.startswith("json"):
+                    block = block[4:].strip()
+                try:
+                    parsed = json.loads(block)
+                except json.JSONDecodeError:
+                    pass
 
-    except json.JSONDecodeError:
-        return {"connected": True, "analysis": {"raw_text": response.content[0].text, "parse_error": True}}
+        # Method 3: Find balanced braces
+        if not parsed:
+            import re as _re
+            start_idx = raw.find("{")
+            if start_idx >= 0:
+                depth = 0
+                in_str = False
+                esc = False
+                for idx in range(start_idx, len(raw)):
+                    c = raw[idx]
+                    if esc:
+                        esc = False
+                        continue
+                    if c == '\\':
+                        esc = True
+                        continue
+                    if c == '"':
+                        in_str = not in_str
+                        continue
+                    if in_str:
+                        continue
+                    if c == '{':
+                        depth += 1
+                    elif c == '}':
+                        depth -= 1
+                        if depth == 0:
+                            json_str = raw[start_idx:idx + 1]
+                            json_str = _re.sub(r',\s*([}\]])', r'\1', json_str)
+                            try:
+                                parsed = json.loads(json_str)
+                            except json.JSONDecodeError:
+                                pass
+                            break
+
+        if parsed:
+            return {"connected": True, "analysis": parsed}
+        else:
+            logger.warning(f"AI analysis JSON parse failed, returning raw text")
+            return {"connected": True, "analysis": {"raw_text": raw, "parse_error": True}}
+
     except Exception as e:
         logger.error(f"AI analysis failed: {e}")
         return {"connected": True, "analysis": None, "error": str(e)}
@@ -884,27 +977,47 @@ async def generate_report(
         ]
     else:
         ai_input["daily_data"] = daily_for_ai
-    report_prompt = f"""다음 캠페인 성과 데이터를 분석하여 한국어 리포트를 작성해주세요.
+    report_prompt = f"""다음 캠페인 성과 데이터를 분석하여 한국어 리포트를 작성해주세요. 반드시 상세하고 풍부하게 분석하세요.
 
 {json.dumps(ai_input, ensure_ascii=False, indent=2)}
 
-리포트 형식 (JSON으로 응답해주세요):
+반드시 아래 JSON 형식으로 응답하세요:
+
+```json
 {{
   "headline": "한 줄 핵심 분석 제목 (예: 'ROAS 1.8x 달성, 전환 효율 개선 필요')",
-  "period_summary": "2-3문장 기간 요약",
+  "period_summary": "3-5문장으로 기간 전체 성과를 종합 요약. 주요 지표 변화와 의미를 포함.",
   "kpi_highlights": [
-    {{"metric": "지표명", "value": "값", "change": "+15%", "insight": "한 줄 해석"}}
+    {{"metric": "총 지출", "value": "₩금액", "change": "+15%", "insight": "한 줄 해석"}},
+    {{"metric": "ROAS", "value": "수치", "change": "+0.3", "insight": "한 줄 해석"}},
+    {{"metric": "CTR", "value": "수치%", "change": "-0.1%", "insight": "한 줄 해석"}},
+    {{"metric": "CPC", "value": "₩금액", "change": "+10%", "insight": "한 줄 해석"}}
   ],
-  "daily_trend_insight": "일별 트렌드에서 발견한 핵심 패턴 2-3문장",
-  "key_insights": ["핵심 인사이트 1", "핵심 인사이트 2", "핵심 인사이트 3"],
+  "daily_trend_insight": "일별 트렌드에서 발견한 핵심 패턴을 3-5문장으로 상세히 설명. 요일별 특성, 지출 변동, 성과 변화 포인트 등.",
+  "key_insights": [
+    "핵심 인사이트 1 - 2문장 이상으로 상세하게",
+    "핵심 인사이트 2 - 데이터 기반 구체적 분석",
+    "핵심 인사이트 3 - 성과 영향 요인 분석",
+    "핵심 인사이트 4 - 경쟁 환경 또는 시즌 영향",
+    "핵심 인사이트 5 - 개선 기회 포인트"
+  ],
   "recommendations": [
-    {{"title": "추천 제목", "description": "상세 설명", "priority": "high/medium/low", "expected_impact": "예상 효과"}}
+    {{"title": "추천 제목", "description": "3-5문장으로 구체적 실행 방안 상세 설명", "priority": "high", "expected_impact": "예상 효과 (수치 포함)"}},
+    {{"title": "추천 제목", "description": "상세 설명", "priority": "medium", "expected_impact": "예상 효과"}},
+    {{"title": "추천 제목", "description": "상세 설명", "priority": "low", "expected_impact": "예상 효과"}}
   ],
-  "overall_grade": "A/B/C/D/F",
-  "grade_reason": "등급 사유 1문장"
+  "overall_grade": "A 또는 B 또는 C 또는 D 또는 F",
+  "grade_reason": "등급 사유를 2문장으로 설명"
 }}
+```
 
-ROAS(광고비 대비 매출)는 특히 중요하게 분석해주세요. JSON만 응답해주세요."""
+규칙:
+- ROAS(광고비 대비 매출)는 특히 중요하게 분석
+- kpi_highlights는 최소 4개 이상
+- key_insights는 최소 5개, 각각 2문장 이상으로 상세하게
+- recommendations는 최소 3개, description은 3문장 이상
+- 모든 분석은 데이터에 기반하여 구체적으로 작성
+- JSON만 출력하세요"""
 
     # Try primary model, then fallback models
     models_to_try = [claude.model, "claude-sonnet-4-6", "claude-haiku-4-5-20251001"]
@@ -913,10 +1026,10 @@ ROAS(광고비 대비 매출)는 특히 중요하게 분석해주세요. JSON만
         for model_id in models_to_try:
             try:
                 ai_resp = claude.client.messages.create(
-                    model=model_id, max_tokens=2048,
+                    model=model_id, max_tokens=8192,
                     messages=[{"role": "user", "content": report_prompt}],
                 )
-                logger.info(f"AI report generated with model: {model_id}")
+                logger.info(f"AI report generated with model: {model_id}, length: {len(ai_resp.content[0].text)}")
                 break
             except Exception as model_err:
                 logger.warning(f"Model {model_id} failed: {model_err}")
@@ -924,15 +1037,58 @@ ROAS(광고비 대비 매출)는 특히 중요하게 분석해주세요. JSON만
                     raise model_err
                 continue
         ai_text = ai_resp.content[0].text
-        # Try to parse structured JSON
+        # Try to parse structured JSON with robust parser
         try:
-            import re as _re
-            json_match = _re.search(r'\{[\s\S]+\}', ai_text)
-            if json_match:
-                report_data["ai_report"] = json.loads(json_match.group())
+            # Extract from ```json block first
+            if "```json" in ai_text:
+                block = ai_text.split("```json")[1].split("```")[0].strip()
+                report_data["ai_report"] = json.loads(block)
+            elif "```" in ai_text:
+                parts = ai_text.split("```")
+                if len(parts) >= 3:
+                    block = parts[1].strip()
+                    if block.startswith("json"):
+                        block = block[4:].strip()
+                    report_data["ai_report"] = json.loads(block)
+                else:
+                    raise ValueError("no json block")
             else:
-                report_data["ai_report"] = ai_text
-        except (json.JSONDecodeError, Exception):
+                # Balanced brace matching
+                import re as _re
+                start_idx = ai_text.find("{")
+                if start_idx >= 0:
+                    depth = 0
+                    in_str = False
+                    esc = False
+                    for idx in range(start_idx, len(ai_text)):
+                        c = ai_text[idx]
+                        if esc:
+                            esc = False
+                            continue
+                        if c == '\\':
+                            esc = True
+                            continue
+                        if c == '"':
+                            in_str = not in_str
+                            continue
+                        if in_str:
+                            continue
+                        if c == '{':
+                            depth += 1
+                        elif c == '}':
+                            depth -= 1
+                            if depth == 0:
+                                json_str = ai_text[start_idx:idx + 1]
+                                # Fix trailing commas
+                                json_str = _re.sub(r',\s*([}\]])', r'\1', json_str)
+                                report_data["ai_report"] = json.loads(json_str)
+                                break
+                    else:
+                        report_data["ai_report"] = ai_text
+                else:
+                    report_data["ai_report"] = ai_text
+        except (json.JSONDecodeError, Exception) as parse_err:
+            logger.warning(f"AI report JSON parse failed: {parse_err}")
             report_data["ai_report"] = ai_text
     except Exception as e:
         err_msg = str(e)
