@@ -14,6 +14,9 @@ import type {
   AutoPlanRequest,
   AutoPlanResponse,
   ChatResponse,
+  PublishOptions,
+  TargetingSegment,
+  PerformanceFeedback,
 } from '@/types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api/v1';
@@ -201,11 +204,16 @@ export const campaignApi = {
     objective: string;
     total_budget: number;
     daily_budget?: number;
+    budget_type?: string;
     targeting?: any;
-    targeting_segments?: any[];
+    targeting_segments?: TargetingSegment[];
     creative_ids: number[];
     start_date?: string;
     end_date?: string;
+    advantage_plus?: boolean;
+    advantage_plus_audience?: boolean;
+    dataset_id?: string;
+    pixel_id?: string;
   }) => {
     const { data } = await api.post<Campaign>('/campaign', campaignData);
     return data;
@@ -216,13 +224,16 @@ export const campaignApi = {
     return data;
   },
 
-  publish: async (campaignId: number) => {
+  publish: async (campaignId: number, options?: Partial<PublishOptions>) => {
     const { data } = await api.post<{
       success: boolean;
       meta_campaign_id?: string;
       status: string;
       message: string;
-    }>('/campaign/publish', { campaign_id: campaignId });
+    }>('/campaign/publish', {
+      campaign_id: campaignId,
+      ...options,
+    });
     return data;
   },
 
@@ -426,6 +437,15 @@ export const analyticsApi = {
     const { data } = await api.delete(`/analytics/schedules/${schedId}`);
     return data;
   },
+
+  // 성과 피드백 API
+  getPerformanceFeedback: async (campaignId: string, datePreset = 'last_7d') => {
+    const { data } = await api.post<PerformanceFeedback>('/analytics/performance-feedback', {
+      campaign_id: campaignId,
+      date_preset: datePreset,
+    });
+    return data;
+  },
 };
 
 // Campaign Planner API
@@ -529,5 +549,21 @@ export const chatApi = {
     return data;
   },
 };
+
+// Currency & number formatting utilities
+export function formatCurrency(amount: number, currency: string = 'KRW'): string {
+  if (currency === 'KRW') {
+    return `₩${Math.round(amount).toLocaleString('ko-KR')}`;
+  }
+  return `$${amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
+}
+
+export function formatNumber(num: number, decimals: number = 0): string {
+  return num.toFixed(decimals).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
+export function formatPercent(num: number, decimals: number = 2): string {
+  return `${num.toFixed(decimals)}%`;
+}
 
 export default api;

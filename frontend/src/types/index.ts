@@ -138,21 +138,65 @@ export interface GenerationJob {
   error_message?: string;
 }
 
+// Campaign Objective & Budget types
+export type CampaignObjective = 'TRAFFIC' | 'CONVERSIONS' | 'PURCHASE' | 'LEAD_GENERATION' | 'AWARENESS' | 'ENGAGEMENT' | 'APP_PROMOTION';
+
+export type BudgetType = 'DAILY' | 'LIFETIME';
+
+export type CampaignStatusType = 'ACTIVE' | 'PAUSED' | 'PENDING_REVIEW' | 'ARCHIVED' | 'DELETED';
+
+export interface PublishOptions {
+  campaign_id: number;
+  launch_immediately: boolean;
+  budget_type: BudgetType;
+  advantage_plus: boolean;
+  advantage_plus_audience: boolean;
+  dataset_id?: string;
+  pixel_id?: string;
+  currency: string;
+}
+
+export interface TargetingSegment {
+  type: 'BROAD' | 'RETARGET' | 'INTEREST';
+  name: string;
+  enabled: boolean;
+  ratio: number;  // percentage 0-100
+  targeting: TargetingConfig;
+  schedule?: {
+    start_date?: string;
+    end_date?: string;
+  };
+  daily_budget?: number;
+  age_range?: string;
+  gender?: string;
+  interests?: string[];
+  description?: string;
+  custom_audiences?: string[];
+  exclusion_audiences?: string[];
+  start_date?: string;
+  end_date?: string;
+}
+
 // Campaign types
 export interface Campaign {
   id: number;
   user_id: number;
   name: string;
-  objective: 'TRAFFIC' | 'CONVERSIONS' | 'LEAD_GENERATION';
+  objective: CampaignObjective;
   status: 'DRAFT' | 'PENDING_REVIEW' | 'ACTIVE' | 'PAUSED' | 'COMPLETED';
   total_budget: number;
   daily_budget?: number;
   spent_amount: number;
   targeting?: TargetingConfig;
-  targeting_segments?: any[];
+  targeting_segments?: TargetingSegment[];
   meta_campaign_id?: string;
   start_date?: string;
   end_date?: string;
+  budget_type?: BudgetType;
+  advantage_plus?: boolean;
+  advantage_plus_audience?: boolean;
+  dataset_id?: string;
+  pixel_id?: string;
   ads: Ad[];
   created_at: string;
   updated_at: string;
@@ -291,6 +335,107 @@ export interface MetaCampaign {
   stop_time?: string;
   insights?: Record<string, any>;
 }
+
+// Campaign Metrics & Performance Feedback types
+export interface CampaignMetrics {
+  campaign_id: string;
+  campaign_name: string;
+  status: CampaignStatusType;
+  objective: string;
+
+  // Budget
+  daily_budget?: number;
+  lifetime_budget?: number;
+  currency: string;
+
+  // Basic metrics
+  impressions: number;
+  clicks: number;
+  spend: number;
+  reach: number;
+
+  // Cost metrics
+  cpm: number;
+  cpc: number;
+  ctr: number;
+  frequency: number;
+
+  // Conversion metrics
+  website_purchase_conversions: number;
+  website_purchase_value: number;
+  website_content_views: number;
+  cost_per_result: number;
+  roas: number;
+
+  // Creative info
+  active_ad_count: number;
+}
+
+export interface ConversionAnalysis {
+  current_roas: number;
+  previous_roas: number;
+  roas_change_pct: number;
+  current_cpm: number;
+  previous_cpm: number;
+  cpm_change_pct: number;
+  current_cpa: number;
+  avg_order_value: number;
+  status: 'INCREASE_BUDGET' | 'EXPAND_TARGET' | 'CHECK_CPA' | 'MAINTAIN';
+  recommendation: string;
+}
+
+export interface ClickAnalysis {
+  link_click_ctr: number;
+  overall_ctr: number;
+  ctr_gap_warning: boolean;
+  current_cpc: number;
+  previous_cpc: number;
+  cpc_trend: 'UP' | 'DOWN' | 'STABLE';
+  landing_page_view_rate: number;
+  landing_status: 'GOOD' | 'WARNING' | 'CRITICAL';
+  recommendation: string;
+}
+
+export interface ImpressionAnalysis {
+  current_frequency: number;
+  frequency_warning: boolean;
+  cpm_trend: 'UP' | 'DOWN' | 'STABLE';
+  ctr_trend: 'UP' | 'DOWN' | 'STABLE';
+  fatigue_detected: boolean;
+  weekly_cpc_trend: number[];  // 4 weeks
+  cpc_upward_trend: boolean;
+  recommendation: string;
+}
+
+export interface CreativeAnalysis {
+  active_ad_count: number;
+  total_ad_count: number;
+  diversity_score: number;  // 0-100
+  creative_performances: Array<{
+    ad_id: string;
+    ad_name: string;
+    status: string;
+    ctr: number;
+    cpc: number;
+    spend: number;
+    trend: 'IMPROVING' | 'DECLINING' | 'STABLE';
+  }>;
+  recommendation: string;
+}
+
+export interface PerformanceFeedback {
+  campaign_id: string;
+  campaign_name: string;
+  conversion_analysis: ConversionAnalysis;
+  click_analysis: ClickAnalysis;
+  impression_analysis: ImpressionAnalysis;
+  creative_analysis: CreativeAnalysis;
+  recommendations: string[];
+  risk_level: 'LOW' | 'MEDIUM' | 'HIGH';
+}
+
+// Status filter type for campaign list
+export type CampaignStatusFilter = 'ALL' | 'ACTIVE' | 'PAUSED' | 'PENDING_REVIEW' | 'ARCHIVED';
 
 // Chat types
 export interface ChatResponse {

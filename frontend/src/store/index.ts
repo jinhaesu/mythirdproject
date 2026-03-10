@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { User, StyleExtraction, Creative, Campaign, AutoPlanResponse } from '@/types';
+import type { User, StyleExtraction, Creative, Campaign, AutoPlanResponse, PerformanceFeedback, CampaignStatusType, PublishOptions } from '@/types';
 
 interface AuthState {
   user: User | null;
@@ -54,6 +54,18 @@ interface AppState {
   // Auto Plan result from CampaignPlanner → AdsController
   autoPlanResult: AutoPlanResponse | null;
   setAutoPlanResult: (result: AutoPlanResponse | null) => void;
+
+  // Performance feedback cache
+  performanceFeedbacks: Record<string, PerformanceFeedback>;
+  setPerformanceFeedback: (campaignId: string, feedback: PerformanceFeedback) => void;
+
+  // Campaign filter
+  campaignStatusFilter: CampaignStatusType | 'ALL';
+  setCampaignStatusFilter: (filter: CampaignStatusType | 'ALL') => void;
+
+  // Publishing options
+  publishOptions: PublishOptions;
+  setPublishOptions: (options: Partial<PublishOptions>) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -83,4 +95,26 @@ export const useAppStore = create<AppState>((set) => ({
 
   autoPlanResult: null,
   setAutoPlanResult: (result) => set({ autoPlanResult: result }),
+
+  performanceFeedbacks: {},
+  setPerformanceFeedback: (campaignId, feedback) =>
+    set((state) => ({
+      performanceFeedbacks: { ...state.performanceFeedbacks, [campaignId]: feedback },
+    })),
+
+  campaignStatusFilter: 'ALL',
+  setCampaignStatusFilter: (filter) => set({ campaignStatusFilter: filter }),
+
+  publishOptions: {
+    campaign_id: 0,
+    launch_immediately: true,
+    budget_type: 'DAILY',
+    advantage_plus: false,
+    advantage_plus_audience: false,
+    currency: 'KRW',
+  },
+  setPublishOptions: (options) =>
+    set((state) => ({
+      publishOptions: { ...state.publishOptions, ...options },
+    })),
 }));

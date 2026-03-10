@@ -6,10 +6,52 @@ import logging
 import httpx
 
 from app.core.config import get_settings
-from app.schemas.campaign import TargetingConfig, CampaignObjective
+from app.schemas.campaign import CampaignObjective
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
+
+# ──────────────────────────────────────────────
+# Objective & Optimization Goal Mappings
+# ──────────────────────────────────────────────
+OBJECTIVE_MAP: Dict[str, str] = {
+    "TRAFFIC": "OUTCOME_TRAFFIC",
+    "CONVERSIONS": "OUTCOME_SALES",
+    "PURCHASE": "OUTCOME_SALES",
+    "LEAD_GENERATION": "OUTCOME_LEADS",
+    "AWARENESS": "OUTCOME_AWARENESS",
+    "ENGAGEMENT": "OUTCOME_ENGAGEMENT",
+    "APP_PROMOTION": "OUTCOME_APP_PROMOTION",
+}
+
+OPTIMIZATION_GOAL_MAP: Dict[str, str] = {
+    "OUTCOME_TRAFFIC": "LINK_CLICKS",
+    "OUTCOME_SALES": "OFFSITE_CONVERSIONS",
+    "OUTCOME_LEADS": "LEAD_GENERATION",
+    "OUTCOME_AWARENESS": "REACH",
+    "OUTCOME_ENGAGEMENT": "POST_ENGAGEMENT",
+    "OUTCOME_APP_PROMOTION": "APP_INSTALLS",
+}
+
+# Currencies that have no sub-unit (1 = 1 smallest unit)
+# For these currencies, budget value is sent as-is.
+# For others (e.g. USD, EUR), multiply by 100 to convert to cents.
+NO_CENTS_CURRENCIES = frozenset({
+    "KRW", "JPY", "VND", "CLP", "ISK", "HUF", "TWD", "COP",
+    "IDR", "PYG", "UGX", "RWF",
+})
+
+
+def convert_budget_to_api_units(amount: float, currency: str = "KRW") -> int:
+    """Convert a human-readable budget amount to Meta API units.
+
+    Meta API expects the smallest currency unit:
+    - KRW 200,000 -> 200000  (KRW has no sub-unit)
+    - USD 50.00   -> 5000    (50 * 100 cents)
+    """
+    if currency.upper() in NO_CENTS_CURRENCIES:
+        return int(amount)
+    return int(amount * 100)
 
 
 class MetaMarketingAPI:
@@ -21,6 +63,10 @@ class MetaMarketingAPI:
         raw = ad_account_id or ""
         self.ad_account_id = raw if raw.startswith("act_") else f"act_{raw}"
         self.base_url = f"{settings.META_GRAPH_API_BASE}/{settings.META_API_VERSION}"
+
+    # ──────────────────────────────────────────────
+    # Internal helpers
+    # ──────────────────────────────────────────────
 
     async def _request(
         self,
@@ -56,7 +102,6 @@ class MetaMarketingAPI:
                 try:
                     error_json = response.json()
                     error_obj = error_json.get("error", {})
-                    # Meta provides error_user_msg for more detail
                     error_msg = error_obj.get("error_user_msg") or error_obj.get("message", error_body)
                     error_code = error_obj.get("code", "")
                     error_subcode = error_obj.get("error_subcode", "")
@@ -69,47 +114,117 @@ class MetaMarketingAPI:
 
             return response.json()
 
-    def _map_objective(self, objective: CampaignObjective) -> str:
-        """Map our objective to Meta's objective."""
-        mapping = {
-            CampaignObjective.TRAFFIC: "OUTCOME_TRAFFIC",
-            CampaignObjective.CONVERSIONS: "OUTCOME_SALES",
-            CampaignObjective.LEAD_GENERATION: "OUTCOME_LEADS",
-        }
-        return mapping.get(objective, "OUTCOME_TRAFFIC")
+    def _map_objective(self, objective) -> str:
+        """Map our objective to Meta's objective.
 
-    def _build_targeting_spec(self, targeting: TargetingConfig) -> Dict[str, Any]:
-        """Build Meta targeting specification."""
-        spec = {
+        Accepts CampaignObjective enum or plain string.
+        """
+        key = objective.value if hasattr(objective, "value") else str(objective)
+        return OBJECTIVE_MAP.get(key, "OUTCOME_TRAFFIC")
+
+    def _map_optimization_goal(self, meta_objective: str) -> str:
+        """캠페인 목표에 맞는 광고세트 최적화 목표 매핑."""
+        return OPTIMIZATION_GOAL_MAP.get(meta_objective, "LINK_CLICKS")
+
+    def _build_targeting_spec(
+        self,
+        targeting: Any,
+        *,
+        segment_type: Optional[str] = None,
+        custom_audiences: Optional[List[str]] = None,
+        excluded_audiences: Optional[List[str]] = None,
+        advantage_plus_audience: bool = False,
+    ) -> Dict[str, Any]:
+        """Build Meta targeting specification.
+
+        segment_type: "broad" | "retarget" | "interest" | None
+        custom_audiences: list of custom audience IDs for retargeting
+        excluded_audiences: list of audience IDs to exclude (e.g. purchasers)
+        advantage_plus_audience: enable Advantage+ audience (targeting_automation)
+        """
+        spec: Dict[str, Any] = {
             "age_min": targeting.age_range.min_age,
             "age_max": targeting.age_range.max_age,
             "geo_locations": {
-                "countries": targeting.geo.countries
+                "countries": targeting.geo.countries,
             },
-            "targeting_automation": {
-                "advantage_audience": 0  # 수동 타겟팅 (기획 세그먼트 기반)
-            }
         }
 
+        # Gender filtering
         if targeting.genders != ["all"]:
             gender_map = {"male": 1, "female": 2}
             spec["genders"] = [gender_map[g] for g in targeting.genders if g in gender_map]
 
-        if targeting.interests.interests:
-            # Meta는 숫자 ID만 허용 — 문자열 관심사명은 제외
-            valid_interests = [
-                {"id": i} for i in targeting.interests.interests
-                if str(i).isdigit()
-            ]
-            if valid_interests:
-                spec["flexible_spec"] = [{"interests": valid_interests}]
-
+        # Geo: cities
         if targeting.geo.cities:
             spec["geo_locations"]["cities"] = [
                 {"key": city} for city in targeting.geo.cities
             ]
 
+        # ── Segment-type specific logic ──
+        seg = (segment_type or "").lower()
+
+        if seg == "broad":
+            # Broad (브로드): No interest targeting, no custom audiences
+            # Enable Advantage+ audience for optimal reach
+            spec["targeting_automation"] = {"advantage_audience": 1}
+
+        elif seg == "retarget":
+            # Retarget (리타겟): Custom audiences (website visitors etc.)
+            spec["targeting_automation"] = {"advantage_audience": 0}
+            if custom_audiences:
+                spec["custom_audiences"] = [{"id": ca_id} for ca_id in custom_audiences]
+            elif targeting.custom_audiences:
+                spec["custom_audiences"] = [{"id": ca_id} for ca_id in targeting.custom_audiences]
+            # Exclude purchasers
+            if excluded_audiences:
+                spec["excluded_custom_audiences"] = [{"id": ea_id} for ea_id in excluded_audiences]
+
+        elif seg == "interest":
+            # Interest (관심사): Specific interest IDs, detailed targeting
+            spec["targeting_automation"] = {"advantage_audience": 0}
+            if targeting.interests and targeting.interests.interests:
+                valid_interests = [
+                    {"id": i} for i in targeting.interests.interests
+                    if str(i).isdigit()
+                ]
+                if valid_interests:
+                    spec["flexible_spec"] = [{"interests": valid_interests}]
+            if targeting.interests and targeting.interests.behaviors:
+                valid_behaviors = [
+                    {"id": b} for b in targeting.interests.behaviors
+                    if str(b).isdigit()
+                ]
+                if valid_behaviors:
+                    if "flexible_spec" not in spec:
+                        spec["flexible_spec"] = [{}]
+                    spec["flexible_spec"][0]["behaviors"] = valid_behaviors
+
+        else:
+            # Default / unspecified segment
+            if advantage_plus_audience:
+                spec["targeting_automation"] = {"advantage_audience": 1}
+            else:
+                spec["targeting_automation"] = {"advantage_audience": 0}
+
+            # Apply interests if available
+            if targeting.interests and targeting.interests.interests:
+                valid_interests = [
+                    {"id": i} for i in targeting.interests.interests
+                    if str(i).isdigit()
+                ]
+                if valid_interests:
+                    spec["flexible_spec"] = [{"interests": valid_interests}]
+
+            # Apply custom audiences if available
+            if targeting.custom_audiences:
+                spec["custom_audiences"] = [{"id": ca_id} for ca_id in targeting.custom_audiences]
+
         return spec
+
+    # ──────────────────────────────────────────────
+    # Account & Asset helpers
+    # ──────────────────────────────────────────────
 
     async def get_ad_account(self) -> Dict[str, Any]:
         """Get ad account information."""
@@ -118,38 +233,6 @@ class MetaMarketingAPI:
             f"{self.ad_account_id}",
             params={"fields": "id,name,currency,timezone_name,amount_spent"}
         )
-
-    async def create_campaign(
-        self,
-        name: str,
-        objective: CampaignObjective,
-        status: str = "PAUSED"
-    ) -> Dict[str, Any]:
-        """
-        Create a new ad campaign.
-
-        Returns campaign ID on success.
-        """
-        return await self._request(
-            "POST",
-            f"{self.ad_account_id}/campaigns",
-            data={
-                "name": name,
-                "objective": self._map_objective(objective),
-                "status": status,
-                "special_ad_categories": ["NONE"],
-                "is_adset_budget_sharing_enabled": False,
-            }
-        )
-
-    def _map_optimization_goal(self, objective: str) -> str:
-        """캠페인 목표에 맞는 광고세트 최적화 목표 매핑."""
-        mapping = {
-            "OUTCOME_TRAFFIC": "LINK_CLICKS",
-            "OUTCOME_SALES": "OFFSITE_CONVERSIONS",
-            "OUTCOME_LEADS": "LEAD_GENERATION",
-        }
-        return mapping.get(objective, "LINK_CLICKS")
 
     async def get_pages(self) -> List[Dict]:
         """광고 계정에 연결된 Facebook 페이지 조회."""
@@ -167,19 +250,120 @@ class MetaMarketingAPI:
         except Exception:
             return []
 
+    # ──────────────────────────────────────────────
+    # Campaign CRUD
+    # ──────────────────────────────────────────────
+
+    async def create_campaign(
+        self,
+        name: str,
+        objective,
+        status: str = "PAUSED",
+        *,
+        daily_budget: Optional[int] = None,
+        lifetime_budget: Optional[int] = None,
+        special_ad_categories: Optional[List[str]] = None,
+        smart_promotion_type: Optional[str] = None,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+        use_cbo: bool = False,
+    ) -> Dict[str, Any]:
+        """Create a new ad campaign.
+
+        When use_cbo=True (Campaign Budget Optimization), budget is set at
+        campaign level and Meta auto-distributes across ad sets.
+
+        Args:
+            daily_budget: Campaign-level daily budget in API units (only with CBO).
+            lifetime_budget: Campaign-level lifetime budget in API units (only with CBO).
+            special_ad_categories: e.g. ["NONE"], ["HOUSING"], ["EMPLOYMENT"].
+            smart_promotion_type: For Advantage+ Shopping campaigns, e.g. "GUIDED_CREATION".
+            start_time: Campaign start time (required when using lifetime_budget).
+            end_time: Campaign end time (required when using lifetime_budget).
+            use_cbo: Enable Campaign Budget Optimization.
+        """
+        meta_objective = self._map_objective(objective)
+
+        data: Dict[str, Any] = {
+            "name": name,
+            "objective": meta_objective,
+            "status": status,
+            "special_ad_categories": special_ad_categories or ["NONE"],
+        }
+
+        # Campaign Budget Optimization
+        if use_cbo:
+            if lifetime_budget is not None:
+                data["lifetime_budget"] = lifetime_budget
+            elif daily_budget is not None:
+                data["daily_budget"] = daily_budget
+            # CBO requires spend cap or budget sharing to be on
+        else:
+            # No CBO — budget will be set at ad set level
+            pass
+
+        # Advantage+ Shopping campaigns
+        if smart_promotion_type:
+            data["smart_promotion_type"] = smart_promotion_type
+
+        # Schedule (needed for lifetime_budget)
+        if start_time:
+            data["start_time"] = start_time.isoformat()
+        if end_time:
+            data["end_time"] = end_time.isoformat()
+
+        return await self._request(
+            "POST",
+            f"{self.ad_account_id}/campaigns",
+            data=data,
+        )
+
+    async def update_campaign_status(
+        self,
+        campaign_id: str,
+        status: str
+    ) -> Dict[str, Any]:
+        """Update campaign status.
+
+        Valid statuses: ACTIVE, PAUSED, DELETED, ARCHIVED.
+        """
+        if status not in ("ACTIVE", "PAUSED", "DELETED", "ARCHIVED"):
+            raise ValueError(f"Invalid campaign status: {status}")
+        return await self._request(
+            "POST",
+            campaign_id,
+            data={"status": status}
+        )
+
+    # ──────────────────────────────────────────────
+    # Ad Set CRUD
+    # ──────────────────────────────────────────────
+
     def _build_promoted_object(
-        self, objective: str, page_id: Optional[str] = None, pixel_id: Optional[str] = None
+        self,
+        objective: str,
+        page_id: Optional[str] = None,
+        pixel_id: Optional[str] = None,
+        custom_event_type: Optional[str] = None,
     ) -> Optional[Dict]:
         """캠페인 목표에 맞는 promoted_object 생성."""
         if objective == "OUTCOME_SALES":
             if pixel_id:
-                return {"pixel_id": pixel_id, "custom_event_type": "PURCHASE"}
+                return {
+                    "pixel_id": pixel_id,
+                    "custom_event_type": custom_event_type or "PURCHASE",
+                }
             elif page_id:
                 return {"page_id": page_id}
         elif objective == "OUTCOME_LEADS":
-            if page_id:
+            if pixel_id:
+                return {
+                    "pixel_id": pixel_id,
+                    "custom_event_type": custom_event_type or "LEAD",
+                }
+            elif page_id:
                 return {"page_id": page_id}
-        elif objective == "OUTCOME_TRAFFIC":
+        elif objective in ("OUTCOME_TRAFFIC", "OUTCOME_ENGAGEMENT"):
             if page_id:
                 return {"page_id": page_id}
         return None
@@ -188,38 +372,80 @@ class MetaMarketingAPI:
         self,
         campaign_id: str,
         name: str,
-        daily_budget: int,  # In cents
-        targeting: TargetingConfig,
+        targeting: Any,
         objective: Optional[str] = None,
+        *,
+        daily_budget: Optional[int] = None,
+        lifetime_budget: Optional[int] = None,
+        use_cbo: bool = False,
         page_id: Optional[str] = None,
         pixel_id: Optional[str] = None,
+        custom_event_type: Optional[str] = None,
         start_time: Optional[datetime] = None,
         end_time: Optional[datetime] = None,
+        segment_type: Optional[str] = None,
+        custom_audiences: Optional[List[str]] = None,
+        excluded_audiences: Optional[List[str]] = None,
+        advantage_plus_audience: bool = False,
+        targeting_optimization: Optional[str] = None,
+        status: str = "PAUSED",
     ) -> Dict[str, Any]:
-        """
-        Create an ad set within a campaign.
+        """Create an ad set within a campaign.
 
-        Returns adset ID on success.
+        When use_cbo=True, do NOT set budget at ad set level — Meta
+        auto-distributes from the campaign-level budget.
+
+        Args:
+            daily_budget: Ad-set daily budget in API units (ignored when CBO).
+            lifetime_budget: Ad-set lifetime budget in API units (ignored when CBO).
+            use_cbo: If True, skip budget at ad-set level.
+            segment_type: "broad", "retarget", "interest" for targeting differentiation.
+            custom_audiences: Custom audience IDs for retargeting.
+            excluded_audiences: Audience IDs to exclude.
+            advantage_plus_audience: Enable Advantage+ audience.
+            targeting_optimization: "NONE" or "EXPANSION_ALL" for Advantage+ audience.
+            status: Initial status for the ad set.
         """
         obj = objective or "OUTCOME_TRAFFIC"
         optimization_goal = self._map_optimization_goal(obj)
 
-        data = {
+        targeting_spec = self._build_targeting_spec(
+            targeting,
+            segment_type=segment_type,
+            custom_audiences=custom_audiences,
+            excluded_audiences=excluded_audiences,
+            advantage_plus_audience=advantage_plus_audience,
+        )
+
+        data: Dict[str, Any] = {
             "name": name,
             "campaign_id": campaign_id,
-            "daily_budget": daily_budget,
             "billing_event": "IMPRESSIONS",
             "optimization_goal": optimization_goal,
             "bid_strategy": "LOWEST_COST_WITHOUT_CAP",
-            "targeting": self._build_targeting_spec(targeting),
-            "status": "PAUSED"
+            "targeting": targeting_spec,
+            "status": status,
         }
 
+        # Budget — skip when CBO is enabled
+        if not use_cbo:
+            if lifetime_budget is not None:
+                data["lifetime_budget"] = lifetime_budget
+            elif daily_budget is not None:
+                data["daily_budget"] = daily_budget
+
+        # Advantage+ audience targeting optimization
+        if targeting_optimization:
+            data["targeting_optimization"] = targeting_optimization
+
         # promoted_object — 목표별 필수
-        promoted_object = self._build_promoted_object(obj, page_id, pixel_id)
+        promoted_object = self._build_promoted_object(
+            obj, page_id, pixel_id, custom_event_type
+        )
         if promoted_object:
             data["promoted_object"] = promoted_object
 
+        # Schedule
         if start_time:
             data["start_time"] = start_time.isoformat()
         if end_time:
@@ -228,8 +454,42 @@ class MetaMarketingAPI:
         return await self._request(
             "POST",
             f"{self.ad_account_id}/adsets",
-            data=data
+            data=data,
         )
+
+    async def update_adset_status(
+        self,
+        adset_id: str,
+        status: str,
+    ) -> Dict[str, Any]:
+        """Update ad set status (ACTIVE, PAUSED, DELETED, ARCHIVED)."""
+        if status not in ("ACTIVE", "PAUSED", "DELETED", "ARCHIVED"):
+            raise ValueError(f"Invalid ad set status: {status}")
+        return await self._request(
+            "POST",
+            adset_id,
+            data={"status": status},
+        )
+
+    async def update_adset_budget(
+        self,
+        adset_id: str,
+        daily_budget: Optional[int] = None,
+        lifetime_budget: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """Update ad set budget in API units."""
+        data: Dict[str, Any] = {}
+        if daily_budget is not None:
+            data["daily_budget"] = daily_budget
+        if lifetime_budget is not None:
+            data["lifetime_budget"] = lifetime_budget
+        if not data:
+            raise ValueError("daily_budget or lifetime_budget must be provided")
+        return await self._request("POST", adset_id, data=data)
+
+    # ──────────────────────────────────────────────
+    # Ad Creative & Ad CRUD
+    # ──────────────────────────────────────────────
 
     async def create_ad_creative(
         self,
@@ -239,14 +499,16 @@ class MetaMarketingAPI:
         video_id: Optional[str] = None,
         message: str = "",
         link: Optional[str] = None,
-        call_to_action: str = "LEARN_MORE"
+        call_to_action: str = "LEARN_MORE",
+        degrees_of_freedom_spec: Optional[Dict] = None,
     ) -> Dict[str, Any]:
-        """
-        Create an ad creative.
+        """Create an ad creative.
 
-        Returns creative ID on success.
+        Args:
+            degrees_of_freedom_spec: For Advantage+ creative, e.g.
+                {"creative_features_spec": {"standard_enhancements": {"enroll_status": "OPT_IN"}}}
         """
-        object_story_spec = {
+        object_story_spec: Dict[str, Any] = {
             "page_id": page_id,
         }
 
@@ -267,13 +529,19 @@ class MetaMarketingAPI:
                 "call_to_action": {"type": call_to_action}
             }
 
+        data: Dict[str, Any] = {
+            "name": name,
+            "object_story_spec": object_story_spec,
+        }
+
+        # Advantage+ creative enhancements
+        if degrees_of_freedom_spec:
+            data["degrees_of_freedom_spec"] = degrees_of_freedom_spec
+
         return await self._request(
             "POST",
             f"{self.ad_account_id}/adcreatives",
-            data={
-                "name": name,
-                "object_story_spec": object_story_spec
-            }
+            data=data,
         )
 
     async def create_ad(
@@ -283,11 +551,7 @@ class MetaMarketingAPI:
         creative_id: str,
         status: str = "PAUSED"
     ) -> Dict[str, Any]:
-        """
-        Create an ad using existing adset and creative.
-
-        Returns ad ID on success.
-        """
+        """Create an ad using existing adset and creative."""
         return await self._request(
             "POST",
             f"{self.ad_account_id}/ads",
@@ -295,33 +559,27 @@ class MetaMarketingAPI:
                 "name": name,
                 "adset_id": adset_id,
                 "creative": {"creative_id": creative_id},
-                "status": status
+                "status": status,
             }
         )
 
-    async def update_campaign_status(
+    async def update_ad_status(
         self,
-        campaign_id: str,
-        status: str
+        ad_id: str,
+        status: str,
     ) -> Dict[str, Any]:
-        """Update campaign status (ACTIVE, PAUSED, etc.)."""
+        """Update ad status (ACTIVE, PAUSED, DELETED, ARCHIVED)."""
+        if status not in ("ACTIVE", "PAUSED", "DELETED", "ARCHIVED"):
+            raise ValueError(f"Invalid ad status: {status}")
         return await self._request(
             "POST",
-            campaign_id,
-            data={"status": status}
+            ad_id,
+            data={"status": status},
         )
 
-    async def update_adset_budget(
-        self,
-        adset_id: str,
-        daily_budget: int
-    ) -> Dict[str, Any]:
-        """Update adset daily budget (in cents)."""
-        return await self._request(
-            "POST",
-            adset_id,
-            data={"daily_budget": daily_budget}
-        )
+    # ──────────────────────────────────────────────
+    # Insights / Reporting
+    # ──────────────────────────────────────────────
 
     async def get_campaign_insights(
         self,
@@ -329,11 +587,7 @@ class MetaMarketingAPI:
         date_preset: str = "last_7d",
         fields: Optional[List[str]] = None
     ) -> Dict[str, Any]:
-        """
-        Get campaign performance insights.
-
-        date_preset options: today, yesterday, last_7d, last_30d, etc.
-        """
+        """Get campaign performance insights."""
         fields = fields or [
             "impressions", "clicks", "spend", "reach",
             "cpc", "cpm", "ctr", "conversions", "cost_per_conversion"
@@ -351,7 +605,7 @@ class MetaMarketingAPI:
         self,
         ad_id: str,
         date_preset: str = "last_7d",
-        time_increment: int = 1  # Daily breakdown
+        time_increment: int = 1
     ) -> Dict[str, Any]:
         """Get individual ad performance insights with daily breakdown."""
         return await self._request(
@@ -363,6 +617,10 @@ class MetaMarketingAPI:
                 "fields": "impressions,clicks,spend,cpc,ctr,conversions,actions"
             }
         )
+
+    # ──────────────────────────────────────────────
+    # Discovery / Suggestions
+    # ──────────────────────────────────────────────
 
     async def get_interest_suggestions(
         self,
@@ -380,10 +638,11 @@ class MetaMarketingAPI:
             }
         )
 
-    async def upload_image(
-        self,
-        image_url: str
-    ) -> Dict[str, Any]:
+    # ──────────────────────────────────────────────
+    # Media upload
+    # ──────────────────────────────────────────────
+
+    async def upload_image(self, image_url: str) -> Dict[str, Any]:
         """Upload image from URL for ad creative."""
         return await self._request(
             "POST",
@@ -391,11 +650,7 @@ class MetaMarketingAPI:
             data={"url": image_url}
         )
 
-    async def upload_video(
-        self,
-        video_url: str,
-        title: str = ""
-    ) -> Dict[str, Any]:
+    async def upload_video(self, video_url: str, title: str = "") -> Dict[str, Any]:
         """Upload video from URL for ad creative."""
         return await self._request(
             "POST",
@@ -405,3 +660,38 @@ class MetaMarketingAPI:
                 "title": title
             }
         )
+
+    # ──────────────────────────────────────────────
+    # Duplicate check helpers
+    # ──────────────────────────────────────────────
+
+    async def find_campaigns_by_name(self, name: str) -> List[Dict]:
+        """Search for existing campaigns by name to prevent duplicates."""
+        try:
+            result = await self._request(
+                "GET",
+                f"{self.ad_account_id}/campaigns",
+                params={
+                    "fields": "id,name,status,created_time",
+                    "filtering": json_module.dumps([{
+                        "field": "name",
+                        "operator": "CONTAIN",
+                        "value": name,
+                    }]),
+                    "limit": 25,
+                },
+            )
+            return result.get("data", [])
+        except Exception:
+            return []
+
+    async def get_campaign_by_id(self, campaign_id: str) -> Optional[Dict]:
+        """Fetch a single campaign by its Meta campaign ID."""
+        try:
+            return await self._request(
+                "GET",
+                campaign_id,
+                params={"fields": "id,name,status,created_time"},
+            )
+        except Exception:
+            return None

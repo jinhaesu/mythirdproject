@@ -3,7 +3,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 
-from sqlalchemy import String, DateTime, Text, Integer, Float, ForeignKey, Enum as SQLEnum
+from sqlalchemy import String, Boolean, DateTime, Text, Integer, Float, ForeignKey, Enum as SQLEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.database import Base
@@ -13,7 +13,11 @@ class CampaignObjective(str, Enum):
     """Campaign objective types."""
     TRAFFIC = "TRAFFIC"
     CONVERSIONS = "CONVERSIONS"
+    PURCHASE = "PURCHASE"
     LEAD_GENERATION = "LEAD_GENERATION"
+    AWARENESS = "AWARENESS"
+    ENGAGEMENT = "ENGAGEMENT"
+    APP_PROMOTION = "APP_PROMOTION"
 
 
 class CampaignStatus(str, Enum):
@@ -45,6 +49,8 @@ class Campaign(Base):
     total_budget: Mapped[float] = mapped_column(Float, default=0.0)
     daily_budget: Mapped[Optional[float]] = mapped_column(Float)
     spent_amount: Mapped[float] = mapped_column(Float, default=0.0)
+    budget_type: Mapped[str] = mapped_column(String(20), default="DAILY")  # "DAILY" or "LIFETIME"
+    currency: Mapped[str] = mapped_column(String(10), default="KRW")  # "KRW" or "USD"
 
     # Targeting (JSON stored as text)
     targeting: Mapped[Optional[str]] = mapped_column(Text)  # JSON: age, gender, interests
@@ -53,6 +59,12 @@ class Campaign(Base):
     # Meta integration
     meta_campaign_id: Mapped[Optional[str]] = mapped_column(String(255))
     meta_adset_id: Mapped[Optional[str]] = mapped_column(String(255))
+    meta_adset_ids: Mapped[Optional[str]] = mapped_column(Text)  # JSON array of adset IDs
+    advantage_plus: Mapped[bool] = mapped_column(Boolean, default=False)  # Whether Advantage+ is enabled
+
+    # Dataset/Pixel
+    dataset_id: Mapped[Optional[str]] = mapped_column(String(255))  # Custom dataset ID (e.g., Cafe24 pixel)
+    pixel_id: Mapped[Optional[str]] = mapped_column(String(255))  # Custom pixel ID override
 
     # Schedule
     start_date: Mapped[Optional[datetime]] = mapped_column(DateTime)

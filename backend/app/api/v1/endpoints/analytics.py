@@ -65,15 +65,22 @@ async def get_account_overview(
     date_preset: str = Query(default="last_7d"),
     since: Optional[str] = Query(default=None),
     until: Optional[str] = Query(default=None),
+    status_filter: Optional[str] = Query(default=None, description="Filter by status: ACTIVE, PAUSED, ALL"),
+    force_refresh: bool = Query(default=True, description="Always fetch fresh data from Meta"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get complete ad account overview: all campaigns, ad sets, ads with insights."""
+    """Get complete ad account overview: all campaigns with insights.
+    Always fetches fresh data from Meta API (force_refresh=True by default).
+    Use status_filter to filter campaigns by effective_status."""
     svc = await MetaAdsService.create(current_user, db)
     if not svc.connected:
         return {"connected": False, "error": "Meta 계정을 먼저 연동해주세요."}
 
-    overview = await svc.get_account_overview(date_preset, since=since, until=until)
+    overview = await svc.get_account_overview(
+        date_preset, since=since, until=until,
+        status_filter=status_filter, force_refresh=force_refresh
+    )
     return overview
 
 
@@ -88,12 +95,17 @@ async def get_campaign_adsets(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Load adsets + ads for a single campaign (on-demand when user expands)."""
+    """Load adsets + ads for a single campaign (on-demand when user expands).
+    Returns empty list instead of error if adsets can't be fetched."""
     svc = await MetaAdsService.create(current_user, db)
     if not svc.connected:
-        raise HTTPException(status_code=400, detail="Meta 계정이 연동되지 않았습니다.")
-    adsets = await svc.get_campaign_adsets(campaign_id, date_preset)
-    return {"adsets": adsets}
+        return {"adsets": [], "error": "Meta 계정이 연동되지 않았습니다."}
+    try:
+        adsets = await svc.get_campaign_adsets(campaign_id, date_preset)
+        return {"adsets": adsets}
+    except Exception as e:
+        logger.error(f"Error fetching adsets for campaign {campaign_id}: {e}")
+        return {"adsets": [], "error": str(e)}
 
 
 # ──────────────────────────────────────────────
@@ -288,6 +300,43 @@ Meta 광고 계정 데이터를 분석해 JSON으로 반환하세요.
 
 
 # ──────────────────────────────────────────────
+# Performance Feedback (Advanced Analysis)
+# ──────────────────────────────────────────────
+
+class PerformanceFeedbackRequest(BaseModel):
+    campaign_id: str
+    date_preset: str = "last_7d"
+
+@router.post("/performance-feedback")
+async def get_performance_feedback(
+    request: PerformanceFeedbackRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Advanced performance feedback analysis based on marketing expert rules.
+    Returns structured feedback for:
+    1. Conversion Analysis (ROAS & Efficiency)
+    2. Click Analysis (CTR & CPC)
+    3. Impression Analysis (CPM & Fatigue)
+    4. Creative Fatigue Analysis
+    """
+    svc = await MetaAdsService.create(current_user, db)
+    if not svc.connected:
+        raise HTTPException(status_code=400, detail="Meta 계정이 연동되지 않았습니다.")
+
+    try:
+        feedback = await svc.get_performance_feedback(request.campaign_id, request.date_preset)
+        if feedback.get("error"):
+            raise HTTPException(status_code=400, detail=feedback["error"])
+        return {"connected": True, "feedback": feedback}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Performance feedback failed for campaign {request.campaign_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"성과 분석 중 오류가 발생했습니다: {str(e)}")
+
+
+# ──────────────────────────────────────────────
 # Management Actions (execute on Meta)
 # ──────────────────────────────────────────────
 
@@ -309,24 +358,59 @@ async def update_status(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Toggle campaign/adset/ad status on Meta."""
+    """Toggle campaign/adset/ad status on Meta.
+    Supports campaign, adset, and ad level status updates.
+    Returns the updated status in response.
+    Handles Meta API errors (e.g., campaign in PENDING_REVIEW can't be activated)."""
     svc = await MetaAdsService.create(current_user, db)
     if not svc.connected:
         raise HTTPException(status_code=400, detail="Meta 계정이 연동되지 않았습니다.")
 
-    if request.object_type == "campaign":
-        result = await svc.update_campaign_status(request.object_id, request.status)
-    elif request.object_type == "adset":
-        result = await svc.update_adset_status(request.object_id, request.status)
-    elif request.object_type == "ad":
-        result = await svc.update_ad_status(request.object_id, request.status)
-    else:
-        raise HTTPException(status_code=400, detail="Invalid object_type")
+    # Validate status values
+    valid_statuses = {"ACTIVE", "PAUSED", "DELETED", "ARCHIVED"}
+    if request.status not in valid_statuses:
+        raise HTTPException(
+            status_code=400,
+            detail=f"유효하지 않은 상태입니다: '{request.status}'. 가능한 값: {', '.join(valid_statuses)}"
+        )
 
-    if "error" in result:
-        raise HTTPException(status_code=400, detail=result["error"])
+    try:
+        if request.object_type == "campaign":
+            result = await svc.update_campaign_status(request.object_id, request.status)
+        elif request.object_type == "adset":
+            result = await svc.update_adset_status(request.object_id, request.status)
+        elif request.object_type == "ad":
+            result = await svc.update_ad_status(request.object_id, request.status)
+        else:
+            raise HTTPException(status_code=400, detail=f"유효하지 않은 object_type: '{request.object_type}'. campaign/adset/ad 중 하나를 사용하세요.")
 
-    return {"success": True, "message": f"{request.object_type} {request.object_id} 상태가 {request.status}로 변경되었습니다."}
+        if "error" in result:
+            # Parse Meta API error for user-friendly message
+            error_msg = result["error"]
+            if "PENDING_REVIEW" in str(error_msg):
+                raise HTTPException(status_code=400, detail="이 항목은 검토 대기 중(PENDING_REVIEW)이라 상태를 변경할 수 없습니다.")
+            elif "DELETED" in str(error_msg):
+                raise HTTPException(status_code=400, detail="삭제된 항목의 상태는 변경할 수 없습니다.")
+            elif "permission" in str(error_msg).lower() or "access" in str(error_msg).lower():
+                raise HTTPException(status_code=403, detail=f"권한이 부족합니다: {error_msg}")
+            else:
+                raise HTTPException(status_code=400, detail=f"Meta API 오류: {error_msg}")
+
+        return {
+            "success": True,
+            "object_id": request.object_id,
+            "object_type": request.object_type,
+            "requested_status": request.status,
+            "updated_status": result.get("updated_status", request.status),
+            "effective_status": result.get("effective_status", request.status),
+            "message": f"{request.object_type} {request.object_id} 상태가 {result.get('updated_status', request.status)}로 변경되었습니다.",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Status update failed: {e}")
+        raise HTTPException(status_code=500, detail=f"상태 변경 중 오류가 발생했습니다: {str(e)}")
 
 
 @router.post("/manage/budget")
@@ -610,17 +694,21 @@ async def get_overall_summary(
 @router.get("/meta-campaigns")
 async def get_meta_campaigns(
     date_preset: str = Query(default="last_7d"),
+    status_filter: Optional[str] = Query(default=None, description="Filter by status: ACTIVE, PAUSED, ALL"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Meta API에서 실제 캠페인 목록 직접 조회."""
+    """Meta API에서 실제 캠페인 목록 직접 조회.
+    Fetches ALL campaigns from Meta directly (limit=500 with pagination).
+    Use status_filter to filter by effective_status."""
     svc = await MetaAdsService.create(current_user, db)
     if not svc.connected:
         return {"connected": False, "campaigns": [], "message": "Meta 계정을 연동해주세요."}
 
-    overview = await svc.get_account_overview(date_preset)
+    overview = await svc.get_account_overview(date_preset, status_filter=status_filter, force_refresh=True)
     return {
         "connected": True,
+        "currency": overview.get("currency", "KRW"),
         "campaigns": overview.get("campaigns", []),
         "totals": overview.get("totals", {}),
         "account_insights": overview.get("account_insights", {}),

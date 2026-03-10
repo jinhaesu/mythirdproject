@@ -10,7 +10,11 @@ class CampaignObjective(str, Enum):
     """Campaign objective types."""
     TRAFFIC = "TRAFFIC"
     CONVERSIONS = "CONVERSIONS"
+    PURCHASE = "PURCHASE"
     LEAD_GENERATION = "LEAD_GENERATION"
+    AWARENESS = "AWARENESS"
+    ENGAGEMENT = "ENGAGEMENT"
+    APP_PROMOTION = "APP_PROMOTION"
 
 
 class CampaignStatus(str, Enum):
@@ -45,9 +49,21 @@ class TargetingConfig(BaseModel):
     age_range: AgeRange = AgeRange()
     genders: List[str] = ["all"]  # male, female, all
     geo: GeoTargeting = GeoTargeting()
-    interests: InterestTargeting = InterestTargeting()
+    interests: Optional[InterestTargeting] = None
     custom_audiences: Optional[List[str]] = None
     lookalike_audiences: Optional[List[str]] = None
+    excluded_audiences: Optional[List[str]] = None  # Exclude purchasers etc.
+    advantage_plus_audience: bool = False  # Advantage+ audience expansion
+
+
+class TargetingSegment(BaseModel):
+    """Targeting segment with budget ratio."""
+    type: str  # "BROAD", "RETARGET", "INTEREST"
+    name: str
+    ratio: float  # Budget ratio (percentage)
+    targeting: TargetingConfig
+    schedule: Optional[dict] = None  # Start/end dates for this segment
+    daily_budget: Optional[float] = None
 
 
 class BudgetAllocation(BaseModel):
@@ -123,8 +139,14 @@ class CampaignResponse(BaseModel):
     total_budget: float
     daily_budget: Optional[float]
     spent_amount: float
+    budget_type: str = "DAILY"
+    currency: str = "KRW"
     targeting: Optional[TargetingConfig]
     meta_campaign_id: Optional[str]
+    meta_adset_ids: Optional[str] = None
+    advantage_plus: bool = False
+    dataset_id: Optional[str] = None
+    pixel_id: Optional[str] = None
     start_date: Optional[datetime]
     end_date: Optional[datetime]
     ads: List[AdResponse] = []
@@ -138,6 +160,15 @@ class CampaignResponse(BaseModel):
 class PublishRequest(BaseModel):
     """Request to publish campaign to Meta."""
     campaign_id: int
+    launch_immediately: bool = False  # Whether to activate right away
+    budget_type: str = "DAILY"  # "DAILY" or "LIFETIME"
+    advantage_plus: bool = False  # Enable Advantage+
+    dataset_id: Optional[str] = None  # Cafe24 or custom dataset
+    pixel_id: Optional[str] = None  # Custom pixel ID
+    currency: str = "KRW"  # Currency code
+    special_ad_categories: Optional[List[str]] = None
+    use_cbo: bool = True  # Campaign Budget Optimization (campaign-level budget)
+    force_create: bool = False  # Force create even if duplicate campaign name detected
 
 
 class PublishResponse(BaseModel):
@@ -145,5 +176,6 @@ class PublishResponse(BaseModel):
     success: bool
     meta_campaign_id: Optional[str]
     meta_adset_id: Optional[str]
+    meta_adset_ids: Optional[List[str]] = None
     status: str
     message: str

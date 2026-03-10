@@ -5,32 +5,102 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import {
   Target, Zap, Upload, CheckCircle, Trash2,
   Play, Pause, ChevronDown, ChevronUp, RefreshCw, Info, X,
-  Users, MapPin, Crosshair, Layers, Eye
+  Users, MapPin, Crosshair, Layers, Eye, Database, Settings, ToggleLeft, ToggleRight
 } from 'lucide-react';
 import { Button, Input, Card, CardTitle, Select } from '@/components/ui';
 import { campaignApi } from '@/lib/api';
 import { useAppStore } from '@/store';
-import type { Campaign, StrategyRecommendation, Ad, TargetingConfig } from '@/types';
+import type { Campaign, StrategyRecommendation, Ad, TargetingConfig, TargetingSegment, CampaignObjective, BudgetType, PublishOptions } from '@/types';
 import toast from 'react-hot-toast';
 
-// ── Targeting segment type from planner ──
-interface TargetingSegment {
-  type: string;
-  ratio: number;
-  age_range?: string;
-  gender?: string;
-  interests?: string[];
-  description?: string;
-}
+// ── Campaign Objective options ──
+const OBJECTIVE_OPTIONS: { value: CampaignObjective; label: string; metaValue: string; desc: string }[] = [
+  { value: 'PURCHASE', label: '전환 (구매)', metaValue: 'OUTCOME_SALES', desc: '상품 구매/결제 유도' },
+  { value: 'TRAFFIC', label: '트래픽', metaValue: 'OUTCOME_TRAFFIC', desc: '웹사이트 방문 유도' },
+  { value: 'LEAD_GENERATION', label: '리드 생성', metaValue: 'OUTCOME_LEADS', desc: '리드/문의 수집' },
+  { value: 'AWARENESS', label: '인지도', metaValue: 'OUTCOME_AWARENESS', desc: '브랜드 인지도 확대' },
+  { value: 'ENGAGEMENT', label: '참여', metaValue: 'OUTCOME_ENGAGEMENT', desc: '게시물 참여 유도' },
+];
+
+// ── Dataset options ──
+const DATASET_OPTIONS = [
+  { value: '', label: '선택 안함' },
+  { value: 'cafe24', label: '카페24 자사몰' },
+  { value: 'smartstore', label: '스마트스토어' },
+  { value: 'custom', label: '직접 입력' },
+];
+
+// ── Pixel options ──
+const PIXEL_OPTIONS = [
+  { value: 'auto', label: '자동 (Meta에서 감지)' },
+  { value: 'custom', label: '직접 입력' },
+];
+
+// ── Default targeting config factory ──
+const defaultTargetingConfig = (): TargetingConfig => ({
+  age_range: { min_age: 18, max_age: 65 },
+  genders: ['all'],
+  geo: { countries: ['KR'] },
+  interests: { interests: [], behaviors: [] },
+});
+
+// ── Default 3 segments ──
+const createDefaultSegments = (): TargetingSegment[] => [
+  {
+    type: 'BROAD',
+    name: '브로드',
+    enabled: true,
+    ratio: 40,
+    targeting: defaultTargetingConfig(),
+    description: '넓은 타겟팅, 관심사 제한 없음',
+  },
+  {
+    type: 'RETARGET',
+    name: '리타겟',
+    enabled: true,
+    ratio: 35,
+    targeting: defaultTargetingConfig(),
+    custom_audiences: [],
+    exclusion_audiences: [],
+    description: '웹사이트 방문자, 장바구니 이탈자 타겟',
+  },
+  {
+    type: 'INTEREST',
+    name: '관심사',
+    enabled: true,
+    ratio: 25,
+    targeting: defaultTargetingConfig(),
+    interests: [],
+    description: '관심사 키워드 기반 타겟팅',
+  },
+];
 
 export function AdsController() {
   const { selectedCreatives, setSelectedCampaign, setActiveTab, autoPlanResult, setAutoPlanResult } = useAppStore();
 
   const [campaignName, setCampaignName] = useState('');
-  const [objective, setObjective] = useState<'TRAFFIC' | 'CONVERSIONS' | 'LEAD_GENERATION'>('TRAFFIC');
+  const [objective, setObjective] = useState<CampaignObjective>('PURCHASE');
   const [budget, setBudget] = useState('');
   const [strategy, setStrategy] = useState<StrategyRecommendation | null>(null);
   const [showPlanBanner, setShowPlanBanner] = useState(false);
+
+  // Budget type
+  const [budgetType, setBudgetType] = useState<BudgetType>('DAILY');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+
+  // Advantage+ settings
+  const [advantagePlus, setAdvantagePlus] = useState(false);
+  const [advantagePlusAudience, setAdvantagePlusAudience] = useState(false);
+
+  // Dataset / Pixel configuration
+  const [datasetOption, setDatasetOption] = useState('');
+  const [customDatasetId, setCustomDatasetId] = useState('');
+  const [pixelOption, setPixelOption] = useState('auto');
+  const [customPixelId, setCustomPixelId] = useState('');
+
+  // Launch option
+  const [launchImmediately, setLaunchImmediately] = useState(false);
 
   // Targeting state
   const [showTargeting, setShowTargeting] = useState(false);
@@ -41,9 +111,40 @@ export function AdsController() {
   const [interestInput, setInterestInput] = useState('');
   const [interests, setInterests] = useState<string[]>([]);
 
-  // Targeting segments from planner
-  const [segments, setSegments] = useState<TargetingSegment[]>([]);
+  // Targeting segments (3 types: BROAD, RETARGET, INTEREST)
+  const [segments, setSegments] = useState<TargetingSegment[]>(createDefaultSegments());
   const [showAdSetPreview, setShowAdSetPreview] = useState(false);
+
+  // Advanced settings toggle
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
+  // ── Computed values ──
+  const campaignDays = useMemo(() => {
+    if (!startDate || !endDate) return 0;
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const diff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+    return diff > 0 ? diff : 0;
+  }, [startDate, endDate]);
+
+  const dailyEquivalent = useMemo(() => {
+    if (budgetType !== 'LIFETIME' || !budget || campaignDays <= 0) return 0;
+    return Math.round(Number(budget) / campaignDays);
+  }, [budgetType, budget, campaignDays]);
+
+  const resolvedDatasetId = useMemo(() => {
+    if (datasetOption === 'custom') return customDatasetId || undefined;
+    if (datasetOption === '') return undefined;
+    return datasetOption;
+  }, [datasetOption, customDatasetId]);
+
+  const resolvedPixelId = useMemo(() => {
+    if (pixelOption === 'custom') return customPixelId || undefined;
+    return undefined;
+  }, [pixelOption, customPixelId]);
+
+  const enabledSegments = segments.filter(s => s.enabled);
+  const totalRatio = enabledSegments.reduce((sum, s) => sum + s.ratio, 0);
 
   // Auto-fill from AI plan result
   useEffect(() => {
@@ -57,8 +158,10 @@ export function AdsController() {
 
       // Objective
       const planObjective = structure?.objective;
-      if (planObjective && ['TRAFFIC', 'CONVERSIONS', 'LEAD_GENERATION'].includes(planObjective)) {
-        setObjective(planObjective as 'TRAFFIC' | 'CONVERSIONS' | 'LEAD_GENERATION');
+      if (planObjective && OBJECTIVE_OPTIONS.some(o => o.value === planObjective)) {
+        setObjective(planObjective as CampaignObjective);
+      } else if (planObjective === 'CONVERSIONS') {
+        setObjective('PURCHASE');
       }
 
       // Budget - sum from groups or use total
@@ -71,11 +174,18 @@ export function AdsController() {
       // Auto-fill targeting from plan
       const planTargeting = autoPlanResult.targeting;
       if (planTargeting) {
-        // Segments
         if (planTargeting.segments && Array.isArray(planTargeting.segments)) {
           const planSegments: TargetingSegment[] = planTargeting.segments.map((seg: any) => ({
-            type: seg.type || seg.name || '세그먼트',
+            type: (seg.type === 'BROAD' || seg.type === 'RETARGET' || seg.type === 'INTEREST') ? seg.type : 'BROAD',
+            name: seg.name || seg.type || '세그먼트',
+            enabled: true,
             ratio: seg.ratio || seg.budget_ratio || Math.floor(100 / planTargeting.segments.length),
+            targeting: {
+              age_range: { min_age: 18, max_age: 65 },
+              genders: seg.gender ? [seg.gender] : ['all'],
+              geo: { countries: ['KR'] },
+              interests: { interests: seg.interests || [] },
+            },
             age_range: seg.age_range || seg.age || '',
             gender: seg.gender || 'all',
             interests: seg.interests || [],
@@ -85,7 +195,6 @@ export function AdsController() {
           setShowTargeting(true);
         }
 
-        // Global targeting defaults
         if (planTargeting.age_range) {
           const ages = String(planTargeting.age_range).replace(/세/g, '').split('-');
           if (ages.length === 2) {
@@ -122,10 +231,10 @@ export function AdsController() {
     return {
       age_range: { min_age: ageMin, max_age: ageMax },
       genders,
-      geo: { countries, cities: null },
-      interests: { interests, behaviors: null },
-      custom_audiences: null,
-      lookalike_audiences: null,
+      geo: { countries, cities: undefined },
+      interests: { interests, behaviors: undefined },
+      custom_audiences: undefined,
+      lookalike_audiences: undefined,
     };
   };
 
@@ -134,16 +243,24 @@ export function AdsController() {
       name: campaignName || `캠페인 ${new Date().toLocaleDateString()}`,
       objective,
       total_budget: Number(budget),
+      daily_budget: budgetType === 'DAILY' ? Number(budget) : (dailyEquivalent || undefined),
+      budget_type: budgetType,
       creative_ids: selectedCreatives.length > 0 ? selectedCreatives.map((c) => c.id) : [],
       targeting: buildTargetingConfig(),
-      targeting_segments: segments.length > 0 ? segments : undefined,
+      targeting_segments: enabledSegments.length > 0 ? enabledSegments : undefined,
+      start_date: startDate || undefined,
+      end_date: endDate || undefined,
+      advantage_plus: advantagePlus,
+      advantage_plus_audience: advantagePlusAudience,
+      dataset_id: resolvedDatasetId,
+      pixel_id: resolvedPixelId,
     }),
     onSuccess: () => {
       refetchCampaigns();
       toast.success('캠페인 생성 완료');
       setCampaignName('');
       setBudget('');
-      setSegments([]);
+      setSegments(createDefaultSegments());
       setShowTargeting(false);
     },
     onError: (err: any) => {
@@ -154,7 +271,16 @@ export function AdsController() {
   });
 
   const publishMutation = useMutation({
-    mutationFn: (campaignId: number) => campaignApi.publish(campaignId),
+    mutationFn: (campaignId: number) => campaignApi.publish(campaignId, {
+      campaign_id: campaignId,
+      launch_immediately: launchImmediately,
+      budget_type: budgetType,
+      advantage_plus: advantagePlus,
+      advantage_plus_audience: advantagePlusAudience,
+      dataset_id: resolvedDatasetId,
+      pixel_id: resolvedPixelId,
+      currency: 'KRW',
+    }),
     onSuccess: (data) => {
       if (data.success) {
         refetchCampaigns();
@@ -197,25 +323,40 @@ export function AdsController() {
     setSegments(updated);
   };
 
+  const updateSegmentName = (index: number, name: string) => {
+    const updated = [...segments];
+    updated[index] = { ...updated[index], name };
+    setSegments(updated);
+  };
+
+  const toggleSegmentEnabled = (index: number) => {
+    const updated = [...segments];
+    updated[index] = { ...updated[index], enabled: !updated[index].enabled };
+    setSegments(updated);
+  };
+
   const removeSegment = (index: number) => {
     setSegments(segments.filter((_, i) => i !== index));
   };
 
   // Compute ad set preview based on segments + budget
   const adSetPreview = useMemo(() => {
-    if (segments.length === 0 || !budget) return [];
+    const active = segments.filter(s => s.enabled);
+    if (active.length === 0 || !budget) return [];
     const totalBudget = Number(budget);
-    const totalRatio = segments.reduce((sum, s) => sum + s.ratio, 0);
-    return segments.map((seg) => ({
-      name: seg.type,
+    const tRatio = active.reduce((sum, s) => sum + s.ratio, 0);
+    const days = budgetType === 'LIFETIME' && campaignDays > 0 ? campaignDays : 7;
+    return active.map((seg) => ({
+      name: seg.name,
+      type: seg.type,
       ratio: seg.ratio,
-      dailyBudget: Math.round((totalBudget / 7) * (seg.ratio / totalRatio)),
+      dailyBudget: Math.round((totalBudget / days) * (seg.ratio / tRatio)),
       ageRange: seg.age_range || `${ageMin}-${ageMax}세`,
       gender: seg.gender || genders.join(', '),
       interests: seg.interests || interests,
       description: seg.description || '',
     }));
-  }, [segments, budget, ageMin, ageMax, genders, interests]);
+  }, [segments, budget, ageMin, ageMax, genders, interests, budgetType, campaignDays]);
 
   return (
     <div className="grid lg:grid-cols-3 gap-6">
@@ -250,13 +391,13 @@ export function AdsController() {
               </div>
 
               {/* 타겟 요약 from plan */}
-              {segments.length > 0 && (
+              {enabledSegments.length > 0 && (
                 <div className="mt-2 pt-2 border-t border-purple-100">
-                  <p className="text-xs font-medium text-purple-700 mb-1">타겟 설계 ({segments.length}개 세그먼트):</p>
+                  <p className="text-xs font-medium text-purple-700 mb-1">타겟 설계 ({enabledSegments.length}개 세그먼트):</p>
                   <div className="flex flex-wrap gap-1">
-                    {segments.map((seg, i) => (
+                    {enabledSegments.map((seg, i) => (
                       <span key={i} className="text-xs bg-white text-purple-700 px-2 py-0.5 rounded border border-purple-100">
-                        {seg.type} {seg.ratio}%
+                        {seg.name} {seg.ratio}%
                       </span>
                     ))}
                   </div>
@@ -268,29 +409,26 @@ export function AdsController() {
           <div className="space-y-4">
             <Input label="캠페인명" placeholder="예: 봄 신상 런칭" value={campaignName} onChange={(e) => setCampaignName(e.target.value)} />
 
+            {/* ── 캠페인 목표 선택 (드롭다운) ── */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">목표</label>
-              <div className="space-y-2">
-                {[
-                  { value: 'TRAFFIC', label: '트래픽 증대', desc: '웹사이트 방문 유도' },
-                  { value: 'CONVERSIONS', label: '구매 전환', desc: '상품 구매/결제 유도' },
-                  { value: 'LEAD_GENERATION', label: '잠재 고객', desc: '리드/문의 수집' },
-                ].map((opt) => (
-                  <label key={opt.value}
-                    className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                      objective === opt.value ? 'border-primary-500 bg-primary-50' : 'border-gray-200 hover:border-gray-300'
-                    }`}>
-                    <input type="radio" name="objective" value={opt.value} checked={objective === opt.value}
-                      onChange={(e) => setObjective(e.target.value as any)} className="mt-0.5" />
-                    <div>
-                      <p className="font-medium text-sm">{opt.label}</p>
-                      <p className="text-xs text-gray-500">{opt.desc}</p>
-                    </div>
-                  </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">캠페인 목표</label>
+              <select
+                value={objective}
+                onChange={(e) => setObjective(e.target.value as CampaignObjective)}
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
+              >
+                {OBJECTIVE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label} ({opt.metaValue})
+                  </option>
                 ))}
-              </div>
+              </select>
+              <p className="text-xs text-gray-500 mt-1">
+                {OBJECTIVE_OPTIONS.find(o => o.value === objective)?.desc}
+              </p>
             </div>
 
+            {/* ── 선택된 소재 ── */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 선택된 소재 ({selectedCreatives.length}개)
@@ -313,8 +451,134 @@ export function AdsController() {
               )}
             </div>
 
-            <Input label="총 예산 (원)" type="number" placeholder="1,000,000" value={budget} onChange={(e) => setBudget(e.target.value)}
-              leftIcon={<span className="text-sm font-medium">₩</span>} />
+            {/* ── 예산 유형 선택 ── */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">예산 유형</label>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setBudgetType('DAILY')}
+                  className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    budgetType === 'DAILY'
+                      ? 'bg-primary-500 text-white'
+                      : 'bg-white border border-gray-300 text-gray-600 hover:border-primary-300'
+                  }`}
+                >
+                  일일 예산
+                </button>
+                <button
+                  onClick={() => setBudgetType('LIFETIME')}
+                  className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    budgetType === 'LIFETIME'
+                      ? 'bg-primary-500 text-white'
+                      : 'bg-white border border-gray-300 text-gray-600 hover:border-primary-300'
+                  }`}
+                >
+                  총 예산
+                </button>
+              </div>
+            </div>
+
+            {/* ── 예산 입력 ── */}
+            <Input
+              label={budgetType === 'DAILY' ? '일일 예산 (KRW)' : '총 예산 (KRW)'}
+              type="number"
+              placeholder={budgetType === 'DAILY' ? '100,000' : '1,000,000'}
+              value={budget}
+              onChange={(e) => setBudget(e.target.value)}
+              leftIcon={<span className="text-sm font-medium">{'\u20A9'}</span>}
+            />
+
+            {/* ── 총 예산 선택 시 기간 + 일일 환산 ── */}
+            {budgetType === 'LIFETIME' && (
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">시작일</label>
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">종료일</label>
+                    <input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    />
+                  </div>
+                </div>
+                {budget && campaignDays > 0 && (
+                  <div className="p-3 bg-blue-50 rounded-lg border border-blue-100">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-blue-700">일일 환산 예산</span>
+                      <span className="font-semibold text-blue-800">{'\u20A9'}{dailyEquivalent.toLocaleString()}</span>
+                    </div>
+                    <p className="text-xs text-blue-600 mt-1">
+                      {'\u20A9'}{Number(budget).toLocaleString()} / {campaignDays}일 = 일일 {'\u20A9'}{dailyEquivalent.toLocaleString()}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── 어드밴티지+ 설정 ── */}
+            <div className="space-y-3">
+              <div
+                className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ${
+                  advantagePlus ? 'border-green-300 bg-green-50' : 'border-gray-200 hover:border-gray-300'
+                }`}
+                onClick={() => setAdvantagePlus(!advantagePlus)}
+              >
+                <div className="flex items-center gap-2">
+                  {advantagePlus
+                    ? <ToggleRight size={20} className="text-green-600" />
+                    : <ToggleLeft size={20} className="text-gray-400" />
+                  }
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">어드밴티지+ 캠페인</p>
+                    <p className="text-xs text-gray-500">Meta AI가 최적화 자동 수행</p>
+                  </div>
+                </div>
+              </div>
+              {advantagePlus && (
+                <div className="ml-4 p-2.5 bg-green-50 rounded-lg border border-green-100">
+                  <p className="text-xs text-green-700">
+                    어드밴티지+ 캠페인이 활성화되면 Meta의 AI가 타겟팅, 배치, 예산을 자동으로 최적화합니다.
+                    수동 타겟팅 설정보다 더 넓은 도달 범위를 확보할 수 있습니다.
+                  </p>
+                </div>
+              )}
+
+              <div
+                className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ${
+                  advantagePlusAudience ? 'border-green-300 bg-green-50' : 'border-gray-200 hover:border-gray-300'
+                }`}
+                onClick={() => setAdvantagePlusAudience(!advantagePlusAudience)}
+              >
+                <div className="flex items-center gap-2">
+                  {advantagePlusAudience
+                    ? <ToggleRight size={20} className="text-green-600" />
+                    : <ToggleLeft size={20} className="text-gray-400" />
+                  }
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">어드밴티지+ 오디언스</p>
+                    <p className="text-xs text-gray-500">오디언스 확장 자동 최적화</p>
+                  </div>
+                </div>
+              </div>
+              {advantagePlusAudience && (
+                <div className="ml-4 p-2.5 bg-green-50 rounded-lg border border-green-100">
+                  <p className="text-xs text-green-700">
+                    어드밴티지+ 오디언스를 사용하면 설정한 타겟 외에도 전환 가능성이 높은 사용자에게 광고가 노출됩니다.
+                    기존 타겟팅은 참고 신호로 활용됩니다.
+                  </p>
+                </div>
+              )}
+            </div>
 
             {/* ── 타겟팅 설정 토글 ── */}
             <div>
@@ -324,8 +588,8 @@ export function AdsController() {
               >
                 <Crosshair size={16} className="text-blue-500" />
                 <span className="text-sm font-medium text-gray-700 flex-1">타겟팅 설정</span>
-                {segments.length > 0 && (
-                  <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{segments.length}개 세그먼트</span>
+                {enabledSegments.length > 0 && (
+                  <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{enabledSegments.length}개 세그먼트</span>
                 )}
                 {showTargeting ? <ChevronUp size={14} className="text-gray-400" /> : <ChevronDown size={14} className="text-gray-400" />}
               </button>
@@ -391,9 +655,9 @@ export function AdsController() {
                     </label>
                     <div className="flex gap-2">
                       {[
-                        { value: 'KR', label: '🇰🇷 한국' },
-                        { value: 'US', label: '🇺🇸 미국' },
-                        { value: 'JP', label: '🇯🇵 일본' },
+                        { value: 'KR', label: '한국' },
+                        { value: 'US', label: '미국' },
+                        { value: 'JP', label: '일본' },
                       ].map((c) => (
                         <button
                           key={c.value}
@@ -451,65 +715,231 @@ export function AdsController() {
                     )}
                   </div>
 
-                  {/* ── 광고세트 세그먼트 (기획에서 가져온 것) ── */}
-                  {segments.length > 0 && (
-                    <div className="pt-3 border-t border-gray-200">
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700">
-                          <Layers size={14} /> 광고세트 세그먼트
-                        </label>
-                        <button
-                          onClick={() => setShowAdSetPreview(!showAdSetPreview)}
-                          className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700"
-                        >
-                          <Eye size={12} /> 미리보기
-                        </button>
-                      </div>
-                      <div className="space-y-2">
-                        {segments.map((seg, i) => (
-                          <div key={i} className="p-2.5 bg-white rounded-lg border border-gray-200">
-                            <div className="flex items-center justify-between mb-1.5">
-                              <span className="text-sm font-medium text-gray-800">{seg.type}</span>
-                              <button onClick={() => removeSegment(i)} className="text-gray-400 hover:text-red-500">
-                                <X size={14} />
-                              </button>
-                            </div>
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="text-xs text-gray-500">비중:</span>
-                              <input
-                                type="range" min={5} max={80} value={seg.ratio}
-                                onChange={(e) => updateSegmentRatio(i, Number(e.target.value))}
-                                className="flex-1 h-1.5 accent-blue-500"
-                              />
-                              <span className="text-xs font-medium text-blue-600 w-8 text-right">{seg.ratio}%</span>
-                            </div>
-                            {seg.age_range && (
-                              <p className="text-xs text-gray-500">연령: {seg.age_range}</p>
-                            )}
-                            {seg.interests && seg.interests.length > 0 && (
-                              <p className="text-xs text-gray-500">관심사: {seg.interests.join(', ')}</p>
-                            )}
-                            {seg.description && (
-                              <p className="text-xs text-gray-400 mt-0.5 italic">{seg.description}</p>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* 비중 합계 경고 */}
-                      {(() => {
-                        const totalRatio = segments.reduce((s, seg) => s + seg.ratio, 0);
-                        if (totalRatio !== 100) {
-                          return (
-                            <p className="text-xs text-amber-600 mt-2">
-                              ⚠ 세그먼트 비중 합계: {totalRatio}% (100%와 다릅니다. 발행 시 비율 기준으로 자동 배분됩니다.)
-                            </p>
-                          );
-                        }
-                        return null;
-                      })()}
+                  {/* ── 광고세트 세그먼트 (3 types: BROAD, RETARGET, INTEREST) ── */}
+                  <div className="pt-3 border-t border-gray-200">
+                    <div className="flex items-center justify-between mb-3">
+                      <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700">
+                        <Layers size={14} /> 광고세트 세그먼트
+                      </label>
+                      <button
+                        onClick={() => setShowAdSetPreview(!showAdSetPreview)}
+                        className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700"
+                      >
+                        <Eye size={12} /> 미리보기
+                      </button>
                     </div>
-                  )}
+
+                    <div className="space-y-3">
+                      {segments.map((seg, i) => (
+                        <div key={i} className={`p-3 rounded-lg border transition-colors ${
+                          seg.enabled ? 'bg-white border-gray-200' : 'bg-gray-100 border-gray-200 opacity-60'
+                        }`}>
+                          {/* Header: toggle + name + type badge + remove */}
+                          <div className="flex items-center gap-2 mb-2">
+                            <button
+                              onClick={() => toggleSegmentEnabled(i)}
+                              className="flex-shrink-0"
+                            >
+                              {seg.enabled
+                                ? <ToggleRight size={20} className="text-green-500" />
+                                : <ToggleLeft size={20} className="text-gray-400" />
+                              }
+                            </button>
+                            <input
+                              type="text"
+                              value={seg.name}
+                              onChange={(e) => updateSegmentName(i, e.target.value)}
+                              className="flex-1 text-sm font-medium text-gray-800 bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-400 focus:outline-none px-1 py-0.5"
+                            />
+                            <span className={`text-xs px-2 py-0.5 rounded font-medium ${
+                              seg.type === 'BROAD' ? 'bg-purple-100 text-purple-700'
+                              : seg.type === 'RETARGET' ? 'bg-orange-100 text-orange-700'
+                              : 'bg-teal-100 text-teal-700'
+                            }`}>
+                              {seg.type === 'BROAD' ? '브로드' : seg.type === 'RETARGET' ? '리타겟' : '관심사'}
+                            </span>
+                            <button onClick={() => removeSegment(i)} className="text-gray-400 hover:text-red-500 flex-shrink-0">
+                              <X size={14} />
+                            </button>
+                          </div>
+
+                          {seg.enabled && (
+                            <>
+                              {/* Description */}
+                              {seg.description && (
+                                <p className="text-xs text-gray-500 mb-2 italic">{seg.description}</p>
+                              )}
+
+                              {/* Budget ratio slider */}
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="text-xs text-gray-500 w-8">비중:</span>
+                                <input
+                                  type="range" min={5} max={80} value={seg.ratio}
+                                  onChange={(e) => updateSegmentRatio(i, Number(e.target.value))}
+                                  className="flex-1 h-1.5 accent-blue-500"
+                                />
+                                <span className="text-xs font-medium text-blue-600 w-10 text-right">{seg.ratio}%</span>
+                              </div>
+
+                              {/* Type-specific settings */}
+                              {seg.type === 'BROAD' && (
+                                <div className="text-xs text-gray-500 p-2 bg-purple-50 rounded">
+                                  <p>넓은 타겟팅 - 관심사/행동 제한 없이 최대 도달</p>
+                                  {advantagePlusAudience && (
+                                    <p className="text-green-600 mt-1">어드밴티지+ 오디언스 활성화됨</p>
+                                  )}
+                                </div>
+                              )}
+
+                              {seg.type === 'RETARGET' && (
+                                <div className="space-y-2">
+                                  <div className="p-2 bg-orange-50 rounded">
+                                    <p className="text-xs font-medium text-orange-700 mb-1">커스텀 오디언스</p>
+                                    <div className="flex flex-wrap gap-1">
+                                      {['웹사이트 방문자', '장바구니 이탈자', '영상 시청자'].map((audience) => (
+                                        <label key={audience} className="inline-flex items-center gap-1 text-xs bg-white px-2 py-1 rounded border border-orange-100 cursor-pointer hover:border-orange-300">
+                                          <input
+                                            type="checkbox"
+                                            checked={seg.custom_audiences?.includes(audience) || false}
+                                            onChange={(e) => {
+                                              const updated = [...segments];
+                                              const current = updated[i].custom_audiences || [];
+                                              updated[i] = {
+                                                ...updated[i],
+                                                custom_audiences: e.target.checked
+                                                  ? [...current, audience]
+                                                  : current.filter(a => a !== audience),
+                                              };
+                                              setSegments(updated);
+                                            }}
+                                            className="w-3 h-3"
+                                          />
+                                          {audience}
+                                        </label>
+                                      ))}
+                                    </div>
+                                  </div>
+                                  <div className="p-2 bg-red-50 rounded">
+                                    <p className="text-xs font-medium text-red-700 mb-1">제외 오디언스</p>
+                                    <div className="flex flex-wrap gap-1">
+                                      {['구매 완료자', '기존 고객'].map((audience) => (
+                                        <label key={audience} className="inline-flex items-center gap-1 text-xs bg-white px-2 py-1 rounded border border-red-100 cursor-pointer hover:border-red-300">
+                                          <input
+                                            type="checkbox"
+                                            checked={seg.exclusion_audiences?.includes(audience) || false}
+                                            onChange={(e) => {
+                                              const updated = [...segments];
+                                              const current = updated[i].exclusion_audiences || [];
+                                              updated[i] = {
+                                                ...updated[i],
+                                                exclusion_audiences: e.target.checked
+                                                  ? [...current, audience]
+                                                  : current.filter(a => a !== audience),
+                                              };
+                                              setSegments(updated);
+                                            }}
+                                            className="w-3 h-3"
+                                          />
+                                          {audience}
+                                        </label>
+                                      ))}
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {seg.type === 'INTEREST' && (
+                                <div className="p-2 bg-teal-50 rounded">
+                                  <p className="text-xs font-medium text-teal-700 mb-1">관심사 키워드</p>
+                                  <div className="flex gap-1 mb-1">
+                                    <input
+                                      type="text"
+                                      placeholder="관심사 입력 후 Enter"
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                          e.preventDefault();
+                                          const val = (e.target as HTMLInputElement).value.trim();
+                                          if (val) {
+                                            const updated = [...segments];
+                                            const current = updated[i].interests || [];
+                                            if (!current.includes(val)) {
+                                              updated[i] = { ...updated[i], interests: [...current, val] };
+                                              setSegments(updated);
+                                            }
+                                            (e.target as HTMLInputElement).value = '';
+                                          }
+                                        }
+                                      }}
+                                      className="flex-1 px-2 py-1 border border-teal-200 rounded text-xs"
+                                    />
+                                  </div>
+                                  {seg.interests && seg.interests.length > 0 && (
+                                    <div className="flex flex-wrap gap-1">
+                                      {seg.interests.map((interest, j) => (
+                                        <span key={j} className="inline-flex items-center gap-0.5 text-xs bg-white text-teal-700 px-1.5 py-0.5 rounded border border-teal-100">
+                                          {interest}
+                                          <button onClick={() => {
+                                            const updated = [...segments];
+                                            updated[i] = {
+                                              ...updated[i],
+                                              interests: (updated[i].interests || []).filter((_, k) => k !== j),
+                                            };
+                                            setSegments(updated);
+                                          }} className="hover:text-red-500">
+                                            <X size={10} />
+                                          </button>
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Segment-level schedule override */}
+                              <details className="mt-2">
+                                <summary className="text-xs text-gray-500 cursor-pointer hover:text-gray-700">세그먼트별 일정 설정</summary>
+                                <div className="grid grid-cols-2 gap-2 mt-1.5">
+                                  <div>
+                                    <label className="text-xs text-gray-500">시작일</label>
+                                    <input
+                                      type="date"
+                                      value={seg.start_date || ''}
+                                      onChange={(e) => {
+                                        const updated = [...segments];
+                                        updated[i] = { ...updated[i], start_date: e.target.value };
+                                        setSegments(updated);
+                                      }}
+                                      className="w-full px-2 py-1 border border-gray-200 rounded text-xs"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-xs text-gray-500">종료일</label>
+                                    <input
+                                      type="date"
+                                      value={seg.end_date || ''}
+                                      onChange={(e) => {
+                                        const updated = [...segments];
+                                        updated[i] = { ...updated[i], end_date: e.target.value };
+                                        setSegments(updated);
+                                      }}
+                                      className="w-full px-2 py-1 border border-gray-200 rounded text-xs"
+                                    />
+                                  </div>
+                                </div>
+                              </details>
+                            </>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* 비중 합계 경고 */}
+                    {enabledSegments.length > 0 && totalRatio !== 100 && (
+                      <p className={`text-xs mt-2 ${totalRatio > 100 ? 'text-red-600' : 'text-amber-600'}`}>
+                        세그먼트 비중 합계: {totalRatio}% (100%와 다릅니다. 발행 시 비율 기준으로 자동 배분됩니다.)
+                      </p>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -527,10 +957,17 @@ export function AdsController() {
                     <div key={i} className="p-3 bg-white rounded-lg border border-indigo-100">
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-sm font-semibold text-gray-800">{preset.name}</span>
-                        <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded">{preset.ratio}%</span>
+                        <div className="flex items-center gap-1">
+                          <span className={`text-xs px-1.5 py-0.5 rounded ${
+                            preset.type === 'BROAD' ? 'bg-purple-100 text-purple-700'
+                            : preset.type === 'RETARGET' ? 'bg-orange-100 text-orange-700'
+                            : 'bg-teal-100 text-teal-700'
+                          }`}>{preset.type === 'BROAD' ? '브로드' : preset.type === 'RETARGET' ? '리타겟' : '관심사'}</span>
+                          <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded">{preset.ratio}%</span>
+                        </div>
                       </div>
                       <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs text-gray-600">
-                        <span>일 예산: ₩{preset.dailyBudget.toLocaleString()}</span>
+                        <span>일 예산: {'\u20A9'}{preset.dailyBudget.toLocaleString()}</span>
                         <span>연령: {preset.ageRange}</span>
                         <span>성별: {preset.gender === 'all' ? '전체' : preset.gender === 'male' ? '남성' : preset.gender === 'female' ? '여성' : preset.gender}</span>
                         {preset.interests.length > 0 && (
@@ -545,6 +982,81 @@ export function AdsController() {
                 </div>
               </div>
             )}
+
+            {/* ── 데이터셋 / 픽셀 설정 (고급) ── */}
+            <div>
+              <button
+                onClick={() => setShowAdvanced(!showAdvanced)}
+                className="flex items-center gap-2 w-full p-3 rounded-lg border border-gray-200 hover:border-gray-300 transition-colors text-left"
+              >
+                <Database size={16} className="text-gray-500" />
+                <span className="text-sm font-medium text-gray-700 flex-1">데이터셋 / 픽셀 설정</span>
+                {showAdvanced ? <ChevronUp size={14} className="text-gray-400" /> : <ChevronDown size={14} className="text-gray-400" />}
+              </button>
+
+              {showAdvanced && (
+                <div className="mt-3 p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-4">
+                  {/* 데이터셋 선택 */}
+                  <div>
+                    <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 mb-2">
+                      <Database size={14} /> 데이터셋 선택
+                    </label>
+                    <select
+                      value={datasetOption}
+                      onChange={(e) => setDatasetOption(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
+                    >
+                      {DATASET_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                    {datasetOption === 'custom' && (
+                      <input
+                        type="text"
+                        placeholder="데이터셋 ID 입력"
+                        value={customDatasetId}
+                        onChange={(e) => setCustomDatasetId(e.target.value)}
+                        className="w-full mt-2 px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                      />
+                    )}
+                    {datasetOption === 'cafe24' && (
+                      <p className="text-xs text-gray-500 mt-1">카페24 자사몰 데이터셋이 자동으로 연결됩니다.</p>
+                    )}
+                    {datasetOption === 'smartstore' && (
+                      <p className="text-xs text-gray-500 mt-1">스마트스토어 데이터셋이 자동으로 연결됩니다.</p>
+                    )}
+                  </div>
+
+                  {/* 픽셀 ID */}
+                  <div>
+                    <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 mb-2">
+                      <Settings size={14} /> 픽셀 ID
+                    </label>
+                    <select
+                      value={pixelOption}
+                      onChange={(e) => setPixelOption(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
+                    >
+                      {PIXEL_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                    {pixelOption === 'custom' && (
+                      <input
+                        type="text"
+                        placeholder="Meta 픽셀 ID 입력"
+                        value={customPixelId}
+                        onChange={(e) => setCustomPixelId(e.target.value)}
+                        className="w-full mt-2 px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                      />
+                    )}
+                    {pixelOption === 'auto' && (
+                      <p className="text-xs text-gray-500 mt-1">Meta 광고 계정에 연결된 픽셀이 자동으로 감지됩니다.</p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
 
             <Button variant="outline" className="w-full" onClick={() => strategyMutation.mutate()}
               loading={strategyMutation.isPending} disabled={!budget}>
@@ -564,12 +1076,49 @@ export function AdsController() {
                   {strategy.allocations.map((a, i) => (
                     <div key={i} className="flex justify-between text-xs bg-white/60 px-2 py-1 rounded">
                       <span>{a.creative_name}</span>
-                      <span className="font-medium">{a.allocation_percentage}% · {a.recommended_placement}</span>
+                      <span className="font-medium">{a.allocation_percentage}% - {a.recommended_placement}</span>
                     </div>
                   ))}
                 </div>
               </div>
             )}
+
+            {/* ── 발행 옵션 ── */}
+            <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+              <p className="text-sm font-medium text-gray-700 mb-2">발행 옵션</p>
+              <div className="space-y-2">
+                <label className={`flex items-center gap-3 p-2.5 rounded-lg border cursor-pointer transition-colors ${
+                  !launchImmediately ? 'border-primary-300 bg-primary-50' : 'border-gray-200 hover:border-gray-300'
+                }`}>
+                  <input
+                    type="radio"
+                    name="launchOption"
+                    checked={!launchImmediately}
+                    onChange={() => setLaunchImmediately(false)}
+                    className="mt-0.5"
+                  />
+                  <div>
+                    <p className="text-sm font-medium">검토 후 발행</p>
+                    <p className="text-xs text-gray-500">캠페인을 PAUSED 상태로 생성 (기본값)</p>
+                  </div>
+                </label>
+                <label className={`flex items-center gap-3 p-2.5 rounded-lg border cursor-pointer transition-colors ${
+                  launchImmediately ? 'border-green-300 bg-green-50' : 'border-gray-200 hover:border-gray-300'
+                }`}>
+                  <input
+                    type="radio"
+                    name="launchOption"
+                    checked={launchImmediately}
+                    onChange={() => setLaunchImmediately(true)}
+                    className="mt-0.5"
+                  />
+                  <div>
+                    <p className="text-sm font-medium">즉시 발행</p>
+                    <p className="text-xs text-gray-500">캠페인을 ACTIVE 상태로 즉시 시작</p>
+                  </div>
+                </label>
+              </div>
+            </div>
 
             <Button className="w-full" onClick={() => createCampaignMutation.mutate()}
               loading={createCampaignMutation.isPending} disabled={!budget}>
@@ -614,6 +1163,19 @@ export function AdsController() {
     </div>
   );
 }
+
+// ── Objective label helper ──
+const objectiveLabel = (obj: string): string => {
+  const map: Record<string, string> = {
+    TRAFFIC: '트래픽',
+    CONVERSIONS: '전환',
+    PURCHASE: '전환 (구매)',
+    LEAD_GENERATION: '리드',
+    AWARENESS: '인지도',
+    ENGAGEMENT: '참여',
+  };
+  return map[obj] || obj;
+};
 
 function CampaignCard({
   campaign, onPublish, onViewAnalytics, isPublishing, onRefresh,
@@ -696,8 +1258,10 @@ function CampaignCard({
               )}
             </div>
             <p className="text-sm text-gray-500">
-              {campaign.objective === 'TRAFFIC' ? '트래픽' : campaign.objective === 'CONVERSIONS' ? '전환' : '리드'}
-              {' · '}{(campaign.ads || []).length}개 광고
+              {objectiveLabel(campaign.objective)}
+              {campaign.budget_type === 'LIFETIME' ? ' (총 예산)' : ' (일일)'}
+              {' - '}{(campaign.ads || []).length}개 광고
+              {campaign.advantage_plus && <span className="ml-1 text-xs text-green-600">[A+]</span>}
             </p>
           </div>
           <button onClick={() => setExpanded(!expanded)} className="text-gray-400 hover:text-gray-600 p-1">
@@ -708,7 +1272,7 @@ function CampaignCard({
         {/* 예산 진행바 */}
         <div className="mb-3">
           <div className="flex justify-between text-sm mb-1">
-            <span className="text-gray-500">₩{campaign.spent_amount.toLocaleString()} / ₩{campaign.total_budget.toLocaleString()}</span>
+            <span className="text-gray-500">{'\u20A9'}{campaign.spent_amount.toLocaleString()} / {'\u20A9'}{campaign.total_budget.toLocaleString()}</span>
             <span className="font-medium">{spentPct.toFixed(1)}%</span>
           </div>
           <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
@@ -834,7 +1398,7 @@ function CampaignCard({
                   <div key={ad.id} className="flex items-center justify-between p-2 bg-white rounded-lg">
                     <div>
                       <p className="text-sm font-medium">{ad.name}</p>
-                      <p className="text-xs text-gray-500">배분: {ad.budget_percentage}% · {ad.status}</p>
+                      <p className="text-xs text-gray-500">배분: {ad.budget_percentage}% - {ad.status}</p>
                     </div>
                     <button
                       onClick={() => toggleAdMutation.mutate({
