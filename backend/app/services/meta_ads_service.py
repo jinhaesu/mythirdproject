@@ -140,8 +140,7 @@ class MetaAdsService:
 
         insight_fields = ("spend,impressions,reach,clicks,ctr,cpc,cpm,"
                           "actions,action_values,cost_per_action_type,"
-                          "frequency,purchase_roas,website_purchase_roas,"
-                          "conversions,conversion_values,cost_per_conversion")
+                          "frequency,purchase_roas,website_purchase_roas")
 
         # Build date params
         account_params: Dict[str, Any] = {"fields": insight_fields}
@@ -266,7 +265,7 @@ class MetaAdsService:
         try:
             adset_fields = (
                 f"id,name,status,effective_status,targeting,daily_budget,lifetime_budget,"
-                f"insights.date_preset({date_preset}){{spend,impressions,clicks,ctr,cpc,cpm,actions,action_values,cost_per_action_type,purchase_roas,website_purchase_roas,frequency,conversions,conversion_values,cost_per_conversion}},"
+                f"insights.date_preset({date_preset}){{spend,impressions,clicks,ctr,cpc,cpm,actions,action_values,cost_per_action_type,purchase_roas,website_purchase_roas,frequency}},"
                 f"ads{{id,name,status,effective_status,creative{{id,name,thumbnail_url}},"
                 f"insights.date_preset({date_preset}){{spend,impressions,clicks,ctr,cpc,actions,action_values,cost_per_action_type,purchase_roas,website_purchase_roas,frequency}}}}"
             )
@@ -482,8 +481,7 @@ class MetaAdsService:
         # Fetch current and previous period insights in parallel
         current_fields = ("spend,impressions,reach,clicks,ctr,cpc,cpm,frequency,"
                           "actions,action_values,cost_per_action_type,"
-                          "purchase_roas,website_purchase_roas,"
-                          "conversions,conversion_values,cost_per_conversion")
+                          "purchase_roas,website_purchase_roas")
 
         current_task = self._get(f"{campaign_id}/insights", {
             "fields": current_fields,

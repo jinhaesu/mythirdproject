@@ -118,3 +118,38 @@ async def init_db():
                 )
         except Exception:
             pass
+
+    # Add meta_dataset_id and default_currency to users if missing
+    for col, col_type in [
+        ("meta_dataset_id", "VARCHAR(255)"),
+        ("default_currency", "VARCHAR(10) DEFAULT 'KRW'"),
+    ]:
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(
+                    __import__('sqlalchemy').text(
+                        f"ALTER TABLE users ADD COLUMN {col} {col_type}"
+                    )
+                )
+        except Exception:
+            pass
+
+    # Add new campaign columns if missing
+    campaign_cols = [
+        ("budget_type", "VARCHAR(50) DEFAULT 'DAILY'"),
+        ("currency", "VARCHAR(10) DEFAULT 'KRW'"),
+        ("meta_adset_ids", "TEXT"),
+        ("advantage_plus", "BOOLEAN DEFAULT FALSE"),
+        ("dataset_id", "VARCHAR(255)"),
+        ("pixel_id", "VARCHAR(255)"),
+    ]
+    for col, col_type in campaign_cols:
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(
+                    __import__('sqlalchemy').text(
+                        f"ALTER TABLE campaigns ADD COLUMN {col} {col_type}"
+                    )
+                )
+        except Exception:
+            pass

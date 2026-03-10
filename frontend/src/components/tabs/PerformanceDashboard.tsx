@@ -192,7 +192,7 @@ export default function PerformanceDashboard() {
 
   const budgetMutation = useMutation({
     mutationFn: ({ id, type, budget }: { id: string; type: string; budget: number }) =>
-      analyticsApi.updateBudgetMeta(id, type, budget * 100),
+      analyticsApi.updateBudgetMeta(id, type, budget),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['account-overview'] });
       queryClient.invalidateQueries({ queryKey: ['campaign-adsets'] });
@@ -215,7 +215,7 @@ export default function PerformanceDashboard() {
 
   const startBudgetEdit = (id: string, type: string, currentBudget?: string) => {
     setEditingBudget({ id, type });
-    setBudgetInput(currentBudget ? String(Math.round(parseFloat(currentBudget) / 100)) : '');
+    setBudgetInput(currentBudget ? String(Math.round(parseFloat(currentBudget))) : '');
   };
 
   // Filter campaigns - show ALL by default, with status filter dropdown
