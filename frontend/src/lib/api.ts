@@ -188,6 +188,36 @@ export const creativeApi = {
     const { data } = await api.delete(`/creative/${creativeId}`);
     return data;
   },
+
+  upload: async (file: File, options?: {
+    name?: string;
+    headline?: string;
+    primary_text?: string;
+    call_to_action?: string;
+    link_url?: string;
+  }) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (options?.name) formData.append('name', options.name);
+    if (options?.headline) formData.append('headline', options.headline);
+    if (options?.primary_text) formData.append('primary_text', options.primary_text);
+    if (options?.call_to_action) formData.append('call_to_action', options.call_to_action);
+    if (options?.link_url) formData.append('link_url', options.link_url);
+    const { data } = await api.post<Creative>('/creative/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return data;
+  },
+
+  getMetaGuidelines: async () => {
+    const { data } = await api.get('/creative/meta-guidelines');
+    return data;
+  },
+
+  validateSpecs: async (creativeId: number) => {
+    const { data } = await api.post('/creative/validate-specs', { creative_id: creativeId });
+    return data;
+  },
 };
 
 // Campaign API (TAB 3)
@@ -214,6 +244,10 @@ export const campaignApi = {
     advantage_plus_audience?: boolean;
     dataset_id?: string;
     pixel_id?: string;
+    primary_text?: string;
+    headline?: string;
+    call_to_action?: string;
+    link_url?: string;
   }) => {
     const { data } = await api.post<Campaign>('/campaign', campaignData);
     return data;

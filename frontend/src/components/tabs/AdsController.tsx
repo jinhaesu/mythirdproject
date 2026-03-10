@@ -1,16 +1,17 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import {
   Target, Zap, Upload, CheckCircle, Trash2,
   Play, Pause, ChevronDown, ChevronUp, RefreshCw, Info, X,
-  Users, MapPin, Crosshair, Layers, Eye, Database, Settings, ToggleLeft, ToggleRight
+  Users, MapPin, Crosshair, Layers, Eye, Database, Settings, ToggleLeft, ToggleRight,
+  AlertTriangle, Check, Image as ImageIcon
 } from 'lucide-react';
 import { Button, Input, Card, CardTitle, Select } from '@/components/ui';
-import { campaignApi } from '@/lib/api';
+import { campaignApi, creativeApi } from '@/lib/api';
 import { useAppStore } from '@/store';
-import type { Campaign, StrategyRecommendation, Ad, TargetingConfig, TargetingSegment, CampaignObjective, BudgetType, PublishOptions } from '@/types';
+import type { Campaign, Creative, StrategyRecommendation, Ad, TargetingConfig, TargetingSegment, CampaignObjective, BudgetType, PublishOptions } from '@/types';
 import toast from 'react-hot-toast';
 
 // ── Campaign Objective options ──
@@ -76,7 +77,7 @@ const createDefaultSegments = (): TargetingSegment[] => [
 ];
 
 export function AdsController() {
-  const { selectedCreatives, setSelectedCampaign, setActiveTab, autoPlanResult, setAutoPlanResult } = useAppStore();
+  const { selectedCreatives, setSelectedCreatives, addSelectedCreative, removeSelectedCreative, setSelectedCampaign, setActiveTab, autoPlanResult, setAutoPlanResult } = useAppStore();
 
   const [campaignName, setCampaignName] = useState('');
   const [objective, setObjective] = useState<CampaignObjective>('PURCHASE');
@@ -117,6 +118,112 @@ export function AdsController() {
 
   // Advanced settings toggle
   const [showAdvanced, setShowAdvanced] = useState(false);
+
+  // ── Creative management state ──
+  const [showGuide, setShowGuide] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const [showLibrary, setShowLibrary] = useState(false);
+  const [uploadingFiles, setUploadingFiles] = useState<{ name: string; progress: number }[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Local copy of selected creatives for this form
+  const [localSelectedCreatives, setLocalSelectedCreatives] = useState<Creative[]>(selectedCreatives);
+
+  // Ad text configuration
+  const [primaryText, setPrimaryText] = useState('');
+  const [headline, setHeadline] = useState('');
+  const [callToAction, setCallToAction] = useState('SHOP_NOW');
+  const [linkUrl, setLinkUrl] = useState('');
+
+  // Keep local creatives in sync with store
+  useEffect(() => {
+    setLocalSelectedCreatives(selectedCreatives);
+  }, [selectedCreatives]);
+
+  // Library query
+  const { data: libraryCreatives = [], refetch: refetchLibrary } = useQuery({
+    queryKey: ['creative-library'],
+    queryFn: () => creativeApi.getLibrary(undefined, 50),
+    enabled: showLibrary,
+  });
+
+  // Upload mutation
+  const uploadMutation = useMutation({
+    mutationFn: (file: File) => creativeApi.upload(file, { name: file.name }),
+    onSuccess: (creative: Creative) => {
+      addSelectedCreative(creative);
+      toast.success(`"${creative.name}" 업로드 완료`);
+    },
+    onError: (err: any) => {
+      const detail = err?.response?.data?.detail;
+      toast.error(typeof detail === 'string' ? detail : '소재 업로드 실패');
+    },
+  });
+
+  // Handle file upload (multiple files in sequence)
+  const handleFiles = useCallback(async (files: FileList | File[]) => {
+    const fileArray = Array.from(files);
+    const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/quicktime', 'video/webm'];
+    const validFiles = fileArray.filter(f => validTypes.includes(f.type));
+
+    if (validFiles.length === 0) {
+      toast.error('지원되지 않는 파일 형식입니다. JPG, PNG, MP4, MOV를 사용하세요.');
+      return;
+    }
+
+    const trackingEntries = validFiles.map(f => ({ name: f.name, progress: 0 }));
+    setUploadingFiles(trackingEntries);
+
+    for (let i = 0; i < validFiles.length; i++) {
+      setUploadingFiles(prev => prev.map((entry, idx) =>
+        idx === i ? { ...entry, progress: 50 } : entry
+      ));
+      try {
+        await uploadMutation.mutateAsync(validFiles[i]);
+        setUploadingFiles(prev => prev.map((entry, idx) =>
+          idx === i ? { ...entry, progress: 100 } : entry
+        ));
+      } catch {
+        setUploadingFiles(prev => prev.map((entry, idx) =>
+          idx === i ? { ...entry, progress: -1 } : entry
+        ));
+      }
+    }
+
+    // Clear upload tracking after a short delay
+    setTimeout(() => setUploadingFiles([]), 2000);
+  }, [uploadMutation]);
+
+  const handleFileDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(false);
+    if (e.dataTransfer.files.length > 0) {
+      handleFiles(e.dataTransfer.files);
+    }
+  }, [handleFiles]);
+
+  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      handleFiles(e.target.files);
+      e.target.value = '';
+    }
+  }, [handleFiles]);
+
+  const toggleCreativeSelection = useCallback((creative: Creative) => {
+    if (selectedCreatives.some(c => c.id === creative.id)) {
+      removeSelectedCreative(creative.id);
+    } else {
+      addSelectedCreative(creative);
+    }
+  }, [selectedCreatives, addSelectedCreative, removeSelectedCreative]);
+
+  const isCreativeSelected = useCallback((id: number) => {
+    return selectedCreatives.some(c => c.id === id);
+  }, [selectedCreatives]);
+
+  const handleRemoveCreative = useCallback((id: number) => {
+    removeSelectedCreative(id);
+  }, [removeSelectedCreative]);
 
   // ── Computed values ──
   const campaignDays = useMemo(() => {
@@ -254,12 +361,20 @@ export function AdsController() {
       advantage_plus_audience: advantagePlusAudience,
       dataset_id: resolvedDatasetId,
       pixel_id: resolvedPixelId,
+      primary_text: primaryText || undefined,
+      headline: headline || undefined,
+      call_to_action: callToAction || undefined,
+      link_url: linkUrl || undefined,
     }),
     onSuccess: () => {
       refetchCampaigns();
       toast.success('캠페인 생성 완료');
       setCampaignName('');
       setBudget('');
+      setPrimaryText('');
+      setHeadline('');
+      setCallToAction('SHOP_NOW');
+      setLinkUrl('');
       setSegments(createDefaultSegments());
       setShowTargeting(false);
     },
@@ -299,6 +414,16 @@ export function AdsController() {
       toast.error(msg);
     },
   });
+
+  // Publish blocker: warn if no creatives selected
+  const handlePublish = (campaignId: number) => {
+    if (localSelectedCreatives.length === 0) {
+      if (!confirm('소재 없이 발행하면 Meta에서 광고가 게재되지 않습니다. 계속하시겠습니까?')) {
+        return;
+      }
+    }
+    publishMutation.mutate(campaignId);
+  };
 
   const handleViewAnalytics = (campaign: Campaign) => {
     setSelectedCampaign(campaign);
@@ -428,28 +553,277 @@ export function AdsController() {
               </p>
             </div>
 
-            {/* ── 선택된 소재 ── */}
+            {/* ══════════════════════════════════════════════════ */}
+            {/* ── 소재 관리 섹션 (Creative Management) ──────── */}
+            {/* ══════════════════════════════════════════════════ */}
+
+            {/* Meta 소재 가이드 */}
+            <div className="border border-blue-200 rounded-lg">
+              <button
+                onClick={() => setShowGuide(!showGuide)}
+                className="w-full flex items-center justify-between p-3 bg-blue-50 rounded-t-lg"
+              >
+                <span className="flex items-center gap-2 text-sm font-medium text-blue-800">
+                  <Info size={16} /> Meta 추천 소재 가이드
+                </span>
+                {showGuide ? <ChevronUp size={16} className="text-blue-600" /> : <ChevronDown size={16} className="text-blue-600" />}
+              </button>
+              {showGuide && (
+                <div className="p-4 space-y-3">
+                  <div>
+                    <h4 className="text-xs font-semibold text-gray-700 mb-1">피드 (Feed)</h4>
+                    <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
+                      <div>이미지: 1080x1080 (1:1)</div>
+                      <div>영상: 1080x1080 (1:1, 4:5)</div>
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-semibold text-gray-700 mb-1">스토리/릴스</h4>
+                    <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
+                      <div>이미지: 1080x1920 (9:16)</div>
+                      <div>영상: 1080x1920 (9:16, 15초 권장)</div>
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-semibold text-gray-700 mb-1">베스트 프랙티스</h4>
+                    <ul className="text-xs text-gray-600 space-y-1">
+                      <li>• 텍스트 비율 20% 이하 유지</li>
+                      <li>• 첫 3초 내 브랜드/제품 노출</li>
+                      <li>• 소재 3개 이상 등록 (Meta AI 최적화)</li>
+                      <li>• 2~3주 주기로 소재 교체</li>
+                      <li>• 영상 자막 필수 (85% 무음 시청)</li>
+                    </ul>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 소재 업로드 */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                선택된 소재 ({selectedCreatives.length}개)
+                소재 등록
               </label>
-              {selectedCreatives.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {selectedCreatives.map((creative) => (
-                    <div key={creative.id} className="flex items-center gap-2 px-2 py-1 bg-gray-100 rounded text-sm">
-                      <div className="w-6 h-6 rounded bg-gray-300 overflow-hidden">
-                        {(creative.thumbnail_url || creative.file_url) && (
-                          <img src={creative.thumbnail_url || creative.file_url} alt="" className="w-full h-full object-cover" />
-                        )}
-                      </div>
-                      <span className="truncate max-w-[80px]">{creative.name}</span>
+
+              {/* Drag & drop zone */}
+              <div
+                onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={handleFileDrop}
+                className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
+                  dragging ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-blue-400'
+                }`}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Upload size={24} className="mx-auto text-gray-400 mb-2" />
+                <p className="text-sm text-gray-600">이미지/영상 파일을 드래그하거나 클릭하여 업로드</p>
+                <p className="text-xs text-gray-400 mt-1">JPG, PNG, MP4, MOV (이미지 30MB, 영상 4GB 이하)</p>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*,video/*"
+                  multiple
+                  hidden
+                  onChange={handleFileSelect}
+                />
+              </div>
+
+              {/* Upload progress */}
+              {uploadingFiles.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  {uploadingFiles.map((file, idx) => (
+                    <div key={idx} className="flex items-center gap-2 text-xs">
+                      <span className="truncate flex-1 text-gray-600">{file.name}</span>
+                      {file.progress === -1 ? (
+                        <span className="text-red-500">실패</span>
+                      ) : file.progress === 100 ? (
+                        <span className="text-green-600 flex items-center gap-1"><Check size={12} /> 완료</span>
+                      ) : (
+                        <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                          <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${file.progress}%` }} />
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
-              ) : (
-                <p className="text-sm text-gray-500">소재 없이도 캠페인 생성 가능 (Creative Studio에서 소재 생성 후 선택 가능)</p>
               )}
             </div>
+
+            {/* 소재 라이브러리 */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm font-medium text-gray-700">소재 라이브러리</label>
+                <button
+                  onClick={() => { setShowLibrary(!showLibrary); if (!showLibrary) refetchLibrary(); }}
+                  className="text-xs text-blue-600 hover:text-blue-700"
+                >
+                  {showLibrary ? '접기' : '라이브러리에서 선택'}
+                </button>
+              </div>
+
+              {showLibrary && (
+                <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-2">
+                  {libraryCreatives.length > 0 ? (
+                    <div className="grid grid-cols-4 gap-2">
+                      {libraryCreatives.map((creative: Creative) => (
+                        <div
+                          key={creative.id}
+                          onClick={() => toggleCreativeSelection(creative)}
+                          className={`relative rounded-lg overflow-hidden cursor-pointer border-2 transition-colors ${
+                            isCreativeSelected(creative.id) ? 'border-blue-500' : 'border-transparent hover:border-gray-300'
+                          }`}
+                        >
+                          {(creative.thumbnail_url || creative.file_url) ? (
+                            <img src={creative.thumbnail_url || creative.file_url} alt={creative.name} className="w-full h-16 object-cover" />
+                          ) : (
+                            <div className="w-full h-16 bg-gray-100 flex items-center justify-center">
+                              <ImageIcon size={16} className="text-gray-400" />
+                            </div>
+                          )}
+                          {isCreativeSelected(creative.id) && (
+                            <div className="absolute top-1 right-1 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center">
+                              <Check size={12} className="text-white" />
+                            </div>
+                          )}
+                          <p className="text-[10px] text-gray-600 truncate p-1">{creative.name}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-400 text-center py-4">라이브러리에 소재가 없습니다. 위에서 파일을 업로드하세요.</p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* 선택된 소재 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                선택된 소재 ({localSelectedCreatives.length}개)
+                {localSelectedCreatives.length > 0 && localSelectedCreatives.length < 3 && (
+                  <span className="text-orange-500 text-xs ml-2">
+                    (Meta 권장: 3개 이상)
+                  </span>
+                )}
+              </label>
+
+              {localSelectedCreatives.length === 0 ? (
+                <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle size={16} className="text-yellow-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium text-yellow-800">소재를 등록해주세요</p>
+                      <p className="text-xs text-yellow-600 mt-0.5">
+                        캠페인에 소재가 없으면 Meta에서 광고가 게재되지 않습니다.
+                        위에서 파일을 업로드하거나 라이브러리에서 선택하세요.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {localSelectedCreatives.map((creative) => (
+                    <div key={creative.id} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg border border-gray-200">
+                      <div className="w-12 h-12 rounded overflow-hidden bg-gray-200 flex-shrink-0">
+                        {(creative.thumbnail_url || creative.file_url) ? (
+                          <img src={creative.thumbnail_url || creative.file_url} alt={creative.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <ImageIcon size={16} className="text-gray-400" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-800 truncate">{creative.name}</p>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className="text-[10px] px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded">
+                            {creative.creative_type === 'VIDEO' ? '영상' : '이미지'}
+                          </span>
+                          <span className="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">
+                            {creative.format}
+                          </span>
+                        </div>
+                      </div>
+                      <button onClick={() => handleRemoveCreative(creative.id)} className="text-gray-400 hover:text-red-500 flex-shrink-0">
+                        <X size={16} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* 광고 텍스트 설정 */}
+            {localSelectedCreatives.length > 0 && (
+              <div className="space-y-3">
+                <label className="block text-sm font-medium text-gray-700">광고 텍스트</label>
+                <div className="space-y-2">
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">
+                      광고 문구 <span className="text-gray-400">(125자 권장)</span>
+                    </label>
+                    <textarea
+                      value={primaryText}
+                      onChange={(e) => setPrimaryText(e.target.value)}
+                      placeholder="제품/서비스의 핵심 메시지를 입력하세요"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm resize-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                      rows={3}
+                      maxLength={2200}
+                    />
+                    <p className={`text-xs mt-0.5 ${primaryText.length > 125 ? 'text-orange-500' : 'text-gray-400'}`}>
+                      {primaryText.length}/125 (최대 2,200)
+                    </p>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">
+                      제목 <span className="text-gray-400">(40자 권장)</span>
+                    </label>
+                    <input
+                      value={headline}
+                      onChange={(e) => setHeadline(e.target.value)}
+                      placeholder="매력적인 제목을 입력하세요"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                      maxLength={255}
+                    />
+                    <p className={`text-xs mt-0.5 ${headline.length > 40 ? 'text-orange-500' : 'text-gray-400'}`}>
+                      {headline.length}/40 (최대 255)
+                    </p>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">CTA 버튼</label>
+                    <select
+                      value={callToAction}
+                      onChange={(e) => setCallToAction(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    >
+                      <option value="SHOP_NOW">지금 쇼핑하기</option>
+                      <option value="LEARN_MORE">자세히 알아보기</option>
+                      <option value="SIGN_UP">가입하기</option>
+                      <option value="ORDER_NOW">지금 주문하기</option>
+                      <option value="BUY_NOW">지금 구매</option>
+                      <option value="GET_OFFER">혜택 받기</option>
+                      <option value="BOOK_NOW">지금 예약하기</option>
+                      <option value="CONTACT_US">문의하기</option>
+                      <option value="SUBSCRIBE">구독하기</option>
+                      <option value="WATCH_MORE">더 보기</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">랜딩 URL</label>
+                    <input
+                      value={linkUrl}
+                      onChange={(e) => setLinkUrl(e.target.value)}
+                      placeholder="https://your-shop.com/product"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                      type="url"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ══════════════════════════════════════════════════ */}
+            {/* ── 소재 관리 섹션 끝 ─────────────────────────── */}
+            {/* ══════════════════════════════════════════════════ */}
 
             {/* ── 예산 유형 선택 ── */}
             <div>
@@ -1144,7 +1518,7 @@ export function AdsController() {
                 <CampaignCard
                   key={campaign.id}
                   campaign={campaign}
-                  onPublish={() => publishMutation.mutate(campaign.id)}
+                  onPublish={() => handlePublish(campaign.id)}
                   onViewAnalytics={() => handleViewAnalytics(campaign)}
                   isPublishing={publishMutation.isPending}
                   onRefresh={refetchCampaigns}
