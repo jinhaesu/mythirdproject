@@ -1053,17 +1053,18 @@ class MetaAdsService:
         for action in actions:
             atype = action.get("action_type", "")
             val = float(action.get("value", 0))
-            if atype == "offsite_conversion.fb_pixel_purchase":
+            if atype in ("purchase", "offsite_conversion.fb_pixel_purchase", "omni_purchase"):
                 purchase_count += val
-            elif atype == "offsite_conversion.fb_pixel_view_content":
+            elif atype in ("offsite_conversion.fb_pixel_view_content", "view_content", "omni_view_content"):
                 content_views += val
             elif atype == "link_click":
                 link_clicks += val
 
-        # Parse action_values for purchase conversion value
+        # Parse action_values for purchase conversion value (broad match)
         purchase_value = 0.0
         for av in action_values:
-            if av.get("action_type") == "offsite_conversion.fb_pixel_purchase":
+            atype = av.get("action_type", "")
+            if atype in ("purchase", "offsite_conversion.fb_pixel_purchase", "omni_purchase"):
                 purchase_value += float(av.get("value", 0))
 
         # Parse cost_per_action_type for cost_per_result
@@ -1081,8 +1082,16 @@ class MetaAdsService:
         if cost_per_result is None and cost_per_action:
             cost_per_result = float(cost_per_action[0].get("value", 0))
 
+        # Fallback: derive conversion_value from ROAS × spend if action_values missing
+        if purchase_value == 0:
+            roas = insights.get("roas")
+            spend = float(insights.get("spend", 0) or 0)
+            if roas and spend > 0:
+                purchase_value = round(float(roas) * spend, 2)
+
         # Add enriched fields
         insights["website_purchase_conversion_value"] = purchase_value
+        insights["conversion_value"] = purchase_value
         insights["website_content_views"] = int(content_views)
         insights["link_clicks"] = int(link_clicks)
         insights["purchase_count"] = int(purchase_count)
@@ -1099,7 +1108,7 @@ class MetaAdsService:
             return
         # Monetary fields from Meta insights API that need conversion
         money_fields = ["spend", "cpc", "cpm",
-                        "website_purchase_conversion_value", "cost_per_result"]
+                        "website_purchase_conversion_value", "conversion_value", "cost_per_result"]
         for field in money_fields:
             val = insights.get(field)
             if val is not None:
