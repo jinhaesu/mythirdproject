@@ -1010,19 +1010,27 @@ class MetaAdsService:
         data = resp.get("data", [])
         for row in data:
             row["roas"] = self._calc_roas(row)
-            # Enrich with conversion_value (revenue) for chart display
+            # 결과 값: website_purchase_roas × spend (Meta 공식)
+            spend = float(row.get("spend", 0))
             purchase_value = 0.0
-            for av in (row.get("action_values") or []):
-                atype = av.get("action_type", "")
-                if "purchase" in atype:
-                    purchase_value += float(av.get("value", 0))
-            if purchase_value == 0 and row.get("roas"):
-                # Fallback: derive from ROAS * spend
-                spend = float(row.get("spend", 0))
-                roas_val = float(row["roas"])
-                if roas_val > 0 and spend > 0:
-                    purchase_value = roas_val * spend
-            row["conversion_value"] = round(purchase_value, 2)
+
+            wp_roas = self._extract_roas_value(row.get("website_purchase_roas"))
+            if wp_roas and spend > 0:
+                purchase_value = round(wp_roas * spend, 2)
+
+            if purchase_value == 0:
+                p_roas = self._extract_roas_value(row.get("purchase_roas"))
+                if p_roas and spend > 0:
+                    purchase_value = round(p_roas * spend, 2)
+
+            if purchase_value == 0:
+                for av in (row.get("action_values") or []):
+                    atype = av.get("action_type", "")
+                    if atype in ("purchase", "offsite_conversion.fb_pixel_purchase", "omni_purchase"):
+                        purchase_value += float(av.get("value", 0))
+                purchase_value = round(purchase_value, 2)
+
+            row["conversion_value"] = purchase_value
         return data
 
     async def build_full_context_for_ai(self, date_preset: str = "last_7d") -> str:
@@ -1060,18 +1068,35 @@ class MetaAdsService:
             elif atype == "link_click":
                 link_clicks += val
 
-        # Parse action_values for purchase conversion value (broad match)
+        # ── 결과 값 (Result Value) 계산 ──
+        # Meta UI "결과 및 지출 > 결과 값" = website_purchase_roas × spend
+        spend = float(insights.get("spend", 0) or 0)
         purchase_value = 0.0
-        for av in action_values:
-            atype = av.get("action_type", "")
-            if atype in ("purchase", "offsite_conversion.fb_pixel_purchase", "omni_purchase"):
-                purchase_value += float(av.get("value", 0))
+
+        # 1) 최우선: website_purchase_roas × spend (Meta 공식 결과 값)
+        wp_roas = MetaAdsService._extract_roas_value(insights.get("website_purchase_roas"))
+        if wp_roas and spend > 0:
+            purchase_value = round(wp_roas * spend, 2)
+
+        # 2) 차선: purchase_roas × spend
+        if purchase_value == 0:
+            p_roas = MetaAdsService._extract_roas_value(insights.get("purchase_roas"))
+            if p_roas and spend > 0:
+                purchase_value = round(p_roas * spend, 2)
+
+        # 3) 폴백: action_values에서 purchase 관련 값 합산
+        if purchase_value == 0:
+            for av in action_values:
+                atype = av.get("action_type", "")
+                if atype in ("purchase", "offsite_conversion.fb_pixel_purchase", "omni_purchase"):
+                    purchase_value += float(av.get("value", 0))
+            purchase_value = round(purchase_value, 2)
 
         # Parse cost_per_action_type for cost_per_result
         cost_per_result = None
-        # Priority: purchase cost > link_click cost > any first cost
         for cpa in cost_per_action:
-            if cpa.get("action_type") == "offsite_conversion.fb_pixel_purchase":
+            atype = cpa.get("action_type", "")
+            if atype in ("purchase", "offsite_conversion.fb_pixel_purchase", "omni_purchase"):
                 cost_per_result = float(cpa.get("value", 0))
                 break
         if cost_per_result is None:
@@ -1081,13 +1106,6 @@ class MetaAdsService:
                     break
         if cost_per_result is None and cost_per_action:
             cost_per_result = float(cost_per_action[0].get("value", 0))
-
-        # Fallback: derive conversion_value from ROAS × spend if action_values missing
-        if purchase_value == 0:
-            roas = insights.get("roas")
-            spend = float(insights.get("spend", 0) or 0)
-            if roas and spend > 0:
-                purchase_value = round(float(roas) * spend, 2)
 
         # Add enriched fields
         insights["website_purchase_conversion_value"] = purchase_value
