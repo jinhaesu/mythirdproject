@@ -321,12 +321,27 @@ class MetaAdsService:
             resp = await self._get(
                 f"{clean_campaign_id}/adsets",
                 {"fields": adset_fields, "limit": 200,
-                 "effective_status": '["ACTIVE","PAUSED","PENDING_REVIEW","ARCHIVED","CAMPAIGN_PAUSED","IN_PROCESS","WITH_ISSUES","DELETED"]'}
+                 "effective_status": '["ACTIVE","PAUSED","PENDING_REVIEW","ARCHIVED","CAMPAIGN_PAUSED","IN_PROCESS","WITH_ISSUES"]'}
             )
+
+            logger.info(f"Adsets response for campaign {campaign_id}: "
+                        f"data_count={len(resp.get('data', []))}, "
+                        f"has_error={bool(resp.get('error'))}, "
+                        f"keys={list(resp.keys())}")
 
             if resp.get("error"):
                 logger.warning(f"Failed to fetch adsets for campaign {campaign_id}: {resp.get('error')}")
-                return []
+                # Try simpler fields as fallback (nested insight expansion may fail)
+                simple_fields = "id,name,status,effective_status,targeting,daily_budget,lifetime_budget"
+                resp = await self._get(
+                    f"{clean_campaign_id}/adsets",
+                    {"fields": simple_fields, "limit": 200,
+                     "effective_status": '["ACTIVE","PAUSED","PENDING_REVIEW","CAMPAIGN_PAUSED"]'}
+                )
+                logger.info(f"Adsets fallback response for campaign {campaign_id}: "
+                            f"data_count={len(resp.get('data', []))}")
+                if resp.get("error"):
+                    return []
 
             adsets = []
             for adset in resp.get("data", []):
@@ -899,20 +914,29 @@ class MetaAdsService:
 
         return "\n".join(lines)
 
+    # Meta API valid date_preset values
+    _VALID_DATE_PRESETS = {3, 7, 14, 28, 30, 90}
+
     async def get_account_daily_trend(self, days: int = 30,
                                       since: Optional[str] = None, until: Optional[str] = None,
                                       time_increment: int = 1) -> List[Dict]:
         """Get account-level metrics for trend charts. time_increment=1 daily, 7 weekly."""
         if not self.connected:
             return []
+        from datetime import datetime, timedelta
         params: Dict[str, Any] = {
             "fields": "spend,impressions,clicks,ctr,cpc,cpm,reach,actions,action_values,purchase_roas,website_purchase_roas,frequency",
             "time_increment": time_increment,
         }
         if since and until:
             params["time_range"] = f'{{"since":"{since}","until":"{until}"}}'
-        else:
+        elif days in self._VALID_DATE_PRESETS:
             params["date_preset"] = f"last_{days}d"
+        else:
+            # Non-standard day count: use explicit time_range
+            end = datetime.now().strftime("%Y-%m-%d")
+            start = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+            params["time_range"] = f'{{"since":"{start}","until":"{end}"}}'
         resp = await self._get(f"{self.ad_account_id}/insights", params)
         data = resp.get("data", [])
         for row in data:
