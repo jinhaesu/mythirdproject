@@ -111,6 +111,7 @@ export const useAppStore = create<AppState>((set) => ({
     budget_type: 'DAILY',
     advantage_plus: false,
     advantage_plus_audience: false,
+    advantage_plus_creative: false,
     currency: 'KRW',
   },
   setPublishOptions: (options) =>

@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { Settings, LogOut, User, ChevronDown, Link2, Unlink } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Settings, LogOut, User, ChevronDown, Link2, Unlink, X, Instagram, Facebook, Globe } from 'lucide-react';
 import { useAuthStore } from '@/store';
 import { authApi } from '@/lib/api';
 import toast from 'react-hot-toast';
@@ -11,6 +11,20 @@ export function Header() {
   const [showMenu, setShowMenu] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [metaStatus, setMetaStatus] = useState<any>(null);
+  const [loadingStatus, setLoadingStatus] = useState(false);
+
+  // Load Meta account details when settings is opened
+  useEffect(() => {
+    if (showSettings && user?.meta_connected) {
+      setLoadingStatus(true);
+      authApi.getMetaStatus()
+        .then(data => setMetaStatus(data))
+        .catch(() => {})
+        .finally(() => setLoadingStatus(false));
+    }
+  }, [showSettings, user?.meta_connected]);
 
   const handleMetaConnect = async () => {
     setConnecting(true);
@@ -122,10 +136,10 @@ export function Header() {
                     )}
                     <button
                       className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                      onClick={() => setShowMenu(false)}
+                      onClick={() => { setShowMenu(false); setShowSettings(true); }}
                     >
                       <Settings size={16} />
-                      설정
+                      계정 설정
                     </button>
                     <button
                       className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50"
@@ -144,6 +158,132 @@ export function Header() {
           )}
         </div>
       </div>
+      {/* Account Settings Modal */}
+      {showSettings && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50" onClick={() => setShowSettings(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto m-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+              <h2 className="text-lg font-bold text-gray-900">계정 설정</h2>
+              <button onClick={() => setShowSettings(false)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+            </div>
+            <div className="p-6 space-y-6">
+              {/* User Info */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700 mb-3">사용자 정보</h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between"><span className="text-gray-500">이메일</span><span className="font-medium">{user?.email}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-500">이름</span><span className="font-medium">{user?.full_name || '-'}</span></div>
+                </div>
+              </div>
+
+              {/* Meta Connection */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                  <Facebook size={16} className="text-blue-600" /> Meta 연동 상태
+                </h3>
+                {user?.meta_connected ? (
+                  <div className="space-y-3">
+                    <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                      <p className="text-sm font-medium text-green-700">연동됨</p>
+                      <p className="text-xs text-green-600 mt-0.5">광고 계정 ID: {user.meta_ad_account_id || '-'}</p>
+                    </div>
+
+                    {loadingStatus ? (
+                      <p className="text-xs text-gray-400">계정 정보 로딩 중...</p>
+                    ) : metaStatus && (
+                      <div className="space-y-3">
+                        {/* Facebook Pages */}
+                        {metaStatus.pages?.length > 0 && (
+                          <div>
+                            <h4 className="text-xs font-semibold text-gray-600 mb-2 flex items-center gap-1.5">
+                              <Facebook size={12} /> Facebook 페이지
+                            </h4>
+                            <div className="space-y-1">
+                              {metaStatus.pages.map((page: any) => (
+                                <div key={page.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg text-xs">
+                                  <span className="font-medium text-gray-800">{page.name}</span>
+                                  <span className="text-gray-400">ID: {page.id}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Instagram Account */}
+                        {metaStatus.ig_account_id && (
+                          <div>
+                            <h4 className="text-xs font-semibold text-gray-600 mb-2 flex items-center gap-1.5">
+                              <Instagram size={12} /> Instagram 계정
+                            </h4>
+                            <div className="p-2 bg-gray-50 rounded-lg text-xs">
+                              <span className="font-medium text-gray-800">
+                                {metaStatus.ig_username ? `@${metaStatus.ig_username}` : `ID: ${metaStatus.ig_account_id}`}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Ad Accounts */}
+                        {metaStatus.ad_accounts?.length > 0 && (
+                          <div>
+                            <h4 className="text-xs font-semibold text-gray-600 mb-2">광고 계정 목록</h4>
+                            <div className="space-y-1">
+                              {metaStatus.ad_accounts.map((acc: any) => (
+                                <div key={acc.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg text-xs">
+                                  <span className="font-medium text-gray-800">{acc.name || acc.id}</span>
+                                  <button
+                                    onClick={async () => {
+                                      try {
+                                        await authApi.selectAdAccount(acc.id);
+                                        const me = await authApi.getMe();
+                                        setAuth(me, token!);
+                                        toast.success(`광고 계정 "${acc.name || acc.id}" 선택됨`);
+                                      } catch { toast.error('계정 전환 실패'); }
+                                    }}
+                                    className={`px-2 py-0.5 rounded text-xs ${
+                                      user.meta_ad_account_id === acc.id
+                                        ? 'bg-green-100 text-green-700 font-medium'
+                                        : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
+                                    }`}
+                                  >
+                                    {user.meta_ad_account_id === acc.id ? '사용 중' : '선택'}
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Threads / Other accounts info */}
+                        <div>
+                          <h4 className="text-xs font-semibold text-gray-600 mb-2 flex items-center gap-1.5">
+                            <Globe size={12} /> Threads 프로필
+                          </h4>
+                          <div className="p-2 bg-gray-50 rounded-lg text-xs text-gray-500">
+                            {metaStatus.threads_profile
+                              ? <span className="font-medium text-gray-800">{metaStatus.threads_profile}</span>
+                              : <span>Threads 연동은 Meta Business Suite에서 설정하세요.</span>
+                            }
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                    <p className="text-sm font-medium text-orange-700">연동 안됨</p>
+                    <p className="text-xs text-orange-600 mt-1">Meta 계정을 연결하면 광고 관리 기능을 사용할 수 있습니다.</p>
+                    <button onClick={handleMetaConnect} disabled={connecting}
+                      className="mt-2 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700">
+                      {connecting ? '연결 중...' : 'Meta 연결하기'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 }

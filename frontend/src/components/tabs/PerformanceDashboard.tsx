@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import {
   BarChart3, DollarSign, Eye, MousePointer, Target,
@@ -8,12 +8,13 @@ import {
   Loader2, RefreshCw, Zap, Activity, Users, Layers,
   TrendingUp, TrendingDown, ToggleLeft, ToggleRight, Edit3, Check, X,
   Shield, Sparkles, ArrowRight, Lightbulb, Palette,
+  MessageSquare, BarChart2, ExternalLink,
 } from 'lucide-react';
 import { analyticsApi, clearAnalysisCache } from '@/lib/api';
 import toast from 'react-hot-toast';
 import type { PerformanceFeedback, CampaignStatusFilter } from '@/types';
 
-type DatePreset = 'last_7d' | 'last_14d' | 'last_30d' | 'custom';
+type DatePreset = 'today' | 'yesterday' | 'last_3d' | 'last_7d' | 'last_14d' | 'last_30d' | 'this_month' | 'last_month' | 'custom';
 
 // Currency formatting helper - display KRW as-is from API, no multiply/divide
 function formatCurrency(amount: number, currency: string = 'KRW'): string {
@@ -97,17 +98,47 @@ export default function PerformanceDashboard() {
 
   const isCustom = datePreset === 'custom' && customSince && customUntil && customSince <= customUntil;
 
+  // Compute date range for this_month / last_month / today / yesterday / last_3d
+  const computedDateRange = useMemo(() => {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = today.getMonth();
+    const fmt = (d: Date) => d.toISOString().slice(0, 10);
+    switch (datePreset) {
+      case 'today': return { since: fmt(today), until: fmt(today) };
+      case 'yesterday': {
+        const y = new Date(today); y.setDate(y.getDate() - 1);
+        return { since: fmt(y), until: fmt(y) };
+      }
+      case 'last_3d': {
+        const s = new Date(today); s.setDate(s.getDate() - 2);
+        return { since: fmt(s), until: fmt(today) };
+      }
+      case 'this_month': return { since: `${yyyy}-${String(mm + 1).padStart(2, '0')}-01`, until: fmt(today) };
+      case 'last_month': {
+        const start = new Date(yyyy, mm - 1, 1);
+        const end = new Date(yyyy, mm, 0);
+        return { since: fmt(start), until: fmt(end) };
+      }
+      default: return null;
+    }
+  }, [datePreset]);
+
+  const isDateRange = isCustom || !!computedDateRange;
+  const effectiveSince = computedDateRange?.since || customSince;
+  const effectiveUntil = computedDateRange?.until || customUntil;
+
   const { data: overview, isLoading: loadingOverview, isError: overviewError, refetch: refetchOverview } = useQuery({
-    queryKey: ['account-overview', datePreset, customSince, customUntil],
-    queryFn: () => isCustom
-      ? analyticsApi.getAccountOverview('last_7d', customSince, customUntil)
+    queryKey: ['account-overview', datePreset, effectiveSince, effectiveUntil],
+    queryFn: () => isDateRange
+      ? analyticsApi.getAccountOverview('last_7d', effectiveSince, effectiveUntil)
       : analyticsApi.getAccountOverview(datePreset),
     refetchInterval: 60000,
     retry: 1,
     enabled: datePreset !== 'custom' || (!!customSince && !!customUntil),
   });
 
-  const daysMap: Record<string, number> = { last_7d: 7, last_14d: 14, last_30d: 30 };
+  const daysMap: Record<string, number> = { today: 1, yesterday: 1, last_3d: 3, last_7d: 7, last_14d: 14, last_30d: 30, this_month: 30, last_month: 30 };
   const trendIncrement = trendView === 'weekly' ? 7 : 1;
 
   // 주간 뷰: 어제 기준으로 정확한 7일 단위 구간 계산
@@ -130,15 +161,15 @@ export default function PerformanceDashboard() {
   const trendDaysCount = trendView === 'weekly' ? 56 : (daysMap[datePreset] || 7);
 
   const { data: trendData } = useQuery({
-    queryKey: ['account-trend', datePreset, customSince, customUntil, trendView],
+    queryKey: ['account-trend', datePreset, effectiveSince, effectiveUntil, trendView],
     queryFn: () => {
       if (trendView === 'weekly' && weeklyRange) {
-        // 주간: 명시적 날짜 범위 + time_increment=7 → 정확한 7일 단위 비교
         return analyticsApi.getAccountTrend(14, weeklyRange.since, weeklyRange.until, 7);
       }
-      return isCustom
-        ? analyticsApi.getAccountTrend(30, customSince, customUntil, trendIncrement)
-        : analyticsApi.getAccountTrend(trendDaysCount, undefined, undefined, trendIncrement);
+      if (isDateRange) {
+        return analyticsApi.getAccountTrend(30, effectiveSince, effectiveUntil, trendIncrement);
+      }
+      return analyticsApi.getAccountTrend(trendDaysCount, undefined, undefined, trendIncrement);
     },
     enabled: overview?.connected === true,
     placeholderData: keepPreviousData,
@@ -172,8 +203,8 @@ export default function PerformanceDashboard() {
 
   const THREE_HOURS = 3 * 60 * 60 * 1000;
   const { data: aiAnalysis, isLoading: loadingAI, refetch: refetchAI, dataUpdatedAt } = useQuery({
-    queryKey: ['ai-analysis', datePreset],
-    queryFn: () => analyticsApi.getAIAnalysis(datePreset, overview),
+    queryKey: ['ai-analysis', datePreset, statusFilter],
+    queryFn: () => analyticsApi.getAIAnalysis(datePreset, overview, statusFilter !== 'ALL' ? statusFilter : undefined),
     enabled: overview?.connected === true && !!overview?.campaigns?.length,
     staleTime: THREE_HOURS,
     gcTime: THREE_HOURS,
@@ -350,9 +381,14 @@ export default function PerformanceDashboard() {
             onChange={(e) => setDatePreset(e.target.value as DatePreset)}
             className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
           >
+            <option value="today">오늘</option>
+            <option value="yesterday">어제</option>
+            <option value="last_3d">최근 3일</option>
             <option value="last_7d">최근 7일</option>
             <option value="last_14d">최근 14일</option>
             <option value="last_30d">최근 30일</option>
+            <option value="this_month">이번달</option>
+            <option value="last_month">지난달</option>
             <option value="custom">직접 지정</option>
           </select>
           {datePreset === 'custom' && (
@@ -381,8 +417,9 @@ export default function PerformanceDashboard() {
       ) : (
         <>
           {/* KPI Cards - ROAS 최우선 */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
             <KPICard icon={<TrendingUp size={20} />} label="ROAS" value={formatROAS(accountROAS)} sub={accountROAS ? `광고비 대비 ${(accountROAS * 100).toFixed(0)}% 수익` : '데이터 없음'} color="orange" />
+            <KPICard icon={<DollarSign size={20} />} label="전환값(매출)" value={formatMoney(accountInsights.conversion_value || 0)} sub={accountInsights.conversion_value ? '구매 전환 매출' : '데이터 없음'} color="green" />
             <KPICard icon={<DollarSign size={20} />} label="총 지출" value={formatSpend(accountInsights.spend)} color="blue" />
             <KPICard icon={<MousePointer size={20} />} label="클릭" value={formatNum(accountInsights.clicks)} sub={`CTR ${parseFloat(accountInsights.ctr || '0').toFixed(2)}%`} color="green" />
             <KPICard icon={<Target size={20} />} label="CPC" value={formatCPC(accountInsights.cpc)} sub={`CPM ${formatMoney(accountInsights.cpm)}`} color="purple" />
@@ -496,6 +533,17 @@ export default function PerformanceDashboard() {
                     formatValue={(v) => formatCPC(v)}
                   />
                 </div>
+                <div>
+                  <p className="text-[10px] text-gray-500 mb-1">전환값 (매출)</p>
+                  <MiniLineChart
+                    data={trendDays.map((d: any) => ({
+                      label: trendView === 'weekly' ? `${d.date_start?.slice(5)}~${d.date_stop?.slice(5)}` : d.date_stop?.slice(5) || '',
+                      value: parseFloat(d.conversion_value || 0)
+                    }))}
+                    color="green"
+                    formatValue={(v) => formatMoney(v)}
+                  />
+                </div>
               </div>
             </div>
           )}
@@ -581,7 +629,8 @@ export default function PerformanceDashboard() {
                     <div>
                       <h2 className="text-lg font-bold text-white tracking-tight">AI 성과 분석 리포트</h2>
                       <p className="text-sm text-white/70 mt-0.5">
-                        {datePreset === 'last_7d' ? '최근 7일' : datePreset === 'last_14d' ? '최근 14일' : datePreset === 'last_30d' ? '최근 30일' : '사용자 지정'} 기간 분석
+                        {datePreset === 'today' ? '오늘' : datePreset === 'yesterday' ? '어제' : datePreset === 'last_3d' ? '최근 3일' : datePreset === 'last_7d' ? '최근 7일' : datePreset === 'last_14d' ? '최근 14일' : datePreset === 'last_30d' ? '최근 30일' : datePreset === 'this_month' ? '이번달' : datePreset === 'last_month' ? '지난달' : '사용자 지정'} 기간 분석
+                        {statusFilter !== 'ALL' ? ` · ${statusFilter === 'ACTIVE' ? '활성' : statusFilter === 'PAUSED' ? '일시중지' : statusFilter === 'PENDING_REVIEW' ? '검토중' : '보관됨'} 캠페인만` : ''}
                         {dataUpdatedAt ? ` · ${new Date(dataUpdatedAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })} 기준` : ''}
                       </p>
                     </div>
@@ -1164,6 +1213,17 @@ export default function PerformanceDashboard() {
             </div>
             </div>
           </div>
+
+          {/* ═══ 크리에이티브 성과 대시보드 ═══ */}
+          <CreativePerformanceDashboard
+            campaigns={allCampaigns}
+            datePreset={datePreset}
+            formatCurrency={formatCurrency}
+            formatNum={formatNum}
+            formatCPC={formatCPC}
+            formatROAS={formatROAS}
+            formatSpend={formatSpend}
+          />
         </>
       )}
     </div>
@@ -1737,6 +1797,463 @@ function PerformanceFeedbackPanel({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ─── Creative Performance Dashboard Component ───
+function CreativePerformanceDashboard({
+  campaigns, datePreset, formatCurrency: fmtCur, formatNum, formatCPC, formatROAS, formatSpend,
+}: {
+  campaigns: any[];
+  datePreset: string;
+  formatCurrency: (amount: number, currency?: string) => string;
+  formatNum: (v: any) => string;
+  formatCPC: (v: any) => string;
+  formatROAS: (v: any) => string;
+  formatSpend: (v: any) => string;
+}) {
+  const [showCreativeDash, setShowCreativeDash] = useState(false);
+  const [sortBy, setSortBy] = useState<'spend' | 'ctr' | 'roas' | 'cpc'>('spend');
+  const [selectedAdForChart, setSelectedAdForChart] = useState<string | null>(null);
+  const [selectedAdForComments, setSelectedAdForComments] = useState<string | null>(null);
+  const [adsetsCache, setAdsetsCache] = useState<Record<string, any>>({});
+  const [loadingAdsets, setLoadingAdsets] = useState(false);
+
+  // Load ad-level data for all campaigns when dashboard is expanded
+  const loadAdLevelData = useCallback(async () => {
+    if (loadingAdsets) return;
+    setLoadingAdsets(true);
+    const cache: Record<string, any> = {};
+    for (const camp of campaigns) {
+      const campId = camp.meta_campaign_id || camp.id;
+      if (!campId || adsetsCache[campId]) continue;
+      try {
+        const data = await analyticsApi.getCampaignAdsets(String(campId), datePreset);
+        cache[campId] = data;
+      } catch { /* skip */ }
+    }
+    setAdsetsCache(prev => ({ ...prev, ...cache }));
+    setLoadingAdsets(false);
+  }, [campaigns, datePreset, adsetsCache, loadingAdsets]);
+
+  // Per-creative trend data
+  const trendQuery = useQuery({
+    queryKey: ['ad-trend', selectedAdForChart],
+    queryFn: () => analyticsApi.getAdTrend(selectedAdForChart!, 14),
+    enabled: !!selectedAdForChart,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Ad post info (for comments)
+  const postInfoQuery = useQuery({
+    queryKey: ['ad-post-info', selectedAdForComments],
+    queryFn: () => analyticsApi.getAdPostInfo(selectedAdForComments!),
+    enabled: !!selectedAdForComments,
+  });
+
+  // Comments for ad
+  const commentsQuery = useQuery({
+    queryKey: ['ad-comments', postInfoQuery.data?.post_id],
+    queryFn: () => analyticsApi.getAdComments(postInfoQuery.data!.post_id),
+    enabled: !!postInfoQuery.data?.post_id,
+  });
+
+  // Collect all ads from all campaigns' expanded data
+  const allAds = useMemo(() => {
+    const ads: any[] = [];
+    for (const camp of campaigns) {
+      if (!camp.insights) continue;
+      const ins = camp.insights;
+      const purchaseValue = ins?.website_purchase_conversion_value || ins?.action_values?.find((a: any) => a.action_type === 'purchase' || a.action_type === 'omni_purchase')?.value;
+      const campId = camp.meta_campaign_id || camp.id;
+      const cachedAdsets = adsetsCache[campId]?.adsets || camp.adsets;
+
+      if (cachedAdsets && cachedAdsets.length > 0) {
+        for (const adset of cachedAdsets) {
+          for (const ad of (adset.ads || [])) {
+            const adIns = ad.insights || {};
+            const adPV = adIns?.action_values?.find((a: any) => a.action_type === 'purchase' || a.action_type === 'omni_purchase')?.value;
+            ads.push({
+              id: ad.id,
+              meta_ad_id: ad.id,
+              name: ad.name,
+              campaign_name: camp.name,
+              adset_name: adset.name,
+              status: ad.effective_status || ad.status,
+              spend: parseFloat(adIns.spend || 0),
+              impressions: parseFloat(adIns.impressions || 0),
+              clicks: parseFloat(adIns.clicks || 0),
+              ctr: parseFloat(adIns.ctr || 0),
+              cpc: parseFloat(adIns.cpc || 0),
+              cpm: parseFloat(adIns.cpm || 0),
+              roas: adIns.roas || 0,
+              conversion_value: adPV ? parseFloat(adPV) : 0,
+              frequency: parseFloat(adIns.frequency || 0),
+              thumbnail_url: ad.creative?.thumbnail_url,
+            });
+          }
+        }
+      } else {
+        // Fallback: campaign-level as "creative" if no ad-level data
+        ads.push({
+          id: camp.id,
+          meta_ad_id: campId,
+          name: camp.name,
+          campaign_name: camp.name,
+          status: camp.effective_status || camp.status,
+          spend: parseFloat(ins.spend || 0),
+          impressions: parseFloat(ins.impressions || 0),
+          clicks: parseFloat(ins.clicks || 0),
+          ctr: parseFloat(ins.ctr || 0),
+          cpc: parseFloat(ins.cpc || 0),
+          cpm: parseFloat(ins.cpm || 0),
+          roas: ins.roas || 0,
+          conversion_value: purchaseValue ? parseFloat(purchaseValue) : 0,
+          frequency: parseFloat(ins.frequency || 0),
+        });
+      }
+    }
+    return ads;
+  }, [campaigns, adsetsCache]);
+
+  const sortedAds = useMemo(() => {
+    return [...allAds].sort((a, b) => {
+      if (sortBy === 'roas') return (b.roas || 0) - (a.roas || 0);
+      if (sortBy === 'ctr') return b.ctr - a.ctr;
+      if (sortBy === 'cpc') return a.cpc - b.cpc;
+      return b.spend - a.spend;
+    });
+  }, [allAds, sortBy]);
+
+  if (allAds.length === 0) return null;
+
+  const topByROAS = [...allAds].filter(a => a.roas > 0).sort((a, b) => b.roas - a.roas).slice(0, 3);
+  const topByCTR = [...allAds].sort((a, b) => b.ctr - a.ctr).slice(0, 3);
+
+  // Mini SVG bar chart for per-creative trend
+  const renderMiniTrend = (data: any[]) => {
+    if (!data || data.length === 0) return <p className="text-xs text-gray-400">데이터 없음</p>;
+    const maxSpend = Math.max(...data.map((d: any) => parseFloat(d.spend || 0)), 1);
+    const w = 280;
+    const h = 80;
+    const barW = Math.max(4, (w - data.length * 2) / data.length);
+    return (
+      <svg width={w} height={h + 20} className="overflow-visible">
+        {data.map((d: any, i: number) => {
+          const spend = parseFloat(d.spend || 0);
+          const barH = (spend / maxSpend) * h;
+          const x = i * (barW + 2);
+          return (
+            <g key={i}>
+              <rect x={x} y={h - barH} width={barW} height={barH} rx={2} fill="#8b5cf6" opacity={0.7} />
+              {i % 3 === 0 && (
+                <text x={x} y={h + 14} fontSize={8} fill="#9ca3af">{(d.date || '').slice(5)}</text>
+              )}
+            </g>
+          );
+        })}
+      </svg>
+    );
+  };
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl">
+      <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+        <button
+          onClick={() => setShowCreativeDash(!showCreativeDash)}
+          className="flex items-center gap-2 text-left"
+        >
+          {showCreativeDash ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+          <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+            <Palette size={18} className="text-purple-500" /> 크리에이티브 성과 대시보드
+          </h3>
+          <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">{allAds.length}개</span>
+        </button>
+        {showCreativeDash && Object.keys(adsetsCache).length === 0 && (
+          <button
+            onClick={loadAdLevelData}
+            disabled={loadingAdsets}
+            className="text-xs px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center gap-1.5"
+          >
+            {loadingAdsets ? <Loader2 size={12} className="animate-spin" /> : <Layers size={12} />}
+            {loadingAdsets ? '로딩 중...' : '소재별 데이터 로드'}
+          </button>
+        )}
+      </div>
+
+      {showCreativeDash && (
+        <div className="p-5 space-y-5">
+          {/* Top performers cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {topByROAS.length > 0 && (
+              <div className="bg-gradient-to-br from-emerald-50 to-green-50 rounded-xl p-4 border border-emerald-200">
+                <h4 className="text-xs font-bold text-emerald-800 mb-3 flex items-center gap-1.5">
+                  <TrendingUp size={14} /> ROAS 우수 소재 TOP 3
+                </h4>
+                <div className="space-y-2">
+                  {topByROAS.map((ad, i) => (
+                    <div key={ad.id} className="flex items-center justify-between bg-white rounded-lg p-2.5 border border-emerald-100">
+                      <div className="flex items-center gap-2">
+                        <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white ${
+                          i === 0 ? 'bg-emerald-500' : i === 1 ? 'bg-emerald-400' : 'bg-emerald-300'
+                        }`}>{i + 1}</span>
+                        <span className="text-xs font-medium text-gray-800 truncate max-w-[150px]">{ad.name}</span>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-bold text-emerald-600">ROAS {formatROAS(ad.roas)}</p>
+                        <p className="text-[10px] text-gray-400">매출 {formatSpend(ad.conversion_value)}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {topByCTR.length > 0 && (
+              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-200">
+                <h4 className="text-xs font-bold text-blue-800 mb-3 flex items-center gap-1.5">
+                  <MousePointer size={14} /> CTR 우수 소재 TOP 3
+                </h4>
+                <div className="space-y-2">
+                  {topByCTR.map((ad, i) => (
+                    <div key={ad.id} className="flex items-center justify-between bg-white rounded-lg p-2.5 border border-blue-100">
+                      <div className="flex items-center gap-2">
+                        <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white ${
+                          i === 0 ? 'bg-blue-500' : i === 1 ? 'bg-blue-400' : 'bg-blue-300'
+                        }`}>{i + 1}</span>
+                        <span className="text-xs font-medium text-gray-800 truncate max-w-[150px]">{ad.name}</span>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-bold text-blue-600">CTR {ad.ctr.toFixed(2)}%</p>
+                        <p className="text-[10px] text-gray-400">CPC {formatCPC(ad.cpc)}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Sort controls */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500">정렬:</span>
+            {([
+              { key: 'spend' as const, label: '지출순' },
+              { key: 'roas' as const, label: 'ROAS순' },
+              { key: 'ctr' as const, label: 'CTR순' },
+              { key: 'cpc' as const, label: 'CPC순' },
+            ]).map(s => (
+              <button
+                key={s.key}
+                onClick={() => setSortBy(s.key)}
+                className={`text-xs px-2.5 py-1 rounded-lg font-medium transition-colors ${
+                  sortBy === s.key ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                }`}
+              >{s.label}</button>
+            ))}
+          </div>
+
+          {/* Creative performance table */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-gray-200">
+                  <th className="text-left py-2 px-2 text-gray-500 font-medium">소재/캠페인</th>
+                  <th className="text-right py-2 px-2 text-gray-500 font-medium">상태</th>
+                  <th className="text-right py-2 px-2 text-gray-500 font-medium">지출</th>
+                  <th className="text-right py-2 px-2 text-gray-500 font-medium">전환값</th>
+                  <th className="text-right py-2 px-2 text-gray-500 font-medium">ROAS</th>
+                  <th className="text-right py-2 px-2 text-gray-500 font-medium">CTR</th>
+                  <th className="text-right py-2 px-2 text-gray-500 font-medium">CPC</th>
+                  <th className="text-right py-2 px-2 text-gray-500 font-medium">CPM</th>
+                  <th className="text-right py-2 px-2 text-gray-500 font-medium">빈도</th>
+                  <th className="text-center py-2 px-2 text-gray-500 font-medium">관리</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedAds.map((ad) => {
+                  const statusKo = ad.status === 'ACTIVE' ? '활성' : ad.status === 'PAUSED' ? '중지' : ad.status;
+                  const statusColor = ad.status === 'ACTIVE' ? 'text-green-600' : ad.status === 'PAUSED' ? 'text-yellow-600' : 'text-gray-400';
+                  return (
+                    <tr key={ad.id} className="border-b border-gray-50 hover:bg-gray-50">
+                      <td className="py-2 px-2">
+                        <div className="flex items-center gap-2">
+                          {ad.thumbnail_url && (
+                            <img src={ad.thumbnail_url} alt="" className="w-8 h-8 rounded object-cover" />
+                          )}
+                          <div>
+                            <p className="font-medium text-gray-800 truncate max-w-[180px]">{ad.name}</p>
+                            {ad.adset_name && <p className="text-[10px] text-gray-400 truncate max-w-[180px]">{ad.campaign_name} &gt; {ad.adset_name}</p>}
+                          </div>
+                        </div>
+                      </td>
+                      <td className={`py-2 px-2 text-right font-medium ${statusColor}`}>{statusKo}</td>
+                      <td className="py-2 px-2 text-right">{formatSpend(ad.spend)}</td>
+                      <td className="py-2 px-2 text-right">{ad.conversion_value ? formatSpend(ad.conversion_value) : '-'}</td>
+                      <td className={`py-2 px-2 text-right font-semibold ${ad.roas >= 1 ? 'text-green-600' : ad.roas > 0 ? 'text-red-500' : 'text-gray-400'}`}>
+                        {formatROAS(ad.roas)}
+                      </td>
+                      <td className="py-2 px-2 text-right">{ad.ctr.toFixed(2)}%</td>
+                      <td className="py-2 px-2 text-right">{formatCPC(ad.cpc)}</td>
+                      <td className="py-2 px-2 text-right">{fmtCur(ad.cpm)}</td>
+                      <td className={`py-2 px-2 text-right ${ad.frequency > 2.3 ? 'text-red-500 font-medium' : ''}`}>
+                        {ad.frequency.toFixed(2)}
+                      </td>
+                      <td className="py-2 px-2 text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            onClick={() => setSelectedAdForChart(selectedAdForChart === ad.meta_ad_id ? null : ad.meta_ad_id)}
+                            title="소재별 차트"
+                            className={`p-1 rounded hover:bg-purple-100 ${selectedAdForChart === ad.meta_ad_id ? 'bg-purple-100 text-purple-600' : 'text-gray-400'}`}
+                          >
+                            <BarChart2 size={14} />
+                          </button>
+                          <button
+                            onClick={() => setSelectedAdForComments(selectedAdForComments === ad.meta_ad_id ? null : ad.meta_ad_id)}
+                            title="댓글 관리"
+                            className={`p-1 rounded hover:bg-blue-100 ${selectedAdForComments === ad.meta_ad_id ? 'bg-blue-100 text-blue-600' : 'text-gray-400'}`}
+                          >
+                            <MessageSquare size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Per-Creative Chart Panel */}
+          {selectedAdForChart && (
+            <div className="border border-purple-200 rounded-xl p-4 bg-purple-50/30">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-semibold text-purple-800 flex items-center gap-1.5">
+                  <BarChart2 size={16} /> 소재별 일별 트렌드 (14일)
+                </h4>
+                <button onClick={() => setSelectedAdForChart(null)} className="text-gray-400 hover:text-gray-600">
+                  <X size={16} />
+                </button>
+              </div>
+              {trendQuery.isLoading ? (
+                <div className="flex items-center gap-2 text-xs text-gray-500 py-4">
+                  <Loader2 size={14} className="animate-spin" /> 트렌드 데이터 로딩 중...
+                </div>
+              ) : trendQuery.isError ? (
+                <p className="text-xs text-red-500">트렌드 데이터를 가져올 수 없습니다.</p>
+              ) : (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {(() => {
+                      const data = trendQuery.data?.data || [];
+                      const totalSpend = data.reduce((s: number, d: any) => s + parseFloat(d.spend || 0), 0);
+                      const totalClicks = data.reduce((s: number, d: any) => s + parseFloat(d.clicks || 0), 0);
+                      const totalImpressions = data.reduce((s: number, d: any) => s + parseFloat(d.impressions || 0), 0);
+                      const totalConv = data.reduce((s: number, d: any) => s + (d.conversion_value || 0), 0);
+                      return (
+                        <>
+                          <div className="bg-white rounded-lg p-2.5 border border-purple-100">
+                            <p className="text-[10px] text-gray-500">총 지출</p>
+                            <p className="text-sm font-bold">{formatSpend(totalSpend)}</p>
+                          </div>
+                          <div className="bg-white rounded-lg p-2.5 border border-purple-100">
+                            <p className="text-[10px] text-gray-500">총 클릭</p>
+                            <p className="text-sm font-bold">{formatNum(totalClicks)}</p>
+                          </div>
+                          <div className="bg-white rounded-lg p-2.5 border border-purple-100">
+                            <p className="text-[10px] text-gray-500">총 노출</p>
+                            <p className="text-sm font-bold">{formatNum(totalImpressions)}</p>
+                          </div>
+                          <div className="bg-white rounded-lg p-2.5 border border-purple-100">
+                            <p className="text-[10px] text-gray-500">총 전환값</p>
+                            <p className="text-sm font-bold">{formatSpend(totalConv)}</p>
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+                  <div className="bg-white rounded-lg p-3 border border-purple-100">
+                    <p className="text-[10px] text-gray-500 mb-2">일별 지출 추이</p>
+                    {renderMiniTrend(trendQuery.data?.data || [])}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Comment Management Panel */}
+          {selectedAdForComments && (
+            <div className="border border-blue-200 rounded-xl p-4 bg-blue-50/30">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-semibold text-blue-800 flex items-center gap-1.5">
+                  <MessageSquare size={16} /> 댓글 관리
+                </h4>
+                <div className="flex items-center gap-2">
+                  {postInfoQuery.data?.preview_url && (
+                    <a
+                      href={postInfoQuery.data.preview_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                    >
+                      <ExternalLink size={12} /> 게시물 보기
+                    </a>
+                  )}
+                  <button onClick={() => setSelectedAdForComments(null)} className="text-gray-400 hover:text-gray-600">
+                    <X size={16} />
+                  </button>
+                </div>
+              </div>
+
+              {postInfoQuery.isLoading ? (
+                <div className="flex items-center gap-2 text-xs text-gray-500 py-4">
+                  <Loader2 size={14} className="animate-spin" /> 게시물 정보 로딩 중...
+                </div>
+              ) : postInfoQuery.isError ? (
+                <p className="text-xs text-red-500">게시물 정보를 가져올 수 없습니다. 이 광고에 게시물이 연결되어 있지 않을 수 있습니다.</p>
+              ) : !postInfoQuery.data?.post_id ? (
+                <p className="text-xs text-gray-500">이 광고에 연결된 게시물이 없습니다.</p>
+              ) : commentsQuery.isLoading ? (
+                <div className="flex items-center gap-2 text-xs text-gray-500 py-4">
+                  <Loader2 size={14} className="animate-spin" /> 댓글 로딩 중...
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {postInfoQuery.data?.thumbnail_url && (
+                    <img src={postInfoQuery.data.thumbnail_url} alt="" className="w-16 h-16 rounded-lg object-cover" />
+                  )}
+                  <p className="text-xs text-gray-600">
+                    게시물 ID: <span className="font-mono text-gray-400">{postInfoQuery.data.post_id}</span>
+                  </p>
+                  {(commentsQuery.data?.comments || []).length === 0 ? (
+                    <p className="text-xs text-gray-500 py-2">댓글이 없습니다.</p>
+                  ) : (
+                    <div className="max-h-64 overflow-y-auto space-y-2">
+                      {(commentsQuery.data?.comments || []).map((comment: any) => (
+                        <div key={comment.id} className="bg-white rounded-lg p-3 border border-blue-100">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-semibold text-gray-800">
+                              {comment.username || '사용자'}
+                            </span>
+                            <span className="text-[10px] text-gray-400">
+                              {comment.timestamp ? new Date(comment.timestamp).toLocaleString('ko-KR') : ''}
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-700">{comment.text}</p>
+                          {comment.like_count > 0 && (
+                            <p className="text-[10px] text-gray-400 mt-1">좋아요 {comment.like_count}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

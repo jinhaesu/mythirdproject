@@ -515,14 +515,67 @@ async def get_meta_connection_status(
         "meta_ad_account_id": meta_user.meta_ad_account_id if meta_user else None,
     }
 
-    # Verify token is still valid
+    # Verify token is still valid and fetch account details
     if connected and meta_user:
-        from app.services.meta import MetaGraphAPI
+        from app.services.meta import MetaGraphAPI, MetaMarketingAPI
         try:
-            meta_api = MetaGraphAPI(meta_user.meta_access_token)
-            profile = await meta_api.get_user_profile()
+            graph_api = MetaGraphAPI(meta_user.meta_access_token)
+            profile = await graph_api.get_user_profile()
             result["meta_name"] = profile.get("name")
             result["token_valid"] = True
+
+            # Fetch pages, IG account, ad accounts
+            marketing_api = MetaMarketingAPI(
+                meta_user.meta_access_token,
+                meta_user.meta_ad_account_id,
+            )
+            pages = await marketing_api.get_pages()
+            result["pages"] = pages  # [{id, name}, ...]
+
+            # Get IG account from first page
+            ig_account_id = None
+            ig_username = None
+            for page in pages:
+                try:
+                    ig_data = await graph_api.get_instagram_account(page["id"])
+                    ig_biz = ig_data.get("instagram_business_account")
+                    if ig_biz:
+                        ig_account_id = ig_biz.get("id")
+                        # Fetch IG username
+                        try:
+                            ig_profile = await graph_api._request(
+                                "GET", ig_account_id,
+                                params={"fields": "username,name"}
+                            )
+                            ig_username = ig_profile.get("username")
+                        except Exception:
+                            pass
+                        break
+                except Exception:
+                    continue
+            result["ig_account_id"] = ig_account_id
+            result["ig_username"] = ig_username
+
+            # Fetch all ad accounts
+            try:
+                ad_accounts_resp = await graph_api._request(
+                    "GET", "me/adaccounts",
+                    params={"fields": "id,name,currency,account_status", "limit": 50}
+                )
+                result["ad_accounts"] = ad_accounts_resp.get("data", [])
+            except Exception:
+                result["ad_accounts"] = []
+
+            # Threads profile (if available)
+            try:
+                threads_resp = await graph_api._request(
+                    "GET", "me",
+                    params={"fields": "threads_profile_picture_url,name"}
+                )
+                result["threads_profile"] = threads_resp.get("name")
+            except Exception:
+                result["threads_profile"] = None
+
         except Exception:
             result["token_valid"] = False
             result["message"] = "토큰이 만료되었습니다. 다시 연결해주세요."

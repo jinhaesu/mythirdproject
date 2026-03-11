@@ -93,6 +93,7 @@ export function AdsController() {
   // Advantage+ settings
   const [advantagePlus, setAdvantagePlus] = useState(false);
   const [advantagePlusAudience, setAdvantagePlusAudience] = useState(false);
+  const [advantagePlusCreative, setAdvantagePlusCreative] = useState(false);
 
   // Dataset / Pixel configuration
   const [datasetOption, setDatasetOption] = useState('');
@@ -102,6 +103,9 @@ export function AdsController() {
 
   // Launch option
   const [launchImmediately, setLaunchImmediately] = useState(false);
+
+  // Step navigation for 3-level hierarchy
+  const [activeStep, setActiveStep] = useState<1 | 2 | 3>(1);
 
   // Targeting state
   const [showTargeting, setShowTargeting] = useState(false);
@@ -359,6 +363,7 @@ export function AdsController() {
       end_date: endDate || undefined,
       advantage_plus: advantagePlus,
       advantage_plus_audience: advantagePlusAudience,
+      advantage_plus_creative: advantagePlusCreative,
       dataset_id: resolvedDatasetId,
       pixel_id: resolvedPixelId,
       primary_text: primaryText || undefined,
@@ -392,6 +397,7 @@ export function AdsController() {
       budget_type: budgetType,
       advantage_plus: advantagePlus,
       advantage_plus_audience: advantagePlusAudience,
+      advantage_plus_creative: advantagePlusCreative,
       dataset_id: resolvedDatasetId,
       pixel_id: resolvedPixelId,
       currency: 'KRW',
@@ -485,13 +491,41 @@ export function AdsController() {
 
   return (
     <div className="grid lg:grid-cols-3 gap-6">
-      {/* 캠페인 생성 */}
+      {/* 캠페인 생성 - 3단계 */}
       <div className="lg:col-span-1 space-y-6">
         <Card variant="bordered">
           <CardTitle className="flex items-center gap-2 mb-4">
             <Target size={20} />
             캠페인 생성
           </CardTitle>
+
+          {/* Step Navigation */}
+          <div className="flex items-center mb-6">
+            {([
+              { step: 1 as const, label: '캠페인', icon: <Target size={14} /> },
+              { step: 2 as const, label: '광고세트', icon: <Users size={14} /> },
+              { step: 3 as const, label: '크리에이티브', icon: <ImageIcon size={14} /> },
+            ]).map((s, i) => (
+              <div key={s.step} className="flex items-center flex-1">
+                <button
+                  onClick={() => setActiveStep(s.step)}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all w-full justify-center ${
+                    activeStep === s.step
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : activeStep > s.step
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                  }`}
+                >
+                  <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                    activeStep === s.step ? 'bg-white/20' : activeStep > s.step ? 'bg-green-200' : 'bg-gray-200'
+                  }`}>{s.step}</span>
+                  {s.label}
+                </button>
+                {i < 2 && <div className={`w-4 h-0.5 mx-0.5 ${activeStep > s.step ? 'bg-green-300' : 'bg-gray-200'}`} />}
+              </div>
+            ))}
+          </div>
 
           {/* AI 기획 자동 입력 배너 */}
           {showPlanBanner && autoPlanResult && (
@@ -532,6 +566,8 @@ export function AdsController() {
           )}
 
           <div className="space-y-4">
+            {/* ═══ STEP 1: 캠페인 설정 ═══ */}
+            {activeStep === 1 && (<div className="space-y-4">
             <Input label="캠페인명" placeholder="예: 봄 신상 런칭" value={campaignName} onChange={(e) => setCampaignName(e.target.value)} />
 
             {/* ── 캠페인 목표 선택 (드롭다운) ── */}
@@ -553,9 +589,52 @@ export function AdsController() {
               </p>
             </div>
 
+            </div>)}
+
+            {/* ═══ STEP 3: 크리에이티브 설정 ═══ */}
+            {activeStep === 3 && (<div className="space-y-4">
             {/* ══════════════════════════════════════════════════ */}
             {/* ── 소재 관리 섹션 (Creative Management) ──────── */}
             {/* ══════════════════════════════════════════════════ */}
+
+            {/* Advantage+ Creative (AI 크리에이티브) */}
+            <div
+              className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ${
+                advantagePlusCreative ? 'border-purple-300 bg-purple-50' : 'border-gray-200 hover:border-gray-300'
+              }`}
+              onClick={() => setAdvantagePlusCreative(!advantagePlusCreative)}
+            >
+              <div className="flex items-center gap-2">
+                {advantagePlusCreative
+                  ? <ToggleRight size={20} className="text-purple-600" />
+                  : <ToggleLeft size={20} className="text-gray-400" />
+                }
+                <div>
+                  <p className="text-sm font-medium text-gray-800">Advantage+ 크리에이티브</p>
+                  <p className="text-xs text-gray-500">Meta AI 이미지 생성 & 소재 최적화</p>
+                </div>
+              </div>
+            </div>
+            {advantagePlusCreative && (
+              <div className="p-3 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border border-purple-200">
+                <p className="text-xs text-purple-800 font-semibold mb-2">Advantage+ 크리에이티브 기능</p>
+                <div className="space-y-1.5 text-xs text-purple-700">
+                  <div className="flex items-start gap-2">
+                    <span className="w-4 h-4 bg-purple-200 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0 mt-0.5">1</span>
+                    <span><strong>이미지 자동 생성:</strong> 업로드한 제품 이미지를 기반으로 다양한 배경/구도의 광고 이미지를 AI가 자동 생성합니다.</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="w-4 h-4 bg-purple-200 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0 mt-0.5">2</span>
+                    <span><strong>소재 자동 최적화:</strong> 텍스트 오버레이, 이미지 향상, 음악 추가 등 Meta AI가 각 배치에 맞게 소재를 자동 최적화합니다.</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="w-4 h-4 bg-purple-200 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0 mt-0.5">3</span>
+                    <span><strong>다이내믹 크리에이티브:</strong> 여러 이미지/영상, 텍스트, CTA 조합 중 최적 조합을 자동 테스트합니다.</span>
+                  </div>
+                </div>
+                <p className="text-[10px] text-purple-500 mt-2 italic">* 발행 시 Meta 광고 관리자에서 Advantage+ 크리에이티브 옵션이 자동 활성화됩니다.</p>
+              </div>
+            )}
 
             {/* Meta 소재 가이드 */}
             <div className="border border-blue-200 rounded-lg">
@@ -825,6 +904,17 @@ export function AdsController() {
             {/* ── 소재 관리 섹션 끝 ─────────────────────────── */}
             {/* ══════════════════════════════════════════════════ */}
 
+            {/* Step 3 navigation */}
+            <div className="flex justify-between pt-2">
+              <button onClick={() => setActiveStep(2)}
+                className="flex items-center gap-1.5 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50">
+                <ChevronUp size={14} /> 이전: 광고세트
+              </button>
+            </div>
+            </div>)}
+
+            {/* ═══ STEP 1 (계속): 예산/Advantage+/데이터셋 ═══ */}
+            {activeStep === 1 && (<div className="space-y-4">
             {/* ── 예산 유형 선택 ── */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">예산 유형</label>
@@ -954,6 +1044,17 @@ export function AdsController() {
               )}
             </div>
 
+            {/* Step 1 navigation */}
+            <div className="flex justify-end pt-2">
+              <button onClick={() => setActiveStep(2)}
+                className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
+                다음: 광고세트 설정 <ChevronDown size={14} className="rotate-[-90deg]" />
+              </button>
+            </div>
+            </div>)}
+
+            {/* ═══ STEP 2: 광고세트 설정 ═══ */}
+            {activeStep === 2 && (<div className="space-y-4">
             {/* ── 타겟팅 설정 토글 ── */}
             <div>
               <button
@@ -978,8 +1079,17 @@ export function AdsController() {
                     <div className="flex items-center gap-3">
                       <div className="flex items-center gap-1">
                         <input
-                          type="number" min={13} max={65} value={ageMin}
-                          onChange={(e) => setAgeMin(Math.max(13, Math.min(Number(e.target.value), ageMax)))}
+                          type="text" inputMode="numeric" pattern="[0-9]*"
+                          value={ageMin}
+                          onChange={(e) => {
+                            const v = e.target.value.replace(/[^0-9]/g, '');
+                            if (v === '') return;
+                            setAgeMin(Math.max(13, Math.min(Number(v), ageMax)));
+                          }}
+                          onBlur={(e) => {
+                            const v = Number(e.target.value) || 18;
+                            setAgeMin(Math.max(13, Math.min(v, ageMax)));
+                          }}
                           className="w-16 px-2 py-1.5 border border-gray-300 rounded text-sm text-center"
                         />
                         <span className="text-sm text-gray-500">세</span>
@@ -987,8 +1097,17 @@ export function AdsController() {
                       <span className="text-gray-400">~</span>
                       <div className="flex items-center gap-1">
                         <input
-                          type="number" min={13} max={65} value={ageMax}
-                          onChange={(e) => setAgeMax(Math.min(65, Math.max(Number(e.target.value), ageMin)))}
+                          type="text" inputMode="numeric" pattern="[0-9]*"
+                          value={ageMax}
+                          onChange={(e) => {
+                            const v = e.target.value.replace(/[^0-9]/g, '');
+                            if (v === '') return;
+                            setAgeMax(Math.min(65, Math.max(Number(v), ageMin)));
+                          }}
+                          onBlur={(e) => {
+                            const v = Number(e.target.value) || 65;
+                            setAgeMax(Math.min(65, Math.max(v, ageMin)));
+                          }}
                           className="w-16 px-2 py-1.5 border border-gray-300 rounded text-sm text-center"
                         />
                         <span className="text-sm text-gray-500">세</span>
@@ -1432,6 +1551,20 @@ export function AdsController() {
               )}
             </div>
 
+            {/* Step 2 navigation */}
+            <div className="flex justify-between pt-2">
+              <button onClick={() => setActiveStep(1)}
+                className="flex items-center gap-1.5 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50">
+                <ChevronUp size={14} /> 이전: 캠페인
+              </button>
+              <button onClick={() => setActiveStep(3)}
+                className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
+                다음: 크리에이티브 <ChevronDown size={14} className="rotate-[-90deg]" />
+              </button>
+            </div>
+            </div>)}
+
+            {/* ═══ 공통: AI 전략 + 발행 ═══ */}
             <Button variant="outline" className="w-full" onClick={() => strategyMutation.mutate()}
               loading={strategyMutation.isPending} disabled={!budget}>
               <Zap size={16} className="mr-2" /> AI 전략 추천

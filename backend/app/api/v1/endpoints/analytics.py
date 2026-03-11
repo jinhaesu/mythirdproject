@@ -133,6 +133,7 @@ async def get_campaign_deep_analysis(
 
 class AIAnalysisRequest(BaseModel):
     overview_data: Optional[dict] = None  # Pass cached overview to avoid re-fetching
+    status_filter: Optional[str] = None  # Filter campaigns: ACTIVE, PAUSED, ALL
 
 @router.post("/ai-analysis")
 async def get_ai_analysis(
@@ -143,6 +144,7 @@ async def get_ai_analysis(
 ):
     """
     AI-powered analysis. Accepts cached overview data to avoid double-fetching.
+    Use status_filter to analyze only campaigns with specific status.
     """
     svc = await MetaAdsService.create(current_user, db)
     if not svc.connected:
@@ -150,7 +152,22 @@ async def get_ai_analysis(
 
     # Use cached overview if provided, otherwise fetch
     if request.overview_data and request.overview_data.get("connected"):
-        context_text = svc.build_context_from_overview(request.overview_data)
+        overview_data = request.overview_data
+        # Apply status filter if specified
+        sf = request.status_filter
+        if sf and sf != "ALL" and overview_data.get("campaigns"):
+            status_map = {
+                "ACTIVE": ["ACTIVE"],
+                "PAUSED": ["PAUSED", "CAMPAIGN_PAUSED"],
+                "PENDING_REVIEW": ["PENDING_REVIEW", "IN_REVIEW", "WITH_ISSUES"],
+                "ARCHIVED": ["ARCHIVED", "DELETED"],
+            }
+            allowed = status_map.get(sf, [])
+            if allowed:
+                filtered = [c for c in overview_data["campaigns"]
+                           if (c.get("effective_status") or c.get("status")) in allowed]
+                overview_data = {**overview_data, "campaigns": filtered}
+        context_text = svc.build_context_from_overview(overview_data)
     else:
         context_text = await svc.build_full_context_for_ai(date_preset)
 
@@ -1705,3 +1722,116 @@ async def delete_schedule(
     await db.delete(sched)
     await db.commit()
     return {"message": "삭제되었습니다"}
+
+
+# ═══ Ad Comments Management ═══
+
+@router.get("/ad/{ad_id}/comments")
+async def get_ad_comments(
+    ad_id: str,
+    limit: int = Query(100, ge=1, le=500),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """광고 게시물의 댓글 조회. ad_id is the Meta ad creative's effective_object_story_id or post_id."""
+    meta_user = current_user if current_user.meta_access_token else await get_shared_meta_credentials(db)
+    if not meta_user or not meta_user.meta_access_token:
+        raise HTTPException(401, "Meta 계정이 연결되지 않았습니다.")
+
+    from app.services.meta import MetaGraphAPI
+    graph_api = MetaGraphAPI(meta_user.meta_access_token)
+
+    try:
+        comments = await graph_api.get_media_comments(ad_id, limit=limit)
+        return {"comments": comments.get("data", []), "post_id": ad_id}
+    except Exception as e:
+        logger.warning(f"Failed to fetch comments for {ad_id}: {e}")
+        raise HTTPException(400, f"댓글을 가져올 수 없습니다: {str(e)}")
+
+
+@router.get("/ad/{ad_id}/post-info")
+async def get_ad_post_info(
+    ad_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """광고의 게시물 정보 (effective_object_story_id, preview_url 등) 조회."""
+    meta_user = current_user if current_user.meta_access_token else await get_shared_meta_credentials(db)
+    if not meta_user or not meta_user.meta_access_token:
+        raise HTTPException(401, "Meta 계정이 연결되지 않았습니다.")
+
+    from app.services.meta import MetaMarketingAPI
+    marketing_api = MetaMarketingAPI(
+        meta_user.meta_access_token, meta_user.meta_ad_account_id
+    )
+
+    try:
+        result = await marketing_api._request(
+            "GET", ad_id,
+            params={"fields": "id,name,creative{id,effective_object_story_id,object_story_spec,thumbnail_url},preview_shareable_link"}
+        )
+        creative = result.get("creative", {})
+        return {
+            "ad_id": ad_id,
+            "ad_name": result.get("name"),
+            "post_id": creative.get("effective_object_story_id"),
+            "thumbnail_url": creative.get("thumbnail_url"),
+            "preview_url": result.get("preview_shareable_link"),
+        }
+    except Exception as e:
+        logger.warning(f"Failed to fetch post info for ad {ad_id}: {e}")
+        raise HTTPException(400, f"게시물 정보를 가져올 수 없습니다: {str(e)}")
+
+
+# ═══ Per-Creative (Ad-Level) Daily Trend ═══
+
+@router.get("/ad/{ad_id}/trend")
+async def get_ad_daily_trend(
+    ad_id: str,
+    days: int = Query(7, ge=1, le=90),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """개별 광고(소재)의 일별 성과 트렌드."""
+    meta_user = current_user if current_user.meta_access_token else await get_shared_meta_credentials(db)
+    if not meta_user or not meta_user.meta_access_token:
+        raise HTTPException(401, "Meta 계정이 연결되지 않았습니다.")
+
+    from app.services.meta import MetaMarketingAPI
+    marketing_api = MetaMarketingAPI(
+        meta_user.meta_access_token, meta_user.meta_ad_account_id
+    )
+
+    try:
+        since = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
+        until = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        result = await marketing_api._request(
+            "GET", f"{ad_id}/insights",
+            params={
+                "fields": "spend,impressions,clicks,ctr,cpc,cpm,actions,action_values,frequency",
+                "time_range": json.dumps({"since": since, "until": until}),
+                "time_increment": 1,
+                "limit": 90,
+            }
+        )
+        data = result.get("data", [])
+
+        trend = []
+        for row in data:
+            purchase_count = 0
+            purchase_value = 0.0
+            for a in (row.get("actions") or []):
+                if "purchase" in a.get("action_type", ""):
+                    purchase_count += int(a.get("value", 0))
+            for av in (row.get("action_values") or []):
+                if "purchase" in av.get("action_type", ""):
+                    purchase_value += float(av.get("value", 0))
+            row["purchases"] = purchase_count
+            row["conversion_value"] = round(purchase_value, 2)
+            row["date"] = row.get("date_start", "")
+            trend.append(row)
+
+        return {"ad_id": ad_id, "data": trend}
+    except Exception as e:
+        logger.warning(f"Failed to fetch ad trend for {ad_id}: {e}")
+        raise HTTPException(400, f"소재별 트렌드를 가져올 수 없습니다: {str(e)}")

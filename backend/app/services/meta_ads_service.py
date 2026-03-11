@@ -1010,6 +1010,19 @@ class MetaAdsService:
         data = resp.get("data", [])
         for row in data:
             row["roas"] = self._calc_roas(row)
+            # Enrich with conversion_value (revenue) for chart display
+            purchase_value = 0.0
+            for av in (row.get("action_values") or []):
+                atype = av.get("action_type", "")
+                if "purchase" in atype:
+                    purchase_value += float(av.get("value", 0))
+            if purchase_value == 0 and row.get("roas"):
+                # Fallback: derive from ROAS * spend
+                spend = float(row.get("spend", 0))
+                roas_val = float(row["roas"])
+                if roas_val > 0 and spend > 0:
+                    purchase_value = roas_val * spend
+            row["conversion_value"] = round(purchase_value, 2)
         return data
 
     async def build_full_context_for_ai(self, date_preset: str = "last_7d") -> str:

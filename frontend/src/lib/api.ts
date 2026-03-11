@@ -242,6 +242,7 @@ export const campaignApi = {
     end_date?: string;
     advantage_plus?: boolean;
     advantage_plus_audience?: boolean;
+    advantage_plus_creative?: boolean;
     dataset_id?: string;
     pixel_id?: string;
     primary_text?: string;
@@ -339,11 +340,14 @@ export const analyticsApi = {
     return data;
   },
 
-  getAIAnalysis: async (datePreset = 'last_7d', overviewData?: any) => {
-    const cacheKey = `ai-analysis_${datePreset}`;
+  getAIAnalysis: async (datePreset = 'last_7d', overviewData?: any, statusFilter?: string) => {
+    const cacheKey = `ai-analysis_${datePreset}_${statusFilter || 'ALL'}`;
     const cached = getCachedData(cacheKey);
     if (cached) return cached;
-    const { data } = await api.post('/analytics/ai-analysis', { overview_data: overviewData || null }, { params: { date_preset: datePreset } });
+    const { data } = await api.post('/analytics/ai-analysis', {
+      overview_data: overviewData || null,
+      status_filter: statusFilter || null,
+    }, { params: { date_preset: datePreset } });
     setCachedData(cacheKey, data);
     return data;
   },
@@ -492,6 +496,23 @@ export const analyticsApi = {
       date_preset: datePreset,
     });
     setCachedData(cacheKey, data);
+    return data;
+  },
+
+  // 광고 댓글 관리
+  getAdComments: async (adId: string, limit = 100) => {
+    const { data } = await api.get(`/analytics/ad/${adId}/comments`, { params: { limit } });
+    return data;
+  },
+
+  getAdPostInfo: async (adId: string) => {
+    const { data } = await api.get(`/analytics/ad/${adId}/post-info`);
+    return data;
+  },
+
+  // 소재별 일별 트렌드
+  getAdTrend: async (adId: string, days = 7) => {
+    const { data } = await api.get(`/analytics/ad/${adId}/trend`, { params: { days } });
     return data;
   },
 };

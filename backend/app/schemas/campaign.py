@@ -163,6 +163,7 @@ class PublishRequest(BaseModel):
     launch_immediately: bool = False  # Whether to activate right away
     budget_type: str = "DAILY"  # "DAILY" or "LIFETIME"
     advantage_plus: bool = False  # Enable Advantage+
+    advantage_plus_creative: bool = False  # Enable Advantage+ Creative (image generation)
     dataset_id: Optional[str] = None  # Cafe24 or custom dataset
     pixel_id: Optional[str] = None  # Custom pixel ID
     currency: str = "KRW"  # Currency code

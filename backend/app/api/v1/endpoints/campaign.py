@@ -271,6 +271,7 @@ async def publish_campaign(
     use_cbo = request.use_cbo
     budget_type = request.budget_type  # "DAILY" or "LIFETIME"
     advantage_plus = request.advantage_plus or campaign.advantage_plus
+    advantage_plus_creative = request.advantage_plus_creative or advantage_plus
 
     # Track created Meta resources for cleanup on failure
     created_meta_campaign_id = None
@@ -592,7 +593,7 @@ async def publish_campaign(
                     try:
                         # Advantage+ creative spec
                         degrees_of_freedom_spec = None
-                        if advantage_plus:
+                        if advantage_plus_creative:
                             degrees_of_freedom_spec = {
                                 "creative_features_spec": {
                                     "standard_enhancements": {

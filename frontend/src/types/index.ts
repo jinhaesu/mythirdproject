@@ -151,6 +151,7 @@ export interface PublishOptions {
   budget_type: BudgetType;
   advantage_plus: boolean;
   advantage_plus_audience: boolean;
+  advantage_plus_creative: boolean;
   dataset_id?: string;
   pixel_id?: string;
   currency: string;
