@@ -340,7 +340,11 @@ export const analyticsApi = {
   },
 
   getAIAnalysis: async (datePreset = 'last_7d', overviewData?: any) => {
+    const cacheKey = `ai-analysis_${datePreset}`;
+    const cached = getCachedData(cacheKey);
+    if (cached) return cached;
     const { data } = await api.post('/analytics/ai-analysis', { overview_data: overviewData || null }, { params: { date_preset: datePreset } });
+    setCachedData(cacheKey, data);
     return data;
   },
 
@@ -474,10 +478,14 @@ export const analyticsApi = {
 
   // 성과 피드백 API
   getPerformanceFeedback: async (campaignId: string, datePreset = 'last_7d') => {
+    const cacheKey = `perf-feedback_${campaignId}_${datePreset}`;
+    const cached = getCachedData<PerformanceFeedback>(cacheKey);
+    if (cached) return cached;
     const { data } = await api.post<PerformanceFeedback>('/analytics/performance-feedback', {
       campaign_id: campaignId,
       date_preset: datePreset,
     });
+    setCachedData(cacheKey, data);
     return data;
   },
 };
@@ -583,6 +591,44 @@ export const chatApi = {
     return data;
   },
 };
+
+// ─── localStorage cache helpers (survives F5 / tab switch) ───
+const CACHE_PREFIX = 'mc_cache_';
+const THREE_HOURS_MS = 3 * 60 * 60 * 1000;
+
+function getCachedData<T>(key: string): T | null {
+  try {
+    const raw = localStorage.getItem(CACHE_PREFIX + key);
+    if (!raw) return null;
+    const { data, ts } = JSON.parse(raw);
+    if (Date.now() - ts > THREE_HOURS_MS) {
+      localStorage.removeItem(CACHE_PREFIX + key);
+      return null;
+    }
+    return data as T;
+  } catch { return null; }
+}
+
+function setCachedData(key: string, data: unknown): void {
+  try {
+    localStorage.setItem(CACHE_PREFIX + key, JSON.stringify({ data, ts: Date.now() }));
+  } catch { /* quota exceeded — ignore */ }
+}
+
+export function clearAnalysisCache(datePreset?: string): void {
+  try {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(CACHE_PREFIX)) {
+        if (!datePreset || key.includes(datePreset)) {
+          keysToRemove.push(key);
+        }
+      }
+    }
+    keysToRemove.forEach(k => localStorage.removeItem(k));
+  } catch { /* ignore */ }
+}
 
 // Currency & number formatting utilities
 export function formatCurrency(amount: number, currency: string = 'KRW'): string {

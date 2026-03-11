@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import {
   BarChart3, DollarSign, Eye, MousePointer, Target,
   Play, Pause, ChevronDown, ChevronRight, AlertTriangle, CheckCircle, XCircle,
@@ -9,7 +9,7 @@ import {
   TrendingUp, TrendingDown, ToggleLeft, ToggleRight, Edit3, Check, X,
   Shield, Sparkles, ArrowRight, Lightbulb, Palette,
 } from 'lucide-react';
-import { analyticsApi } from '@/lib/api';
+import { analyticsApi, clearAnalysisCache } from '@/lib/api';
 import toast from 'react-hot-toast';
 import type { PerformanceFeedback, CampaignStatusFilter } from '@/types';
 
@@ -116,6 +116,7 @@ export default function PerformanceDashboard() {
       ? analyticsApi.getAccountTrend(30, customSince, customUntil, trendIncrement)
       : analyticsApi.getAccountTrend(trendDaysCount, undefined, undefined, trendIncrement),
     enabled: overview?.connected === true,
+    placeholderData: keepPreviousData,
   });
 
   // 주간 비교: 이번주 vs 지난주
@@ -143,12 +144,13 @@ export default function PerformanceDashboard() {
     };
   }, [trendView, trendData]);
 
+  const THREE_HOURS = 3 * 60 * 60 * 1000;
   const { data: aiAnalysis, isLoading: loadingAI, refetch: refetchAI, dataUpdatedAt } = useQuery({
     queryKey: ['ai-analysis', datePreset],
     queryFn: () => analyticsApi.getAIAnalysis(datePreset, overview),
     enabled: overview?.connected === true && !!overview?.campaigns?.length,
-    staleTime: Infinity,
-    gcTime: 60 * 60 * 1000,
+    staleTime: THREE_HOURS,
+    gcTime: THREE_HOURS,
   });
 
   const { data: deepData } = useQuery({
@@ -167,12 +169,14 @@ export default function PerformanceDashboard() {
   const [editingBudget, setEditingBudget] = useState<{ id: string; type: string } | null>(null);
   const [budgetInput, setBudgetInput] = useState('');
 
-  // Performance feedback query (loaded on demand per campaign)
+  // Performance feedback query (loaded on demand per campaign, cached 3 hours)
   const { data: feedbackData, isLoading: loadingFeedback, isError: feedbackError, refetch: refetchFeedback } = useQuery({
     queryKey: ['performance-feedback', feedbackExpanded, datePreset],
     queryFn: () => analyticsApi.getPerformanceFeedback(feedbackExpanded!, datePreset),
     enabled: !!feedbackExpanded,
     retry: 1,
+    staleTime: THREE_HOURS,
+    gcTime: THREE_HOURS,
   });
 
   const statusMutation = useMutation({
@@ -337,7 +341,7 @@ export default function PerformanceDashboard() {
               )}
             </>
           )}
-          <button onClick={() => { refetchOverview(); refetchAI(); }} className="p-2 border border-gray-200 rounded-lg hover:bg-gray-50">
+          <button onClick={() => { clearAnalysisCache(); refetchOverview(); refetchAI(); }} className="p-2 border border-gray-200 rounded-lg hover:bg-gray-50">
             <RefreshCw size={16} className={loadingOverview ? 'animate-spin' : ''} />
           </button>
         </div>
@@ -515,7 +519,7 @@ export default function PerformanceDashboard() {
                   <AlertTriangle size={20} className="text-white" />
                   <h2 className="text-base font-bold text-white">AI 분석 결과 (텍스트)</h2>
                 </div>
-                <button onClick={() => refetchAI()} className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 text-white text-sm font-medium px-4 py-2 rounded-xl transition-all">
+                <button onClick={() => { clearAnalysisCache(datePreset); refetchAI(); }} className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 text-white text-sm font-medium px-4 py-2 rounded-xl transition-all">
                   <RefreshCw size={14} /> 재분석
                 </button>
               </div>
@@ -533,7 +537,7 @@ export default function PerformanceDashboard() {
               </div>
               <div className="p-6 text-center">
                 <p className="text-sm text-gray-600 mb-4">{aiAnalysis.error}</p>
-                <button onClick={() => refetchAI()} className="bg-red-600 text-white px-5 py-2 rounded-xl hover:bg-red-700 transition-colors font-medium text-sm">
+                <button onClick={() => { clearAnalysisCache(datePreset); refetchAI(); }} className="bg-red-600 text-white px-5 py-2 rounded-xl hover:bg-red-700 transition-colors font-medium text-sm">
                   <RefreshCw size={14} className="inline mr-1.5" />다시 시도
                 </button>
               </div>
@@ -557,7 +561,7 @@ export default function PerformanceDashboard() {
                     </div>
                   </div>
                   <button
-                    onClick={() => refetchAI()}
+                    onClick={() => { clearAnalysisCache(datePreset); refetchAI(); }}
                     className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white text-sm font-medium px-4 py-2 rounded-xl transition-all"
                   >
                     <RefreshCw size={14} /> 재분석
@@ -1082,7 +1086,7 @@ export default function PerformanceDashboard() {
                             data={feedbackData}
                             isLoading={loadingFeedback}
                             isError={feedbackError}
-                            onRetry={() => refetchFeedback()}
+                            onRetry={() => { clearAnalysisCache(); refetchFeedback(); }}
                             formatCurrency={formatCurrency}
                           />
                         )}
