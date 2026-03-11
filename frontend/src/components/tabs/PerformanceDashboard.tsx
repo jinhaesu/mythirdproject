@@ -871,13 +871,13 @@ export default function PerformanceDashboard() {
                 const statusColor = es === 'ACTIVE' ? 'bg-green-100 text-green-700' : es === 'PAUSED' || es === 'CAMPAIGN_PAUSED' ? 'bg-yellow-100 text-yellow-700' : es === 'PENDING_REVIEW' || es === 'IN_REVIEW' ? 'bg-blue-100 text-blue-700' : es === 'ARCHIVED' ? 'bg-gray-200 text-gray-600' : 'bg-gray-100 text-gray-600';
 
                 // Extract additional metrics
-                const campBudget = camp.daily_budget ? formatCurrency(parseFloat(camp.daily_budget) / 100) + '/일' : camp.lifetime_budget ? formatCurrency(parseFloat(camp.lifetime_budget) / 100) : '-';
+                const campBudget = camp.daily_budget ? formatCurrency(parseFloat(camp.daily_budget)) + '/일' : camp.lifetime_budget ? formatCurrency(parseFloat(camp.lifetime_budget)) : camp.budget ? formatCurrency(parseFloat(camp.budget)) : '-';
                 const campCPM = ins?.cpm ? formatCurrency(parseFloat(ins.cpm)) : '-';
                 const campFrequency = ins?.frequency ? parseFloat(ins.frequency).toFixed(2) : '-';
-                // Purchase conversion value from actions
-                const purchaseValue = ins?.action_values?.find((a: any) => a.action_type === 'purchase' || a.action_type === 'omni_purchase')?.value;
-                const contentViews = ins?.actions?.find((a: any) => a.action_type === 'view_content' || a.action_type === 'landing_page_view')?.value;
-                const costPerResult = ins?.cost_per_action_type?.[0]?.value || ins?.cost_per_result;
+                // Use enriched fields from backend (already converted to KRW)
+                const purchaseValue = ins?.website_purchase_conversion_value || ins?.action_values?.find((a: any) => a.action_type === 'purchase' || a.action_type === 'omni_purchase')?.value;
+                const contentViews = ins?.website_content_views || ins?.actions?.find((a: any) => a.action_type === 'view_content' || a.action_type === 'landing_page_view')?.value;
+                const costPerResult = ins?.cost_per_result || ins?.cost_per_action_type?.[0]?.value;
 
                 return (
                   <div key={camp.id}>
@@ -956,7 +956,7 @@ export default function PerformanceDashboard() {
 
                         {/* Budget utilization progress bar */}
                         {ins?.spend && (camp.daily_budget || camp.lifetime_budget) && (() => {
-                          const budget = camp.daily_budget ? parseFloat(camp.daily_budget) / 100 : parseFloat(camp.lifetime_budget) / 100;
+                          const budget = camp.daily_budget ? parseFloat(camp.daily_budget) : camp.lifetime_budget ? parseFloat(camp.lifetime_budget) : parseFloat(camp.budget || '0');
                           const spent = parseFloat(ins.spend);
                           const pct = budget > 0 ? Math.min((spent / budget) * 100, 100) : 0;
                           return (
@@ -1011,7 +1011,7 @@ export default function PerformanceDashboard() {
                                         </div>
                                       ) : (
                                         <>
-                                          {adset.daily_budget && <span className="text-xs text-gray-400">일예산: {formatCurrency(Number(adset.daily_budget) / 100)}</span>}
+                                          {adset.daily_budget && <span className="text-xs text-gray-400">일예산: {formatCurrency(Number(adset.daily_budget))}</span>}
                                           <button onClick={(e) => { e.stopPropagation(); startBudgetEdit(adset.id, 'adset', adset.daily_budget); }}
                                             className="text-gray-400 hover:text-blue-600" title="예산 변경"><Edit3 size={12} /></button>
                                         </>

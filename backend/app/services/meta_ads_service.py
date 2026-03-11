@@ -16,6 +16,20 @@ settings = get_settings()
 _ZERO_DECIMAL_CURRENCIES = {"KRW", "JPY", "VND", "CLP", "ISK", "BIF", "DJF",
                              "GNF", "KMF", "MGA", "PYG", "RWF", "UGX", "VUV", "XAF", "XOF", "XPF"}
 
+# Exchange rates to KRW (원화) — used when Meta account currency is not KRW.
+# Update periodically or fetch from API for production accuracy.
+_EXCHANGE_RATES_TO_KRW = {
+    "USD": 1380,
+    "EUR": 1500,
+    "GBP": 1750,
+    "JPY": 9.2,
+    "CNY": 190,
+    "HKD": 177,
+    "SGD": 1030,
+    "AUD": 890,
+    "CAD": 1000,
+}
+
 
 class MetaAdsService:
     """Fetch Meta ad account data with minimal API calls using field expansion."""
@@ -114,6 +128,28 @@ class MetaAdsService:
             return raw  # KRW: already in won
         return raw / 100  # USD: cents -> dollars
 
+    @staticmethod
+    def _to_krw(value, currency: str) -> float:
+        """Convert a monetary value from the given currency to KRW.
+        If currency is already KRW, returns as-is.
+        """
+        if value is None:
+            return 0.0
+        val = float(value)
+        if currency == "KRW":
+            return val
+        rate = _EXCHANGE_RATES_TO_KRW.get(currency)
+        if rate:
+            return round(val * rate)
+        return val  # Unknown currency — return as-is
+
+    @staticmethod
+    def _to_krw_optional(value, currency: str) -> Optional[float]:
+        """Convert optional monetary value to KRW."""
+        if value is None:
+            return None
+        return MetaAdsService._to_krw(value, currency)
+
     # ──────────────────────────────────────────────
     # Step 1: Overview (campaigns + account insights, lightweight)
     # Step 2: Adsets/ads loaded on-demand per campaign
@@ -198,17 +234,21 @@ class MetaAdsService:
         result = {
             "connected": True,
             "ad_account_id": self.ad_account_id,
-            "currency": currency,
+            "account_currency": currency,   # Meta 계정의 원래 통화
+            "currency": "KRW",               # 표시 통화 (항상 원화)
+            "exchange_rate": _EXCHANGE_RATES_TO_KRW.get(currency, 1) if currency != "KRW" else 1,
             "campaigns": [],
             "account_insights": {},
             "totals": {},
         }
 
-        # Account insights
+        # Account insights — convert monetary fields to KRW
         if account_resp.get("data"):
             acct_ins = account_resp["data"][0]
             acct_ins["roas"] = self._calc_roas(acct_ins)
             self._enrich_insights(acct_ins, currency)
+            # Convert spend/cpc/cpm to KRW
+            self._convert_insights_to_krw(acct_ins, currency)
             result["account_insights"] = acct_ins
 
         # Process campaigns (lightweight: no adsets/ads)
@@ -219,15 +259,19 @@ class MetaAdsService:
                 if camp_status != status_filter:
                     continue
 
+            # Normalize budget from Meta API units, then convert to KRW
+            raw_daily = self._normalize_budget(camp.get("daily_budget"), currency)
+            raw_lifetime = self._normalize_budget(camp.get("lifetime_budget"), currency)
+
             camp_data = {
                 "id": camp.get("id"),
                 "name": camp.get("name"),
                 "status": camp.get("status"),
                 "effective_status": camp.get("effective_status"),
                 "objective": camp.get("objective"),
-                "daily_budget": self._normalize_budget(camp.get("daily_budget"), currency),
-                "lifetime_budget": self._normalize_budget(camp.get("lifetime_budget"), currency),
-                "budget": self._normalize_budget(camp.get("daily_budget"), currency) or self._normalize_budget(camp.get("lifetime_budget"), currency),
+                "daily_budget": self._to_krw_optional(raw_daily, currency),
+                "lifetime_budget": self._to_krw_optional(raw_lifetime, currency),
+                "budget": self._to_krw_optional(raw_daily, currency) or self._to_krw_optional(raw_lifetime, currency),
                 "budget_type": "daily" if camp.get("daily_budget") else ("lifetime" if camp.get("lifetime_budget") else None),
                 "start_time": camp.get("start_time"),
                 "stop_time": camp.get("stop_time"),
@@ -241,6 +285,7 @@ class MetaAdsService:
                 ins = camp_insights[0]
                 ins["roas"] = self._calc_roas(ins)
                 self._enrich_insights(ins, currency)
+                self._convert_insights_to_krw(ins, currency)
                 camp_data["insights"] = ins
 
             result["campaigns"].append(camp_data)
@@ -291,8 +336,8 @@ class MetaAdsService:
                     "status": adset.get("status"),
                     "effective_status": adset.get("effective_status"),
                     "targeting": adset.get("targeting"),
-                    "daily_budget": self._normalize_budget(adset.get("daily_budget"), currency),
-                    "lifetime_budget": self._normalize_budget(adset.get("lifetime_budget"), currency),
+                    "daily_budget": self._to_krw_optional(self._normalize_budget(adset.get("daily_budget"), currency), currency),
+                    "lifetime_budget": self._to_krw_optional(self._normalize_budget(adset.get("lifetime_budget"), currency), currency),
                     "insights": None,
                     "ads": [],
                 }
@@ -301,6 +346,7 @@ class MetaAdsService:
                     ains = adset_insights[0]
                     ains["roas"] = self._calc_roas(ains)
                     self._enrich_insights(ains, currency)
+                    self._convert_insights_to_krw(ains, currency)
                     adset_data["insights"] = ains
 
                 for ad in adset.get("ads", {}).get("data", []):
@@ -317,6 +363,7 @@ class MetaAdsService:
                         ad_ins = ad_insights[0]
                         ad_ins["roas"] = self._calc_roas(ad_ins)
                         self._enrich_insights(ad_ins, currency)
+                        self._convert_insights_to_krw(ad_ins, currency)
                         ad_data["insights"] = ad_ins
                     adset_data["ads"].append(ad_data)
 
@@ -337,8 +384,8 @@ class MetaAdsService:
                                     "status": adset.get("status"),
                                     "effective_status": adset.get("effective_status"),
                                     "targeting": adset.get("targeting"),
-                                    "daily_budget": self._normalize_budget(adset.get("daily_budget"), currency),
-                                    "lifetime_budget": self._normalize_budget(adset.get("lifetime_budget"), currency),
+                                    "daily_budget": self._to_krw_optional(self._normalize_budget(adset.get("daily_budget"), currency), currency),
+                                    "lifetime_budget": self._to_krw_optional(self._normalize_budget(adset.get("lifetime_budget"), currency), currency),
                                     "insights": None,
                                     "ads": [],
                                 }
@@ -347,6 +394,7 @@ class MetaAdsService:
                                     ains = adset_insights[0]
                                     ains["roas"] = self._calc_roas(ains)
                                     self._enrich_insights(ains, currency)
+                                    self._convert_insights_to_krw(ains, currency)
                                     adset_data["insights"] = ains
                                 for ad in adset.get("ads", {}).get("data", []):
                                     ad_data = {
@@ -362,6 +410,7 @@ class MetaAdsService:
                                         ad_ins = ad_insights[0]
                                         ad_ins["roas"] = self._calc_roas(ad_ins)
                                         self._enrich_insights(ad_ins, currency)
+                                        self._convert_insights_to_krw(ad_ins, currency)
                                         ad_data["insights"] = ad_ins
                                     adset_data["ads"].append(ad_data)
                                 adsets.append(adset_data)
@@ -933,6 +982,31 @@ class MetaAdsService:
         insights["purchase_count"] = int(purchase_count)
         insights["cost_per_result"] = cost_per_result
         insights["currency"] = currency
+
+    @staticmethod
+    def _convert_insights_to_krw(insights: Dict, account_currency: str) -> None:
+        """Convert all monetary fields in insights from account currency to KRW.
+        Modifies the dict in place. ROAS and percentages are NOT converted.
+        """
+        if account_currency == "KRW":
+            insights["currency"] = "KRW"
+            return
+        # Monetary fields from Meta insights API that need conversion
+        money_fields = ["spend", "cpc", "cpm",
+                        "website_purchase_conversion_value", "cost_per_result"]
+        for field in money_fields:
+            val = insights.get(field)
+            if val is not None:
+                insights[field] = str(MetaAdsService._to_krw(val, account_currency))
+        # action_values contain monetary amounts too
+        for av in (insights.get("action_values") or []):
+            if av.get("value"):
+                av["value"] = str(MetaAdsService._to_krw(av["value"], account_currency))
+        # cost_per_action_type too
+        for cpa in (insights.get("cost_per_action_type") or []):
+            if cpa.get("value"):
+                cpa["value"] = str(MetaAdsService._to_krw(cpa["value"], account_currency))
+        insights["currency"] = "KRW"
 
     @staticmethod
     def _extract_action_value(actions: Optional[List], action_type: str) -> float:
