@@ -1337,7 +1337,7 @@ function PerformanceFeedbackPanel({
     );
   }
 
-  if (isError || !data) {
+  if (isError) {
     return (
       <div className="mt-4 bg-white rounded-xl border border-red-200 p-6 text-center">
         <AlertTriangle size={24} className="text-red-500 mx-auto mb-2" />
@@ -1349,9 +1349,33 @@ function PerformanceFeedbackPanel({
     );
   }
 
-  // API returns { connected, feedback: { ... } } — unwrap
-  const raw = data?.feedback || data;
-  const fb = raw as PerformanceFeedback;
+  if (!data) {
+    return (
+      <div className="mt-4 bg-white rounded-xl border border-gray-200 p-6 text-center">
+        <p className="text-sm text-gray-500">데이터를 불러오는 중...</p>
+      </div>
+    );
+  }
+
+  // Deep unwrap: API may return nested structures like { feedback: { ... } } or { data: { feedback: {...} } }
+  const unwrap = (d: any): any => {
+    if (!d) return {};
+    // If it has conversion_analysis directly, it's the feedback object
+    if (d.conversion_analysis) return d;
+    // If wrapped in "feedback" key
+    if (d.feedback) return unwrap(d.feedback);
+    // If wrapped in "data" key (axios may double-wrap)
+    if (d.data && typeof d.data === 'object' && !Array.isArray(d.data)) return unwrap(d.data);
+    return d;
+  };
+
+  const fb = unwrap(data) as PerformanceFeedback;
+
+  // Debug: log if no analysis found
+  if (!fb?.conversion_analysis) {
+    console.warn('[PerformanceFeedback] No conversion_analysis found. Raw data:', JSON.stringify(data).slice(0, 500));
+  }
+
   const conv = fb?.conversion_analysis;
   const click = fb?.click_analysis;
   const imp = fb?.impression_analysis;
@@ -1360,6 +1384,28 @@ function PerformanceFeedbackPanel({
     conv?.status === 'CHECK_CPA' ? 'HIGH' :
     conv?.status === 'EXPAND_TARGET' ? 'MEDIUM' : 'LOW'
   );
+
+  // If unwrap failed to find any analysis, show debug info
+  if (!conv && !click && !imp) {
+    return (
+      <div className="mt-4 bg-white rounded-xl border border-yellow-200 p-6">
+        <div className="flex items-center gap-2 mb-3">
+          <AlertTriangle size={18} className="text-yellow-500" />
+          <p className="text-sm font-semibold text-yellow-800">성과 피드백 데이터 구조 오류</p>
+        </div>
+        <p className="text-xs text-gray-500 mb-2">API 응답에서 분석 데이터를 찾을 수 없습니다.</p>
+        <details className="text-xs">
+          <summary className="cursor-pointer text-blue-600 hover:underline mb-1">응답 데이터 확인</summary>
+          <pre className="bg-gray-50 rounded-lg p-3 overflow-x-auto max-h-48 text-[10px] text-gray-700 border">
+            {JSON.stringify(data, null, 2).slice(0, 2000)}
+          </pre>
+        </details>
+        <button onClick={onRetry} className="mt-3 text-xs bg-purple-600 text-white px-4 py-1.5 rounded-lg hover:bg-purple-700 inline-flex items-center gap-1">
+          <RefreshCw size={12} /> 캐시 삭제 후 재분석
+        </button>
+      </div>
+    );
+  }
 
   const riskConfig: Record<string, { bg: string; text: string; label: string }> = {
     LOW: { bg: 'bg-green-100', text: 'text-green-700', label: '낮음' },

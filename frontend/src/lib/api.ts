@@ -479,8 +479,14 @@ export const analyticsApi = {
   // 성과 피드백 API
   getPerformanceFeedback: async (campaignId: string, datePreset = 'last_7d') => {
     const cacheKey = `perf-feedback_${campaignId}_${datePreset}`;
-    const cached = getCachedData<PerformanceFeedback>(cacheKey);
-    if (cached) return cached;
+    const cached = getCachedData<any>(cacheKey);
+    // Only use cache if it has valid feedback data
+    if (cached) {
+      const fb = cached?.feedback || cached;
+      if (fb?.conversion_analysis) return cached;
+      // Invalid cache — remove it
+      localStorage.removeItem(CACHE_PREFIX + cacheKey);
+    }
     const { data } = await api.post<PerformanceFeedback>('/analytics/performance-feedback', {
       campaign_id: campaignId,
       date_preset: datePreset,
