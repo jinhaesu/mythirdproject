@@ -91,6 +91,8 @@ export default function PerformanceDashboard() {
   const [selectedCampaignForDeep, setSelectedCampaignForDeep] = useState<string | null>(null);
   const [hidePaused, setHidePaused] = useState(false);
   const [statusFilter, setStatusFilter] = useState<CampaignStatusFilter>('ALL');
+  const [aiStatusFilter, setAiStatusFilter] = useState<CampaignStatusFilter>('ALL');
+  const [aiTriggered, setAiTriggered] = useState(false);
   const [trendView, setTrendView] = useState<'daily' | 'weekly'>('daily');
   const [feedbackExpanded, setFeedbackExpanded] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
@@ -203,9 +205,9 @@ export default function PerformanceDashboard() {
 
   const THREE_HOURS = 3 * 60 * 60 * 1000;
   const { data: aiAnalysis, isLoading: loadingAI, refetch: refetchAI, dataUpdatedAt } = useQuery({
-    queryKey: ['ai-analysis', datePreset, statusFilter],
-    queryFn: () => analyticsApi.getAIAnalysis(datePreset, overview, statusFilter !== 'ALL' ? statusFilter : undefined),
-    enabled: overview?.connected === true && !!overview?.campaigns?.length,
+    queryKey: ['ai-analysis', datePreset, aiStatusFilter],
+    queryFn: () => analyticsApi.getAIAnalysis(datePreset, overview, aiStatusFilter !== 'ALL' ? aiStatusFilter : undefined),
+    enabled: aiTriggered && overview?.connected === true && !!overview?.campaigns?.length,
     staleTime: THREE_HOURS,
     gcTime: THREE_HOURS,
   });
@@ -377,8 +379,19 @@ export default function PerformanceDashboard() {
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <select
+            value={aiStatusFilter}
+            onChange={(e) => { setAiStatusFilter(e.target.value as CampaignStatusFilter); setAiTriggered(false); }}
+            className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
+          >
+            <option value="ALL">전체 캠페인</option>
+            <option value="ACTIVE">활성</option>
+            <option value="PAUSED">일시중지</option>
+            <option value="PENDING_REVIEW">검토중</option>
+            <option value="ARCHIVED">보관됨</option>
+          </select>
+          <select
             value={datePreset}
-            onChange={(e) => setDatePreset(e.target.value as DatePreset)}
+            onChange={(e) => { setDatePreset(e.target.value as DatePreset); setAiTriggered(false); }}
             className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
           >
             <option value="today">오늘</option>
@@ -403,7 +416,15 @@ export default function PerformanceDashboard() {
               )}
             </>
           )}
-          <button onClick={() => { clearAnalysisCache(); refetchOverview(); refetchAI(); }} className="p-2 border border-gray-200 rounded-lg hover:bg-gray-50">
+          <button
+            onClick={() => { setAiTriggered(true); clearAnalysisCache(datePreset); setTimeout(() => refetchAI(), 100); }}
+            disabled={loadingAI}
+            className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-yellow-500 to-amber-500 text-white text-sm font-medium rounded-lg hover:from-yellow-600 hover:to-amber-600 disabled:opacity-50 transition-all"
+          >
+            {loadingAI ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+            {loadingAI ? '분석 중...' : '분석하기'}
+          </button>
+          <button onClick={() => { refetchOverview(); }} className="p-2 border border-gray-200 rounded-lg hover:bg-gray-50">
             <RefreshCw size={16} className={loadingOverview ? 'animate-spin' : ''} />
           </button>
         </div>
@@ -564,7 +585,23 @@ export default function PerformanceDashboard() {
           )}
 
           {/* AI 성과 분석 리포트 */}
-          {loadingAI ? (
+          {!aiTriggered && !aiAnalysis ? (
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="bg-gradient-to-r from-gray-100 to-gray-50 px-6 py-8 text-center">
+                <div className="w-14 h-14 bg-gradient-to-r from-yellow-400 to-amber-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+                  <Sparkles size={28} className="text-white" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-800 mb-2">AI 성과 분석</h3>
+                <p className="text-sm text-gray-500 mb-1">
+                  캠페인 필터와 기간을 설정한 후 <strong>분석하기</strong> 버튼을 눌러주세요.
+                </p>
+                <p className="text-xs text-gray-400">
+                  현재 설정: {aiStatusFilter === 'ALL' ? '전체' : aiStatusFilter === 'ACTIVE' ? '활성' : aiStatusFilter === 'PAUSED' ? '일시중지' : aiStatusFilter === 'PENDING_REVIEW' ? '검토중' : '보관됨'} 캠페인
+                  {' · '}{datePreset === 'today' ? '오늘' : datePreset === 'yesterday' ? '어제' : datePreset === 'last_3d' ? '최근 3일' : datePreset === 'last_7d' ? '최근 7일' : datePreset === 'last_14d' ? '최근 14일' : datePreset === 'last_30d' ? '최근 30일' : datePreset === 'this_month' ? '이번달' : datePreset === 'last_month' ? '지난달' : '사용자 지정'}
+                </p>
+              </div>
+            </div>
+          ) : loadingAI ? (
             <div className="bg-white rounded-2xl border border-gray-100 shadow-lg overflow-hidden">
               <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-blue-600 px-6 py-5">
                 <div className="flex items-center gap-3">
@@ -593,7 +630,7 @@ export default function PerformanceDashboard() {
                   <AlertTriangle size={20} className="text-white" />
                   <h2 className="text-base font-bold text-white">AI 분석 결과 (텍스트)</h2>
                 </div>
-                <button onClick={() => { clearAnalysisCache(datePreset); refetchAI(); }} className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 text-white text-sm font-medium px-4 py-2 rounded-xl transition-all">
+                <button onClick={() => { setAiTriggered(true); clearAnalysisCache(datePreset); setTimeout(() => refetchAI(), 100); }} className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 text-white text-sm font-medium px-4 py-2 rounded-xl transition-all">
                   <RefreshCw size={14} /> 재분석
                 </button>
               </div>
@@ -611,7 +648,7 @@ export default function PerformanceDashboard() {
               </div>
               <div className="p-6 text-center">
                 <p className="text-sm text-gray-600 mb-4">{aiAnalysis.error}</p>
-                <button onClick={() => { clearAnalysisCache(datePreset); refetchAI(); }} className="bg-red-600 text-white px-5 py-2 rounded-xl hover:bg-red-700 transition-colors font-medium text-sm">
+                <button onClick={() => { setAiTriggered(true); clearAnalysisCache(datePreset); setTimeout(() => refetchAI(), 100); }} className="bg-red-600 text-white px-5 py-2 rounded-xl hover:bg-red-700 transition-colors font-medium text-sm">
                   <RefreshCw size={14} className="inline mr-1.5" />다시 시도
                 </button>
               </div>
@@ -630,13 +667,13 @@ export default function PerformanceDashboard() {
                       <h2 className="text-lg font-bold text-white tracking-tight">AI 성과 분석 리포트</h2>
                       <p className="text-sm text-white/70 mt-0.5">
                         {datePreset === 'today' ? '오늘' : datePreset === 'yesterday' ? '어제' : datePreset === 'last_3d' ? '최근 3일' : datePreset === 'last_7d' ? '최근 7일' : datePreset === 'last_14d' ? '최근 14일' : datePreset === 'last_30d' ? '최근 30일' : datePreset === 'this_month' ? '이번달' : datePreset === 'last_month' ? '지난달' : '사용자 지정'} 기간 분석
-                        {statusFilter !== 'ALL' ? ` · ${statusFilter === 'ACTIVE' ? '활성' : statusFilter === 'PAUSED' ? '일시중지' : statusFilter === 'PENDING_REVIEW' ? '검토중' : '보관됨'} 캠페인만` : ''}
+                        {aiStatusFilter !== 'ALL' ? ` · ${aiStatusFilter === 'ACTIVE' ? '활성' : aiStatusFilter === 'PAUSED' ? '일시중지' : aiStatusFilter === 'PENDING_REVIEW' ? '검토중' : '보관됨'} 캠페인만` : ''}
                         {dataUpdatedAt ? ` · ${new Date(dataUpdatedAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })} 기준` : ''}
                       </p>
                     </div>
                   </div>
                   <button
-                    onClick={() => { clearAnalysisCache(datePreset); refetchAI(); }}
+                    onClick={() => { setAiTriggered(true); clearAnalysisCache(datePreset); setTimeout(() => refetchAI(), 100); }}
                     className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white text-sm font-medium px-4 py-2 rounded-xl transition-all"
                   >
                     <RefreshCw size={14} /> 재분석
