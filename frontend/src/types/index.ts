@@ -425,13 +425,19 @@ export interface CreativeAnalysis {
 
 export interface PerformanceFeedback {
   campaign_id: string;
-  campaign_name: string;
+  campaign_name?: string;
+  currency?: string;
+  period?: { current: string; previous: string };
+  current_metrics?: Record<string, number>;
+  previous_metrics?: Record<string, number>;
+  changes?: Record<string, number | null>;
   conversion_analysis: ConversionAnalysis;
   click_analysis: ClickAnalysis;
   impression_analysis: ImpressionAnalysis;
-  creative_analysis: CreativeAnalysis;
-  recommendations: string[];
-  risk_level: 'LOW' | 'MEDIUM' | 'HIGH';
+  creative_analysis?: CreativeAnalysis;
+  creative_fatigue_analysis?: any;
+  recommendations?: string[];
+  risk_level?: 'LOW' | 'MEDIUM' | 'HIGH';
 }
 
 // Status filter type for campaign list

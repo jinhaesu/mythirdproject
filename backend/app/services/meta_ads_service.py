@@ -675,54 +675,100 @@ class MetaAdsService:
         }
 
     def _analyze_conversion(self, cur: Dict, prev: Dict, changes: Dict) -> Dict:
-        """Conversion Analysis (전환 측정) - ROAS & Efficiency."""
-        feedback = {"status": "neutral", "messages": [], "recommendation": ""}
+        """Conversion Analysis (전환 측정) - ROAS & Efficiency.
+        Returns fields matching frontend ConversionAnalysis type:
+          current_roas, previous_roas, roas_change_pct, current_cpm, previous_cpm,
+          cpm_change_pct, current_cpa, avg_order_value, status, recommendation, messages
+        """
         cur_roas = cur.get("roas") or 0
         prev_roas = prev.get("roas") or 0
         cpm_change = changes.get("cpm")
         roas_change = changes.get("roas")
+        cur_cpa = cur.get("cost_per_purchase") or 0
+        cur_aov = (cur.get("purchase_value") / cur.get("purchase_count")) if cur.get("purchase_count") else 0
+
+        feedback = {
+            "status": "MAINTAIN",
+            "messages": [],
+            "recommendation": "",
+            # Metrics for frontend display
+            "current_roas": round(cur_roas, 4),
+            "previous_roas": round(prev_roas, 4),
+            "roas_change_pct": roas_change,
+            "current_cpm": cur.get("cpm") or 0,
+            "previous_cpm": prev.get("cpm") or 0,
+            "cpm_change_pct": cpm_change,
+            "current_cpa": cur_cpa,
+            "avg_order_value": round(cur_aov),
+        }
 
         if cpm_change is not None and roas_change is not None:
             if cpm_change < 0 and roas_change > 0:
-                feedback["status"] = "excellent"
+                feedback["status"] = "INCREASE_BUDGET"
                 feedback["messages"].append("CPM 하락 + ROAS 상승 → 적극 증액 추천")
                 feedback["recommendation"] = "광고비를 20-30% 증액하여 효율적인 성과 확대를 권장합니다."
             elif cpm_change > 0 and cur_roas >= prev_roas * 0.9:
-                feedback["status"] = "good"
+                feedback["status"] = "EXPAND_TARGET"
                 feedback["messages"].append("타겟 경쟁 심화, 소재 경쟁력 양호 → 소재 유지, 타겟 확장 고려")
                 feedback["recommendation"] = "현재 소재를 유지하되, 유사 타겟 또는 더 넓은 타겟으로 확장을 고려하세요."
             elif roas_change < -10:
-                # Distinguish between CPA increase vs lower average order value
-                cur_cpa = cur.get("cost_per_purchase") or 0
                 prev_cpa = prev.get("cost_per_purchase") or 0
-                cur_aov = (cur.get("purchase_value") / cur.get("purchase_count")) if cur.get("purchase_count") else 0
                 prev_aov = (prev.get("purchase_value") / prev.get("purchase_count")) if prev.get("purchase_count") else 0
 
+                feedback["status"] = "CHECK_CPA"
                 if cur_cpa > prev_cpa * 1.1:
-                    feedback["status"] = "warning"
                     feedback["messages"].append(f"ROAS 하락 원인: CPA 증가 (₩{cur_cpa:,.0f} → 이전 ₩{prev_cpa:,.0f})")
                     feedback["recommendation"] = "전환 최적화 타겟팅을 재설정하거나, 랜딩 페이지 전환율을 개선하세요."
                 elif cur_aov < prev_aov * 0.9:
-                    feedback["status"] = "warning"
                     feedback["messages"].append(f"ROAS 하락 원인: 평균 주문 금액 감소 (₩{cur_aov:,.0f} → 이전 ₩{prev_aov:,.0f})")
                     feedback["recommendation"] = "상향 판매(업셀링) 또는 교차 판매(크로스셀링) 전략을 도입하세요."
                 else:
-                    feedback["status"] = "warning"
                     feedback["messages"].append(f"ROAS 하락: {cur_roas:.2f} → 이전 {prev_roas:.2f}")
                     feedback["recommendation"] = "전환 퍼널 전체를 점검하고, 효율이 낮은 타겟/소재를 정리하세요."
         elif cur_roas and cur_roas > 0:
-            feedback["status"] = "neutral"
             feedback["messages"].append(f"현재 ROAS: {cur_roas:.2f} (이전 기간 비교 데이터 부족)")
 
-        feedback["roas_current"] = cur_roas
-        feedback["roas_previous"] = prev_roas
+        if not feedback["recommendation"]:
+            feedback["recommendation"] = "현재 전환 성과를 모니터링하면서 ROAS 추이를 관찰하세요."
+
         return feedback
 
     def _analyze_clicks(self, cur: Dict, prev: Dict, changes: Dict, raw_data: Dict) -> Dict:
-        """Click Analysis (클릭 측정) - CTR & CPC."""
-        feedback = {"status": "neutral", "messages": [], "recommendation": ""}
-
+        """Click Analysis (클릭 측정) - CTR & CPC.
+        Returns fields matching frontend ClickAnalysis type:
+          link_click_ctr, overall_ctr, ctr_gap_warning, current_cpc, previous_cpc,
+          cpc_trend, landing_page_view_rate, landing_status, recommendation, messages
+        """
+        link_clicks = cur.get("link_clicks") or 0
+        total_clicks = cur.get("clicks") or 0
+        impressions = cur.get("impressions") or 0
+        overall_ctr = (total_clicks / impressions) * 100 if impressions > 0 else 0
+        link_ctr = (link_clicks / impressions) * 100 if (impressions > 0 and link_clicks) else 0
         cpc_change = changes.get("cpc")
+        cur_cpc = cur.get("cpc") or 0
+        prev_cpc = prev.get("cpc") or 0
+
+        cpc_trend = "STABLE"
+        if cpc_change is not None:
+            cpc_trend = "UP" if cpc_change > 5 else ("DOWN" if cpc_change < -5 else "STABLE")
+
+        ctr_gap_warning = (link_ctr > 0 and overall_ctr > 0 and link_ctr < overall_ctr * 0.5)
+
+        feedback = {
+            "status": "neutral",
+            "messages": [],
+            "recommendation": "",
+            # Metrics for frontend display
+            "link_click_ctr": round(link_ctr, 2),
+            "overall_ctr": round(overall_ctr, 2),
+            "ctr_gap_warning": ctr_gap_warning,
+            "current_cpc": cur_cpc,
+            "previous_cpc": prev_cpc,
+            "cpc_trend": cpc_trend,
+            "landing_page_view_rate": 0,
+            "landing_status": "GOOD",
+        }
+
         cur_roas = cur.get("roas") or 0
 
         # CPC up but ROAS above target
@@ -733,19 +779,9 @@ class MetaAdsService:
             feedback["messages"].append(f"CPC가 {cpc_change:.1f}% 급등 → 타겟 또는 소재 점검 필요")
             feedback["status"] = "warning"
 
-        # Link click CTR vs overall CTR comparison
-        link_clicks = cur.get("link_clicks") or 0
-        total_clicks = cur.get("clicks") or 0
-        impressions = cur.get("impressions") or 0
-
-        if impressions > 0 and total_clicks > 0:
-            overall_ctr = (total_clicks / impressions) * 100
-            link_ctr = (link_clicks / impressions) * 100 if link_clicks else 0
-
-            if link_ctr > 0 and overall_ctr > 0:
-                if link_ctr < overall_ctr * 0.5:
-                    feedback["messages"].append(f"링크 클릭 CTR({link_ctr:.2f}%)이 전체 CTR({overall_ctr:.2f}%)에 비해 매우 낮음 → 콘텐츠 낚시성 점검 필요")
-                    feedback["status"] = "warning"
+        if ctr_gap_warning:
+            feedback["messages"].append(f"링크 클릭 CTR({link_ctr:.2f}%)이 전체 CTR({overall_ctr:.2f}%)에 비해 매우 낮음 → 콘텐츠 낚시성 점검 필요")
+            feedback["status"] = "warning"
 
         # Landing page view rate check
         actions = raw_data.get("actions") or []
@@ -757,11 +793,16 @@ class MetaAdsService:
 
         if link_clicks > 0 and landing_views > 0:
             landing_rate = (landing_views / link_clicks) * 100
+            feedback["landing_page_view_rate"] = round(landing_rate, 1)
             if landing_rate < 65:
+                feedback["landing_status"] = "CRITICAL"
                 feedback["messages"].append(f"랜딩 페이지 도달률 {landing_rate:.0f}% (기준 65-70%) → 웹사이트 속도/랜딩 점검 필요")
                 feedback["status"] = "warning"
                 feedback["recommendation"] = "웹사이트 로딩 속도를 개선하고, 모바일 최적화를 확인하세요."
-            feedback["landing_page_view_rate"] = round(landing_rate, 1)
+            elif landing_rate < 75:
+                feedback["landing_status"] = "WARNING"
+            else:
+                feedback["landing_status"] = "GOOD"
 
         if not feedback["recommendation"]:
             feedback["recommendation"] = "현재 클릭 성과를 유지하면서 랜딩 페이지 최적화에 집중하세요."
@@ -769,17 +810,44 @@ class MetaAdsService:
         return feedback
 
     def _analyze_impressions(self, cur: Dict, prev: Dict, changes: Dict, trend_data: List) -> Dict:
-        """Impression Analysis (노출 측정) - CPM & Fatigue."""
-        feedback = {"status": "neutral", "messages": [], "recommendation": ""}
-
+        """Impression Analysis (노출 측정) - CPM & Fatigue.
+        Returns fields matching frontend ImpressionAnalysis type:
+          current_frequency, frequency_warning, cpm_trend, ctr_trend,
+          fatigue_detected, weekly_cpc_trend, cpc_upward_trend, recommendation, messages
+        """
         frequency = cur.get("frequency") or 0
         cpm_change = changes.get("cpm")
         ctr_change = changes.get("ctr")
+
+        cpm_trend = "STABLE"
+        if cpm_change is not None:
+            cpm_trend = "UP" if cpm_change > 5 else ("DOWN" if cpm_change < -5 else "STABLE")
+        ctr_trend = "STABLE"
+        if ctr_change is not None:
+            ctr_trend = "UP" if ctr_change > 5 else ("DOWN" if ctr_change < -5 else "STABLE")
+
+        fatigue_detected = False
+        frequency_warning = frequency > 2.3
+
+        feedback = {
+            "status": "neutral",
+            "messages": [],
+            "recommendation": "",
+            # Metrics for frontend display
+            "current_frequency": round(frequency, 2),
+            "frequency_warning": frequency_warning,
+            "cpm_trend": cpm_trend,
+            "ctr_trend": ctr_trend,
+            "fatigue_detected": fatigue_detected,
+            "weekly_cpc_trend": [],
+            "cpc_upward_trend": False,
+        }
 
         # Frequency > 2.3 + CPM up + CTR down → Fatigue
         if frequency > 2.3:
             if cpm_change is not None and cpm_change > 0 and ctr_change is not None and ctr_change < 0:
                 feedback["status"] = "critical"
+                feedback["fatigue_detected"] = True
                 feedback["messages"].append(
                     f"빈도 {frequency:.1f} + CPM 상승({cpm_change:+.1f}%) + CTR 하락({ctr_change:+.1f}%) → 타겟 피로도 높음 → 소재 교체 또는 타겟 변경"
                 )
@@ -789,25 +857,26 @@ class MetaAdsService:
                 feedback["messages"].append(f"빈도 {frequency:.1f}로 높음 → 타겟 피로도 모니터링 필요")
 
         # 30-day weekly CPC trend analysis
+        weekly_cpcs = []
         if len(trend_data) >= 3:
-            weekly_cpcs = []
             for week in trend_data:
                 cpc_val = float(week.get("cpc", 0) or 0)
                 if cpc_val > 0:
-                    weekly_cpcs.append(cpc_val)
+                    weekly_cpcs.append(round(cpc_val, 2))
 
             if len(weekly_cpcs) >= 3:
-                # Check if CPC is consistently increasing
                 increasing_weeks = sum(1 for i in range(1, len(weekly_cpcs)) if weekly_cpcs[i] > weekly_cpcs[i-1])
                 if increasing_weeks >= len(weekly_cpcs) - 1:
                     feedback["status"] = "warning"
+                    feedback["cpc_upward_trend"] = True
                     feedback["messages"].append("30일간 주별 CPC 지속 상승 → 소재 신선도 하락 → 새 광고소재 투입 필요")
                     feedback["recommendation"] = "새로운 크리에이티브를 준비하고, A/B 테스트를 진행하세요."
+
+        feedback["weekly_cpc_trend"] = weekly_cpcs
 
         if not feedback["recommendation"]:
             feedback["recommendation"] = "현재 노출 효율을 모니터링하면서 빈도 관리에 주의하세요."
 
-        feedback["frequency"] = round(frequency, 2)
         return feedback
 
     def _analyze_creative_fatigue(self, ads_data: List, cur: Dict, currency: str) -> Dict:

@@ -108,18 +108,44 @@ export default function PerformanceDashboard() {
   });
 
   const daysMap: Record<string, number> = { last_7d: 7, last_14d: 14, last_30d: 30 };
-  const trendDaysCount = trendView === 'weekly' ? 56 : (daysMap[datePreset] || 7);
   const trendIncrement = trendView === 'weekly' ? 7 : 1;
+
+  // 주간 뷰: 어제 기준으로 정확한 7일 단위 구간 계산
+  // last_7d → 이번주(어제~7일전) vs 지난주 = 14일, last_14d → 4주 = 28일, last_30d → 8주 = 56일
+  const weeklyRange = useMemo(() => {
+    if (trendView !== 'weekly') return null;
+    const weeksMap: Record<string, number> = { last_7d: 2, last_14d: 4, last_30d: 8 };
+    const totalWeeks = weeksMap[datePreset] || 2;
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const start = new Date(yesterday);
+    start.setDate(start.getDate() - (totalWeeks * 7) + 1);
+    return {
+      since: start.toISOString().slice(0, 10),
+      until: yesterday.toISOString().slice(0, 10),
+    };
+  }, [trendView, datePreset]);
+
+  const trendDaysCount = trendView === 'weekly' ? 56 : (daysMap[datePreset] || 7);
+
   const { data: trendData } = useQuery({
     queryKey: ['account-trend', datePreset, customSince, customUntil, trendView],
-    queryFn: () => isCustom
-      ? analyticsApi.getAccountTrend(30, customSince, customUntil, trendIncrement)
-      : analyticsApi.getAccountTrend(trendDaysCount, undefined, undefined, trendIncrement),
+    queryFn: () => {
+      if (trendView === 'weekly' && weeklyRange) {
+        // 주간: 명시적 날짜 범위 + time_increment=7 → 정확한 7일 단위 비교
+        return analyticsApi.getAccountTrend(14, weeklyRange.since, weeklyRange.until, 7);
+      }
+      return isCustom
+        ? analyticsApi.getAccountTrend(30, customSince, customUntil, trendIncrement)
+        : analyticsApi.getAccountTrend(trendDaysCount, undefined, undefined, trendIncrement);
+    },
     enabled: overview?.connected === true,
     placeholderData: keepPreviousData,
   });
 
-  // 주간 비교: 이번주 vs 지난주
+  // 주간 비교: 이번주 vs 지난주 (정확한 날짜 기반)
+  // last_7d 기준 오늘 3/11 → 이번주: 3/4~3/10, 지난주: 2/25~3/3
   const weeklyComparison = useMemo(() => {
     if (trendView !== 'weekly' || !trendData?.data?.length) return null;
     const weeks = trendData.data;
@@ -1323,12 +1349,17 @@ function PerformanceFeedbackPanel({
     );
   }
 
-  const fb = data as PerformanceFeedback;
+  // API returns { connected, feedback: { ... } } — unwrap
+  const raw = data?.feedback || data;
+  const fb = raw as PerformanceFeedback;
   const conv = fb?.conversion_analysis;
   const click = fb?.click_analysis;
   const imp = fb?.impression_analysis;
-  const creative = fb?.creative_analysis;
-  const riskLevel = fb?.risk_level || 'LOW';
+  const creative = (fb as any)?.creative_fatigue_analysis || fb?.creative_analysis;
+  const riskLevel = fb?.risk_level || (
+    conv?.status === 'CHECK_CPA' ? 'HIGH' :
+    conv?.status === 'EXPAND_TARGET' ? 'MEDIUM' : 'LOW'
+  );
 
   const riskConfig: Record<string, { bg: string; text: string; label: string }> = {
     LOW: { bg: 'bg-green-100', text: 'text-green-700', label: '낮음' },
