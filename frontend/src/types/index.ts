@@ -159,12 +159,27 @@ export interface PublishOptions {
   bid_amount?: number;
 }
 
+// Per-creative settings within an ad set (maps to Meta Ad level)
+export interface AdSetCreative {
+  creative_id: number;
+  creative?: Creative;        // reference for thumbnail/name display
+  ad_name: string;            // 광고 이름
+  primary_text: string;       // 본문 (메시지)
+  headline: string;           // 제목
+  description: string;        // 설명 (뉴스피드 링크 설명)
+  call_to_action: string;     // CTA 버튼 (SHOP_NOW, LEARN_MORE, etc.)
+  link_url: string;           // 웹사이트 URL
+  display_link?: string;      // 표시 링크 (짧은 URL)
+  url_params?: string;        // URL 매개변수 (UTM 등)
+}
+
 export interface TargetingSegment {
   type: 'BROAD' | 'RETARGET' | 'INTEREST' | 'CUSTOM';
   name: string;
   enabled: boolean;
   ratio: number;  // percentage 0-100
   targeting: TargetingConfig;
+  ads?: AdSetCreative[];      // 광고세트별 소재+설정
   schedule?: {
     start_date?: string;
     end_date?: string;

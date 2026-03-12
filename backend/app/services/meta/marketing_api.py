@@ -510,33 +510,59 @@ class MetaMarketingAPI:
         link: Optional[str] = None,
         call_to_action: str = "LEARN_MORE",
         degrees_of_freedom_spec: Optional[Dict] = None,
+        headline: Optional[str] = None,
+        description: Optional[str] = None,
+        display_link: Optional[str] = None,
+        url_params: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Create an ad creative.
 
         Args:
+            headline: Ad headline (Meta link_data.name / video_data.title).
+            description: Ad description (Meta link_data.description).
+            display_link: Display URL shown instead of full URL (Meta link_data.caption).
+            url_params: URL parameters appended to the link (e.g. UTM tags).
             degrees_of_freedom_spec: For Advantage+ creative, e.g.
                 {"creative_features_spec": {"standard_enhancements": {"enroll_status": "OPT_IN"}}}
         """
+        # Append url_params to link if provided
+        final_link = link
+        if final_link and url_params:
+            separator = "&" if "?" in final_link else "?"
+            final_link = f"{final_link}{separator}{url_params}"
+
         object_story_spec: Dict[str, Any] = {
             "page_id": page_id,
         }
 
         if video_id:
-            object_story_spec["video_data"] = {
+            video_data: Dict[str, Any] = {
                 "video_id": video_id,
                 "message": message,
                 "call_to_action": {
                     "type": call_to_action,
-                    "value": {"link": link} if link else {}
+                    "value": {"link": final_link} if final_link else {}
                 }
             }
+            if headline:
+                video_data["title"] = headline
+            if description:
+                video_data["link_description"] = description
+            object_story_spec["video_data"] = video_data
         else:
-            object_story_spec["link_data"] = {
+            link_data: Dict[str, Any] = {
                 "image_url": image_url,
                 "message": message,
-                "link": link or "https://example.com",
+                "link": final_link or "https://example.com",
                 "call_to_action": {"type": call_to_action}
             }
+            if headline:
+                link_data["name"] = headline
+            if description:
+                link_data["description"] = description
+            if display_link:
+                link_data["caption"] = display_link
+            object_story_spec["link_data"] = link_data
 
         data: Dict[str, Any] = {
             "name": name,

@@ -609,9 +609,136 @@ async def publish_campaign(
         logger.info(f"[Publish] Created {len(adset_ids)} ad set(s): {adset_ids}")
 
         # ──────────────────────────────────────────────
-        # 5. Create Ads (distribute across adsets)
+        # 5. Create Ads (per-adset creative assignments or round-robin fallback)
         # ──────────────────────────────────────────────
-        if ads and adset_ids:
+
+        # Helper: create a single Meta ad from creative + settings
+        async def _create_meta_ad(
+            creative: Creative,
+            target_adset_id: str,
+            ad_name: str,
+            primary_text: Optional[str] = None,
+            headline: Optional[str] = None,
+            description: Optional[str] = None,
+            call_to_action: Optional[str] = None,
+            link_url: Optional[str] = None,
+            display_link: Optional[str] = None,
+            url_params: Optional[str] = None,
+        ) -> Optional[str]:
+            """Create Meta creative + ad, return meta_ad_id or None."""
+            degrees_of_freedom_spec = None
+            if advantage_plus_creative:
+                degrees_of_freedom_spec = {
+                    "creative_features_spec": {
+                        "standard_enhancements": {
+                            "enroll_status": "OPT_IN"
+                        }
+                    }
+                }
+
+            message = primary_text or creative.primary_text or ""
+            cta = call_to_action or "LEARN_MORE"
+            link = link_url or None
+
+            if creative.creative_type.value == "VIDEO":
+                media_result = await meta_api.upload_video(creative.file_url)
+                video_id = media_result.get("id")
+                if not video_id:
+                    raise Exception(f"비디오 업로드 실패: {media_result}")
+                cr_result = await meta_api.create_ad_creative(
+                    name=ad_name,
+                    page_id=page_id,
+                    video_id=video_id,
+                    message=message,
+                    link=link,
+                    call_to_action=cta,
+                    degrees_of_freedom_spec=degrees_of_freedom_spec,
+                    headline=headline,
+                    description=description,
+                    display_link=display_link,
+                    url_params=url_params,
+                )
+            else:
+                cr_result = await meta_api.create_ad_creative(
+                    name=ad_name,
+                    page_id=page_id,
+                    image_url=creative.file_url,
+                    message=message,
+                    link=link,
+                    call_to_action=cta,
+                    degrees_of_freedom_spec=degrees_of_freedom_spec,
+                    headline=headline,
+                    description=description,
+                    display_link=display_link,
+                    url_params=url_params,
+                )
+
+            meta_creative_id = cr_result.get("id")
+            if not meta_creative_id:
+                raise Exception(f"크리에이티브 생성 실패: {cr_result}")
+
+            ad_result = await meta_api.create_ad(
+                name=ad_name,
+                adset_id=target_adset_id,
+                creative_id=meta_creative_id,
+            )
+            meta_ad_id = ad_result.get("id")
+            if not meta_ad_id:
+                raise Exception(f"광고 생성 실패: {ad_result}")
+
+            created_ad_ids.append(meta_ad_id)
+            logger.info(f"[Publish] Ad created: {ad_name} ({meta_ad_id}) -> adset {target_adset_id}")
+            return meta_ad_id
+
+        # Check if segments have per-adset creative assignments
+        has_per_adset_ads = False
+        if segments and adset_ids:
+            for seg in segments:
+                if seg.get("ads") and len(seg["ads"]) > 0:
+                    has_per_adset_ads = True
+                    break
+
+        if has_per_adset_ads and segments and adset_ids:
+            # ── Per-adset creative assignments from segment['ads'] ──
+            for seg_idx, seg in enumerate(segments):
+                if seg_idx >= len(adset_ids):
+                    break
+                target_adset_id = adset_ids[seg_idx]
+                seg_ads = seg.get("ads", [])
+                seg_name = seg.get("name", f"Segment {seg_idx + 1}")
+
+                for ad_setting in seg_ads:
+                    creative_id = ad_setting.get("creative_id")
+                    if not creative_id:
+                        continue
+
+                    creative_result = await db.execute(
+                        select(Creative).where(Creative.id == creative_id)
+                    )
+                    creative = creative_result.scalar_one_or_none()
+                    if not creative or not creative.file_url:
+                        logger.warning(f"[Publish] Creative {creative_id} not found or no file_url, skipping")
+                        continue
+
+                    ad_name = ad_setting.get("ad_name") or f"{seg_name} - {creative.name}"
+                    try:
+                        await _create_meta_ad(
+                            creative=creative,
+                            target_adset_id=target_adset_id,
+                            ad_name=ad_name,
+                            primary_text=ad_setting.get("primary_text"),
+                            headline=ad_setting.get("headline"),
+                            description=ad_setting.get("description"),
+                            call_to_action=ad_setting.get("call_to_action"),
+                            link_url=ad_setting.get("link_url"),
+                            display_link=ad_setting.get("display_link"),
+                            url_params=ad_setting.get("url_params"),
+                        )
+                    except Exception as ad_err:
+                        logger.error(f"[Publish] Ad creation failed for {ad_name}: {ad_err}")
+
+        elif ads and adset_ids:
+            # ── Fallback: round-robin distribution of campaign ads ──
             for ad in ads:
                 creative_result = await db.execute(
                     select(Creative).where(Creative.id == ad.creative_id)
@@ -619,67 +746,20 @@ async def publish_campaign(
                 creative = creative_result.scalar_one_or_none()
 
                 if creative and creative.file_url:
-                    # Determine which adset to place this ad in
-                    # Distribute ads across adsets round-robin
                     ad_index = list(ads).index(ad) if hasattr(ads, 'index') else 0
                     target_adset_id = adset_ids[ad_index % len(adset_ids)]
 
                     try:
-                        # Advantage+ creative spec
-                        degrees_of_freedom_spec = None
-                        if advantage_plus_creative:
-                            degrees_of_freedom_spec = {
-                                "creative_features_spec": {
-                                    "standard_enhancements": {
-                                        "enroll_status": "OPT_IN"
-                                    }
-                                }
-                            }
-
-                        if creative.creative_type.value == "VIDEO":
-                            media_result = await meta_api.upload_video(creative.file_url)
-                            video_id = media_result.get("id")
-                            if not video_id:
-                                raise Exception(f"비디오 업로드 실패: {media_result}")
-                            cr_result = await meta_api.create_ad_creative(
-                                name=creative.name,
-                                page_id=page_id,
-                                video_id=video_id,
-                                message=creative.primary_text or "",
-                                degrees_of_freedom_spec=degrees_of_freedom_spec,
-                            )
-                        else:
-                            cr_result = await meta_api.create_ad_creative(
-                                name=creative.name,
-                                page_id=page_id,
-                                image_url=creative.file_url,
-                                message=creative.primary_text or "",
-                                degrees_of_freedom_spec=degrees_of_freedom_spec,
-                            )
-
-                        meta_creative_id = cr_result.get("id")
-                        if not meta_creative_id:
-                            raise Exception(f"크리에이티브 생성 실패: {cr_result}")
-
-                        ad_result = await meta_api.create_ad(
-                            name=ad.name,
-                            adset_id=target_adset_id,
-                            creative_id=meta_creative_id
+                        meta_ad_id = await _create_meta_ad(
+                            creative=creative,
+                            target_adset_id=target_adset_id,
+                            ad_name=ad.name,
                         )
-                        meta_ad_id = ad_result.get("id")
-                        if not meta_ad_id:
-                            raise Exception(f"광고 생성 실패: {ad_result}")
-
-                        ad.meta_ad_id = meta_ad_id
-                        ad.meta_creative_id = meta_creative_id
-                        ad.status = "PENDING_REVIEW"
-                        created_ad_ids.append(meta_ad_id)
-                        logger.info(f"[Publish] Ad created: {ad.name} ({meta_ad_id}) -> adset {target_adset_id}")
-
+                        if meta_ad_id:
+                            ad.meta_ad_id = meta_ad_id
+                            ad.status = "PENDING_REVIEW"
                     except Exception as ad_err:
                         logger.error(f"[Publish] Ad creation failed for {ad.name}: {ad_err}")
-                        # Ad failure is non-fatal: log and continue
-                        # Other ads may still succeed
                         ad.status = "FAILED"
 
         # ──────────────────────────────────────────────
