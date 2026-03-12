@@ -98,15 +98,31 @@ async def create_campaign(
     """
     Create a new campaign (draft mode).
     """
-    # Validate creatives exist
-    result = await db.execute(
-        select(Creative)
-        .where(Creative.id.in_(campaign_data.creative_ids), Creative.user_id == current_user.id)
-    )
-    creatives = result.scalars().all()
+    try:
+        return await _create_campaign_impl(campaign_data, current_user, db)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Campaign creation error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"캠페인 생성 중 오류: {str(e)}")
 
-    if len(creatives) != len(campaign_data.creative_ids):
-        raise HTTPException(status_code=400, detail="Some creatives not found")
+
+async def _create_campaign_impl(
+    campaign_data: CampaignCreate,
+    current_user: User,
+    db: AsyncSession
+):
+    # Validate creatives exist
+    creatives = []
+    if campaign_data.creative_ids:
+        result = await db.execute(
+            select(Creative)
+            .where(Creative.id.in_(campaign_data.creative_ids), Creative.user_id == current_user.id)
+        )
+        creatives = list(result.scalars().all())
+
+        if len(creatives) != len(campaign_data.creative_ids):
+            raise HTTPException(status_code=400, detail="Some creatives not found")
 
     # Create campaign
     targeting_json = None

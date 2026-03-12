@@ -384,13 +384,19 @@ export function AdsController() {
       setShowTargeting(false);
     },
     onError: (err: any) => {
+      const status = err?.response?.status;
       const detail = err?.response?.data?.detail;
       let msg = '캠페인 생성 실패';
       if (typeof detail === 'string') {
         msg = detail;
       } else if (Array.isArray(detail)) {
         msg = detail.map((e: any) => e.msg || e.message || JSON.stringify(e)).join(', ');
+      } else if (status) {
+        msg = `캠페인 생성 실패 (${status}: ${err?.response?.statusText || 'Error'})`;
+      } else if (err?.message) {
+        msg = `캠페인 생성 실패: ${err.message}`;
       }
+      console.error('Campaign create error:', status, err?.response?.data || err?.message);
       toast.error(msg);
     },
   });
