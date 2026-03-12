@@ -28,9 +28,10 @@ export function resolveMediaUrl(url?: string | null): string {
   // Extract backend host from API_BASE (remove /api/v1 suffix)
   const backendHost = API_BASE.replace(/\/api\/v1\/?$/, '');
   if (backendHost && backendHost !== '/api/v1' && backendHost !== '') {
-    return `${backendHost}${url}`;
+    return `${backendHost}${url.startsWith('/') ? url : `/${url}`}`;
   }
-  return url;
+  // Fallback: use relative path (handled by Next.js rewrites)
+  return url.startsWith('/') ? url : `/${url}`;
 }
 
 const api = axios.create({
