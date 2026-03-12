@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { MessageSquare, X, Send, Loader2, Minimize2, Maximize2 } from 'lucide-react';
+import { useAppStore } from '@/store';
 import api from '@/lib/api';
 
 interface Message {
@@ -9,26 +10,47 @@ interface Message {
   content: string;
 }
 
-const DEFAULT_SUGGESTIONS = [
+const META_SUGGESTIONS = [
   '이번 달 캠페인 전략 추천해줘',
   'CTR 개선 방법 알려줘',
   '인스타 릴스 광고 카피 써줘',
 ];
 
+const NAVER_SUGGESTIONS = [
+  '검색광고 키워드 추천해줘',
+  'CPC 낮추는 방법 알려줘',
+  'GFA 배너 소재 전략 추천해줘',
+];
+
+const META_GREETING = '안녕하세요! Meta-Commander AI 어시스턴트입니다.\n\n시장 분석, 소재 제작, 캠페인 기획, 광고 집행, 성과 분석 등 무엇이든 도와드리겠습니다.\n\n어떤 도움이 필요하신가요?';
+const NAVER_GREETING = '안녕하세요! 네이버 커맨더 AI 어시스턴트입니다.\n\n검색광고 키워드 관리, GFA 캠페인 운영, 입찰가 최적화, 성과 분석 등 무엇이든 도와드리겠습니다.\n\n어떤 도움이 필요하신가요?';
+
 export function AICommandCenter() {
+  const { activePlatform } = useAppStore();
+  const isNaver = activePlatform === 'naver';
+
   const [isOpen, setIsOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
-    {
-      role: 'assistant',
-      content: '안녕하세요! Meta-Commander AI 어시스턴트입니다.\n\n시장 분석, 소재 제작, 캠페인 기획, 광고 집행, 성과 분석 등 무엇이든 도와드리겠습니다.\n\n어떤 도움이 필요하신가요?',
-    },
+    { role: 'assistant', content: META_GREETING },
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>(DEFAULT_SUGGESTIONS);
+  const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>(META_SUGGESTIONS);
+  const [lastPlatform, setLastPlatform] = useState(activePlatform);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Reset chat when platform switches
+  useEffect(() => {
+    if (activePlatform !== lastPlatform) {
+      setLastPlatform(activePlatform);
+      setMessages([
+        { role: 'assistant', content: activePlatform === 'naver' ? NAVER_GREETING : META_GREETING },
+      ]);
+      setSuggestedQuestions(activePlatform === 'naver' ? NAVER_SUGGESTIONS : META_SUGGESTIONS);
+    }
+  }, [activePlatform, lastPlatform]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -49,13 +71,15 @@ export function AICommandCenter() {
     setLoading(true);
 
     try {
+      const platformContext = isNaver
+        ? '[네이버 광고 플랫폼 컨텍스트] 사용자는 현재 네이버 검색광고/GFA를 관리하고 있습니다. '
+        : '';
       const { data } = await api.post('/ai/chat', {
-        message: userMessage,
+        message: platformContext + userMessage,
         history: messages.filter((m) => m.role !== 'assistant' || messages.indexOf(m) !== 0).slice(-20),
       });
       setMessages((prev) => [...prev, { role: 'assistant', content: data.reply }]);
 
-      // Update suggested questions from response
       if (data.suggested_questions && data.suggested_questions.length > 0) {
         setSuggestedQuestions(data.suggested_questions);
       }
@@ -74,11 +98,29 @@ export function AICommandCenter() {
     }
   };
 
+  // Color scheme
+  const fabGradient = isNaver
+    ? 'bg-gradient-to-r from-green-500 to-green-600'
+    : 'bg-gradient-to-r from-primary-600 to-purple-600';
+  const headerGradient = isNaver
+    ? 'bg-gradient-to-r from-green-600 to-green-700'
+    : 'bg-gradient-to-r from-primary-600 to-purple-600';
+  const userBubble = isNaver ? 'bg-green-600 text-white' : 'bg-primary-600 text-white';
+  const sendBtnClass = isNaver
+    ? 'bg-green-600 hover:bg-green-700'
+    : 'bg-primary-600 hover:bg-primary-700';
+  const focusRing = isNaver
+    ? 'focus:ring-green-500 focus:border-green-500'
+    : 'focus:ring-primary-500 focus:border-primary-500';
+  const suggestHover = isNaver
+    ? 'hover:bg-green-50 hover:border-green-200 hover:text-green-700'
+    : 'hover:bg-primary-50 hover:border-primary-200 hover:text-primary-700';
+
   if (!isOpen) {
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-primary-600 to-purple-600 text-white rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-105 flex items-center justify-center z-50"
+        className={`fixed bottom-6 right-6 w-14 h-14 ${fabGradient} text-white rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-105 flex items-center justify-center z-50`}
         title="AI 어시스턴트"
       >
         <MessageSquare size={24} />
@@ -92,14 +134,18 @@ export function AICommandCenter() {
   return (
     <div className={`fixed bottom-6 right-6 ${chatWidth} ${chatHeight} bg-white rounded-2xl shadow-2xl flex flex-col z-50 border border-gray-200 transition-all`}>
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-primary-600 to-purple-600 rounded-t-2xl">
+      <div className={`flex items-center justify-between px-4 py-3 ${headerGradient} rounded-t-2xl`}>
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
             <MessageSquare size={18} className="text-white" />
           </div>
           <div>
-            <h3 className="text-white font-semibold text-sm">AI Command Center</h3>
-            <p className="text-white/70 text-xs">마케팅 AI 어시스턴트</p>
+            <h3 className="text-white font-semibold text-sm">
+              {isNaver ? '네이버 AI 어시스턴트' : 'AI Command Center'}
+            </h3>
+            <p className="text-white/70 text-xs">
+              {isNaver ? '검색광고 · GFA 마케팅 AI' : '마케팅 AI 어시스턴트'}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-1">
@@ -118,7 +164,7 @@ export function AICommandCenter() {
           <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[85%] px-3 py-2 rounded-2xl text-sm leading-relaxed ${
               msg.role === 'user'
-                ? 'bg-primary-600 text-white rounded-br-md'
+                ? `${userBubble} rounded-br-md`
                 : 'bg-gray-100 text-gray-800 rounded-bl-md'
             }`}>
               {msg.content.split('\n').map((line, j) => (
@@ -143,13 +189,13 @@ export function AICommandCenter() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Suggested questions - always visible after any message */}
+      {/* Suggested questions */}
       {!loading && suggestedQuestions.length > 0 && (
         <div className="px-4 pb-2">
           <div className="flex flex-wrap gap-1.5">
             {suggestedQuestions.map((q, i) => (
               <button key={i} onClick={() => sendMessage(q)}
-                className="px-2.5 py-1 bg-gray-50 border border-gray-200 rounded-full text-xs text-gray-600 hover:bg-primary-50 hover:border-primary-200 hover:text-primary-700 transition-colors">
+                className={`px-2.5 py-1 bg-gray-50 border border-gray-200 rounded-full text-xs text-gray-600 ${suggestHover} transition-colors`}>
                 {q}
               </button>
             ))}
@@ -167,13 +213,13 @@ export function AICommandCenter() {
             onKeyDown={handleKeyDown}
             placeholder="메시지를 입력하세요... (Shift+Enter: 줄바꿈)"
             rows={1}
-            className="flex-1 px-3 py-2 border border-gray-200 rounded-xl text-sm resize-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none max-h-24"
+            className={`flex-1 px-3 py-2 border border-gray-200 rounded-xl text-sm resize-none ${focusRing} outline-none max-h-24`}
             style={{ minHeight: '40px' }}
           />
           <button
             onClick={() => sendMessage()}
             disabled={!input.trim() || loading}
-            className="p-2 bg-primary-600 text-white rounded-xl hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className={`p-2 ${sendBtnClass} text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-colors`}
           >
             <Send size={18} />
           </button>
