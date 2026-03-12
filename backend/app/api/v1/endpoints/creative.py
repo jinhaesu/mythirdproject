@@ -128,7 +128,7 @@ async def upload_creative(
 
     # Save file to uploads/ directory
     upload_dir = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))),
         "uploads"
     )
     os.makedirs(upload_dir, exist_ok=True)
@@ -150,6 +150,7 @@ async def upload_creative(
         creative_type=CreativeType(creative_type),
         format=CreativeFormat(format_value),
         file_url=file_url,
+        thumbnail_url=file_url,
         headline=headline,
         primary_text=primary_text,
         call_to_action=call_to_action,
