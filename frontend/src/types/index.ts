@@ -155,6 +155,8 @@ export interface PublishOptions {
   dataset_id?: string;
   pixel_id?: string;
   currency: string;
+  bid_strategy?: string;
+  bid_amount?: number;
 }
 
 export interface TargetingSegment {

@@ -300,6 +300,8 @@ async def publish_campaign(
     budget_type = request.budget_type  # "DAILY" or "LIFETIME"
     advantage_plus = request.advantage_plus or campaign.advantage_plus
     advantage_plus_creative = request.advantage_plus_creative or advantage_plus
+    bid_strategy = request.bid_strategy  # None = auto (lowest cost)
+    bid_amount = request.bid_amount  # Required for BID_CAP/COST_CAP
 
     # Track created Meta resources for cleanup on failure
     created_meta_campaign_id = None
@@ -524,6 +526,8 @@ async def publish_campaign(
                     ),
                     "start_time": campaign.start_date,
                     "end_time": campaign.end_date,
+                    "bid_strategy": bid_strategy,
+                    "bid_amount": bid_amount,
                 }
 
                 # Advantage+ targeting optimization
@@ -576,6 +580,8 @@ async def publish_campaign(
                 "advantage_plus_audience": advantage_plus or targeting.advantage_plus_audience,
                 "start_time": campaign.start_date,
                 "end_time": campaign.end_date,
+                "bid_strategy": bid_strategy,
+                "bid_amount": bid_amount,
             }
 
             if advantage_plus:

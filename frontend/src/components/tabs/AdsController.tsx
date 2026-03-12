@@ -104,6 +104,10 @@ export function AdsController() {
   // Launch option
   const [launchImmediately, setLaunchImmediately] = useState(false);
 
+  // Bid strategy
+  const [bidStrategy, setBidStrategy] = useState<string>('');  // '' = auto (lowest cost)
+  const [bidAmount, setBidAmount] = useState<string>('');
+
   // Step navigation for 3-level hierarchy
   const [activeStep, setActiveStep] = useState<1 | 2 | 3>(1);
 
@@ -412,6 +416,8 @@ export function AdsController() {
       dataset_id: resolvedDatasetId,
       pixel_id: resolvedPixelId,
       currency: 'KRW',
+      bid_strategy: bidStrategy || undefined,
+      bid_amount: bidAmount ? Number(bidAmount) : undefined,
     }),
     onSuccess: (data) => {
       if (data.success) {
@@ -1601,6 +1607,54 @@ export function AdsController() {
               </div>
             )}
 
+            {/* ── 입찰 전략 ── */}
+            <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+              <p className="text-sm font-medium text-gray-700 mb-2">입찰 전략</p>
+              <select
+                value={bidStrategy}
+                onChange={(e) => { setBidStrategy(e.target.value); if (!e.target.value) setBidAmount(''); }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-primary-500 focus:border-primary-500"
+              >
+                <option value="">자동 (최저 비용)</option>
+                <option value="LOWEST_COST_WITH_BID_CAP">입찰가 한도 (Bid Cap)</option>
+                <option value="COST_CAP">비용 한도 (Cost Cap)</option>
+                <option value="MINIMUM_ROAS">최소 ROAS</option>
+              </select>
+              <p className="text-xs text-gray-500 mt-1">
+                {!bidStrategy && 'Meta가 자동으로 최저 비용에 입찰합니다.'}
+                {bidStrategy === 'LOWEST_COST_WITH_BID_CAP' && '입찰당 최대 금액을 설정합니다.'}
+                {bidStrategy === 'COST_CAP' && '결과당 평균 비용 목표를 설정합니다.'}
+                {bidStrategy === 'MINIMUM_ROAS' && '최소 광고비 대비 수익률을 설정합니다.'}
+              </p>
+
+              {bidStrategy && (
+                <div className="mt-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {bidStrategy === 'MINIMUM_ROAS' ? '최소 ROAS' : '입찰 금액 (원)'}
+                    <span className="text-red-500 ml-0.5">*</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      value={bidAmount}
+                      onChange={(e) => setBidAmount(e.target.value)}
+                      placeholder={bidStrategy === 'MINIMUM_ROAS' ? '예: 200 (2.0x ROAS)' : '예: 5000'}
+                      className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-primary-500 focus:border-primary-500 ${
+                        bidStrategy && !bidAmount ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                      }`}
+                    />
+                    {bidStrategy && !bidAmount && (
+                      <p className="text-xs text-red-500 mt-1 font-medium">
+                        {bidStrategy === 'MINIMUM_ROAS'
+                          ? '최소 ROAS 값을 입력해주세요 (필수)'
+                          : '입찰 금액을 입력해주세요 (필수)'}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* ── 발행 옵션 ── */}
             <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
               <p className="text-sm font-medium text-gray-700 mb-2">발행 옵션</p>
@@ -1639,7 +1693,7 @@ export function AdsController() {
             </div>
 
             <Button className="w-full" onClick={() => createCampaignMutation.mutate()}
-              loading={createCampaignMutation.isPending} disabled={!budget}>
+              loading={createCampaignMutation.isPending} disabled={!budget || (!!bidStrategy && !bidAmount)}>
               캠페인 생성
             </Button>
           </div>

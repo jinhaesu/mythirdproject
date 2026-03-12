@@ -180,6 +180,8 @@ class PublishRequest(BaseModel):
     special_ad_categories: Optional[List[str]] = None
     use_cbo: bool = True  # Campaign Budget Optimization (campaign-level budget)
     force_create: bool = False  # Force create even if duplicate campaign name detected
+    bid_strategy: Optional[str] = None  # LOWEST_COST_WITH_BID_CAP, COST_CAP, MINIMUM_ROAS, or None (auto)
+    bid_amount: Optional[int] = None  # Required for BID_CAP/COST_CAP (in currency units)
 
 
 class PublishResponse(BaseModel):

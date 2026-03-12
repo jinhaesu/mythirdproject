@@ -388,6 +388,8 @@ class MetaMarketingAPI:
         excluded_audiences: Optional[List[str]] = None,
         advantage_plus_audience: bool = False,
         targeting_optimization: Optional[str] = None,
+        bid_strategy: Optional[str] = None,
+        bid_amount: Optional[int] = None,
         status: str = "PAUSED",
     ) -> Dict[str, Any]:
         """Create an ad set within a campaign.
@@ -422,10 +424,17 @@ class MetaMarketingAPI:
             "campaign_id": campaign_id,
             "billing_event": "IMPRESSIONS",
             "optimization_goal": optimization_goal,
-            "bid_strategy": "LOWEST_COST_WITHOUT_CAP",
             "targeting": targeting_spec,
             "status": status,
         }
+
+        # Bid strategy — omit for default lowest cost (Meta auto-manages)
+        if bid_strategy and bid_strategy != "LOWEST_COST_WITHOUT_CAP":
+            data["bid_strategy"] = bid_strategy
+            if bid_amount and bid_strategy in ("LOWEST_COST_WITH_BID_CAP", "COST_CAP"):
+                data["bid_amount"] = bid_amount
+            if bid_amount and bid_strategy == "MINIMUM_ROAS":
+                data["roas_average_floor"] = bid_amount
 
         # Budget — skip when CBO is enabled
         if not use_cbo:
