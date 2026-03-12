@@ -74,6 +74,32 @@ async def init_db():
             except Exception as te:
                 logger.warning(f"Table {table.name} already exists or error: {te}")
 
+    # Sync PostgreSQL enum types with Python enum values
+    try:
+        async with engine.begin() as conn:
+            # CampaignObjective enum
+            for val in ['TRAFFIC', 'CONVERSIONS', 'PURCHASE', 'LEAD_GENERATION', 'AWARENESS', 'ENGAGEMENT', 'APP_PROMOTION']:
+                try:
+                    await conn.execute(
+                        __import__('sqlalchemy').text(
+                            f"ALTER TYPE campaignobjective ADD VALUE IF NOT EXISTS '{val}'"
+                        )
+                    )
+                except Exception:
+                    pass
+            # CampaignStatus enum
+            for val in ['DRAFT', 'PENDING_REVIEW', 'ACTIVE', 'PAUSED', 'COMPLETED', 'REJECTED']:
+                try:
+                    await conn.execute(
+                        __import__('sqlalchemy').text(
+                            f"ALTER TYPE campaignstatus ADD VALUE IF NOT EXISTS '{val}'"
+                        )
+                    )
+                except Exception:
+                    pass
+    except Exception as e:
+        logger.warning(f"Enum sync skipped (not PostgreSQL?): {e}")
+
     # Add meta_ig_account_id column if missing (create_all doesn't alter existing tables)
     try:
         async with engine.begin() as conn:
