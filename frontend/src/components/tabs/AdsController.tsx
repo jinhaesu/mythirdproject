@@ -1976,6 +1976,17 @@ export function AdsController() {
               </div>
             </div>
 
+            {/* 미입력 항목 안내 */}
+            {(!budget || (!!bidStrategy && !bidAmount)) && (
+              <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg">
+                <p className="text-xs font-medium text-amber-800 flex items-center gap-1"><AlertTriangle size={12} /> 필수 항목을 확인해주세요</p>
+                <ul className="text-xs text-amber-700 mt-1 space-y-0.5 list-disc list-inside">
+                  {!budget && <li>Step 1에서 <button onClick={() => setActiveStep(1)} className="underline text-blue-600">예산</button>을 입력해주세요</li>}
+                  {!!bidStrategy && !bidAmount && <li>입찰 전략을 선택했으면 입찰 금액을 입력해주세요</li>}
+                </ul>
+              </div>
+            )}
+
             <Button className="w-full" onClick={() => createCampaignMutation.mutate()}
               loading={createCampaignMutation.isPending} disabled={!budget || (!!bidStrategy && !bidAmount)}>
               캠페인 생성
