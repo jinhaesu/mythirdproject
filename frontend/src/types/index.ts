@@ -163,12 +163,21 @@ export interface PublishOptions {
 export interface AdSetCreative {
   creative_id: number;
   creative?: Creative;        // reference for thumbnail/name display
-  ad_name: string;            // 광고 이름
+  // 광고 이름
+  ad_name: string;
+  // 광고 설정 (Ad Setup)
+  media_source: 'manual' | 'advantage_catalog'; // 미디어 설정
+  format: 'single' | 'carousel';               // 형식 (단일/슬라이드)
+  multi_advertiser_ads: boolean;                // 여러 광고주의 광고
+  // 광고 문구 (Ad Copy)
   primary_text: string;       // 본문 (메시지)
   headline: string;           // 제목
   description: string;        // 설명 (뉴스피드 링크 설명)
   call_to_action: string;     // CTA 버튼 (SHOP_NOW, LEARN_MORE, etc.)
+  // 랜딩 설정 (Landing)
+  landing_type: 'website' | 'app' | 'messenger' | 'instant_form'; // 기본 랜딩 페이지
   link_url: string;           // 웹사이트 URL
+  use_display_link: boolean;  // 표시 링크 사용
   display_link?: string;      // 표시 링크 (짧은 URL)
   url_params?: string;        // URL 매개변수 (UTM 등)
 }
