@@ -9,7 +9,7 @@ import {
   AlertTriangle, Check, Image as ImageIcon
 } from 'lucide-react';
 import { Button, Input, Card, CardTitle, Select } from '@/components/ui';
-import { campaignApi, creativeApi } from '@/lib/api';
+import { campaignApi, creativeApi, resolveMediaUrl } from '@/lib/api';
 import { useAppStore } from '@/store';
 import type { Campaign, Creative, StrategyRecommendation, Ad, TargetingConfig, TargetingSegment, AdSetCreative, CampaignObjective, BudgetType, PublishOptions } from '@/types';
 import toast from 'react-hot-toast';
@@ -104,9 +104,15 @@ export function AdsController() {
   // Launch option
   const [launchImmediately, setLaunchImmediately] = useState(false);
 
+  // Budget level: 'campaign' = CBO (auto-distribute), 'adset' = per-adset budget
+  const [budgetLevel, setBudgetLevel] = useState<'campaign' | 'adset'>('campaign');
+
   // Bid strategy
   const [bidStrategy, setBidStrategy] = useState<string>('');  // '' = auto (lowest cost)
   const [bidAmount, setBidAmount] = useState<string>('');
+
+  // Preview modal
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   // Step navigation for 3-level hierarchy
   const [activeStep, setActiveStep] = useState<1 | 2 | 3>(1);
@@ -447,6 +453,7 @@ export function AdsController() {
       dataset_id: resolvedDatasetId,
       pixel_id: resolvedPixelId,
       currency: 'KRW',
+      use_cbo: budgetLevel === 'campaign',
       bid_strategy: bidStrategy || undefined,
       bid_amount: bidAmount ? Number(bidAmount) : undefined,
     }),
@@ -910,7 +917,13 @@ export function AdsController() {
                           }`}
                         >
                           {(creative.thumbnail_url || creative.file_url) ? (
-                            <img src={creative.thumbnail_url || creative.file_url} alt={creative.name} className="w-full h-16 object-cover" />
+                            <div className="relative group">
+                              <img src={resolveMediaUrl(creative.thumbnail_url || creative.file_url)} alt={creative.name} className="w-full h-16 object-cover" />
+                              <button onClick={(e) => { e.stopPropagation(); setPreviewUrl(resolveMediaUrl(creative.file_url || creative.thumbnail_url)); }}
+                                className="absolute inset-0 bg-black/0 group-hover:bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all">
+                                <Eye size={14} className="text-white drop-shadow" />
+                              </button>
+                            </div>
                           ) : (
                             <div className="w-full h-16 bg-gray-100 flex items-center justify-center">
                               <ImageIcon size={16} className="text-gray-400" />
@@ -1007,7 +1020,13 @@ export function AdsController() {
                                         onClick={() => addCreativeToAdSet(i, c)}
                                         className={`relative rounded overflow-hidden border transition-all ${alreadyAdded ? 'opacity-40 cursor-not-allowed border-gray-200' : 'border-blue-300 hover:border-blue-500 hover:shadow-sm cursor-pointer'}`}>
                                         {c.thumbnail_url || c.file_url ? (
-                                          <img src={c.thumbnail_url || c.file_url} alt={c.name} className="w-full aspect-square object-cover" />
+                                          <div className="relative group">
+                                            <img src={resolveMediaUrl(c.thumbnail_url || c.file_url)} alt={c.name} className="w-full aspect-square object-cover" />
+                                            <div onClick={(e) => { e.stopPropagation(); e.preventDefault(); setPreviewUrl(resolveMediaUrl(c.file_url || c.thumbnail_url)); }}
+                                              className="absolute top-0 right-0 p-0.5 bg-black/40 rounded-bl opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                                              <Eye size={10} className="text-white" />
+                                            </div>
+                                          </div>
                                         ) : (
                                           <div className="w-full aspect-square bg-gray-200 flex items-center justify-center"><ImageIcon size={16} className="text-gray-400" /></div>
                                         )}
@@ -1030,9 +1049,15 @@ export function AdsController() {
                                 <div key={ad.creative_id} className="border border-gray-200 rounded-lg bg-white">
                                   {/* 소재 헤더: 썸네일 + 광고 이름 + 삭제 */}
                                   <div className="flex items-center gap-2 p-2">
-                                    <div className="w-10 h-10 rounded overflow-hidden flex-shrink-0 bg-gray-100">
+                                    <div className="w-10 h-10 rounded overflow-hidden flex-shrink-0 bg-gray-100 relative group cursor-pointer"
+                                      onClick={() => { const url = resolveMediaUrl(ad.creative?.file_url || ad.creative?.thumbnail_url); if (url) setPreviewUrl(url); }}>
                                       {(ad.creative?.thumbnail_url || ad.creative?.file_url) ? (
-                                        <img src={ad.creative.thumbnail_url || ad.creative.file_url} alt="" className="w-full h-full object-cover" />
+                                        <>
+                                          <img src={resolveMediaUrl(ad.creative?.thumbnail_url || ad.creative?.file_url)} alt="" className="w-full h-full object-cover" />
+                                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all">
+                                            <Eye size={12} className="text-white drop-shadow" />
+                                          </div>
+                                        </>
                                       ) : <ImageIcon size={16} className="m-auto mt-2.5 text-gray-400" />}
                                     </div>
                                     <div className="flex-1 min-w-0">
@@ -1297,6 +1322,38 @@ export function AdsController() {
               </div>
             )}
 
+            {/* ── 예산 사용 설정 (CBO vs 광고세트별) ── */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">예산 사용 설정</label>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setBudgetLevel('campaign')}
+                  className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    budgetLevel === 'campaign'
+                      ? 'bg-primary-500 text-white'
+                      : 'bg-white border border-gray-300 text-gray-600 hover:border-primary-300'
+                  }`}
+                >
+                  캠페인별 예산 사용
+                </button>
+                <button
+                  onClick={() => setBudgetLevel('adset')}
+                  className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    budgetLevel === 'adset'
+                      ? 'bg-primary-500 text-white'
+                      : 'bg-white border border-gray-300 text-gray-600 hover:border-primary-300'
+                  }`}
+                >
+                  광고세트별 예산 사용
+                </button>
+              </div>
+              <p className="text-xs text-gray-500 mt-1.5">
+                {budgetLevel === 'campaign'
+                  ? '캠페인 예산 안에서 광고세트별 예산이 자동 분배됩니다 (CBO).'
+                  : '각 광고세트에서 개별적으로 예산을 설정합니다.'}
+              </p>
+            </div>
+
             {/* ── 어드밴티지+ 설정 ── */}
             <div className="space-y-3">
               <div
@@ -1460,19 +1517,32 @@ export function AdsController() {
                           <p className="text-xs text-gray-500 italic pt-2">{seg.description}</p>
                         )}
 
-                        {/* 예산 비중 */}
-                        <div className="flex items-center gap-2 pt-2">
-                          <span className="text-xs text-gray-500 w-14">예산 비중:</span>
-                          <input type="range" min={5} max={80} value={seg.ratio}
-                            onChange={(e) => updateSegmentRatio(i, Number(e.target.value))}
-                            className="flex-1 h-1.5 accent-blue-500" />
-                          <span className="text-xs font-semibold text-blue-600 w-10 text-right">{seg.ratio}%</span>
-                          {budget && (
-                            <span className="text-[10px] text-gray-400">
-                              ({'\u20A9'}{Math.round(Number(budget) * seg.ratio / (totalRatio || 100)).toLocaleString()})
-                            </span>
-                          )}
-                        </div>
+                        {/* 예산 비중 or 개별 예산 */}
+                        {budgetLevel === 'campaign' ? (
+                          <div className="flex items-center gap-2 pt-2">
+                            <span className="text-xs text-gray-500 w-14">예산 비중:</span>
+                            <input type="range" min={5} max={80} value={seg.ratio}
+                              onChange={(e) => updateSegmentRatio(i, Number(e.target.value))}
+                              className="flex-1 h-1.5 accent-blue-500" />
+                            <span className="text-xs font-semibold text-blue-600 w-10 text-right">{seg.ratio}%</span>
+                            {budget && (
+                              <span className="text-[10px] text-gray-400">
+                                ({'\u20A9'}{Math.round(Number(budget) * seg.ratio / (totalRatio || 100)).toLocaleString()})
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 pt-2">
+                            <span className="text-xs text-gray-500 w-20">일일 예산:</span>
+                            <div className="flex items-center gap-1 flex-1">
+                              <span className="text-xs text-gray-400">{'\u20A9'}</span>
+                              <input type="number" placeholder="50,000"
+                                value={seg.daily_budget || ''}
+                                onChange={(e) => { const u = [...segments]; u[i] = { ...u[i], daily_budget: Number(e.target.value) || 0 }; setSegments(u); }}
+                                className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs" />
+                            </div>
+                          </div>
+                        )}
 
                         {/* ── 타겟팅 설정 ── */}
                         <div className="p-3 bg-gray-50 rounded-lg space-y-3">
@@ -1946,6 +2016,23 @@ export function AdsController() {
           )}
         </Card>
       </div>
+
+      {/* ── 미리보기 모달 ── */}
+      {previewUrl && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setPreviewUrl(null)}>
+          <div className="relative max-w-3xl max-h-[90vh] m-4" onClick={(e) => e.stopPropagation()}>
+            <button onClick={() => setPreviewUrl(null)}
+              className="absolute -top-3 -right-3 w-8 h-8 bg-white rounded-full shadow-lg flex items-center justify-center hover:bg-gray-100 z-10">
+              <X size={16} />
+            </button>
+            {previewUrl.match(/\.(mp4|mov|webm|avi)$/i) ? (
+              <video src={previewUrl} controls autoPlay className="max-w-full max-h-[85vh] rounded-lg shadow-2xl" />
+            ) : (
+              <img src={previewUrl} alt="미리보기" className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl" />
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

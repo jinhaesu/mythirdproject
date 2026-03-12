@@ -157,6 +157,7 @@ export interface PublishOptions {
   currency: string;
   bid_strategy?: string;
   bid_amount?: number;
+  use_cbo?: boolean;
 }
 
 // Per-creative settings within an ad set (maps to Meta Ad level)

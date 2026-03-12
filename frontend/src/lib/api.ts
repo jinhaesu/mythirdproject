@@ -21,6 +21,18 @@ import type {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api/v1';
 
+// Resolve media URLs (e.g. /uploads/file.jpg -> http://backend:8000/uploads/file.jpg)
+export function resolveMediaUrl(url?: string | null): string {
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) return url;
+  // Extract backend host from API_BASE (remove /api/v1 suffix)
+  const backendHost = API_BASE.replace(/\/api\/v1\/?$/, '');
+  if (backendHost && backendHost !== '/api/v1' && backendHost !== '') {
+    return `${backendHost}${url}`;
+  }
+  return url;
+}
+
 const api = axios.create({
   baseURL: API_BASE,
   headers: {
