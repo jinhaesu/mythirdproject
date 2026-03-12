@@ -33,6 +33,16 @@ class Settings(BaseSettings):
     NAVER_CLIENT_ID: str = ""
     NAVER_CLIENT_SECRET: str = ""
 
+    # Naver Search Ads API (검색광고)
+    NAVER_ADS_API_KEY: str = ""
+    NAVER_ADS_SECRET_KEY: str = ""
+    NAVER_ADS_CUSTOMER_ID: str = ""
+
+    # Naver GFA API (성과형 디스플레이 광고)
+    NAVER_GFA_API_KEY: str = ""
+    NAVER_GFA_SECRET_KEY: str = ""
+    NAVER_GFA_CUSTOMER_ID: str = ""
+
     # Resend (Email)
     RESEND_API_KEY: str = ""
     RESEND_FROM_EMAIL: str = "onboarding@resend.dev"

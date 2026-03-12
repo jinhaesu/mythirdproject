@@ -2,7 +2,8 @@
 from fastapi import APIRouter
 
 from app.api.v1.endpoints import (
-    auth, benchmark, creative, campaign, analytics, dashboard, campaign_planner, chat, market_keywords
+    auth, benchmark, creative, campaign, analytics, dashboard, campaign_planner, chat, market_keywords,
+    naver_analytics, naver_campaign,
 )
 
 api_router = APIRouter()
@@ -68,4 +69,18 @@ api_router.include_router(
     chat.router,
     prefix="/ai",
     tags=["AI Command Center"]
+)
+
+# Naver Advertising Analytics (검색광고 + GFA)
+api_router.include_router(
+    naver_analytics.router,
+    prefix="/naver",
+    tags=["Naver Advertising"]
+)
+
+# Naver Campaign Management (캠페인 위자드, 입찰가 최적화)
+api_router.include_router(
+    naver_campaign.router,
+    prefix="/naver",
+    tags=["Naver Campaign Management"]
 )

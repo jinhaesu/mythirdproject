@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { useAuthStore, useAppStore } from '@/store';
 import { authApi } from '@/lib/api';
-import { Header, TabNav } from '@/components/layout';
+import { Header, TabNav, NaverTabNav } from '@/components/layout';
 import { Button, Input, Card } from '@/components/ui';
 import {
   MarketIntelligence,
@@ -14,12 +14,20 @@ import {
   PerformanceDashboard,
   AutoManagement,
 } from '@/components/tabs';
+import {
+  NaverSearchAdsDashboard,
+  NaverGFADashboard,
+  NaverSearchAdsManager,
+  NaverGFAManager,
+  NaverAutoManagement,
+  NaverReports,
+} from '@/components/tabs/naver';
 import { AICommandCenter } from '@/components/chat/AICommandCenter';
 import toast from 'react-hot-toast';
 
 export default function Home() {
   const { isAuthenticated, setAuth } = useAuthStore();
-  const { activeTab } = useAppStore();
+  const { activeTab, activePlatform, naverActiveTab } = useAppStore();
   const [verifying, setVerifying] = useState(false);
 
   // Handle magic link token from URL
@@ -74,14 +82,28 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
-      <TabNav />
+      {activePlatform === 'meta' ? <TabNav /> : <NaverTabNav />}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {activeTab === 0 && <MarketIntelligence />}
-        {activeTab === 1 && <CreativeStudio />}
-        {activeTab === 2 && <CampaignPlanner />}
-        {activeTab === 3 && <AdsController />}
-        {activeTab === 4 && <PerformanceDashboard />}
-        {activeTab === 5 && <AutoManagement />}
+        {activePlatform === 'meta' && (
+          <>
+            {activeTab === 0 && <MarketIntelligence />}
+            {activeTab === 1 && <CreativeStudio />}
+            {activeTab === 2 && <CampaignPlanner />}
+            {activeTab === 3 && <AdsController />}
+            {activeTab === 4 && <PerformanceDashboard />}
+            {activeTab === 5 && <AutoManagement />}
+          </>
+        )}
+        {activePlatform === 'naver' && (
+          <>
+            {naverActiveTab === 0 && <NaverSearchAdsDashboard />}
+            {naverActiveTab === 1 && <NaverGFADashboard />}
+            {naverActiveTab === 2 && <NaverSearchAdsManager />}
+            {naverActiveTab === 3 && <NaverGFAManager />}
+            {naverActiveTab === 4 && <NaverAutoManagement />}
+            {naverActiveTab === 5 && <NaverReports />}
+          </>
+        )}
       </main>
       <AICommandCenter />
     </div>

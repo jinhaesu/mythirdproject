@@ -35,6 +35,11 @@ class User(Base):
     meta_dataset_id: Mapped[Optional[str]] = mapped_column(String(255))  # Default dataset ID (Cafe24, Smart Store, etc.)
     default_currency: Mapped[str] = mapped_column(String(10), default="KRW")  # Default currency
 
+    # Naver advertising connections
+    naver_search_ads_connected: Mapped[bool] = mapped_column(Boolean, default=False)
+    naver_gfa_connected: Mapped[bool] = mapped_column(Boolean, default=False)
+    naver_ads_customer_id: Mapped[Optional[str]] = mapped_column(String(255))
+
     # Brand settings (JSON stored as text for simplicity)
     brand_settings: Mapped[Optional[str]] = mapped_column(Text)  # JSON: logo, colors, etc.
 

@@ -35,6 +35,14 @@ interface AppState {
   activeTab: number;
   setActiveTab: (tab: number) => void;
 
+  // Platform switcher (Meta vs Naver)
+  activePlatform: 'meta' | 'naver';
+  setActivePlatform: (platform: 'meta' | 'naver') => void;
+
+  // Naver internal tab
+  naverActiveTab: number;
+  setNaverActiveTab: (tab: number) => void;
+
   // Style from TAB 1 to pass to TAB 2
   selectedStyle: StyleExtraction | null;
   stylePrompt: string | null;
@@ -71,6 +79,12 @@ interface AppState {
 export const useAppStore = create<AppState>((set) => ({
   activeTab: 0,
   setActiveTab: (tab) => set({ activeTab: tab }),
+
+  activePlatform: 'meta',
+  setActivePlatform: (platform) => set({ activePlatform: platform }),
+
+  naverActiveTab: 0,
+  setNaverActiveTab: (tab) => set({ naverActiveTab: tab }),
 
   selectedStyle: null,
   stylePrompt: null,

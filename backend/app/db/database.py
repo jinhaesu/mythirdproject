@@ -153,3 +153,20 @@ async def init_db():
                 )
         except Exception:
             pass
+
+    # Add Naver advertising columns to users if missing
+    naver_cols = [
+        ("naver_search_ads_connected", "BOOLEAN DEFAULT FALSE"),
+        ("naver_gfa_connected", "BOOLEAN DEFAULT FALSE"),
+        ("naver_ads_customer_id", "VARCHAR(255)"),
+    ]
+    for col, col_type in naver_cols:
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(
+                    __import__('sqlalchemy').text(
+                        f"ALTER TABLE users ADD COLUMN {col} {col_type}"
+                    )
+                )
+        except Exception:
+            pass

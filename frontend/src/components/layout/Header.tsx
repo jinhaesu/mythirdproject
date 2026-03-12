@@ -2,12 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import { Settings, LogOut, User, ChevronDown, Link2, Unlink, X, Instagram, Facebook, Globe } from 'lucide-react';
-import { useAuthStore } from '@/store';
+import { useAuthStore, useAppStore } from '@/store';
 import { authApi } from '@/lib/api';
 import toast from 'react-hot-toast';
 
 export function Header() {
   const { user, logout, isAuthenticated, setAuth, token } = useAuthStore();
+  const { activePlatform, setActivePlatform } = useAppStore();
   const [showMenu, setShowMenu] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
@@ -60,13 +61,50 @@ export function Header() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center gap-3">
+            {/* Dynamic logo based on active platform */}
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-gradient-to-r from-meta-blue to-meta-instagram rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-sm">M</span>
-              </div>
-              <span className="font-bold text-xl text-gray-900">Meta-Commander</span>
+              {activePlatform === 'meta' ? (
+                <div className="w-8 h-8 bg-gradient-to-r from-meta-blue to-meta-instagram rounded-lg flex items-center justify-center">
+                  <span className="text-white font-bold text-sm">M</span>
+                </div>
+              ) : (
+                <div className="w-8 h-8 bg-gradient-to-r from-green-500 to-green-600 rounded-lg flex items-center justify-center">
+                  <span className="text-white font-bold text-sm">N</span>
+                </div>
+              )}
+              <span className="font-bold text-xl text-gray-900">
+                {activePlatform === 'meta' ? 'Meta-Commander' : '네이버 커맨더'}
+              </span>
             </div>
             <span className="px-2 py-0.5 bg-primary-100 text-primary-700 rounded text-xs font-medium">Beta</span>
+
+            {/* Platform Switcher */}
+            {isAuthenticated && (
+              <div className="flex items-center bg-gray-100 rounded-full p-0.5 ml-2">
+                <button
+                  onClick={() => setActivePlatform('meta')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                    activePlatform === 'meta'
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  <span className="w-4 h-4 flex items-center justify-center text-[10px] font-bold">M</span>
+                  <span className="hidden sm:inline">Meta</span>
+                </button>
+                <button
+                  onClick={() => setActivePlatform('naver')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                    activePlatform === 'naver'
+                      ? 'bg-green-600 text-white shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  <span className="w-4 h-4 flex items-center justify-center text-[10px] font-bold">N</span>
+                  <span className="hidden sm:inline">Naver</span>
+                </button>
+              </div>
+            )}
           </div>
 
           {isAuthenticated && user && (

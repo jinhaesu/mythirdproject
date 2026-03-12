@@ -449,3 +449,134 @@ export interface ChatResponse {
   reply: string;
   suggested_questions: string[];
 }
+
+// ═══ Naver Types ═══
+export type NaverCampaignType = 'WEB_SITE' | 'SHOPPING' | 'BRAND_SEARCH' | 'PERFORMANCE_MAX';
+export type NaverAdGroupStatus = 'ELIGIBLE' | 'PAUSED' | 'DELETED';
+
+export interface NaverSearchCampaign {
+  nccCampaignId: string;
+  name: string;
+  campaignTp: NaverCampaignType;
+  deliveryMethod: string;
+  dailyBudget: number;
+  status: string;
+  statusReason: string;
+  // Performance
+  impressions?: number;
+  clicks?: number;
+  spend?: number;
+  conversions?: number;
+  conversionValue?: number;
+  ctr?: number;
+  cpc?: number;
+  roas?: number;
+}
+
+export interface NaverAdGroup {
+  nccAdgroupId: string;
+  nccCampaignId: string;
+  name: string;
+  status: string;
+  bidAmt: number;
+  dailyBudget?: number;
+  targets?: NaverTarget[];
+  // Performance
+  impressions?: number;
+  clicks?: number;
+  spend?: number;
+  ctr?: number;
+  cpc?: number;
+}
+
+export interface NaverTarget {
+  tp: string; // LOCATION, TIME, AGE, GENDER, DEVICE, MEDIA, etc.
+  values: string[];
+}
+
+export interface NaverKeyword {
+  nccKeywordId: string;
+  nccAdgroupId: string;
+  keyword: string;
+  bidAmt: number;
+  useGroupBidAmt: boolean;
+  status: string;
+  qualityIndex?: number;
+  // Performance
+  impressions?: number;
+  clicks?: number;
+  spend?: number;
+  ctr?: number;
+  cpc?: number;
+  avgPosition?: number;
+}
+
+export interface NaverAd {
+  nccAdId: string;
+  nccAdgroupId: string;
+  type: string; // TEXT_45, IMAGE_BANNER, etc.
+  headline?: string;
+  description?: string;
+  url?: string;
+  status: string;
+  impressions?: number;
+  clicks?: number;
+  spend?: number;
+}
+
+export interface NaverGFACampaign {
+  campaignId: string;
+  name: string;
+  objective: string; // WEBSITE_TRAFFIC, CONVERSION, VIDEO_VIEW, REACH
+  status: string;
+  dailyBudget: number;
+  totalBudget?: number;
+  startDate?: string;
+  endDate?: string;
+  // Performance
+  impressions?: number;
+  clicks?: number;
+  spend?: number;
+  conversions?: number;
+  conversionValue?: number;
+  ctr?: number;
+  cpc?: number;
+  cpm?: number;
+  roas?: number;
+}
+
+export interface NaverGFAAdGroup {
+  adGroupId: string;
+  campaignId: string;
+  name: string;
+  status: string;
+  bidStrategy: string;
+  bidAmount?: number;
+  targeting?: {
+    age?: string[];
+    gender?: string[];
+    interests?: string[];
+    placements?: string[];
+    devices?: string[];
+  };
+  impressions?: number;
+  clicks?: number;
+  spend?: number;
+}
+
+export interface NaverGFACreative {
+  creativeId: string;
+  adGroupId: string;
+  type: string; // IMAGE, VIDEO, NATIVE
+  title?: string;
+  description?: string;
+  imageUrl?: string;
+  landingUrl?: string;
+  status: string;
+  impressions?: number;
+  clicks?: number;
+  spend?: number;
+  ctr?: number;
+}
+
+export type NaverPlatformType = 'search_ads' | 'gfa';
