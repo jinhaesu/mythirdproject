@@ -160,7 +160,7 @@ export interface PublishOptions {
 }
 
 export interface TargetingSegment {
-  type: 'BROAD' | 'RETARGET' | 'INTEREST';
+  type: 'BROAD' | 'RETARGET' | 'INTEREST' | 'CUSTOM';
   name: string;
   enabled: boolean;
   ratio: number;  // percentage 0-100

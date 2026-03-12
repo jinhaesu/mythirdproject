@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import {
-  Target, Zap, Upload, CheckCircle, Trash2,
+  Target, Zap, Upload, CheckCircle, Trash2, Plus, Copy,
   Play, Pause, ChevronDown, ChevronUp, RefreshCw, Info, X,
   Users, MapPin, Crosshair, Layers, Eye, Database, Settings, ToggleLeft, ToggleRight,
   AlertTriangle, Check, Image as ImageIcon
@@ -120,8 +120,9 @@ export function AdsController() {
   const [interestInput, setInterestInput] = useState('');
   const [interests, setInterests] = useState<string[]>([]);
 
-  // Targeting segments (3 types: BROAD, RETARGET, INTEREST)
+  // 광고세트 (Ad Sets)
   const [segments, setSegments] = useState<TargetingSegment[]>(createDefaultSegments());
+  const [expandedAdSets, setExpandedAdSets] = useState<Record<number, boolean>>({ 0: true });
   const [showAdSetPreview, setShowAdSetPreview] = useState(false);
 
   // Advanced settings toggle
@@ -487,6 +488,66 @@ export function AdsController() {
     setSegments(segments.filter((_, i) => i !== index));
   };
 
+  const addAdSet = (type: 'BROAD' | 'RETARGET' | 'INTEREST' | 'CUSTOM') => {
+    const typeNames = { BROAD: '브로드', RETARGET: '리타겟', INTEREST: '관심사', CUSTOM: '커스텀' };
+    const newSeg: TargetingSegment = {
+      type,
+      name: `${typeNames[type]} ${segments.length + 1}`,
+      enabled: true,
+      ratio: 20,
+      targeting: defaultTargetingConfig(),
+      description: '',
+      ...(type === 'RETARGET' ? { custom_audiences: [], exclusion_audiences: [] } : {}),
+      ...(type === 'INTEREST' || type === 'CUSTOM' ? { interests: [] } : {}),
+    };
+    setSegments(prev => [...prev, newSeg]);
+    setExpandedAdSets(prev => ({ ...prev, [segments.length]: true }));
+  };
+
+  const duplicateAdSet = (index: number) => {
+    const source = segments[index];
+    const copy: TargetingSegment = {
+      ...JSON.parse(JSON.stringify(source)),
+      name: `${source.name} (복사)`,
+    };
+    setSegments(prev => [...prev, copy]);
+    setExpandedAdSets(prev => ({ ...prev, [segments.length]: true }));
+  };
+
+  const toggleAdSetExpanded = (index: number) => {
+    setExpandedAdSets(prev => ({ ...prev, [index]: !prev[index] }));
+  };
+
+  const updateSegmentTargeting = (index: number, field: string, value: any) => {
+    const updated = [...segments];
+    const seg = { ...updated[index] };
+    const targeting = { ...(seg.targeting || defaultTargetingConfig()) };
+
+    if (field === 'min_age') targeting.age_range = { ...targeting.age_range, min_age: value };
+    else if (field === 'max_age') targeting.age_range = { ...targeting.age_range, max_age: value };
+    else if (field === 'genders') targeting.genders = value;
+    else if (field === 'countries') targeting.geo = { ...targeting.geo, countries: value };
+    else if (field === 'interests') targeting.interests = { ...targeting.interests, interests: value };
+
+    seg.targeting = targeting;
+    updated[index] = seg;
+    setSegments(updated);
+  };
+
+  const distributeRatiosEvenly = () => {
+    const enabled = segments.filter(s => s.enabled);
+    if (enabled.length === 0) return;
+    const evenRatio = Math.floor(100 / enabled.length);
+    const remainder = 100 - evenRatio * enabled.length;
+    let idx = 0;
+    setSegments(segments.map(s => {
+      if (!s.enabled) return s;
+      const r = evenRatio + (idx === 0 ? remainder : 0);
+      idx++;
+      return { ...s, ratio: r };
+    }));
+  };
+
   // Compute ad set preview based on segments + budget
   const adSetPreview = useMemo(() => {
     const active = segments.filter(s => s.enabled);
@@ -494,17 +555,20 @@ export function AdsController() {
     const totalBudget = Number(budget);
     const tRatio = active.reduce((sum, s) => sum + s.ratio, 0);
     const days = budgetType === 'LIFETIME' && campaignDays > 0 ? campaignDays : 7;
-    return active.map((seg) => ({
-      name: seg.name,
-      type: seg.type,
-      ratio: seg.ratio,
-      dailyBudget: Math.round((totalBudget / days) * (seg.ratio / tRatio)),
-      ageRange: seg.age_range || `${ageMin}-${ageMax}세`,
-      gender: seg.gender || genders.join(', '),
-      interests: seg.interests || interests,
-      description: seg.description || '',
-    }));
-  }, [segments, budget, ageMin, ageMax, genders, interests, budgetType, campaignDays]);
+    return active.map((seg) => {
+      const t = seg.targeting || defaultTargetingConfig();
+      return {
+        name: seg.name,
+        type: seg.type,
+        ratio: seg.ratio,
+        dailyBudget: Math.round((totalBudget / days) * (seg.ratio / (tRatio || 1))),
+        ageRange: `${t.age_range?.min_age || 18}-${t.age_range?.max_age || 65}세`,
+        gender: t.genders?.join(', ') || 'all',
+        interests: t.interests?.interests || seg.interests || [],
+        description: seg.description || '',
+      };
+    });
+  }, [segments, budget, budgetType, campaignDays]);
 
   return (
     <div className="grid lg:grid-cols-3 gap-6">
@@ -1070,389 +1134,303 @@ export function AdsController() {
             </div>
             </div>)}
 
-            {/* ═══ STEP 2: 광고세트 설정 ═══ */}
+            {/* ═══ STEP 2: 광고세트 관리 ═══ */}
             {activeStep === 2 && (<div className="space-y-4">
-            {/* ── 타겟팅 설정 토글 ── */}
-            <div>
-              <button
-                onClick={() => setShowTargeting(!showTargeting)}
-                className="flex items-center gap-2 w-full p-3 rounded-lg border border-gray-200 hover:border-gray-300 transition-colors text-left"
-              >
-                <Crosshair size={16} className="text-blue-500" />
-                <span className="text-sm font-medium text-gray-700 flex-1">타겟팅 설정</span>
-                {enabledSegments.length > 0 && (
-                  <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{enabledSegments.length}개 세그먼트</span>
+
+            {/* ── 광고세트 추가 ── */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Layers size={16} className="text-blue-600" />
+                <span className="text-sm font-semibold text-gray-800">광고세트 ({segments.length}개)</span>
+                {enabledSegments.length > 0 && totalRatio !== 100 && (
+                  <span className={`text-xs px-1.5 py-0.5 rounded ${totalRatio > 100 ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'}`}>
+                    비중 {totalRatio}%
+                  </span>
                 )}
-                {showTargeting ? <ChevronUp size={14} className="text-gray-400" /> : <ChevronDown size={14} className="text-gray-400" />}
-              </button>
+              </div>
+              <div className="flex items-center gap-1">
+                {enabledSegments.length > 1 && (
+                  <button onClick={distributeRatiosEvenly}
+                    className="text-xs text-blue-600 hover:text-blue-700 px-2 py-1 rounded hover:bg-blue-50">
+                    균등 배분
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowAdSetPreview(!showAdSetPreview)}
+                  className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-50"
+                >
+                  <Eye size={12} /> 미리보기
+                </button>
+              </div>
+            </div>
 
-              {showTargeting && (
-                <div className="mt-3 p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-4">
-                  {/* 연령 */}
-                  <div>
-                    <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 mb-2">
-                      <Users size={14} /> 연령
-                    </label>
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="text" inputMode="numeric" pattern="[0-9]*"
-                          value={ageMin}
-                          onChange={(e) => {
-                            const v = e.target.value.replace(/[^0-9]/g, '');
-                            if (v === '') return;
-                            setAgeMin(Math.max(13, Math.min(Number(v), ageMax)));
-                          }}
-                          onBlur={(e) => {
-                            const v = Number(e.target.value) || 18;
-                            setAgeMin(Math.max(13, Math.min(v, ageMax)));
-                          }}
-                          className="w-16 px-2 py-1.5 border border-gray-300 rounded text-sm text-center"
-                        />
-                        <span className="text-sm text-gray-500">세</span>
-                      </div>
-                      <span className="text-gray-400">~</span>
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="text" inputMode="numeric" pattern="[0-9]*"
-                          value={ageMax}
-                          onChange={(e) => {
-                            const v = e.target.value.replace(/[^0-9]/g, '');
-                            if (v === '') return;
-                            setAgeMax(Math.min(65, Math.max(Number(v), ageMin)));
-                          }}
-                          onBlur={(e) => {
-                            const v = Number(e.target.value) || 65;
-                            setAgeMax(Math.min(65, Math.max(v, ageMin)));
-                          }}
-                          className="w-16 px-2 py-1.5 border border-gray-300 rounded text-sm text-center"
-                        />
-                        <span className="text-sm text-gray-500">세</span>
-                      </div>
-                    </div>
-                  </div>
+            {/* 광고세트 유형 선택 + 추가 */}
+            <div className="flex gap-1.5 flex-wrap">
+              {([
+                { type: 'BROAD' as const, label: '+ 브로드', color: 'border-purple-300 text-purple-700 hover:bg-purple-50' },
+                { type: 'RETARGET' as const, label: '+ 리타겟', color: 'border-orange-300 text-orange-700 hover:bg-orange-50' },
+                { type: 'INTEREST' as const, label: '+ 관심사', color: 'border-teal-300 text-teal-700 hover:bg-teal-50' },
+                { type: 'CUSTOM' as const, label: '+ 커스텀', color: 'border-blue-300 text-blue-700 hover:bg-blue-50' },
+              ]).map(({ type, label, color }) => (
+                <button key={type} onClick={() => addAdSet(type)}
+                  className={`px-2.5 py-1.5 border rounded-lg text-xs font-medium transition-colors ${color}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
 
-                  {/* 성별 */}
-                  <div>
-                    <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 mb-2">
-                      <Users size={14} /> 성별
-                    </label>
-                    <div className="flex gap-2">
-                      {[
-                        { value: 'all', label: '전체' },
-                        { value: 'male', label: '남성' },
-                        { value: 'female', label: '여성' },
-                      ].map((g) => (
-                        <button
-                          key={g.value}
-                          onClick={() => setGenders([g.value])}
-                          className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                            genders.includes(g.value)
-                              ? 'bg-blue-500 text-white'
-                              : 'bg-white border border-gray-300 text-gray-600 hover:border-blue-300'
-                          }`}
-                        >
-                          {g.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+            {/* ── 광고세트 카드 목록 ── */}
+            {segments.length === 0 && (
+              <div className="p-6 text-center border-2 border-dashed border-gray-200 rounded-lg">
+                <Layers size={24} className="mx-auto text-gray-400 mb-2" />
+                <p className="text-sm text-gray-500">광고세트를 추가해주세요</p>
+                <p className="text-xs text-gray-400 mt-1">위 버튼으로 브로드, 리타겟, 관심사, 커스텀 유형을 추가할 수 있습니다.</p>
+              </div>
+            )}
 
-                  {/* 지역 */}
-                  <div>
-                    <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 mb-2">
-                      <MapPin size={14} /> 지역
-                    </label>
-                    <div className="flex gap-2">
-                      {[
-                        { value: 'KR', label: '한국' },
-                        { value: 'US', label: '미국' },
-                        { value: 'JP', label: '일본' },
-                      ].map((c) => (
-                        <button
-                          key={c.value}
-                          onClick={() => {
-                            if (countries.includes(c.value)) {
-                              setCountries(countries.filter((cc) => cc !== c.value));
-                            } else {
-                              setCountries([...countries, c.value]);
-                            }
-                          }}
-                          className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                            countries.includes(c.value)
-                              ? 'bg-blue-500 text-white'
-                              : 'bg-white border border-gray-300 text-gray-600 hover:border-blue-300'
-                          }`}
-                        >
-                          {c.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+            <div className="space-y-3">
+              {segments.map((seg, i) => {
+                const isExpanded = expandedAdSets[i] ?? false;
+                const t = seg.targeting || defaultTargetingConfig();
+                const typeBadge = seg.type === 'BROAD' ? 'bg-purple-100 text-purple-700'
+                  : seg.type === 'RETARGET' ? 'bg-orange-100 text-orange-700'
+                  : seg.type === 'INTEREST' ? 'bg-teal-100 text-teal-700'
+                  : 'bg-blue-100 text-blue-700';
+                const cardBorder = seg.enabled
+                  ? (seg.type === 'BROAD' ? 'border-purple-200' : seg.type === 'RETARGET' ? 'border-orange-200' : seg.type === 'INTEREST' ? 'border-teal-200' : 'border-blue-200')
+                  : 'border-gray-200';
 
-                  {/* 관심사 */}
-                  <div>
-                    <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 mb-2">
-                      <Layers size={14} /> 관심사
-                    </label>
-                    <div className="flex gap-2 mb-2">
+                return (
+                  <div key={i} className={`rounded-lg border transition-colors ${cardBorder} ${!seg.enabled ? 'opacity-50' : ''}`}>
+                    {/* Card Header */}
+                    <div className="flex items-center gap-2 p-3 cursor-pointer" onClick={() => toggleAdSetExpanded(i)}>
+                      <button onClick={(e) => { e.stopPropagation(); toggleSegmentEnabled(i); }} className="flex-shrink-0">
+                        {seg.enabled ? <ToggleRight size={20} className="text-green-500" /> : <ToggleLeft size={20} className="text-gray-400" />}
+                      </button>
                       <input
-                        type="text"
-                        placeholder="관심사 입력 (예: 패션, 뷰티)"
-                        value={interestInput}
-                        onChange={(e) => setInterestInput(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addInterest())}
-                        className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+                        type="text" value={seg.name}
+                        onChange={(e) => updateSegmentName(i, e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex-1 text-sm font-medium text-gray-800 bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-400 focus:outline-none px-1 py-0.5 min-w-0"
                       />
-                      <button
-                        onClick={addInterest}
-                        className="px-3 py-1.5 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600"
-                      >
-                        추가
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium flex-shrink-0 ${typeBadge}`}>
+                        {seg.type === 'BROAD' ? '브로드' : seg.type === 'RETARGET' ? '리타겟' : seg.type === 'INTEREST' ? '관심사' : '커스텀'}
+                      </span>
+                      <span className="text-xs font-semibold text-blue-600 flex-shrink-0 w-8 text-right">{seg.ratio}%</span>
+                      <button onClick={(e) => { e.stopPropagation(); duplicateAdSet(i); }} className="text-gray-400 hover:text-blue-500 flex-shrink-0" title="복제">
+                        <Copy size={13} />
                       </button>
-                    </div>
-                    {interests.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5">
-                        {interests.map((interest, i) => (
-                          <span key={i} className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs">
-                            {interest}
-                            <button onClick={() => removeInterest(interest)} className="hover:text-red-500">
-                              <X size={12} />
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* ── 광고세트 세그먼트 (3 types: BROAD, RETARGET, INTEREST) ── */}
-                  <div className="pt-3 border-t border-gray-200">
-                    <div className="flex items-center justify-between mb-3">
-                      <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700">
-                        <Layers size={14} /> 광고세트 세그먼트
-                      </label>
-                      <button
-                        onClick={() => setShowAdSetPreview(!showAdSetPreview)}
-                        className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700"
-                      >
-                        <Eye size={12} /> 미리보기
+                      <button onClick={(e) => { e.stopPropagation(); removeSegment(i); }} className="text-gray-400 hover:text-red-500 flex-shrink-0" title="삭제">
+                        <X size={14} />
                       </button>
+                      {isExpanded ? <ChevronUp size={14} className="text-gray-400 flex-shrink-0" /> : <ChevronDown size={14} className="text-gray-400 flex-shrink-0" />}
                     </div>
 
-                    <div className="space-y-3">
-                      {segments.map((seg, i) => (
-                        <div key={i} className={`p-3 rounded-lg border transition-colors ${
-                          seg.enabled ? 'bg-white border-gray-200' : 'bg-gray-100 border-gray-200 opacity-60'
-                        }`}>
-                          {/* Header: toggle + name + type badge + remove */}
-                          <div className="flex items-center gap-2 mb-2">
-                            <button
-                              onClick={() => toggleSegmentEnabled(i)}
-                              className="flex-shrink-0"
-                            >
-                              {seg.enabled
-                                ? <ToggleRight size={20} className="text-green-500" />
-                                : <ToggleLeft size={20} className="text-gray-400" />
-                              }
-                            </button>
-                            <input
-                              type="text"
-                              value={seg.name}
-                              onChange={(e) => updateSegmentName(i, e.target.value)}
-                              className="flex-1 text-sm font-medium text-gray-800 bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-400 focus:outline-none px-1 py-0.5"
-                            />
-                            <span className={`text-xs px-2 py-0.5 rounded font-medium ${
-                              seg.type === 'BROAD' ? 'bg-purple-100 text-purple-700'
-                              : seg.type === 'RETARGET' ? 'bg-orange-100 text-orange-700'
-                              : 'bg-teal-100 text-teal-700'
-                            }`}>
-                              {seg.type === 'BROAD' ? '브로드' : seg.type === 'RETARGET' ? '리타겟' : '관심사'}
+                    {/* Card Body - expanded & enabled */}
+                    {isExpanded && seg.enabled && (
+                      <div className="px-3 pb-3 space-y-3 border-t border-gray-100">
+                        {seg.description && (
+                          <p className="text-xs text-gray-500 italic pt-2">{seg.description}</p>
+                        )}
+
+                        {/* 예산 비중 */}
+                        <div className="flex items-center gap-2 pt-2">
+                          <span className="text-xs text-gray-500 w-14">예산 비중:</span>
+                          <input type="range" min={5} max={80} value={seg.ratio}
+                            onChange={(e) => updateSegmentRatio(i, Number(e.target.value))}
+                            className="flex-1 h-1.5 accent-blue-500" />
+                          <span className="text-xs font-semibold text-blue-600 w-10 text-right">{seg.ratio}%</span>
+                          {budget && (
+                            <span className="text-[10px] text-gray-400">
+                              ({'\u20A9'}{Math.round(Number(budget) * seg.ratio / (totalRatio || 100)).toLocaleString()})
                             </span>
-                            <button onClick={() => removeSegment(i)} className="text-gray-400 hover:text-red-500 flex-shrink-0">
-                              <X size={14} />
-                            </button>
-                          </div>
-
-                          {seg.enabled && (
-                            <>
-                              {/* Description */}
-                              {seg.description && (
-                                <p className="text-xs text-gray-500 mb-2 italic">{seg.description}</p>
-                              )}
-
-                              {/* Budget ratio slider */}
-                              <div className="flex items-center gap-2 mb-2">
-                                <span className="text-xs text-gray-500 w-8">비중:</span>
-                                <input
-                                  type="range" min={5} max={80} value={seg.ratio}
-                                  onChange={(e) => updateSegmentRatio(i, Number(e.target.value))}
-                                  className="flex-1 h-1.5 accent-blue-500"
-                                />
-                                <span className="text-xs font-medium text-blue-600 w-10 text-right">{seg.ratio}%</span>
-                              </div>
-
-                              {/* Type-specific settings */}
-                              {seg.type === 'BROAD' && (
-                                <div className="text-xs text-gray-500 p-2 bg-purple-50 rounded">
-                                  <p>넓은 타겟팅 - 관심사/행동 제한 없이 최대 도달</p>
-                                  {advantagePlusAudience && (
-                                    <p className="text-green-600 mt-1">어드밴티지+ 오디언스 활성화됨</p>
-                                  )}
-                                </div>
-                              )}
-
-                              {seg.type === 'RETARGET' && (
-                                <div className="space-y-2">
-                                  <div className="p-2 bg-orange-50 rounded">
-                                    <p className="text-xs font-medium text-orange-700 mb-1">커스텀 오디언스</p>
-                                    <div className="flex flex-wrap gap-1">
-                                      {['웹사이트 방문자', '장바구니 이탈자', '영상 시청자'].map((audience) => (
-                                        <label key={audience} className="inline-flex items-center gap-1 text-xs bg-white px-2 py-1 rounded border border-orange-100 cursor-pointer hover:border-orange-300">
-                                          <input
-                                            type="checkbox"
-                                            checked={seg.custom_audiences?.includes(audience) || false}
-                                            onChange={(e) => {
-                                              const updated = [...segments];
-                                              const current = updated[i].custom_audiences || [];
-                                              updated[i] = {
-                                                ...updated[i],
-                                                custom_audiences: e.target.checked
-                                                  ? [...current, audience]
-                                                  : current.filter(a => a !== audience),
-                                              };
-                                              setSegments(updated);
-                                            }}
-                                            className="w-3 h-3"
-                                          />
-                                          {audience}
-                                        </label>
-                                      ))}
-                                    </div>
-                                  </div>
-                                  <div className="p-2 bg-red-50 rounded">
-                                    <p className="text-xs font-medium text-red-700 mb-1">제외 오디언스</p>
-                                    <div className="flex flex-wrap gap-1">
-                                      {['구매 완료자', '기존 고객'].map((audience) => (
-                                        <label key={audience} className="inline-flex items-center gap-1 text-xs bg-white px-2 py-1 rounded border border-red-100 cursor-pointer hover:border-red-300">
-                                          <input
-                                            type="checkbox"
-                                            checked={seg.exclusion_audiences?.includes(audience) || false}
-                                            onChange={(e) => {
-                                              const updated = [...segments];
-                                              const current = updated[i].exclusion_audiences || [];
-                                              updated[i] = {
-                                                ...updated[i],
-                                                exclusion_audiences: e.target.checked
-                                                  ? [...current, audience]
-                                                  : current.filter(a => a !== audience),
-                                              };
-                                              setSegments(updated);
-                                            }}
-                                            className="w-3 h-3"
-                                          />
-                                          {audience}
-                                        </label>
-                                      ))}
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-
-                              {seg.type === 'INTEREST' && (
-                                <div className="p-2 bg-teal-50 rounded">
-                                  <p className="text-xs font-medium text-teal-700 mb-1">관심사 키워드</p>
-                                  <div className="flex gap-1 mb-1">
-                                    <input
-                                      type="text"
-                                      placeholder="관심사 입력 후 Enter"
-                                      onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
-                                          e.preventDefault();
-                                          const val = (e.target as HTMLInputElement).value.trim();
-                                          if (val) {
-                                            const updated = [...segments];
-                                            const current = updated[i].interests || [];
-                                            if (!current.includes(val)) {
-                                              updated[i] = { ...updated[i], interests: [...current, val] };
-                                              setSegments(updated);
-                                            }
-                                            (e.target as HTMLInputElement).value = '';
-                                          }
-                                        }
-                                      }}
-                                      className="flex-1 px-2 py-1 border border-teal-200 rounded text-xs"
-                                    />
-                                  </div>
-                                  {seg.interests && seg.interests.length > 0 && (
-                                    <div className="flex flex-wrap gap-1">
-                                      {seg.interests.map((interest, j) => (
-                                        <span key={j} className="inline-flex items-center gap-0.5 text-xs bg-white text-teal-700 px-1.5 py-0.5 rounded border border-teal-100">
-                                          {interest}
-                                          <button onClick={() => {
-                                            const updated = [...segments];
-                                            updated[i] = {
-                                              ...updated[i],
-                                              interests: (updated[i].interests || []).filter((_, k) => k !== j),
-                                            };
-                                            setSegments(updated);
-                                          }} className="hover:text-red-500">
-                                            <X size={10} />
-                                          </button>
-                                        </span>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-
-                              {/* Segment-level schedule override */}
-                              <details className="mt-2">
-                                <summary className="text-xs text-gray-500 cursor-pointer hover:text-gray-700">세그먼트별 일정 설정</summary>
-                                <div className="grid grid-cols-2 gap-2 mt-1.5">
-                                  <div>
-                                    <label className="text-xs text-gray-500">시작일</label>
-                                    <input
-                                      type="date"
-                                      value={seg.start_date || ''}
-                                      onChange={(e) => {
-                                        const updated = [...segments];
-                                        updated[i] = { ...updated[i], start_date: e.target.value };
-                                        setSegments(updated);
-                                      }}
-                                      className="w-full px-2 py-1 border border-gray-200 rounded text-xs"
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className="text-xs text-gray-500">종료일</label>
-                                    <input
-                                      type="date"
-                                      value={seg.end_date || ''}
-                                      onChange={(e) => {
-                                        const updated = [...segments];
-                                        updated[i] = { ...updated[i], end_date: e.target.value };
-                                        setSegments(updated);
-                                      }}
-                                      className="w-full px-2 py-1 border border-gray-200 rounded text-xs"
-                                    />
-                                  </div>
-                                </div>
-                              </details>
-                            </>
                           )}
                         </div>
-                      ))}
-                    </div>
 
-                    {/* 비중 합계 경고 */}
-                    {enabledSegments.length > 0 && totalRatio !== 100 && (
-                      <p className={`text-xs mt-2 ${totalRatio > 100 ? 'text-red-600' : 'text-amber-600'}`}>
-                        세그먼트 비중 합계: {totalRatio}% (100%와 다릅니다. 발행 시 비율 기준으로 자동 배분됩니다.)
-                      </p>
+                        {/* ── 타겟팅 설정 ── */}
+                        <div className="p-3 bg-gray-50 rounded-lg space-y-3">
+                          <p className="text-xs font-medium text-gray-600 flex items-center gap-1"><Crosshair size={12} /> 타겟팅</p>
+
+                          {/* 연령 */}
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-gray-500 w-10">연령:</span>
+                            <input type="number" min={13} max={65}
+                              value={t.age_range?.min_age ?? 18}
+                              onChange={(e) => updateSegmentTargeting(i, 'min_age', Math.max(13, Math.min(Number(e.target.value), t.age_range?.max_age ?? 65)))}
+                              className="w-14 px-2 py-1 border border-gray-300 rounded text-xs text-center" />
+                            <span className="text-xs text-gray-400">~</span>
+                            <input type="number" min={13} max={65}
+                              value={t.age_range?.max_age ?? 65}
+                              onChange={(e) => updateSegmentTargeting(i, 'max_age', Math.min(65, Math.max(Number(e.target.value), t.age_range?.min_age ?? 13)))}
+                              className="w-14 px-2 py-1 border border-gray-300 rounded text-xs text-center" />
+                            <span className="text-xs text-gray-500">세</span>
+                          </div>
+
+                          {/* 성별 */}
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-gray-500 w-10">성별:</span>
+                            <div className="flex gap-1">
+                              {[{ value: 'all', label: '전체' }, { value: 'male', label: '남성' }, { value: 'female', label: '여성' }].map((g) => (
+                                <button key={g.value}
+                                  onClick={() => updateSegmentTargeting(i, 'genders', [g.value])}
+                                  className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                                    (t.genders || ['all']).includes(g.value)
+                                      ? 'bg-blue-500 text-white' : 'bg-white border border-gray-300 text-gray-600 hover:border-blue-300'
+                                  }`}>
+                                  {g.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* 지역 */}
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-gray-500 w-10">지역:</span>
+                            <div className="flex gap-1">
+                              {[{ value: 'KR', label: '한국' }, { value: 'US', label: '미국' }, { value: 'JP', label: '일본' }].map((c) => (
+                                <button key={c.value}
+                                  onClick={() => {
+                                    const cur = t.geo?.countries || ['KR'];
+                                    updateSegmentTargeting(i, 'countries', cur.includes(c.value) ? cur.filter(cc => cc !== c.value) : [...cur, c.value]);
+                                  }}
+                                  className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                                    (t.geo?.countries || ['KR']).includes(c.value)
+                                      ? 'bg-blue-500 text-white' : 'bg-white border border-gray-300 text-gray-600 hover:border-blue-300'
+                                  }`}>
+                                  {c.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* 관심사 (for INTEREST, CUSTOM, or any type) */}
+                          {(seg.type === 'INTEREST' || seg.type === 'CUSTOM' || seg.type === 'BROAD') && (
+                            <div>
+                              <div className="flex items-center gap-1 mb-1">
+                                <span className="text-xs text-gray-500 w-10">관심사:</span>
+                                <input type="text" placeholder="관심사 입력 후 Enter"
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      e.preventDefault();
+                                      const val = (e.target as HTMLInputElement).value.trim();
+                                      if (val) {
+                                        const cur = t.interests?.interests || [];
+                                        if (!cur.includes(val)) {
+                                          updateSegmentTargeting(i, 'interests', [...cur, val]);
+                                        }
+                                        (e.target as HTMLInputElement).value = '';
+                                      }
+                                    }
+                                  }}
+                                  className="flex-1 px-2 py-1 border border-gray-300 rounded text-xs" />
+                              </div>
+                              {(t.interests?.interests || []).length > 0 && (
+                                <div className="flex flex-wrap gap-1 ml-12">
+                                  {(t.interests?.interests || []).map((interest: string, j: number) => (
+                                    <span key={j} className="inline-flex items-center gap-0.5 text-xs bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">
+                                      {interest}
+                                      <button onClick={() => {
+                                        const cur = t.interests?.interests || [];
+                                        updateSegmentTargeting(i, 'interests', cur.filter((_: string, k: number) => k !== j));
+                                      }} className="hover:text-red-500"><X size={10} /></button>
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* ── 유형별 추가 설정 ── */}
+                        {seg.type === 'BROAD' && (
+                          <div className="text-xs text-gray-500 p-2 bg-purple-50 rounded">
+                            <p>넓은 타겟팅 — Meta Advantage+가 자동으로 최적 오디언스를 탐색합니다.</p>
+                          </div>
+                        )}
+
+                        {(seg.type === 'RETARGET' || seg.type === 'CUSTOM') && (
+                          <div className="space-y-2">
+                            <div className="p-2 bg-orange-50 rounded">
+                              <p className="text-xs font-medium text-orange-700 mb-1">커스텀 오디언스</p>
+                              <div className="flex flex-wrap gap-1">
+                                {['웹사이트 방문자', '장바구니 이탈자', '영상 시청자'].map((audience) => (
+                                  <label key={audience} className="inline-flex items-center gap-1 text-xs bg-white px-2 py-1 rounded border border-orange-100 cursor-pointer hover:border-orange-300">
+                                    <input type="checkbox"
+                                      checked={seg.custom_audiences?.includes(audience) || false}
+                                      onChange={(e) => {
+                                        const updated = [...segments];
+                                        const current = updated[i].custom_audiences || [];
+                                        updated[i] = { ...updated[i], custom_audiences: e.target.checked ? [...current, audience] : current.filter(a => a !== audience) };
+                                        setSegments(updated);
+                                      }} className="w-3 h-3" />
+                                    {audience}
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
+                            <div className="p-2 bg-red-50 rounded">
+                              <p className="text-xs font-medium text-red-700 mb-1">제외 오디언스</p>
+                              <div className="flex flex-wrap gap-1">
+                                {['구매 완료자', '기존 고객'].map((audience) => (
+                                  <label key={audience} className="inline-flex items-center gap-1 text-xs bg-white px-2 py-1 rounded border border-red-100 cursor-pointer hover:border-red-300">
+                                    <input type="checkbox"
+                                      checked={seg.exclusion_audiences?.includes(audience) || false}
+                                      onChange={(e) => {
+                                        const updated = [...segments];
+                                        const current = updated[i].exclusion_audiences || [];
+                                        updated[i] = { ...updated[i], exclusion_audiences: e.target.checked ? [...current, audience] : current.filter(a => a !== audience) };
+                                        setSegments(updated);
+                                      }} className="w-3 h-3" />
+                                    {audience}
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 세그먼트별 일정 */}
+                        <details className="mt-1">
+                          <summary className="text-xs text-gray-500 cursor-pointer hover:text-gray-700">일정 설정 (선택)</summary>
+                          <div className="grid grid-cols-2 gap-2 mt-1.5">
+                            <div>
+                              <label className="text-xs text-gray-500">시작일</label>
+                              <input type="date" value={seg.start_date || ''}
+                                onChange={(e) => { const u = [...segments]; u[i] = { ...u[i], start_date: e.target.value }; setSegments(u); }}
+                                className="w-full px-2 py-1 border border-gray-200 rounded text-xs" />
+                            </div>
+                            <div>
+                              <label className="text-xs text-gray-500">종료일</label>
+                              <input type="date" value={seg.end_date || ''}
+                                onChange={(e) => { const u = [...segments]; u[i] = { ...u[i], end_date: e.target.value }; setSegments(u); }}
+                                className="w-full px-2 py-1 border border-gray-200 rounded text-xs" />
+                            </div>
+                          </div>
+                        </details>
+                      </div>
                     )}
                   </div>
-                </div>
-              )}
+                );
+              })}
             </div>
+
+            {/* 비중 합계 경고 */}
+            {enabledSegments.length > 0 && totalRatio !== 100 && (
+              <p className={`text-xs ${totalRatio > 100 ? 'text-red-600' : 'text-amber-600'}`}>
+                광고세트 비중 합계: {totalRatio}% — 100%와 다릅니다. 발행 시 비율 기준으로 자동 배분됩니다.
+              </p>
+            )}
+
+            {/* 비중 시각화 바 */}
+            {enabledSegments.length > 0 && (
+              <div className="flex h-2 rounded-full overflow-hidden bg-gray-200">
+                {enabledSegments.map((seg, i) => {
+                  const width = (seg.ratio / (totalRatio || 1)) * 100;
+                  const color = seg.type === 'BROAD' ? 'bg-purple-400' : seg.type === 'RETARGET' ? 'bg-orange-400' : seg.type === 'INTEREST' ? 'bg-teal-400' : 'bg-blue-400';
+                  return <div key={i} className={`${color} transition-all`} style={{ width: `${width}%` }} title={`${seg.name}: ${seg.ratio}%`} />;
+                })}
+              </div>
+            )}
 
             {/* ── 광고세트 미리보기 ── */}
             {showAdSetPreview && adSetPreview.length > 0 && (
@@ -1471,8 +1449,9 @@ export function AdsController() {
                           <span className={`text-xs px-1.5 py-0.5 rounded ${
                             preset.type === 'BROAD' ? 'bg-purple-100 text-purple-700'
                             : preset.type === 'RETARGET' ? 'bg-orange-100 text-orange-700'
+                            : preset.type === 'CUSTOM' ? 'bg-blue-100 text-blue-700'
                             : 'bg-teal-100 text-teal-700'
-                          }`}>{preset.type === 'BROAD' ? '브로드' : preset.type === 'RETARGET' ? '리타겟' : '관심사'}</span>
+                          }`}>{preset.type === 'BROAD' ? '브로드' : preset.type === 'RETARGET' ? '리타겟' : preset.type === 'CUSTOM' ? '커스텀' : '관심사'}</span>
                           <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded">{preset.ratio}%</span>
                         </div>
                       </div>
