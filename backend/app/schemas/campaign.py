@@ -91,11 +91,21 @@ class CampaignCreate(BaseModel):
     objective: CampaignObjective
     total_budget: float = Field(..., gt=0)
     daily_budget: Optional[float] = None
+    budget_type: str = "DAILY"
     targeting: Optional[TargetingConfig] = None
     targeting_segments: Optional[list] = None  # 기획 세그먼트 배열
     creative_ids: List[int] = Field(default=[])
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
+    advantage_plus: bool = False
+    advantage_plus_audience: bool = False
+    advantage_plus_creative: bool = False
+    dataset_id: Optional[str] = None
+    pixel_id: Optional[str] = None
+    primary_text: Optional[str] = None
+    headline: Optional[str] = None
+    call_to_action: Optional[str] = None
+    link_url: Optional[str] = None
 
 
 class CampaignUpdate(BaseModel):

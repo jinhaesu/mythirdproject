@@ -124,10 +124,14 @@ async def create_campaign(
         status=CampaignStatus.DRAFT,
         total_budget=campaign_data.total_budget,
         daily_budget=campaign_data.daily_budget,
+        budget_type=campaign_data.budget_type,
         targeting=targeting_json,
         targeting_segments=targeting_segments_json,
         start_date=campaign_data.start_date,
-        end_date=campaign_data.end_date
+        end_date=campaign_data.end_date,
+        advantage_plus=campaign_data.advantage_plus,
+        dataset_id=campaign_data.dataset_id,
+        pixel_id=campaign_data.pixel_id,
     )
     db.add(campaign)
     await db.commit()
@@ -144,6 +148,10 @@ async def create_campaign(
             objective=campaign.objective, status=campaign.status,
             total_budget=campaign.total_budget, daily_budget=campaign.daily_budget,
             spent_amount=campaign.spent_amount, targeting=targeting_response,
+            budget_type=campaign.budget_type,
+            advantage_plus=campaign.advantage_plus,
+            dataset_id=campaign.dataset_id,
+            pixel_id=campaign.pixel_id,
             start_date=campaign.start_date, end_date=campaign.end_date,
             ads=[], meta_campaign_id=campaign.meta_campaign_id,
             created_at=campaign.created_at, updated_at=campaign.updated_at,
@@ -175,6 +183,10 @@ async def create_campaign(
         total_budget=campaign.total_budget,
         daily_budget=campaign.daily_budget,
         spent_amount=campaign.spent_amount,
+        budget_type=campaign.budget_type,
+        advantage_plus=campaign.advantage_plus,
+        dataset_id=campaign.dataset_id,
+        pixel_id=campaign.pixel_id,
         targeting=targeting_response,
         start_date=campaign.start_date,
         end_date=campaign.end_date,

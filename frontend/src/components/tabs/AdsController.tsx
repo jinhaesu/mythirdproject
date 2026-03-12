@@ -385,7 +385,12 @@ export function AdsController() {
     },
     onError: (err: any) => {
       const detail = err?.response?.data?.detail;
-      const msg = typeof detail === 'string' ? detail : '캠페인 생성 실패';
+      let msg = '캠페인 생성 실패';
+      if (typeof detail === 'string') {
+        msg = detail;
+      } else if (Array.isArray(detail)) {
+        msg = detail.map((e: any) => e.msg || e.message || JSON.stringify(e)).join(', ');
+      }
       toast.error(msg);
     },
   });
