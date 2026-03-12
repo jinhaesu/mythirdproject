@@ -147,18 +147,18 @@ class CampaignResponse(BaseModel):
     objective: CampaignObjective
     status: CampaignStatus
     total_budget: float
-    daily_budget: Optional[float]
-    spent_amount: float
+    daily_budget: Optional[float] = None
+    spent_amount: float = 0
     budget_type: str = "DAILY"
     currency: str = "KRW"
-    targeting: Optional[TargetingConfig]
-    meta_campaign_id: Optional[str]
+    targeting: Optional[TargetingConfig] = None
+    meta_campaign_id: Optional[str] = None
     meta_adset_ids: Optional[str] = None
     advantage_plus: bool = False
     dataset_id: Optional[str] = None
     pixel_id: Optional[str] = None
-    start_date: Optional[datetime]
-    end_date: Optional[datetime]
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
     ads: List[AdResponse] = []
     created_at: datetime
     updated_at: datetime
