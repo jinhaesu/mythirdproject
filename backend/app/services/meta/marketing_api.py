@@ -428,12 +428,17 @@ class MetaMarketingAPI:
         }
 
         # Bid strategy — omit for default lowest cost (Meta auto-manages)
-        if bid_strategy and bid_strategy != "LOWEST_COST_WITHOUT_CAP":
-            data["bid_strategy"] = bid_strategy
-            if bid_amount and bid_strategy in ("LOWEST_COST_WITH_BID_CAP", "COST_CAP"):
-                data["bid_amount"] = bid_amount
-            if bid_amount and bid_strategy == "MINIMUM_ROAS":
-                data["roas_average_floor"] = bid_amount
+        # bid_amount가 필요한 전략인데 bid_amount가 없으면 전략 자체를 생략
+        if bid_strategy and bid_strategy not in ("", "LOWEST_COST_WITHOUT_CAP"):
+            needs_amount = bid_strategy in ("LOWEST_COST_WITH_BID_CAP", "COST_CAP", "MINIMUM_ROAS")
+            if needs_amount and not bid_amount:
+                pass  # bid_amount 없으면 자동 입찰로 폴백
+            else:
+                data["bid_strategy"] = bid_strategy
+                if bid_amount and bid_strategy in ("LOWEST_COST_WITH_BID_CAP", "COST_CAP"):
+                    data["bid_amount"] = bid_amount
+                if bid_amount and bid_strategy == "MINIMUM_ROAS":
+                    data["roas_average_floor"] = bid_amount
 
         # Budget — skip when CBO is enabled
         if not use_cbo:
