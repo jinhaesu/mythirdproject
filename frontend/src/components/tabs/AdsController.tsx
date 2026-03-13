@@ -6,7 +6,7 @@ import {
   Target, Zap, Upload, CheckCircle, Trash2, Plus, Copy,
   Play, Pause, ChevronDown, ChevronUp, RefreshCw, Info, X,
   Users, MapPin, Crosshair, Layers, Eye, Database, Settings, ToggleLeft, ToggleRight,
-  AlertTriangle, Check, Image as ImageIcon, Save, FolderOpen, Clock
+  AlertTriangle, Check, Image as ImageIcon, Save, FolderOpen, Clock, Pencil
 } from 'lucide-react';
 import { Button, Input, Card, CardTitle, Select } from '@/components/ui';
 import { campaignApi, creativeApi, resolveMediaUrl } from '@/lib/api';
@@ -578,6 +578,90 @@ export function AdsController() {
       }
     }
     publishMutation.mutate(campaignId);
+  };
+
+  // ── 캠페인 수정 (DRAFT → 폼에 로드) ──
+  const [editingCampaignId, setEditingCampaignId] = useState<number | null>(null);
+
+  const editCampaign = useCallback((campaign: Campaign) => {
+    setCampaignName(campaign.name);
+    setObjective(campaign.objective);
+    setBudget(String(campaign.total_budget));
+    setBudgetType(campaign.budget_type || 'DAILY');
+    setStartDate(campaign.start_date ? campaign.start_date.split('T')[0] : '');
+    setEndDate(campaign.end_date ? campaign.end_date.split('T')[0] : '');
+    setAdvantagePlus(campaign.advantage_plus || false);
+    setAdvantagePlusAudience(campaign.advantage_plus_audience || false);
+    setDatasetOption(campaign.dataset_id ? 'custom' : '');
+    setCustomDatasetId(campaign.dataset_id || '');
+    setPixelOption(campaign.pixel_id ? 'custom' : 'auto');
+    setCustomPixelId(campaign.pixel_id || '');
+
+    // 타겟팅 복원
+    if (campaign.targeting) {
+      setShowTargeting(true);
+      setAgeMin(campaign.targeting.age_range?.min_age ?? 18);
+      setAgeMax(campaign.targeting.age_range?.max_age ?? 65);
+      setGenders(campaign.targeting.genders || ['all']);
+      setCountries(campaign.targeting.geo?.countries || ['KR']);
+      setInterests(campaign.targeting.interests?.interests || []);
+    }
+
+    // 세그먼트 복원
+    if (campaign.targeting_segments && campaign.targeting_segments.length > 0) {
+      setSegments(campaign.targeting_segments);
+    }
+
+    setEditingCampaignId(campaign.id);
+    setLoadedDraftId(null);
+    setActiveStep(1);
+    toast.success(`"${campaign.name}" 수정 모드`);
+
+    // 스크롤 맨 위로
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
+  // 수정 완료 후 캠페인 업데이트
+  const updateCampaignMutation = useMutation({
+    mutationFn: () => campaignApi.update(editingCampaignId!, {
+      name: campaignName || `캠페인 ${new Date().toLocaleDateString()}`,
+      objective,
+      total_budget: Number(budget),
+      daily_budget: budgetType === 'DAILY' ? Number(budget) : undefined,
+      budget_type: budgetType,
+      targeting: buildTargetingConfig() || undefined,
+      targeting_segments: enabledSegments.length > 0 ? enabledSegments : undefined,
+      start_date: startDate || undefined,
+      end_date: endDate || undefined,
+      advantage_plus: advantagePlus,
+      advantage_plus_audience: advantagePlusAudience,
+      dataset_id: resolvedDatasetId,
+      pixel_id: resolvedPixelId,
+    } as any),
+    onSuccess: () => {
+      refetchCampaigns();
+      toast.success('캠페인 수정 완료');
+      setEditingCampaignId(null);
+      setCampaignName('');
+      setBudget('');
+      setSegments(createDefaultSegments());
+      setShowTargeting(false);
+    },
+    onError: (err: any) => {
+      const detail = err?.response?.data?.detail;
+      toast.error(typeof detail === 'string' ? detail : '캠페인 수정 실패');
+    },
+  });
+
+  const cancelEdit = () => {
+    setEditingCampaignId(null);
+    setCampaignName('');
+    setBudget('');
+    setPrimaryText('');
+    setHeadline('');
+    setSegments(createDefaultSegments());
+    setShowTargeting(false);
+    toast('수정 취소', { icon: '↩️' });
   };
 
   const handleViewAnalytics = (campaign: Campaign) => {
@@ -2081,24 +2165,48 @@ export function AdsController() {
               </div>
             )}
 
-            <div className="flex gap-2">
-              <Button className="flex-1" onClick={() => createCampaignMutation.mutate()}
-                loading={createCampaignMutation.isPending} disabled={!budget || (!!bidStrategy && !bidAmount)}>
-                캠페인 생성
-              </Button>
-              <button
-                onClick={saveDraft}
-                className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:border-gray-400 transition-colors flex items-center gap-1.5"
-                title="임시 저장"
-              >
-                <Save size={14} />
-                임시 저장
-              </button>
-            </div>
-            {loadedDraftId && (
-              <p className="text-xs text-blue-600 flex items-center gap-1 mt-1">
-                <FolderOpen size={11} /> 초안에서 불러온 상태 — 캠페인 생성 시 초안이 자동 삭제됩니다
-              </p>
+            {editingCampaignId ? (
+              <>
+                <div className="p-2.5 bg-blue-50 border border-blue-200 rounded-lg mb-2">
+                  <p className="text-xs font-medium text-blue-800 flex items-center gap-1">
+                    <Pencil size={12} /> 캠페인 수정 모드 — 변경 후 "수정 완료"를 눌러주세요
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button className="flex-1" onClick={() => updateCampaignMutation.mutate()}
+                    loading={updateCampaignMutation.isPending} disabled={!budget}>
+                    수정 완료
+                  </Button>
+                  <button
+                    onClick={cancelEdit}
+                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:border-gray-400 transition-colors"
+                  >
+                    취소
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex gap-2">
+                  <Button className="flex-1" onClick={() => createCampaignMutation.mutate()}
+                    loading={createCampaignMutation.isPending} disabled={!budget || (!!bidStrategy && !bidAmount)}>
+                    캠페인 생성
+                  </Button>
+                  <button
+                    onClick={saveDraft}
+                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:border-gray-400 transition-colors flex items-center gap-1.5"
+                    title="임시 저장"
+                  >
+                    <Save size={14} />
+                    임시 저장
+                  </button>
+                </div>
+                {loadedDraftId && (
+                  <p className="text-xs text-blue-600 flex items-center gap-1 mt-1">
+                    <FolderOpen size={11} /> 초안에서 불러온 상태 — 캠페인 생성 시 초안이 자동 삭제됩니다
+                  </p>
+                )}
+              </>
             )}
           </div>
         </Card>
@@ -2178,8 +2286,10 @@ export function AdsController() {
                   key={campaign.id}
                   campaign={campaign}
                   onPublish={() => handlePublish(campaign.id)}
+                  onEdit={() => editCampaign(campaign)}
                   onViewAnalytics={() => handleViewAnalytics(campaign)}
                   isPublishing={publishMutation.isPending}
+                  isEditing={editingCampaignId === campaign.id}
                   onRefresh={refetchCampaigns}
                 />
               ))}
@@ -2228,10 +2338,10 @@ const objectiveLabel = (obj: string): string => {
 };
 
 function CampaignCard({
-  campaign, onPublish, onViewAnalytics, isPublishing, onRefresh,
+  campaign, onPublish, onEdit, onViewAnalytics, isPublishing, isEditing, onRefresh,
 }: {
-  campaign: Campaign; onPublish: () => void; onViewAnalytics: () => void;
-  isPublishing: boolean; onRefresh: () => void;
+  campaign: Campaign; onPublish: () => void; onEdit: () => void; onViewAnalytics: () => void;
+  isPublishing: boolean; isEditing?: boolean; onRefresh: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [editBudget, setEditBudget] = useState('');
@@ -2294,13 +2404,14 @@ function CampaignCard({
   const spentPct = campaign.total_budget > 0 ? (campaign.spent_amount / campaign.total_budget) * 100 : 0;
 
   return (
-    <div className="border border-gray-200 rounded-lg overflow-hidden">
+    <div className={`border rounded-lg overflow-hidden ${isEditing ? 'border-blue-400 ring-2 ring-blue-100' : 'border-gray-200'}`}>
       <div className="p-4">
         <div className="flex items-start justify-between mb-3">
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-1">
               <h3 className="font-medium text-gray-900">{campaign.name}</h3>
               <span className={`px-2 py-0.5 rounded text-xs font-medium ${sc.color}`}>{sc.label}</span>
+              {isEditing && <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">수정 중</span>}
               {campaign.meta_campaign_id && (
                 <span className="flex items-center gap-1 text-xs text-green-600">
                   <CheckCircle size={12} /> Meta
@@ -2356,9 +2467,14 @@ function CampaignCard({
         {/* 액션 버튼 */}
         <div className="flex flex-wrap gap-2">
           {campaign.status === 'DRAFT' && (
-            <Button size="sm" onClick={onPublish} loading={isPublishing}>
-              <Upload size={14} className="mr-1" /> Meta 발행
-            </Button>
+            <>
+              <Button size="sm" variant="outline" onClick={onEdit} disabled={isEditing}>
+                <Pencil size={14} className="mr-1" /> {isEditing ? '수정 중...' : '수정'}
+              </Button>
+              <Button size="sm" onClick={onPublish} loading={isPublishing}>
+                <Upload size={14} className="mr-1" /> Meta 발행
+              </Button>
+            </>
           )}
           {campaign.status === 'ACTIVE' && (
             <Button size="sm" variant="outline" onClick={() => pauseMutation.mutate()} loading={pauseMutation.isPending}>
