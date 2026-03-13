@@ -427,7 +427,7 @@ class MetaMarketingAPI:
             "status": status,
         }
 
-        # Bid strategy — bid_amount 없으면 절대 bid_strategy 보내지 않음
+        # Bid strategy — 항상 명시적으로 설정 (계정 기본값 상속 방지)
         logger.info(f"[AdSet] bid_strategy={bid_strategy!r}, bid_amount={bid_amount!r}, use_cbo={use_cbo}")
         if bid_strategy and bid_amount and bid_strategy not in ("", "LOWEST_COST_WITHOUT_CAP"):
             data["bid_strategy"] = bid_strategy
@@ -435,6 +435,9 @@ class MetaMarketingAPI:
                 data["bid_amount"] = bid_amount
             elif bid_strategy == "MINIMUM_ROAS":
                 data["roas_average_floor"] = bid_amount
+        else:
+            # 명시적으로 자동 입찰(최저 비용) 설정 → 계정 기본 입찰 전략 무시
+            data["bid_strategy"] = "LOWEST_COST_WITHOUT_CAP"
 
         # Budget — skip when CBO is enabled
         if not use_cbo:
