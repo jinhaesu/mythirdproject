@@ -205,6 +205,45 @@ export interface TargetingSegment {
   end_date?: string;
 }
 
+// Campaign Draft (임시 저장)
+export interface CampaignDraft {
+  id: string;
+  name: string;
+  savedAt: string;
+  formData: {
+    campaignName: string;
+    objective: CampaignObjective;
+    budget: string;
+    budgetType: BudgetType;
+    startDate: string;
+    endDate: string;
+    budgetLevel: 'campaign' | 'adset';
+    advantagePlus: boolean;
+    advantagePlusAudience: boolean;
+    advantagePlusCreative: boolean;
+    datasetOption: string;
+    customDatasetId: string;
+    pixelOption: string;
+    customPixelId: string;
+    launchImmediately: boolean;
+    bidStrategy: string;
+    bidAmount: string;
+    segments: TargetingSegment[];
+    showTargeting: boolean;
+    ageMin: number;
+    ageMax: number;
+    genders: string[];
+    countries: string[];
+    interests: string[];
+    primaryText: string;
+    headline: string;
+    callToAction: string;
+    linkUrl: string;
+    activeStep: 1 | 2 | 3;
+    selectedCreativeIds: number[];
+  };
+}
+
 // Campaign types
 export interface Campaign {
   id: number;

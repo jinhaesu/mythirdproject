@@ -6,12 +6,12 @@ import {
   Target, Zap, Upload, CheckCircle, Trash2, Plus, Copy,
   Play, Pause, ChevronDown, ChevronUp, RefreshCw, Info, X,
   Users, MapPin, Crosshair, Layers, Eye, Database, Settings, ToggleLeft, ToggleRight,
-  AlertTriangle, Check, Image as ImageIcon
+  AlertTriangle, Check, Image as ImageIcon, Save, FolderOpen, Clock
 } from 'lucide-react';
 import { Button, Input, Card, CardTitle, Select } from '@/components/ui';
 import { campaignApi, creativeApi, resolveMediaUrl } from '@/lib/api';
 import { useAppStore } from '@/store';
-import type { Campaign, Creative, StrategyRecommendation, Ad, TargetingConfig, TargetingSegment, AdSetCreative, CampaignObjective, BudgetType, PublishOptions } from '@/types';
+import type { Campaign, Creative, StrategyRecommendation, Ad, TargetingConfig, TargetingSegment, AdSetCreative, CampaignObjective, BudgetType, PublishOptions, CampaignDraft } from '@/types';
 import toast from 'react-hot-toast';
 
 // ── Campaign Objective options ──
@@ -75,6 +75,20 @@ const createDefaultSegments = (): TargetingSegment[] => [
     description: '관심사 키워드 기반 타겟팅',
   },
 ];
+
+// ── Draft localStorage helpers ──
+const DRAFT_STORAGE_KEY = 'campaign_drafts';
+
+function loadDrafts(): CampaignDraft[] {
+  try {
+    const raw = localStorage.getItem(DRAFT_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+function saveDrafts(drafts: CampaignDraft[]) {
+  localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(drafts));
+}
 
 export function AdsController() {
   const { selectedCreatives, setSelectedCreatives, addSelectedCreative, removeSelectedCreative, setSelectedCampaign, setActiveTab, autoPlanResult, setAutoPlanResult } = useAppStore();
@@ -154,6 +168,81 @@ export function AdsController() {
   const [creativePickerForAdSet, setCreativePickerForAdSet] = useState<number | null>(null);
   // Collapsible state for ad set cards in Step 3
   const [expandedCreativeAdSets, setExpandedCreativeAdSets] = useState<Record<number, boolean>>({ 0: true });
+
+  // ── 임시 저장 (Draft) state ──
+  const [drafts, setDrafts] = useState<CampaignDraft[]>(loadDrafts);
+  const [loadedDraftId, setLoadedDraftId] = useState<string | null>(null);
+
+  const saveDraft = useCallback(() => {
+    const draftName = campaignName || `임시 저장 ${new Date().toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`;
+    const draft: CampaignDraft = {
+      id: loadedDraftId || `draft_${Date.now()}`,
+      name: draftName,
+      savedAt: new Date().toISOString(),
+      formData: {
+        campaignName, objective, budget, budgetType, startDate, endDate,
+        budgetLevel, advantagePlus, advantagePlusAudience, advantagePlusCreative,
+        datasetOption, customDatasetId, pixelOption, customPixelId,
+        launchImmediately, bidStrategy, bidAmount,
+        segments, showTargeting, ageMin, ageMax, genders, countries, interests,
+        primaryText, headline, callToAction, linkUrl,
+        activeStep,
+        selectedCreativeIds: localSelectedCreatives.map(c => c.id),
+      },
+    };
+    const updated = [draft, ...drafts.filter(d => d.id !== draft.id)];
+    saveDrafts(updated);
+    setDrafts(updated);
+    setLoadedDraftId(draft.id);
+    toast.success('임시 저장 완료');
+  }, [campaignName, objective, budget, budgetType, startDate, endDate, budgetLevel,
+      advantagePlus, advantagePlusAudience, advantagePlusCreative, datasetOption,
+      customDatasetId, pixelOption, customPixelId, launchImmediately, bidStrategy,
+      bidAmount, segments, showTargeting, ageMin, ageMax, genders, countries,
+      interests, primaryText, headline, callToAction, linkUrl, activeStep,
+      localSelectedCreatives, drafts, loadedDraftId]);
+
+  const deleteDraft = useCallback((draftId: string) => {
+    const updated = drafts.filter(d => d.id !== draftId);
+    saveDrafts(updated);
+    setDrafts(updated);
+    if (loadedDraftId === draftId) setLoadedDraftId(null);
+  }, [drafts, loadedDraftId]);
+
+  const loadDraft = useCallback((draft: CampaignDraft) => {
+    const f = draft.formData;
+    setCampaignName(f.campaignName);
+    setObjective(f.objective);
+    setBudget(f.budget);
+    setBudgetType(f.budgetType);
+    setStartDate(f.startDate);
+    setEndDate(f.endDate);
+    setBudgetLevel(f.budgetLevel);
+    setAdvantagePlus(f.advantagePlus);
+    setAdvantagePlusAudience(f.advantagePlusAudience);
+    setAdvantagePlusCreative(f.advantagePlusCreative);
+    setDatasetOption(f.datasetOption);
+    setCustomDatasetId(f.customDatasetId);
+    setPixelOption(f.pixelOption);
+    setCustomPixelId(f.customPixelId);
+    setLaunchImmediately(f.launchImmediately);
+    setBidStrategy(f.bidStrategy);
+    setBidAmount(f.bidAmount);
+    setSegments(f.segments);
+    setShowTargeting(f.showTargeting);
+    setAgeMin(f.ageMin);
+    setAgeMax(f.ageMax);
+    setGenders(f.genders);
+    setCountries(f.countries);
+    setInterests(f.interests);
+    setPrimaryText(f.primaryText);
+    setHeadline(f.headline);
+    setCallToAction(f.callToAction);
+    setLinkUrl(f.linkUrl);
+    setActiveStep(f.activeStep);
+    setLoadedDraftId(draft.id);
+    toast.success(`"${draft.name}" 불러오기 완료`);
+  }, []);
 
   // Keep local creatives in sync with store
   useEffect(() => {
@@ -415,6 +504,11 @@ export function AdsController() {
     onSuccess: () => {
       refetchCampaigns();
       toast.success('캠페인 생성 완료');
+      // 불러온 초안이 있으면 자동 삭제
+      if (loadedDraftId) {
+        deleteDraft(loadedDraftId);
+        setLoadedDraftId(null);
+      }
       setCampaignName('');
       setBudget('');
       setPrimaryText('');
@@ -1987,12 +2081,84 @@ export function AdsController() {
               </div>
             )}
 
-            <Button className="w-full" onClick={() => createCampaignMutation.mutate()}
-              loading={createCampaignMutation.isPending} disabled={!budget || (!!bidStrategy && !bidAmount)}>
-              캠페인 생성
-            </Button>
+            <div className="flex gap-2">
+              <Button className="flex-1" onClick={() => createCampaignMutation.mutate()}
+                loading={createCampaignMutation.isPending} disabled={!budget || (!!bidStrategy && !bidAmount)}>
+                캠페인 생성
+              </Button>
+              <button
+                onClick={saveDraft}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:border-gray-400 transition-colors flex items-center gap-1.5"
+                title="임시 저장"
+              >
+                <Save size={14} />
+                임시 저장
+              </button>
+            </div>
+            {loadedDraftId && (
+              <p className="text-xs text-blue-600 flex items-center gap-1 mt-1">
+                <FolderOpen size={11} /> 초안에서 불러온 상태 — 캠페인 생성 시 초안이 자동 삭제됩니다
+              </p>
+            )}
           </div>
         </Card>
+
+        {/* ── 임시 저장 목록 ── */}
+        {drafts.length > 0 && (
+          <Card variant="bordered" className="mt-3">
+            <div className="flex items-center justify-between mb-3">
+              <CardTitle className="text-sm flex items-center gap-1.5">
+                <Save size={14} className="text-gray-500" />
+                임시 저장 ({drafts.length})
+              </CardTitle>
+            </div>
+            <div className="space-y-2">
+              {drafts.map((draft) => {
+                const savedDate = new Date(draft.savedAt);
+                const objLabel = OBJECTIVE_OPTIONS.find(o => o.value === draft.formData.objective)?.label || draft.formData.objective;
+                const isLoaded = loadedDraftId === draft.id;
+                return (
+                  <div key={draft.id}
+                    className={`p-2.5 rounded-lg border transition-colors ${isLoaded ? 'border-blue-300 bg-blue-50' : 'border-gray-200 bg-gray-50 hover:border-gray-300'}`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-800 truncate">{draft.name}</p>
+                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                          <span className="text-xs text-gray-500">{objLabel}</span>
+                          {draft.formData.budget && (
+                            <span className="text-xs text-gray-500">
+                              {Number(draft.formData.budget).toLocaleString()}원
+                            </span>
+                          )}
+                          <span className="text-xs text-gray-400 flex items-center gap-0.5">
+                            <Clock size={10} />
+                            {savedDate.toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <button
+                          onClick={() => loadDraft(draft)}
+                          className="px-2 py-1 text-xs rounded bg-white border border-gray-300 text-gray-700 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition-colors"
+                        >
+                          불러오기
+                        </button>
+                        <button
+                          onClick={() => { if (confirm('이 초안을 삭제할까요?')) deleteDraft(draft.id); }}
+                          className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                          title="삭제"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        )}
       </div>
 
       {/* 캠페인 목록 + 관리 */}
