@@ -300,8 +300,12 @@ async def publish_campaign(
     budget_type = request.budget_type  # "DAILY" or "LIFETIME"
     advantage_plus = request.advantage_plus or campaign.advantage_plus
     advantage_plus_creative = request.advantage_plus_creative or advantage_plus
-    bid_strategy = request.bid_strategy  # None = auto (lowest cost)
-    bid_amount = request.bid_amount  # Required for BID_CAP/COST_CAP
+    bid_strategy = request.bid_strategy or None  # 빈 문자열 → None
+    bid_amount = request.bid_amount
+    # bid_amount 필수 전략인데 값 없으면 자동 입찰로 폴백
+    if bid_strategy in ("LOWEST_COST_WITH_BID_CAP", "COST_CAP", "MINIMUM_ROAS") and not bid_amount:
+        logger.warning(f"[Publish] bid_strategy={bid_strategy} but no bid_amount → fallback to auto")
+        bid_strategy = None
 
     # Track created Meta resources for cleanup on failure
     created_meta_campaign_id = None
