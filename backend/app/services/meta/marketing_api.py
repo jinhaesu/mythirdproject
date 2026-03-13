@@ -297,10 +297,9 @@ class MetaMarketingAPI:
                 data["lifetime_budget"] = lifetime_budget
             elif daily_budget is not None:
                 data["daily_budget"] = daily_budget
-            # CBO requires spend cap or budget sharing to be on
         else:
-            # No CBO — budget will be set at ad set level
-            pass
+            # No CBO — budget at ad set level, enable budget sharing for optimization
+            data["is_adset_budget_sharing_enabled"] = True
 
         # Advantage+ Shopping campaigns
         if smart_promotion_type:
