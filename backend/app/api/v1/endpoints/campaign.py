@@ -530,8 +530,8 @@ async def publish_campaign(
                     ),
                     "start_time": campaign.start_date,
                     "end_time": campaign.end_date,
-                    "bid_strategy": bid_strategy,
-                    "bid_amount": bid_amount,
+                    "bid_strategy": bid_strategy if not use_cbo else None,
+                    "bid_amount": bid_amount if not use_cbo else None,
                 }
 
                 # Advantage+ targeting optimization

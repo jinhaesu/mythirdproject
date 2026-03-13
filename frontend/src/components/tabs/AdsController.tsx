@@ -548,8 +548,8 @@ export function AdsController() {
       pixel_id: resolvedPixelId,
       currency: 'KRW',
       use_cbo: budgetLevel === 'campaign',
-      bid_strategy: bidStrategy || undefined,
-      bid_amount: bidAmount ? Number(bidAmount) : undefined,
+      bid_strategy: (bidStrategy && bidAmount) ? bidStrategy : undefined,
+      bid_amount: (bidStrategy && bidAmount) ? Number(bidAmount) : undefined,
     }),
     onSuccess: (data) => {
       if (data.success) {
