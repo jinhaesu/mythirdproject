@@ -98,6 +98,22 @@ export function NaverSearchAdsDashboard() {
     retry: 1,
   });
 
+  // Budget update mutation
+  const budgetMutation = useMutation({
+    mutationFn: ({ id, budget }: { id: string; budget: number }) =>
+      naverSearchAdsApi.updateCampaign(id, { dailyBudget: budget }),
+    onSuccess: () => { refetchOverview(); toast.success('예산이 수정되었습니다.'); },
+    onError: () => toast.error('예산 수정에 실패했습니다.'),
+  });
+
+  // Pause/Resume mutation
+  const toggleMutation = useMutation({
+    mutationFn: ({ id, action }: { id: string; action: 'pause' | 'resume' }) =>
+      action === 'pause' ? naverSearchAdsApi.pauseCampaign(id) : naverSearchAdsApi.resumeCampaign(id),
+    onSuccess: () => { refetchOverview(); toast.success('캠페인 상태가 변경되었습니다.'); },
+    onError: () => toast.error('캠페인 상태 변경에 실패했습니다.'),
+  });
+
   // AI Analysis
   const aiMutation = useMutation({
     mutationFn: () => naverSearchAdsApi.getAIAnalysis(datePreset, overview),
@@ -421,6 +437,8 @@ export function NaverSearchAdsDashboard() {
                       onToggleExpand={() => setExpandedCampaign(isExpanded ? null : campaignId)}
                       adgroups={isExpanded ? (adgroupsData?.adgroups || adgroupsData || []) : []}
                       loadingAdgroups={loadingAdgroups && isExpanded}
+                      onUpdateBudget={(id, budget) => budgetMutation.mutate({ id, budget })}
+                      onToggleStatus={(id, action) => toggleMutation.mutate({ id, action })}
                     />
                   );
                 })}
@@ -561,7 +579,7 @@ export function NaverSearchAdsDashboard() {
 }
 
 // Campaign Row with expandable ad groups
-function CampaignRow({ campaign, campaignId, isExpanded, status, onToggleExpand, adgroups, loadingAdgroups }: {
+function CampaignRow({ campaign, campaignId, isExpanded, status, onToggleExpand, adgroups, loadingAdgroups, onUpdateBudget, onToggleStatus }: {
   campaign: any;
   campaignId: string;
   isExpanded: boolean;
@@ -569,7 +587,12 @@ function CampaignRow({ campaign, campaignId, isExpanded, status, onToggleExpand,
   onToggleExpand: () => void;
   adgroups: any[];
   loadingAdgroups: boolean;
+  onUpdateBudget: (campaignId: string, budget: number) => void;
+  onToggleStatus: (campaignId: string, action: 'pause' | 'resume') => void;
 }) {
+  const [editingBudget, setEditingBudget] = useState(false);
+  const [budgetValue, setBudgetValue] = useState(String(campaign.daily_budget || campaign.dailyBudget || 0));
+
   return (
     <>
       <tr className="hover:bg-gray-50 cursor-pointer" onClick={onToggleExpand}>
@@ -585,7 +608,34 @@ function CampaignRow({ campaign, campaignId, isExpanded, status, onToggleExpand,
         <td className="px-4 py-3">
           <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${status.color}`}>{status.label}</span>
         </td>
-        <td className="px-4 py-3 text-right text-gray-700">{formatNaverCurrency(campaign.daily_budget || campaign.dailyBudget || 0)}</td>
+        <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+          {editingBudget ? (
+            <div className="flex items-center justify-end gap-1">
+              <input
+                type="number"
+                value={budgetValue}
+                onChange={(e) => setBudgetValue(e.target.value)}
+                className="w-24 px-2 py-1 text-sm border rounded text-right"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    onUpdateBudget(campaignId, parseInt(budgetValue));
+                    setEditingBudget(false);
+                  }
+                  if (e.key === 'Escape') setEditingBudget(false);
+                }}
+              />
+              <button onClick={() => { onUpdateBudget(campaignId, parseInt(budgetValue)); setEditingBudget(false); }}
+                className="text-green-600 hover:bg-green-50 p-1 rounded">
+                <ChevronRight size={12} />
+              </button>
+            </div>
+          ) : (
+            <span className="cursor-pointer hover:text-green-600 hover:underline" onClick={() => setEditingBudget(true)}>
+              {formatNaverCurrency(campaign.daily_budget || campaign.dailyBudget || 0)}
+            </span>
+          )}
+        </td>
         <td className="px-4 py-3 text-right font-medium text-gray-900">{formatNaverCurrency(campaign.spend || 0)}</td>
         <td className="px-4 py-3 text-right text-gray-700">{formatNaverNumber(campaign.clicks || 0)}</td>
         <td className="px-4 py-3 text-right text-gray-700">{formatNaverPercent(campaign.ctr || 0)}</td>
@@ -595,11 +645,13 @@ function CampaignRow({ campaign, campaignId, isExpanded, status, onToggleExpand,
         <td className="px-4 py-3 text-center">
           <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
             {campaign.status === 'PAUSED' ? (
-              <button className="p-1 hover:bg-green-50 rounded text-green-600" title="재개">
+              <button className="p-1 hover:bg-green-50 rounded text-green-600" title="재개"
+                onClick={() => onToggleStatus(campaignId, 'resume')}>
                 <Play size={14} />
               </button>
             ) : (
-              <button className="p-1 hover:bg-yellow-50 rounded text-yellow-600" title="일시중지">
+              <button className="p-1 hover:bg-yellow-50 rounded text-yellow-600" title="일시중지"
+                onClick={() => onToggleStatus(campaignId, 'pause')}>
                 <Pause size={14} />
               </button>
             )}

@@ -33,7 +33,7 @@ class NaverSearchAdsAPI:
 
     BASE_URL = "https://api.searchad.naver.com"
 
-    # Stat field constants
+    # Stat field constants (viewCnt/reachCnt are NOT supported for campaign stats)
     STAT_FIELDS = [
         "impCnt",       # 노출수
         "clkCnt",       # 클릭수
@@ -42,8 +42,6 @@ class NaverSearchAdsAPI:
         "cpc",          # 클릭당비용
         "ccnt",         # 전환수
         "convAmt",      # 전환매출액
-        "viewCnt",      # 조회수
-        "reachCnt",     # 도달수
     ]
 
     def __init__(

@@ -1728,6 +1728,101 @@ async def delete_schedule(
     return {"message": "삭제되었습니다"}
 
 
+@router.post("/schedules/{schedule_id}/run-now")
+async def run_schedule_now(
+    schedule_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """수동으로 스케줄 실행 (테스트용)."""
+    result = await db.execute(select(ScheduledReport).where(
+        ScheduledReport.id == schedule_id, ScheduledReport.user_id == str(current_user.id)
+    ))
+    sched = result.scalar_one_or_none()
+    if not sched:
+        raise HTTPException(404, "스케줄을 찾을 수 없습니다")
+
+    # Calculate date range
+    end_date = datetime.utcnow().strftime("%Y-%m-%d")
+    start_date = (datetime.utcnow() - timedelta(days=sched.lookback_days or 7)).strftime("%Y-%m-%d")
+
+    # Resolve Meta token
+    meta_token = current_user.meta_access_token
+    if not meta_token:
+        from app.models.ad_platform import PlatformConnection
+        shared = await db.execute(
+            select(PlatformConnection).where(
+                PlatformConnection.platform == "META",
+                PlatformConnection.is_active == True,  # noqa: E712
+            ).limit(1)
+        )
+        conn = shared.scalar_one_or_none()
+        if conn:
+            meta_token = conn.access_token
+
+    if not meta_token:
+        raise HTTPException(400, "Meta 액세스 토큰이 없습니다")
+
+    meta_ad_account = current_user.meta_ad_account_id or ""
+    if not meta_ad_account:
+        raise HTTPException(400, "Meta 광고 계정이 설정되지 않았습니다")
+
+    ad_account_id = meta_ad_account if meta_ad_account.startswith("act_") else f"act_{meta_ad_account}"
+    base_url = f"{settings.META_GRAPH_API_BASE}/{settings.META_API_VERSION}"
+    insights_endpoint = (
+        f"{sched.meta_campaign_id}/insights" if sched.meta_campaign_id
+        else f"{ad_account_id}/insights"
+    )
+
+    # Fetch insights from Meta
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.get(
+            f"{base_url}/{insights_endpoint}",
+            params={
+                "access_token": meta_token,
+                "fields": "spend,impressions,reach,clicks,ctr,cpc,cpm,actions,cost_per_action_type,action_values,purchase_roas,website_purchase_roas",
+                "time_range": json.dumps({"since": start_date, "until": end_date}),
+                "time_increment": 1,
+            }
+        )
+        if resp.status_code != 200:
+            raise HTTPException(502, f"Meta API 오류: {resp.text[:300]}")
+        insights_data = resp.json()
+
+    # Send email if configured
+    email_sent = False
+    if sched.email_to and settings.RESEND_API_KEY:
+        try:
+            resend.api_key = settings.RESEND_API_KEY
+            from_email = settings.RESEND_FROM_EMAIL or "onboarding@resend.dev"
+            resend.Emails.send({
+                "from": from_email,
+                "to": [sched.email_to],
+                "subject": f"[Meta-Commander] {sched.name} 리포트 ({start_date} ~ {end_date})",
+                "html": (
+                    f"<h2>{sched.name}</h2>"
+                    f"<p>기간: {start_date} ~ {end_date}</p>"
+                    f"<p>Meta-Commander에서 수동 실행된 리포트입니다. "
+                    f"자세한 내용은 대시보드에서 확인해주세요.</p>"
+                ),
+            })
+            email_sent = True
+        except Exception as e:
+            logger.error("Manual schedule email failed: %s", e)
+
+    # Update last_run_at
+    sched.last_run_at = datetime.utcnow()
+    await db.commit()
+
+    return {
+        "message": "스케줄이 수동으로 실행되었습니다",
+        "schedule_id": schedule_id,
+        "date_range": {"start": start_date, "end": end_date},
+        "insights_count": len(insights_data.get("data", [])),
+        "email_sent": email_sent,
+    }
+
+
 # ═══ Ad Comments Management ═══
 
 @router.get("/ad/{ad_id}/comments")

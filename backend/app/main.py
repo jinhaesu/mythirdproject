@@ -18,6 +18,9 @@ logger = logging.getLogger(__name__)
 
 settings = get_settings()
 
+_scheduler_last_check = None
+_scheduler_status = "not started"
+
 
 async def _run_scheduled_reports():
     """Background task: check and execute due scheduled reports every 60s."""
@@ -25,10 +28,13 @@ async def _run_scheduled_reports():
     from app.models.scheduled_report import ScheduledReport
     from sqlalchemy import select
 
+    global _scheduler_last_check, _scheduler_status
+    _scheduler_status = "running"
     while True:
         try:
             await asyncio.sleep(60)
             now = datetime.utcnow()
+            _scheduler_last_check = now
             async with async_session_factory() as db:
                 result = await db.execute(
                     select(ScheduledReport).where(
@@ -60,6 +66,7 @@ async def _run_scheduled_reports():
                         logger.error("Scheduled report %s failed: %s", sched.id, e)
                         await db.rollback()
         except Exception as e:
+            _scheduler_status = f"error: {e}"
             logger.error("Schedule runner error: %s", e)
 
 
@@ -125,8 +132,9 @@ async def _execute_scheduled_report(sched, db):
         try:
             import resend
             resend.api_key = settings.RESEND_API_KEY
+            from_email = settings.RESEND_FROM_EMAIL or "onboarding@resend.dev"
             resend.Emails.send({
-                "from": "Meta-Commander <reports@resend.dev>",
+                "from": from_email,
                 "to": [sched.email_to],
                 "subject": f"[Meta-Commander] {sched.name} 리포트 ({start_date} ~ {end_date})",
                 "html": f"<h2>{sched.name}</h2><p>기간: {start_date} ~ {end_date}</p><p>Meta-Commander에서 자동 생성된 리포트입니다. 자세한 내용은 대시보드에서 확인해주세요.</p>",
@@ -214,3 +222,12 @@ async def root():
 async def health_check():
     """Health check endpoint."""
     return {"status": "healthy"}
+
+
+@app.get("/scheduler/status")
+async def scheduler_status():
+    """Check the background scheduler status."""
+    return {
+        "status": _scheduler_status,
+        "last_check": _scheduler_last_check.isoformat() if _scheduler_last_check else None,
+    }
