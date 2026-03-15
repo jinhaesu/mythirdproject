@@ -833,25 +833,34 @@ async def search_ads_ai_analysis(
     db: AsyncSession = Depends(get_db),
 ):
     """검색광고 AI 분석 (Claude)."""
-    from app.services.ai import ClaudeService
+    # 1) Check ANTHROPIC_API_KEY first
+    if not settings.ANTHROPIC_API_KEY:
+        raise HTTPException(500, detail="ANTHROPIC_API_KEY 환경변수가 설정되지 않았습니다.")
 
-    api = await _get_naver_search_api(current_user, db)
-    start_date, end_date = _date_range_to_dates(request.date_range or "last_7_days")
+    # 2) Fetch Naver data
+    try:
+        api = await _get_naver_search_api(current_user, db)
+        start_date, end_date = _date_range_to_dates(request.date_range or "last_7_days")
+        campaigns = await api.get_campaigns()
+        campaign_ids = [c.get("nccCampaignId") for c in campaigns if c.get("nccCampaignId")]
 
-    campaigns = await api.get_campaigns()
-    campaign_ids = [c.get("nccCampaignId") for c in campaigns if c.get("nccCampaignId")]
+        stats = []
+        if campaign_ids:
+            try:
+                stats = await api.get_stat_report(
+                    ids=campaign_ids,
+                    date_preset="custom",
+                    start_date=start_date,
+                    end_date=end_date,
+                    time_increment="1",
+                )
+            except Exception as e:
+                logger.warning("Stats fetch failed, continuing without stats: %s", e)
+    except Exception as e:
+        logger.error("Naver data fetch failed for AI analysis: %s", e, exc_info=True)
+        raise HTTPException(500, detail=f"네이버 데이터 조회 실패: {e}")
 
-    stats = []
-    if campaign_ids:
-        stats = await api.get_stat_report(
-            ids=campaign_ids,
-            date_preset="custom",
-            start_date=start_date,
-            end_date=end_date,
-            time_increment="1",
-        )
-
-    # Build context for AI
+    # 3) Build context for AI
     context = {
         "platform": "Naver Search Ads (네이버 검색광고)",
         "date_range": f"{start_date} ~ {end_date}",
@@ -882,48 +891,48 @@ async def search_ads_ai_analysis(
 4. 주의 필요 사항 (이상 징후, 예산 소진 등)
 """
 
+    # 4) Call AI with fallback models
+    from anthropic import Anthropic
     try:
-        claude = ClaudeService()
-        models_to_try = [
-            claude.model,
-            "claude-sonnet-4-6",
-            "claude-3-5-sonnet-20241022",
-            "claude-3-5-haiku-20241022",
-            "claude-haiku-4-5-20251001",
-        ]
-        analysis = None
-        last_error = None
-        for model_id in models_to_try:
-            try:
-                response = claude.client.messages.create(
-                    model=model_id,
-                    max_tokens=3000,
-                    messages=[{"role": "user", "content": prompt}],
-                )
-                analysis = response.content[0].text
-                logger.info("AI analysis succeeded with model: %s", model_id)
-                break
-            except Exception as model_err:
-                last_error = str(model_err)
-                logger.warning("AI model %s failed: %s", model_id, model_err)
-
-        if not analysis:
-            raise HTTPException(500, detail=f"AI 분석 실패: {last_error}")
-
-        return {
-            "platform": "NAVER_SEARCH",
-            "date_range": request.date_range,
-            "analysis": analysis,
-            "data_summary": {
-                "total_campaigns": len(campaigns),
-                "stats_records": len(stats),
-            },
-        }
-    except HTTPException:
-        raise
+        client = Anthropic(api_key=settings.ANTHROPIC_API_KEY)
     except Exception as e:
-        logger.error("AI analysis error: %s", e, exc_info=True)
-        raise HTTPException(500, detail=f"AI 분석 실패: {e}")
+        logger.error("Anthropic client init failed: %s", e)
+        raise HTTPException(500, detail=f"AI 클라이언트 초기화 실패: {e}")
+
+    models_to_try = [
+        "claude-sonnet-4-20250514",
+        "claude-3-7-sonnet-20250219",
+        "claude-3-5-sonnet-20241022",
+        "claude-3-5-haiku-20241022",
+    ]
+    analysis = None
+    last_error = None
+    for model_id in models_to_try:
+        try:
+            response = client.messages.create(
+                model=model_id,
+                max_tokens=3000,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            analysis = response.content[0].text
+            logger.info("AI analysis succeeded with model: %s", model_id)
+            break
+        except Exception as model_err:
+            last_error = str(model_err)
+            logger.warning("AI model %s failed: %s", model_id, model_err)
+
+    if not analysis:
+        raise HTTPException(500, detail=f"사용 가능한 AI 모델이 없습니다. 마지막 오류: {last_error}")
+
+    return {
+        "platform": "NAVER_SEARCH",
+        "date_range": request.date_range,
+        "analysis": analysis,
+        "data_summary": {
+            "total_campaigns": len(campaigns),
+            "stats_records": len(stats),
+        },
+    }
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -1169,20 +1178,23 @@ async def gfa_ai_analysis(
 4. 주의 필요 사항
 """
 
+    if not settings.ANTHROPIC_API_KEY:
+        raise HTTPException(500, detail="ANTHROPIC_API_KEY 환경변수가 설정되지 않았습니다.")
+
     try:
-        claude = ClaudeService()
+        from anthropic import Anthropic
+        client = Anthropic(api_key=settings.ANTHROPIC_API_KEY)
         models_to_try = [
-            claude.model,
-            "claude-sonnet-4-6",
+            "claude-sonnet-4-20250514",
+            "claude-3-7-sonnet-20250219",
             "claude-3-5-sonnet-20241022",
             "claude-3-5-haiku-20241022",
-            "claude-haiku-4-5-20251001",
         ]
         analysis = None
         last_error = None
         for model_id in models_to_try:
             try:
-                response = claude.client.messages.create(
+                response = client.messages.create(
                     model=model_id,
                     max_tokens=3000,
                     messages=[{"role": "user", "content": prompt}],
@@ -1195,7 +1207,7 @@ async def gfa_ai_analysis(
                 logger.warning("GFA AI model %s failed: %s", model_id, model_err)
 
         if not analysis:
-            raise HTTPException(500, detail=f"AI 분석 실패: {last_error}")
+            raise HTTPException(500, detail=f"사용 가능한 AI 모델이 없습니다. 마지막 오류: {last_error}")
 
         return {
             "platform": "NAVER_GFA",

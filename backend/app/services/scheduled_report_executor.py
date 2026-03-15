@@ -211,9 +211,8 @@ async def execute_scheduled_report(sched, db) -> dict:
 - JSON만 출력하세요"""
 
         models_to_try = [
-            claude.model, "claude-sonnet-4-6",
+            "claude-sonnet-4-20250514", "claude-3-7-sonnet-20250219",
             "claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022",
-            "claude-haiku-4-5-20251001",
         ]
         for model_id in models_to_try:
             try:

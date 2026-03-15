@@ -117,7 +117,11 @@ export function NaverSearchAdsDashboard() {
   // AI Analysis
   const aiMutation = useMutation({
     mutationFn: () => naverSearchAdsApi.getAIAnalysis(datePreset, overview),
-    onError: () => toast.error('AI 분석에 실패했습니다.'),
+    onError: (err: any) => {
+      const detail = err?.response?.data?.detail || err?.message || '알 수 없는 오류';
+      toast.error(`AI 분석 실패: ${detail}`);
+      console.error('AI analysis error:', err?.response?.data || err);
+    },
   });
 
   const handleAiAnalysis = () => {
