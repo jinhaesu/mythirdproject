@@ -466,6 +466,81 @@ async def search_ads_keywords(
     }
 
 
+@router.get("/search-ads/campaign/{campaign_id}/keyword-rankings")
+async def search_ads_keyword_rankings(
+    campaign_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """캠페인 키워드별 네이버 쇼핑 광고 랭킹 조회."""
+    api = await _get_naver_search_api(current_user, db)
+    adgroups = await api.get_adgroups(campaign_id=campaign_id)
+
+    all_keywords = []
+    for ag in adgroups:
+        ag_id = ag.get("nccAdgroupId")
+        if not ag_id:
+            continue
+        keywords = await api.get_keywords(ag_id)
+        for kw in keywords:
+            kw["adgroupName"] = ag.get("name")
+            kw["adgroupBidAmt"] = ag.get("bidAmt", 0)
+        all_keywords.extend(keywords)
+
+    # For top keywords (max 10), fetch Naver Shopping search results to find ad rank
+    ranking_results = []
+    checked_keywords = all_keywords[:10]  # Limit to prevent too many API calls
+
+    for kw in checked_keywords:
+        keyword_text = kw.get("keyword", "")
+        if not keyword_text:
+            continue
+
+        bid_amt = kw.get("bidAmt") or kw.get("adgroupBidAmt") or 0
+        kw_status = kw.get("status", "")
+        is_paused = kw.get("userLock", False) or kw_status in ("PAUSED", "DELETED")
+
+        # Search Naver Shopping for this keyword
+        shopping_rank = None
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get(
+                    "https://openapi.naver.com/v1/search/shop.json",
+                    params={"query": keyword_text, "display": 40},
+                    headers={
+                        "X-Naver-Client-Id": settings.NAVER_CLIENT_ID,
+                        "X-Naver-Client-Secret": settings.NAVER_CLIENT_SECRET,
+                    },
+                )
+                if resp.status_code == 200:
+                    items = resp.json().get("items", [])
+                    # Find our brand "널담" in results
+                    for idx, item in enumerate(items):
+                        title_clean = item.get("title", "").replace("<b>", "").replace("</b>", "")
+                        if "널담" in title_clean or "널담" in item.get("mallName", ""):
+                            shopping_rank = idx + 1
+                            break
+        except Exception as e:
+            logger.warning("Shopping search failed for '%s': %s", keyword_text, e)
+
+        ranking_results.append({
+            "keyword": keyword_text,
+            "nccKeywordId": kw.get("nccKeywordId"),
+            "adgroupName": kw.get("adgroupName"),
+            "bidAmt": bid_amt,
+            "status": "중지" if is_paused else "활성",
+            "shopping_rank": shopping_rank,
+            "shopping_rank_label": f"{shopping_rank}위" if shopping_rank else "미노출",
+        })
+
+    return {
+        "campaign_id": campaign_id,
+        "total_keywords": len(all_keywords),
+        "checked_keywords": len(ranking_results),
+        "rankings": ranking_results,
+    }
+
+
 @router.get("/search-ads/trend")
 async def search_ads_trend(
     date_range: str = Query(default="last_7_days"),

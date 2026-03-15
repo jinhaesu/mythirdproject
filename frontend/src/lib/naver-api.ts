@@ -35,6 +35,11 @@ export const naverSearchAdsApi = {
     return data;
   },
 
+  getCampaignKeywordRankings: async (campaignId: string) => {
+    const { data } = await api.get(`/naver/search-ads/campaign/${campaignId}/keyword-rankings`);
+    return data;
+  },
+
   getTrend: async (dateRange = 'last_7_days', timeIncrement = 'daily') => {
     const { data } = await api.get('/naver/search-ads/trend', {
       params: { date_range: dateRange, time_increment: timeIncrement },
