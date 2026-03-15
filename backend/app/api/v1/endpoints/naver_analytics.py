@@ -518,6 +518,83 @@ async def search_ads_keywords(
     }
 
 
+def _extract_search_terms_from_adgroup_name(name: str) -> List[str]:
+    """광고그룹 이름에서 검색어 추출.
+
+    예: "자사키워드(쿠키)" → ["쿠키"]
+        "자사키워드(마카롱&뚱카롱)" → ["마카롱", "뚱카롱"]
+        "🍪[스스] 자사키워드_스콘" → ["스콘"]
+    """
+    import re
+    terms = []
+    # 괄호 안 내용 추출: (쿠키), (마카롱&뚱카롱)
+    paren_match = re.findall(r'[（(]([^)）]+)[)）]', name)
+    for m in paren_match:
+        for part in re.split(r'[&,/·]', m):
+            t = part.strip()
+            if t and t not in ("자사키워드", "키워드"):
+                terms.append(t)
+    # 언더스코어 뒤 내용 추출: _스콘, _식빵
+    underscore_match = re.findall(r'_([^_\s(）)]+)', name)
+    for m in underscore_match:
+        t = m.strip()
+        if t and t not in ("외", "자사키워드") and t not in terms:
+            terms.append(t)
+    return terms
+
+
+async def _search_naver_shopping(keyword_text: str, brand: str) -> dict:
+    """네이버 쇼핑 검색 API로 브랜드 상품 랭킹 조회."""
+    shopping_rank = None
+    shopping_error = None
+    total_results = 0
+    matched_product = None
+
+    if not settings.NAVER_CLIENT_ID or not settings.NAVER_CLIENT_SECRET:
+        return {"shopping_rank": None, "shopping_error": "NAVER_CLIENT_ID/SECRET 미설정",
+                "shopping_total": 0, "matched_product": None}
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                "https://openapi.naver.com/v1/search/shop.json",
+                params={"query": keyword_text, "display": 40},
+                headers={
+                    "X-Naver-Client-Id": settings.NAVER_CLIENT_ID,
+                    "X-Naver-Client-Secret": settings.NAVER_CLIENT_SECRET,
+                },
+            )
+            if resp.status_code == 200:
+                resp_json = resp.json()
+                items = resp_json.get("items", [])
+                total_results = resp_json.get("total", 0)
+                for idx, item in enumerate(items):
+                    title_clean = item.get("title", "").replace("<b>", "").replace("</b>", "")
+                    mall_name = item.get("mallName", "")
+                    brand_name = item.get("brand", "")
+                    if brand in title_clean or brand in mall_name or brand in brand_name:
+                        shopping_rank = idx + 1
+                        matched_product = {
+                            "title": title_clean,
+                            "price": item.get("lprice"),
+                            "mallName": mall_name,
+                            "image": item.get("image"),
+                        }
+                        break
+            else:
+                shopping_error = f"HTTP {resp.status_code}"
+    except Exception as e:
+        shopping_error = str(e)
+        logger.warning("Shopping search failed for '%s': %s", keyword_text, e)
+
+    return {
+        "shopping_rank": shopping_rank,
+        "shopping_error": shopping_error,
+        "shopping_total": total_results,
+        "matched_product": matched_product,
+    }
+
+
 @router.get("/search-ads/campaign/{campaign_id}/keyword-rankings")
 async def search_ads_keyword_rankings(
     campaign_id: str,
@@ -527,9 +604,18 @@ async def search_ads_keyword_rankings(
 ):
     """캠페인 키워드별 품질지수 + 네이버 쇼핑 검색 랭킹 조회.
 
-    각 광고그룹 → 키워드(품질지수) + 소재(광고) → 키워드별 쇼핑 검색 랭킹
+    WEB_SITE 캠페인: 광고그룹 → 키워드(품질지수) → 쇼핑 랭킹
+    SHOPPING 캠페인: 광고그룹 이름에서 검색어 추출 → 쇼핑 랭킹
     """
     api = await _get_naver_search_api(current_user, db)
+
+    # 0) 캠페인 타입 확인
+    campaign_type = None
+    try:
+        campaign_info = await api.get_campaign(campaign_id)
+        campaign_type = campaign_info.get("campaignTp", "")
+    except Exception as e:
+        logger.warning("get_campaign failed for %s: %s", campaign_id, e)
 
     # 1) 광고그룹 조회
     try:
@@ -537,40 +623,27 @@ async def search_ads_keyword_rankings(
     except Exception as e:
         logger.error("get_adgroups failed for campaign %s: %s", campaign_id, e)
         return {
-            "campaign_id": campaign_id, "total_keywords": 0, "checked_keywords": 0,
+            "campaign_id": campaign_id, "campaign_type": campaign_type,
+            "total_keywords": 0, "checked_keywords": 0,
             "rankings": [], "ads": [],
             "_debug": f"광고그룹 조회 실패: {e}", "_adgroup_count": 0,
         }
 
     if not adgroups:
         return {
-            "campaign_id": campaign_id, "total_keywords": 0, "checked_keywords": 0,
+            "campaign_id": campaign_id, "campaign_type": campaign_type,
+            "total_keywords": 0, "checked_keywords": 0,
             "rankings": [], "ads": [],
             "_debug": "이 캠페인에 광고그룹이 없습니다.", "_adgroup_count": 0,
         }
 
-    # 2) 각 광고그룹의 키워드 + 소재(광고) 수집
-    all_keywords = []
+    # 2) 소재(광고) 수집 — 모든 캠페인 타입 공통
     all_ads = []
-    keyword_errors = []
     for ag in adgroups:
         ag_id = ag.get("nccAdgroupId")
         if not ag_id:
             continue
         ag_name = ag.get("name", "")
-
-        # 키워드 조회
-        try:
-            keywords = await api.get_keywords(ag_id)
-            for kw in keywords:
-                kw["adgroupName"] = ag_name
-                kw["adgroupBidAmt"] = ag.get("bidAmt", 0)
-            all_keywords.extend(keywords)
-        except Exception as e:
-            keyword_errors.append(f"{ag_name}: {e}")
-            logger.warning("get_keywords failed for adgroup %s: %s", ag_id, e)
-
-        # 소재(광고) 조회
         try:
             ads = await api.get_ads(ag_id)
             for ad in ads:
@@ -588,19 +661,65 @@ async def search_ads_keyword_rankings(
         except Exception as e:
             logger.warning("get_ads failed for adgroup %s: %s", ag_id, e)
 
+    # 3) 키워드 수집 방식 분기
+    is_shopping = campaign_type in ("SHOPPING",)
+    all_keywords = []
+    keyword_errors = []
+
+    if is_shopping:
+        # 쇼핑검색 캠페인: 광고그룹 이름에서 검색어 추출
+        seen_terms = set()
+        for ag in adgroups:
+            ag_name = ag.get("name", "")
+            ag_status = ag.get("status", "")
+            ag_paused = ag.get("userLock", False) or ag_status in ("PAUSED", "DELETED")
+            bid_amt = ag.get("bidAmt", 0)
+            terms = _extract_search_terms_from_adgroup_name(ag_name)
+            for term in terms:
+                if term.lower() not in seen_terms:
+                    seen_terms.add(term.lower())
+                    all_keywords.append({
+                        "keyword": term,
+                        "adgroupName": ag_name,
+                        "bidAmt": bid_amt,
+                        "qualityIndex": None,  # 쇼핑캠페인은 품질지수 없음
+                        "status": ag_status,
+                        "userLock": ag_paused,
+                        "source": "adgroup_name",
+                    })
+    else:
+        # WEB_SITE / 기타 캠페인: API 키워드 조회
+        for ag in adgroups:
+            ag_id = ag.get("nccAdgroupId")
+            if not ag_id:
+                continue
+            ag_name = ag.get("name", "")
+            try:
+                keywords = await api.get_keywords(ag_id)
+                for kw in keywords:
+                    kw["adgroupName"] = ag_name
+                    kw["adgroupBidAmt"] = ag.get("bidAmt", 0)
+                all_keywords.extend(keywords)
+            except Exception as e:
+                keyword_errors.append(f"{ag_name}: {e}")
+                logger.warning("get_keywords failed for adgroup %s: %s", ag_id, e)
+
     if not all_keywords:
         debug_msg = "이 캠페인에 등록된 키워드가 없습니다."
+        if is_shopping:
+            debug_msg = "광고그룹 이름에서 검색어를 추출할 수 없습니다."
         if keyword_errors:
             debug_msg += f" 오류: {'; '.join(keyword_errors)}"
         return {
-            "campaign_id": campaign_id, "total_keywords": 0, "checked_keywords": 0,
+            "campaign_id": campaign_id, "campaign_type": campaign_type,
+            "total_keywords": 0, "checked_keywords": 0,
             "rankings": [], "ads": all_ads,
             "_debug": debug_msg,
             "_adgroup_count": len(adgroups),
             "_adgroup_names": [ag.get("name") for ag in adgroups],
         }
 
-    # 3) 키워드별 품질지수 + 네이버 쇼핑 검색 순위 조회 (최대 20개)
+    # 4) 키워드별 네이버 쇼핑 검색 순위 조회 (최대 20개)
     ranking_results = []
     checked_keywords = all_keywords[:20]
 
@@ -614,46 +733,7 @@ async def search_ads_keyword_rankings(
         kw_status = kw.get("status", "")
         is_paused = kw.get("userLock", False) or kw_status in ("PAUSED", "DELETED")
 
-        # 네이버 쇼핑 검색 API로 랭킹 조회
-        shopping_rank = None
-        shopping_error = None
-        total_results = 0
-        matched_product = None
-        if settings.NAVER_CLIENT_ID and settings.NAVER_CLIENT_SECRET:
-            try:
-                async with httpx.AsyncClient(timeout=10.0) as client:
-                    resp = await client.get(
-                        "https://openapi.naver.com/v1/search/shop.json",
-                        params={"query": keyword_text, "display": 40},
-                        headers={
-                            "X-Naver-Client-Id": settings.NAVER_CLIENT_ID,
-                            "X-Naver-Client-Secret": settings.NAVER_CLIENT_SECRET,
-                        },
-                    )
-                    if resp.status_code == 200:
-                        resp_json = resp.json()
-                        items = resp_json.get("items", [])
-                        total_results = resp_json.get("total", 0)
-                        for idx, item in enumerate(items):
-                            title_clean = item.get("title", "").replace("<b>", "").replace("</b>", "")
-                            mall_name = item.get("mallName", "")
-                            brand_name = item.get("brand", "")
-                            if brand in title_clean or brand in mall_name or brand in brand_name:
-                                shopping_rank = idx + 1
-                                matched_product = {
-                                    "title": title_clean,
-                                    "price": item.get("lprice"),
-                                    "mallName": mall_name,
-                                    "image": item.get("image"),
-                                }
-                                break
-                    else:
-                        shopping_error = f"HTTP {resp.status_code}"
-            except Exception as e:
-                shopping_error = str(e)
-                logger.warning("Shopping search failed for '%s': %s", keyword_text, e)
-        else:
-            shopping_error = "NAVER_CLIENT_ID/SECRET 미설정"
+        shop = await _search_naver_shopping(keyword_text, brand)
 
         ranking_results.append({
             "keyword": keyword_text,
@@ -662,15 +742,17 @@ async def search_ads_keyword_rankings(
             "bidAmt": bid_amt,
             "qualityIndex": quality_index,
             "status": "중지" if is_paused else "활성",
-            "shopping_rank": shopping_rank,
-            "shopping_rank_label": f"{shopping_rank}위" if shopping_rank else "미노출",
-            "shopping_total": total_results,
-            "shopping_error": shopping_error,
-            "matched_product": matched_product,
+            "shopping_rank": shop["shopping_rank"],
+            "shopping_rank_label": f"{shop['shopping_rank']}위" if shop["shopping_rank"] else "미노출",
+            "shopping_total": shop["shopping_total"],
+            "shopping_error": shop["shopping_error"],
+            "matched_product": shop["matched_product"],
+            "source": kw.get("source", "api"),
         })
 
     return {
         "campaign_id": campaign_id,
+        "campaign_type": campaign_type,
         "total_keywords": len(all_keywords),
         "checked_keywords": len(ranking_results),
         "rankings": ranking_results,

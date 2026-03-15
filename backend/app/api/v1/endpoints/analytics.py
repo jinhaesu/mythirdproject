@@ -1725,10 +1725,35 @@ async def run_schedule_now(
         raise HTTPException(404, "스케줄을 찾을 수 없습니다")
 
     from app.services.scheduled_report_executor import execute_scheduled_report
-    run_result = await execute_scheduled_report(sched, db)
 
-    sched.last_run_at = datetime.utcnow()
-    await db.commit()
+    try:
+        run_result = await execute_scheduled_report(sched, db)
+    except Exception as e:
+        logger.error("run-now execute_scheduled_report raised: %s", e, exc_info=True)
+        return {
+            "message": f"실행 중 오류: {e}",
+            "schedule_id": schedule_id,
+            "status": "error",
+            "email_sent": False,
+            "reason": "execution_exception",
+        }
+
+    # Refresh sched object in case session expired it
+    try:
+        await db.refresh(sched)
+        sched.last_run_at = datetime.utcnow()
+        await db.commit()
+    except Exception:
+        # If refresh fails, re-fetch
+        try:
+            await db.rollback()
+            re_result = await db.execute(select(ScheduledReport).where(ScheduledReport.id == schedule_id))
+            sched2 = re_result.scalar_one_or_none()
+            if sched2:
+                sched2.last_run_at = datetime.utcnow()
+                await db.commit()
+        except Exception as e2:
+            logger.warning("Failed to update last_run_at: %s", e2)
 
     status = run_result.get("status", "unknown")
     email_sent = run_result.get("email_sent", False)
@@ -1759,6 +1784,7 @@ async def run_schedule_now(
         "reason": reason,
         "email_error": run_result.get("email_error"),
         "insights_count": run_result.get("insights_count", 0),
+        "summary": run_result.get("performance"),
     }
 
 

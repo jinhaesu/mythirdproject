@@ -809,10 +809,20 @@ function CampaignRow({ campaign, campaignId, isExpanded, status, onToggleExpand,
                   ) : (
                     <div className="space-y-4">
                       <p className="text-xs text-gray-400">
-                        전체 {rankingData.total_keywords}개 키워드 중 상위 {rankingData.checked_keywords}개 조회 · 브랜드: <strong className="text-green-600">널담</strong>
+                        {rankingData.campaign_type === 'SHOPPING' ? (
+                          <>광고그룹에서 추출한 검색어 {rankingData.checked_keywords}개 조회</>
+                        ) : (
+                          <>전체 {rankingData.total_keywords}개 키워드 중 상위 {rankingData.checked_keywords}개 조회</>
+                        )}
+                        {' '}· 브랜드: <strong className="text-green-600">널담</strong>
                         {rankingData._adgroup_count !== undefined && ` · 광고그룹 ${rankingData._adgroup_count}개`}
                         {rankingData.ads?.length > 0 && ` · 소재 ${rankingData.ads.length}개`}
                       </p>
+                      {rankingData.campaign_type === 'SHOPPING' && (
+                        <p className="text-xs text-blue-500 bg-blue-50 px-2 py-1 rounded">
+                          쇼핑검색 캠페인: 광고그룹 이름에서 검색어를 자동 추출하여 네이버 쇼핑 랭킹을 조회합니다.
+                        </p>
+                      )}
 
                       {/* Keyword + Quality + Ranking Table */}
                       <div className="overflow-x-auto">
@@ -823,14 +833,14 @@ function CampaignRow({ campaign, campaignId, isExpanded, status, onToggleExpand,
                               <th className="text-left px-3 py-2">광고그룹</th>
                               <th className="text-left px-3 py-2">상태</th>
                               <th className="text-right px-3 py-2">입찰가</th>
-                              <th className="text-center px-3 py-2">품질지수</th>
+                              <th className="text-center px-3 py-2">{rankingData.campaign_type === 'SHOPPING' ? '유형' : '품질지수'}</th>
                               <th className="text-center px-3 py-2">쇼핑 랭킹</th>
                               <th className="text-left px-3 py-2">매칭 상품</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-200">
                             {rankingData.rankings.map((r: any) => (
-                              <tr key={r.nccKeywordId} className="hover:bg-white">
+                              <tr key={r.nccKeywordId || r.keyword} className="hover:bg-white">
                                 <td className="px-3 py-2 font-medium text-gray-900">{r.keyword}</td>
                                 <td className="px-3 py-2 text-xs text-gray-500">{r.adgroupName}</td>
                                 <td className="px-3 py-2">
@@ -849,6 +859,8 @@ function CampaignRow({ campaign, campaignId, isExpanded, status, onToggleExpand,
                                     }`}>
                                       {r.qualityIndex}
                                     </span>
+                                  ) : r.source === 'adgroup_name' ? (
+                                    <span className="px-1.5 py-0.5 rounded text-xs bg-purple-50 text-purple-600">쇼핑</span>
                                   ) : (
                                     <span className="text-xs text-gray-300">-</span>
                                   )}
