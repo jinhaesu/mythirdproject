@@ -1471,6 +1471,19 @@ class KeywordAnalysisResponse(BaseModel):
     trend: KeywordTrendResponse
 
 
+class ShoppingRankingItem(BaseModel):
+    rank: int
+    title: str
+    price: Optional[int] = None
+    mallName: Optional[str] = None
+
+
+class RankingAIAnalysisRequest(BaseModel):
+    keyword: str
+    brand: str = "널담"
+    shopping_results: List[ShoppingRankingItem]
+
+
 def _calc_start_date(period: str) -> str:
     """Return ISO start date string from period shorthand (6m/1y/3y)."""
     today = date.today()
@@ -1613,3 +1626,52 @@ async def keyword_research_analysis(
     except Exception as e:
         logger.error("keyword_research_analysis error: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/keyword-research/ai-analysis")
+async def keyword_research_ai_analysis(
+    request: RankingAIAnalysisRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """브랜드 쇼핑 랭킹 AI 분석 (Claude). 상위 10개 상품을 분석해 브랜드 순위 개선 전략을 제안합니다."""
+    from app.services.ai import ClaudeService
+
+    ranking_text = "\n".join(
+        f"{item.rank}위: {item.title} | 판매처: {item.mallName or '알 수 없음'} | 가격: {f'₩{item.price:,}' if item.price else '가격 미정'}"
+        for item in request.shopping_results
+    )
+
+    brand_found = any(request.brand in (item.title + (item.mallName or "")) for item in request.shopping_results)
+    brand_status = "랭킹에 등장함" if brand_found else "랭킹 상위 10위 내에 미등장"
+
+    prompt = f"""당신은 네이버 쇼핑 랭킹 전문 마케팅 컨설턴트입니다.
+
+키워드: "{request.keyword}"
+분석 브랜드: "{request.brand}"
+브랜드 현황: {brand_status}
+
+현재 네이버 쇼핑 상위 랭킹 (상위 {len(request.shopping_results)}개):
+{ranking_text}
+
+위 데이터를 바탕으로 "{request.brand}" 브랜드에 대해 다음을 한국어로 분석해주세요:
+
+1. **현재 랭킹 위치 분석**: 브랜드가 랭킹에 있는지, 있다면 몇 위인지, 없다면 왜 상위에 없는지
+2. **경쟁 구도 파악**: 상위 랭킹 상품들의 가격대, 판매처 특징, 제품명 패턴 분석
+3. **랭킹 상승/유지 전략**:
+   - 가격 전략 (경쟁사 대비 적정 가격대)
+   - 상품명 최적화 (검색 노출을 위한 키워드 포함 방법)
+   - 리뷰 관리 전략 (리뷰 수/평점 개선)
+   - 광고 전략 (네이버 쇼핑 광고 활용법)
+4. **즉시 실행 가능한 액션 아이템** (우선순위 순으로 3~5개)
+
+실용적이고 구체적인 조언을 제공해주세요."""
+
+    claude = ClaudeService()
+    response = claude.client.messages.create(
+        model=claude.model,
+        max_tokens=2000,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    analysis = response.content[0].text
+
+    return {"analysis": analysis}

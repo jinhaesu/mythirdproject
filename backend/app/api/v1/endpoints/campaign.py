@@ -440,6 +440,7 @@ async def publish_campaign(
                 "special_ad_categories": request.special_ad_categories,
                 "start_time": campaign.start_date,
                 "end_time": campaign.end_date,
+                "bid_strategy": bid_strategy or "LOWEST_COST_WITHOUT_CAP",
             }
 
             # CBO: set budget at campaign level

@@ -298,6 +298,17 @@ export const naverKeywordResearchApi = {
     });
     return data;
   },
+
+  /**
+   * 브랜드 쇼핑 랭킹 AI 분석 (Claude)
+   * POST /naver/keyword-research/ai-analysis
+   */
+  analyzeRanking: async (keyword: string, brand: string, shoppingResults: any[]) => {
+    const { data } = await api.post('/naver/keyword-research/ai-analysis', {
+      keyword, brand, shopping_results: shoppingResults,
+    });
+    return data;
+  },
 };
 
 // Currency & number formatting utilities for Naver (KRW only)

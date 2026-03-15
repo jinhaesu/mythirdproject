@@ -267,6 +267,7 @@ class MetaMarketingAPI:
         start_time: Optional[datetime] = None,
         end_time: Optional[datetime] = None,
         use_cbo: bool = False,
+        bid_strategy: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Create a new ad campaign.
 
@@ -281,6 +282,7 @@ class MetaMarketingAPI:
             start_time: Campaign start time (required when using lifetime_budget).
             end_time: Campaign end time (required when using lifetime_budget).
             use_cbo: Enable Campaign Budget Optimization.
+            bid_strategy: Bid strategy override at campaign level (overrides account default).
         """
         meta_objective = self._map_objective(objective)
 
@@ -300,6 +302,13 @@ class MetaMarketingAPI:
         else:
             # No CBO — budget at ad set level, enable budget sharing for optimization
             data["is_adset_budget_sharing_enabled"] = True
+
+        # Bid strategy at campaign level (overrides account default)
+        # Always set explicitly to prevent account-level LOWEST_COST_WITH_BID_CAP from propagating
+        if bid_strategy and bid_strategy not in ("", "LOWEST_COST_WITHOUT_CAP"):
+            data["bid_strategy"] = bid_strategy
+        else:
+            data["bid_strategy"] = "LOWEST_COST_WITHOUT_CAP"
 
         # Advantage+ Shopping campaigns
         if smart_promotion_type:
@@ -427,7 +436,8 @@ class MetaMarketingAPI:
             "status": status,
         }
 
-        # Bid strategy — 항상 명시적으로 설정 (계정 기본값 상속 방지)
+        # Bid strategy at adset level — only set if user explicitly chose a cap strategy with bid_amount
+        # For auto-bid (LOWEST_COST_WITHOUT_CAP), do NOT set at adset level; campaign level handles it
         logger.info(f"[AdSet] bid_strategy={bid_strategy!r}, bid_amount={bid_amount!r}, use_cbo={use_cbo}")
         if bid_strategy and bid_amount and bid_strategy not in ("", "LOWEST_COST_WITHOUT_CAP"):
             data["bid_strategy"] = bid_strategy
@@ -435,9 +445,7 @@ class MetaMarketingAPI:
                 data["bid_amount"] = bid_amount
             elif bid_strategy == "MINIMUM_ROAS":
                 data["roas_average_floor"] = bid_amount
-        else:
-            # 명시적으로 자동 입찰(최저 비용) 설정 → 계정 기본 입찰 전략 무시
-            data["bid_strategy"] = "LOWEST_COST_WITHOUT_CAP"
+        # Do NOT set bid_strategy at adset level for auto-bid — campaign level already sets LOWEST_COST_WITHOUT_CAP
 
         # Budget — skip when CBO is enabled
         if not use_cbo:

@@ -3,10 +3,15 @@
 import { useState, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
-  Search, Loader2, TrendingUp, ShoppingBag, Star, AlertCircle,
+  Search, Loader2, TrendingUp, ShoppingBag, Star, AlertCircle, Sparkles,
 } from 'lucide-react';
 import api from '@/lib/api';
+import { naverKeywordResearchApi } from '@/lib/naver-api';
 import { clsx } from 'clsx';
+
+// ─── Constants ───────────────────────────────────────────────────────────────
+
+const BRAND_NAME = '널담';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -30,8 +35,6 @@ interface ShoppingItem {
   reviewAverage?: number;
 }
 
-// ─── Constants ───────────────────────────────────────────────────────────────
-
 const PERIOD_OPTIONS: { label: string; value: Period }[] = [
   { label: '6개월', value: '6m' },
   { label: '1년', value: '1y' },
@@ -49,16 +52,18 @@ const TIME_UNIT_OPTIONS: { label: string; value: TimeUnit }[] = [
 function TrendChart({
   data,
   color = '#16a34a',
-  height = 160,
+  height = 240,
 }: {
   data: TrendPoint[];
   color?: string;
   height?: number;
 }) {
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+
   if (!data || data.length < 2) {
     return (
       <div
-        className="w-full bg-gray-50 rounded-lg flex items-center justify-center text-gray-400 text-sm"
+        className="w-full bg-gray-50 rounded-xl flex items-center justify-center text-gray-400 text-sm"
         style={{ height }}
       >
         데이터 없음
@@ -67,10 +72,11 @@ function TrendChart({
   }
 
   const width = 800; // internal SVG coordinate space
-  const paddingX = 40;
-  const paddingY = 16;
+  const paddingX = 52;
+  const paddingY = 20;
+  const paddingBottom = 36;
   const chartWidth = width - paddingX * 2;
-  const chartHeight = height - paddingY * 2;
+  const chartHeight = height - paddingY - paddingBottom;
 
   const ratios = data.map((d) => d.ratio);
   const max = Math.max(...ratios, 1);
@@ -85,13 +91,13 @@ function TrendChart({
     .map((d, i) => `${toX(i)},${toY(d.ratio)}`)
     .join(' ');
 
-  // Fill area under line
+  // Smooth filled area path
   const firstX = toX(0);
   const lastX = toX(data.length - 1);
   const bottomY = paddingY + chartHeight;
   const areaPoints = `${firstX},${bottomY} ${points} ${lastX},${bottomY}`;
 
-  // X-axis labels: show first, middle, last
+  // X-axis labels
   const labelIndices = [
     0,
     Math.floor(data.length / 4),
@@ -100,39 +106,65 @@ function TrendChart({
     data.length - 1,
   ].filter((v, i, arr) => arr.indexOf(v) === i);
 
-  // Y-axis gridlines at 0, 25, 50, 75, 100
-  const yGridValues = [0, 25, 50, 75, 100];
+  // Y-axis reference lines — spread across actual data range
+  const yRefValues = [
+    min,
+    min + range * 0.25,
+    min + range * 0.5,
+    min + range * 0.75,
+    max,
+  ].map((v) => Math.round(v));
+
+  const gradientId = 'trendGradient';
 
   return (
-    <div className="w-full overflow-hidden">
+    <div className="w-full overflow-hidden rounded-xl bg-gradient-to-b from-green-50/60 to-white border border-green-100">
       <svg
         viewBox={`0 0 ${width} ${height}`}
-        preserveAspectRatio="none"
+        preserveAspectRatio="xMidYMid meet"
         className="w-full"
         style={{ height }}
+        onMouseLeave={() => setHoveredIndex(null)}
       >
-        {/* Y gridlines */}
-        {yGridValues.map((v) => {
-          const y = toY(Math.min(v, max));
-          if (y < paddingY || y > paddingY + chartHeight) return null;
+        <defs>
+          <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity="0.18" />
+            <stop offset="100%" stopColor={color} stopOpacity="0.01" />
+          </linearGradient>
+        </defs>
+
+        {/* Y gridlines + labels */}
+        {yRefValues.map((v, idx) => {
+          const y = toY(v);
+          if (y < paddingY - 2 || y > paddingY + chartHeight + 2) return null;
           return (
-            <line
-              key={v}
-              x1={paddingX}
-              y1={y}
-              x2={width - paddingX}
-              y2={y}
-              stroke="#e5e7eb"
-              strokeWidth="1"
-            />
+            <g key={idx}>
+              <line
+                x1={paddingX}
+                y1={y}
+                x2={width - paddingX}
+                y2={y}
+                stroke="#e5e7eb"
+                strokeWidth={idx === 0 || idx === yRefValues.length - 1 ? '1.5' : '1'}
+                strokeDasharray={idx === 0 || idx === yRefValues.length - 1 ? '' : '4 3'}
+              />
+              <text
+                x={paddingX - 6}
+                y={y + 4}
+                textAnchor="end"
+                fontSize="10"
+                fill="#9ca3af"
+              >
+                {v}
+              </text>
+            </g>
           );
         })}
 
         {/* Area fill */}
         <polygon
           points={areaPoints}
-          fill={color}
-          fillOpacity="0.08"
+          fill={`url(#${gradientId})`}
         />
 
         {/* Line */}
@@ -145,7 +177,88 @@ function TrendChart({
           points={points}
         />
 
-        {/* Dots at data points */}
+        {/* Invisible wide hit targets for hover */}
+        {data.map((d, i) => {
+          const x = toX(i);
+          const segW = chartWidth / (data.length - 1);
+          return (
+            <rect
+              key={i}
+              x={x - segW / 2}
+              y={paddingY}
+              width={segW}
+              height={chartHeight}
+              fill="transparent"
+              onMouseEnter={() => setHoveredIndex(i)}
+            />
+          );
+        })}
+
+        {/* Hovered point: vertical guide + dot + tooltip */}
+        {hoveredIndex !== null && (() => {
+          const d = data[hoveredIndex];
+          const x = toX(hoveredIndex);
+          const y = toY(d.ratio);
+          const tooltipW = 120;
+          const tooltipH = 44;
+          const tooltipX = Math.min(
+            Math.max(x - tooltipW / 2, paddingX),
+            width - paddingX - tooltipW,
+          );
+          const tooltipY = y - tooltipH - 10 < paddingY ? y + 12 : y - tooltipH - 10;
+
+          return (
+            <>
+              {/* Vertical guide line */}
+              <line
+                x1={x}
+                y1={paddingY}
+                x2={x}
+                y2={paddingY + chartHeight}
+                stroke={color}
+                strokeWidth="1"
+                strokeDasharray="4 3"
+                strokeOpacity="0.5"
+              />
+              {/* Dot */}
+              <circle cx={x} cy={y} r="5" fill={color} stroke="white" strokeWidth="2" />
+              {/* Tooltip bubble */}
+              <rect
+                x={tooltipX}
+                y={tooltipY}
+                width={tooltipW}
+                height={tooltipH}
+                rx="7"
+                ry="7"
+                fill="white"
+                stroke="#e5e7eb"
+                strokeWidth="1"
+                filter="drop-shadow(0 2px 6px rgba(0,0,0,0.10))"
+              />
+              <text
+                x={tooltipX + tooltipW / 2}
+                y={tooltipY + 16}
+                textAnchor="middle"
+                fontSize="10"
+                fill="#6b7280"
+              >
+                {formatPeriodLabel(d.period)}
+              </text>
+              <text
+                x={tooltipX + tooltipW / 2}
+                y={tooltipY + 32}
+                textAnchor="middle"
+                fontSize="13"
+                fontWeight="600"
+                fill={color}
+              >
+                {d.ratio}
+              </text>
+            </>
+          );
+        })()}
+
+        {/* Dots: only visible on hover */}
         {data.map((d, i) => (
           <circle
             key={i}
@@ -153,7 +266,10 @@ function TrendChart({
             cy={toY(d.ratio)}
             r="3"
             fill={color}
-            fillOpacity="0.7"
+            fillOpacity={hoveredIndex === i ? 1 : 0}
+            stroke="white"
+            strokeWidth="1.5"
+            strokeOpacity={hoveredIndex === i ? 1 : 0}
           />
         ))}
 
@@ -162,25 +278,15 @@ function TrendChart({
           <text
             key={i}
             x={toX(i)}
-            y={height - 2}
+            y={height - 8}
             textAnchor="middle"
             fontSize="11"
-            fill="#9ca3af"
+            fill={hoveredIndex === i ? color : '#9ca3af'}
+            fontWeight={hoveredIndex === i ? '600' : '400'}
           >
             {formatPeriodLabel(data[i].period)}
           </text>
         ))}
-
-        {/* Y-axis label: max */}
-        <text
-          x={paddingX - 4}
-          y={paddingY + 4}
-          textAnchor="end"
-          fontSize="11"
-          fill="#9ca3af"
-        >
-          {max}
-        </text>
       </svg>
     </div>
   );
@@ -269,14 +375,47 @@ export function NaverKeywordResearch() {
   const [timeUnit, setTimeUnit] = useState<TimeUnit>('month');
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // AI analysis state
+  const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+
   const handleSearch = () => {
     const kw = inputValue.trim();
     if (!kw) return;
     setSearchedKeyword(kw);
+    // Reset AI analysis when new keyword is searched
+    setAiAnalysis(null);
+    setAiError(null);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') handleSearch();
+  };
+
+  const handleAiAnalysis = async () => {
+    if (!searchedKeyword || shoppingItems.length === 0) return;
+    setAiLoading(true);
+    setAiError(null);
+    setAiAnalysis(null);
+    try {
+      const top10 = shoppingItems.slice(0, 10).map((item, idx) => ({
+        rank: idx + 1,
+        title: item.title.replace(/<[^>]*>/g, ''),
+        price: Number(item.lprice) || null,
+        mallName: item.mallName || null,
+      }));
+      const result = await naverKeywordResearchApi.analyzeRanking(
+        searchedKeyword,
+        BRAND_NAME,
+        top10,
+      );
+      setAiAnalysis(result.analysis);
+    } catch (err: any) {
+      setAiError('AI 분석 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setAiLoading(false);
+    }
   };
 
   // ── Shopping query ────────────────────────────────────────────────────────
@@ -447,11 +586,9 @@ export function NaverKeywordResearch() {
               </div>
             ) : trendPoints.length > 0 ? (
               <div>
-                <TrendChart data={trendPoints} height={180} />
-                <div className="flex justify-between text-xs text-gray-400 mt-1 px-1">
-                  <span>0</span>
-                  <span className="text-gray-500">상대적 검색량 (최대=100)</span>
-                  <span>100</span>
+                <TrendChart data={trendPoints} height={240} />
+                <div className="flex justify-center text-xs text-gray-400 mt-2 px-1">
+                  <span className="text-gray-500">검색량 트렌드</span>
                 </div>
               </div>
             ) : (
@@ -501,6 +638,66 @@ export function NaverKeywordResearch() {
               </div>
             )}
           </div>
+
+          {/* ── AI Ranking Analysis ─────────────────────────────────────── */}
+          {shoppingItems.length > 0 && (
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <div className="flex items-center justify-between mb-5">
+                <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+                  <Sparkles size={18} className="text-purple-500" />
+                  AI 랭킹 분석
+                  <span className="ml-1 px-2 py-0.5 bg-purple-50 text-purple-700 rounded text-xs font-medium border border-purple-200">
+                    {BRAND_NAME}
+                  </span>
+                </h2>
+                <button
+                  onClick={handleAiAnalysis}
+                  disabled={aiLoading}
+                  className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {aiLoading ? (
+                    <Loader2 size={15} className="animate-spin" />
+                  ) : (
+                    <Sparkles size={15} />
+                  )}
+                  {aiLoading ? '분석 중...' : 'AI 랭킹 분석'}
+                </button>
+              </div>
+
+              {aiLoading && (
+                <div className="flex items-center justify-center py-16 gap-2 text-gray-400">
+                  <Loader2 size={22} className="animate-spin text-purple-500" />
+                  <span className="text-sm">Claude AI가 랭킹을 분석하고 있습니다...</span>
+                </div>
+              )}
+
+              {aiError && !aiLoading && (
+                <div className="flex items-center gap-2 py-4 text-red-500 text-sm">
+                  <AlertCircle size={16} />
+                  {aiError}
+                </div>
+              )}
+
+              {aiAnalysis && !aiLoading && (
+                <div className="bg-gradient-to-br from-purple-50 to-white border border-purple-100 rounded-xl p-5">
+                  <div className="flex items-center gap-2 mb-3 text-purple-700 text-sm font-semibold">
+                    <Sparkles size={14} />
+                    Claude AI 분석 결과
+                  </div>
+                  <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
+                    {aiAnalysis}
+                  </div>
+                </div>
+              )}
+
+              {!aiAnalysis && !aiLoading && !aiError && (
+                <div className="flex flex-col items-center justify-center py-12 gap-3 text-gray-400">
+                  <Sparkles size={40} className="text-purple-200" />
+                  <p className="text-sm">버튼을 눌러 "{BRAND_NAME}" 브랜드의 랭킹 전략을 AI로 분석해보세요.</p>
+                </div>
+              )}
+            </div>
+          )}
         </>
       )}
     </div>
