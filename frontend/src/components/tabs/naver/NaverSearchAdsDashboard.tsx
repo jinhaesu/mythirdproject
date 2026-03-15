@@ -66,6 +66,8 @@ export function NaverSearchAdsDashboard() {
   const [expandedCampaign, setExpandedCampaign] = useState<string | null>(null);
   const [aiTriggered, setAiTriggered] = useState(false);
   const [debugInfo, setDebugInfo] = useState<any>(null);
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'PAUSED'>('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Fetch overview
   const { data: overview, isLoading: loadingOverview, isError: overviewError, error: overviewErrorObj, refetch: refetchOverview } = useQuery({
@@ -107,9 +109,25 @@ export function NaverSearchAdsDashboard() {
     aiMutation.mutate();
   };
 
-  const campaigns = campaignsData?.campaigns || campaignsData || [];
+  const allCampaigns = campaignsData?.campaigns || campaignsData || [];
+  const campaigns = useMemo(() => {
+    let filtered = allCampaigns;
+    if (statusFilter !== 'ALL') {
+      filtered = filtered.filter((c: any) => c.status === statusFilter);
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      filtered = filtered.filter((c: any) => c.name?.toLowerCase().includes(q));
+    }
+    return filtered;
+  }, [allCampaigns, statusFilter, searchQuery]);
+
   const kpi = overview?.totals || overview?.kpi || overview || {};
   const trend = trendData?.trend || trendData?.data || trendData || [];
+
+  // Count active / paused
+  const activeCount = allCampaigns.filter((c: any) => c.status === 'ACTIVE').length;
+  const pausedCount = allCampaigns.filter((c: any) => c.status === 'PAUSED').length;
 
   // Trend arrays for charts
   const trendSpend = Array.isArray(trend) ? trend.map((d: any) => parseFloat(d.spend || 0)) : [];
@@ -242,6 +260,20 @@ export function NaverSearchAdsDashboard() {
         </div>
       )}
 
+      {/* Stat debug info */}
+      {overview && !overviewError && overview._debug_stat_error && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 mb-2 flex items-center gap-2">
+          <AlertCircle className="text-yellow-500 shrink-0" size={16} />
+          <p className="text-yellow-700 text-xs">통계 조회 오류: {overview._debug_stat_error} (stat_count: {overview._debug_stat_count})</p>
+        </div>
+      )}
+      {overview && !overviewError && !overview._debug_stat_error && overview._debug_stat_count === 0 && kpi.spend === 0 && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-2 flex items-center gap-2">
+          <AlertCircle className="text-blue-500 shrink-0" size={16} />
+          <p className="text-blue-700 text-xs">선택한 기간에 검색광고 지출 데이터가 없습니다. 캠페인이 일시중지 상태일 수 있습니다.</p>
+        </div>
+      )}
+
       {/* KPI Cards */}
       {loadingOverview ? (
         <div className="flex items-center justify-center py-12">
@@ -293,11 +325,47 @@ export function NaverSearchAdsDashboard() {
 
       {/* Campaign List */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
-            <Search size={18} className="text-green-600" />
-            캠페인 목록
-          </h2>
+        <div className="px-6 py-4 border-b border-gray-200 space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+              <Search size={18} className="text-green-600" />
+              캠페인 목록
+              <span className="text-xs text-gray-400 font-normal ml-1">({allCampaigns.length}개)</span>
+            </h2>
+          </div>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+            {/* Status filter tabs */}
+            <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
+              {([
+                { value: 'ALL' as const, label: '전체', count: allCampaigns.length },
+                { value: 'ACTIVE' as const, label: '활성', count: activeCount },
+                { value: 'PAUSED' as const, label: '중지', count: pausedCount },
+              ]).map((tab) => (
+                <button
+                  key={tab.value}
+                  onClick={() => setStatusFilter(tab.value)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                    statusFilter === tab.value
+                      ? 'bg-white text-gray-900 shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  {tab.label} <span className="text-gray-400">({tab.count})</span>
+                </button>
+              ))}
+            </div>
+            {/* Search */}
+            <div className="relative flex-1 w-full sm:max-w-xs">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="캠페인 검색..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-200 focus:border-green-400"
+              />
+            </div>
+          </div>
         </div>
         {loadingCampaigns ? (
           <div className="flex items-center justify-center py-12">
@@ -517,13 +585,13 @@ function CampaignRow({ campaign, campaignId, isExpanded, status, onToggleExpand,
         <td className="px-4 py-3">
           <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${status.color}`}>{status.label}</span>
         </td>
-        <td className="px-4 py-3 text-right text-gray-700">{formatNaverCurrency(campaign.dailyBudget || 0)}</td>
+        <td className="px-4 py-3 text-right text-gray-700">{formatNaverCurrency(campaign.daily_budget || campaign.dailyBudget || 0)}</td>
         <td className="px-4 py-3 text-right font-medium text-gray-900">{formatNaverCurrency(campaign.spend || 0)}</td>
         <td className="px-4 py-3 text-right text-gray-700">{formatNaverNumber(campaign.clicks || 0)}</td>
         <td className="px-4 py-3 text-right text-gray-700">{formatNaverPercent(campaign.ctr || 0)}</td>
         <td className="px-4 py-3 text-right text-gray-700">{formatNaverCurrency(campaign.cpc || 0)}</td>
         <td className="px-4 py-3 text-right text-gray-700">{formatNaverNumber(campaign.conversions || 0)}</td>
-        <td className="px-4 py-3 text-right text-gray-700">{campaign.roas ? `${(campaign.roas * 100).toFixed(0)}%` : '-'}</td>
+        <td className="px-4 py-3 text-right text-gray-700">{campaign.roas ? `${campaign.roas.toFixed(0)}%` : '-'}</td>
         <td className="px-4 py-3 text-center">
           <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
             {campaign.status === 'PAUSED' ? (

@@ -307,6 +307,7 @@ async def search_ads_overview(
     campaign_ids = [c.get("nccCampaignId") for c in campaigns if c.get("nccCampaignId")]
 
     stats = []
+    stat_error = None
     if campaign_ids:
         try:
             stats = await api.get_stat_report(
@@ -316,7 +317,9 @@ async def search_ads_overview(
                 end_date=end_date,
                 time_increment="allDays",
             )
+            logger.info("Naver stat_report returned %d items for %d campaigns", len(stats), len(campaign_ids))
         except Exception as e:
+            stat_error = str(e)
             logger.warning("Naver Search Ads get_stat_report failed: %s", e)
 
     # Aggregate totals
@@ -352,6 +355,8 @@ async def search_ads_overview(
         "active_campaigns": len([c for c in campaigns if not c.get("userLock")]),
         "totals": totals,
         "currency": "KRW",
+        "_debug_stat_count": len(stats),
+        "_debug_stat_error": stat_error,
     }
 
 
