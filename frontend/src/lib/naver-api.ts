@@ -260,6 +260,46 @@ export const naverAutoRulesApi = {
   },
 };
 
+// ═══ Naver Keyword Research / Shopping Ranking API ═══
+export const naverKeywordResearchApi = {
+  /**
+   * Naver 쇼핑 검색 API — 키워드별 상품 랭킹/가격/브랜드 데이터
+   * GET /naver/keyword-research/shopping
+   */
+  searchShopping: async (keyword: string, display: number = 40) => {
+    const { data } = await api.get('/naver/keyword-research/shopping', {
+      params: { keyword, display },
+    });
+    return data;
+  },
+
+  /**
+   * Naver DataLab 검색어 트렌드 API — 키워드 검색량 추이
+   * GET /naver/keyword-research/trend
+   */
+  getTrend: async (
+    keyword: string,
+    timeUnit: string = 'month',
+    period: string = '1y',
+  ) => {
+    const { data } = await api.get('/naver/keyword-research/trend', {
+      params: { keyword, time_unit: timeUnit, period },
+    });
+    return data;
+  },
+
+  /**
+   * 쇼핑 검색 + 트렌드 통합 분석
+   * GET /naver/keyword-research/analysis
+   */
+  getAnalysis: async (keyword: string) => {
+    const { data } = await api.get('/naver/keyword-research/analysis', {
+      params: { keyword },
+    });
+    return data;
+  },
+};
+
 // Currency & number formatting utilities for Naver (KRW only)
 export function formatNaverCurrency(amount: number): string {
   return `\u20A9${Math.round(amount).toLocaleString('ko-KR')}`;

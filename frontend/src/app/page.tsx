@@ -21,6 +21,7 @@ import {
   NaverGFAManager,
   NaverAutoManagement,
   NaverReports,
+  NaverKeywordResearch,
 } from '@/components/tabs/naver';
 import { AICommandCenter } from '@/components/chat/AICommandCenter';
 import toast from 'react-hot-toast';
@@ -102,6 +103,7 @@ export default function Home() {
             {naverActiveTab === 3 && <NaverGFAManager />}
             {naverActiveTab === 4 && <NaverAutoManagement />}
             {naverActiveTab === 5 && <NaverReports />}
+            {naverActiveTab === 6 && <NaverKeywordResearch />}
           </>
         )}
       </main>

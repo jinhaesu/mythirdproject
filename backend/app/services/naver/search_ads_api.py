@@ -7,6 +7,7 @@ All monetary values in KRW.
 
 Docs: https://naver.github.io/searchad-apidoc/
 """
+import base64
 import hashlib
 import hmac
 import logging
@@ -59,15 +60,16 @@ class NaverSearchAdsAPI:
     def _generate_signature(self, timestamp: str, method: str, path: str) -> str:
         """Generate HMAC-SHA256 signature for Naver Search Ads API.
 
-        Signature = HMAC-SHA256(secret_key, "{timestamp}.{method}.{path}")
+        Signature = Base64(HMAC-SHA256(Base64Decode(secret_key), "{timestamp}.{method}.{path}"))
         """
         message = f"{timestamp}.{method}.{path}"
+        secret_bytes = base64.b64decode(self.secret_key)
         signature = hmac.new(
-            self.secret_key.encode("utf-8"),
+            secret_bytes,
             message.encode("utf-8"),
             hashlib.sha256,
-        ).hexdigest()
-        return signature
+        ).digest()
+        return base64.b64encode(signature).decode("utf-8")
 
     def _build_headers(self, method: str, path: str) -> Dict[str, str]:
         """Build request headers including timestamp and signature."""

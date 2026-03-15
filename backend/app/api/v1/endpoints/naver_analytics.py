@@ -7,11 +7,14 @@ Covers:
   - Reports: generate, email
   - Auto-rules: CRUD + execution
 """
+import asyncio
 import json
 import logging
 import uuid
 from datetime import date, datetime, timedelta
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
+
+import httpx
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -1393,3 +1396,189 @@ def _compare(value: float, operator: str, threshold: float) -> bool:
         "lte": value <= threshold,
     }
     return ops.get(operator, False)
+
+
+# ─── Keyword Research / Shopping Ranking ─────────────────────
+
+
+class ShoppingItem(BaseModel):
+    title: str
+    link: str
+    image: str
+    lprice: str
+    hprice: str
+    mall_name: str
+    product_id: str
+    brand: str
+    maker: str
+    category1: str
+    category2: str
+    category3: str
+    category4: str
+
+
+class ShoppingSearchResponse(BaseModel):
+    keyword: str
+    total: int
+    items: List[ShoppingItem]
+
+
+class TrendPoint(BaseModel):
+    period: str
+    ratio: float
+
+
+class KeywordTrendResponse(BaseModel):
+    keyword: str
+    time_unit: str
+    data: List[TrendPoint]
+
+
+class KeywordAnalysisResponse(BaseModel):
+    keyword: str
+    shopping: ShoppingSearchResponse
+    trend: KeywordTrendResponse
+
+
+def _calc_start_date(period: str) -> str:
+    """Return ISO start date string from period shorthand (6m/1y/3y)."""
+    today = date.today()
+    if period == "6m":
+        start = today - timedelta(days=183)
+    elif period == "3y":
+        start = today - timedelta(days=1095)
+    else:  # default 1y
+        start = today - timedelta(days=365)
+    return start.strftime("%Y-%m-%d")
+
+
+def _naver_openapi_headers() -> Dict[str, str]:
+    return {
+        "X-Naver-Client-Id": settings.NAVER_CLIENT_ID,
+        "X-Naver-Client-Secret": settings.NAVER_CLIENT_SECRET,
+    }
+
+
+async def _fetch_shopping(keyword: str, display: int) -> ShoppingSearchResponse:
+    url = "https://openapi.naver.com/v1/search/shop.json"
+    params = {"query": keyword, "display": min(display, 100)}
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        resp = await client.get(url, headers=_naver_openapi_headers(), params=params)
+    if resp.status_code != 200:
+        raise HTTPException(
+            status_code=resp.status_code,
+            detail=f"Naver Shopping API error: {resp.text}",
+        )
+    body = resp.json()
+    items: List[ShoppingItem] = []
+    for raw in body.get("items", []):
+        items.append(
+            ShoppingItem(
+                title=raw.get("title", "").replace("<b>", "").replace("</b>", ""),
+                link=raw.get("link", ""),
+                image=raw.get("image", ""),
+                lprice=raw.get("lprice", ""),
+                hprice=raw.get("hprice", ""),
+                mall_name=raw.get("mallName", ""),
+                product_id=raw.get("productId", ""),
+                brand=raw.get("brand", ""),
+                maker=raw.get("maker", ""),
+                category1=raw.get("category1", ""),
+                category2=raw.get("category2", ""),
+                category3=raw.get("category3", ""),
+                category4=raw.get("category4", ""),
+            )
+        )
+    return ShoppingSearchResponse(
+        keyword=keyword,
+        total=body.get("total", 0),
+        items=items,
+    )
+
+
+async def _fetch_trend(keyword: str, time_unit: str, period: str) -> KeywordTrendResponse:
+    url = "https://openapi.naver.com/v1/datalab/search"
+    start_date = _calc_start_date(period)
+    end_date = date.today().strftime("%Y-%m-%d")
+    payload = {
+        "startDate": start_date,
+        "endDate": end_date,
+        "timeUnit": time_unit,
+        "keywordGroups": [
+            {"groupName": keyword, "keywords": [keyword]}
+        ],
+    }
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        resp = await client.post(
+            url,
+            headers={**_naver_openapi_headers(), "Content-Type": "application/json"},
+            json=payload,
+        )
+    if resp.status_code != 200:
+        raise HTTPException(
+            status_code=resp.status_code,
+            detail=f"Naver DataLab API error: {resp.text}",
+        )
+    body = resp.json()
+    data: List[TrendPoint] = []
+    results = body.get("results", [])
+    if results:
+        for point in results[0].get("data", []):
+            data.append(TrendPoint(period=point.get("period", ""), ratio=float(point.get("ratio", 0))))
+    return KeywordTrendResponse(keyword=keyword, time_unit=time_unit, data=data)
+
+
+@router.get("/keyword-research/shopping", response_model=ShoppingSearchResponse)
+async def keyword_research_shopping(
+    keyword: str = Query(..., description="검색할 키워드"),
+    display: int = Query(40, ge=1, le=100, description="반환할 상품 수 (최대 100)"),
+    current_user: User = Depends(get_current_user),
+):
+    """Naver 쇼핑 검색 API를 사용해 키워드에 대한 쇼핑 랭킹 데이터를 반환합니다."""
+    try:
+        return await _fetch_shopping(keyword, display)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("keyword_research_shopping error: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/keyword-research/trend", response_model=KeywordTrendResponse)
+async def keyword_research_trend(
+    keyword: str = Query(..., description="검색할 키워드"),
+    time_unit: str = Query("month", description="시간 단위: date / week / month"),
+    period: str = Query("1y", description="조회 기간: 6m / 1y / 3y"),
+    current_user: User = Depends(get_current_user),
+):
+    """Naver DataLab 검색어 트렌드 API를 사용해 키워드 검색량 추이를 반환합니다."""
+    if time_unit not in ("date", "week", "month"):
+        raise HTTPException(status_code=422, detail="time_unit must be one of: date, week, month")
+    if period not in ("6m", "1y", "3y"):
+        raise HTTPException(status_code=422, detail="period must be one of: 6m, 1y, 3y")
+    try:
+        return await _fetch_trend(keyword, time_unit, period)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("keyword_research_trend error: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/keyword-research/analysis", response_model=KeywordAnalysisResponse)
+async def keyword_research_analysis(
+    keyword: str = Query(..., description="분석할 키워드"),
+    current_user: User = Depends(get_current_user),
+):
+    """쇼핑 검색 결과와 검색 트렌드를 동시에 조회해 종합 키워드 분석 데이터를 반환합니다."""
+    try:
+        shopping, trend = await asyncio.gather(
+            _fetch_shopping(keyword, display=40),
+            _fetch_trend(keyword, time_unit="month", period="1y"),
+        )
+        return KeywordAnalysisResponse(keyword=keyword, shopping=shopping, trend=trend)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("keyword_research_analysis error: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))

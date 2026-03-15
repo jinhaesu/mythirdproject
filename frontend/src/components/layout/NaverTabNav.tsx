@@ -1,6 +1,6 @@
 'use client';
 
-import { BarChart3, Monitor, Settings, Layers, Zap, FileText } from 'lucide-react';
+import { BarChart3, Monitor, Settings, Layers, Zap, FileText, Search } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { clsx } from 'clsx';
 
@@ -11,6 +11,7 @@ const naverTabs = [
   { id: 3, name: 'GFA 관리', icon: Layers, description: '디스플레이 캠페인 관리' },
   { id: 4, name: '자동관리', icon: Zap, description: '룰 기반 자동 최적화' },
   { id: 5, name: '리포트', icon: FileText, description: '통합 리포트 생성' },
+  { id: 6, name: '키워드 리서치', icon: Search, description: '쇼핑 검색 랭킹 & 트렌드' },
 ];
 
 export function NaverTabNav() {
