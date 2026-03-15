@@ -67,14 +67,14 @@ export function NaverSearchAdsDashboard() {
   const [aiTriggered, setAiTriggered] = useState(false);
 
   // Fetch overview
-  const { data: overview, isLoading: loadingOverview, isError: overviewError, refetch: refetchOverview } = useQuery({
+  const { data: overview, isLoading: loadingOverview, isError: overviewError, error: overviewErrorObj, refetch: refetchOverview } = useQuery({
     queryKey: ['naver-search-overview', datePreset],
     queryFn: () => naverSearchAdsApi.getOverview(datePreset),
     retry: 1,
   });
 
   // Fetch campaigns
-  const { data: campaignsData, isLoading: loadingCampaigns, isError: campaignsError } = useQuery({
+  const { data: campaignsData, isLoading: loadingCampaigns, isError: campaignsError, error: campaignsErrorObj } = useQuery({
     queryKey: ['naver-search-campaigns', datePreset],
     queryFn: () => naverSearchAdsApi.getCampaigns(datePreset),
     retry: 1,
@@ -197,10 +197,14 @@ export function NaverSearchAdsDashboard() {
       {/* Overview Error Banner */}
       {overviewError && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-4 flex items-center gap-3">
-          <AlertCircle className="text-red-500" size={20} />
+          <AlertCircle className="text-red-500 shrink-0" size={20} />
           <div>
             <p className="text-red-700 font-medium text-sm">검색광고 API 연결 실패</p>
-            <p className="text-red-500 text-xs mt-0.5">네이버 검색광고 광고주 ID(숫자)를 확인해주세요. 설정 → 플랫폼 연동에서 수정할 수 있습니다.</p>
+            <p className="text-red-500 text-xs mt-0.5">
+              {(overviewErrorObj as any)?.response?.data?.detail
+                || (overviewErrorObj as any)?.message
+                || '네이버 검색광고 API 키를 확인해주세요.'}
+            </p>
           </div>
         </div>
       )}
@@ -271,7 +275,11 @@ export function NaverSearchAdsDashboard() {
           <div className="text-center py-8">
             <AlertCircle size={32} className="text-red-400 mx-auto mb-2" />
             <p className="text-red-500 text-sm">캠페인 데이터를 불러올 수 없습니다</p>
-            <p className="text-gray-400 text-xs mt-1">API 연결 상태를 확인해주세요</p>
+            <p className="text-gray-400 text-xs mt-1">
+              {(campaignsErrorObj as any)?.response?.data?.detail
+                || (campaignsErrorObj as any)?.message
+                || 'API 연결 상태를 확인해주세요'}
+            </p>
           </div>
         ) : campaigns.length === 0 ? (
           <div className="text-center py-12 text-gray-500">

@@ -233,6 +233,20 @@ def _date_range_to_dates(date_range: str):
 # ═══════════════════════════════════════════════════════════════
 
 
+@router.get("/search-ads/env-check")
+async def search_ads_env_check():
+    """검색광고 env vars 설정 상태 (인증 불필요)."""
+    return {
+        "NAVER_ADS_API_KEY_set": bool(settings.NAVER_ADS_API_KEY),
+        "NAVER_ADS_SECRET_KEY_set": bool(settings.NAVER_ADS_SECRET_KEY),
+        "NAVER_ADS_CUSTOMER_ID_set": bool(settings.NAVER_ADS_CUSTOMER_ID),
+        "NAVER_ADS_CUSTOMER_ID_value": settings.NAVER_ADS_CUSTOMER_ID or "(empty)",
+        "NAVER_ADS_API_KEY_prefix": settings.NAVER_ADS_API_KEY[:8] + "***" if settings.NAVER_ADS_API_KEY else "(empty)",
+        "NAVER_CLIENT_ID_set": bool(settings.NAVER_CLIENT_ID),
+        "NAVER_CLIENT_SECRET_set": bool(settings.NAVER_CLIENT_SECRET),
+    }
+
+
 @router.get("/search-ads/debug")
 async def search_ads_debug(
     current_user: User = Depends(get_current_user),
