@@ -1624,26 +1624,8 @@ class ScheduleUpdate(BaseModel):
 
 
 def _calc_next_run(sched):
-    now = datetime.utcnow()
-    hour = sched.send_hour if sched.send_hour is not None else 9
-    minute = sched.send_minute if sched.send_minute is not None else 0
-    # KST(UTC+9) → UTC 변환
-    utc_hour = (hour - 9) % 24
-    if sched.schedule_type == "weekly":
-        days_ahead = (sched.day_of_week or 0) - now.weekday()
-        if days_ahead <= 0:
-            days_ahead += 7
-        target = now.replace(hour=utc_hour, minute=minute, second=0, microsecond=0) + timedelta(days=days_ahead)
-        # KST 기준으로 하루가 넘어가는 경우 보정 (예: KST 0~8시 → UTC 전날)
-        if hour < 9:
-            target -= timedelta(days=1)
-        return target
-    else:
-        dom = sched.day_of_month or 1
-        m = now.month + 1 if now.day >= dom else now.month
-        y = now.year + (1 if m > 12 else 0)
-        m = m if m <= 12 else m - 12
-        return datetime(y, m, dom, utc_hour, minute, 0)
+    from app.services.scheduled_report_executor import calc_next_run
+    return calc_next_run(sched, datetime.utcnow())
 
 
 def _sched_dict(s):
@@ -1742,8 +1724,8 @@ async def run_schedule_now(
     if not sched:
         raise HTTPException(404, "스케줄을 찾을 수 없습니다")
 
-    from app.main import _execute_scheduled_report
-    run_result = await _execute_scheduled_report(sched, db)
+    from app.services.scheduled_report_executor import execute_scheduled_report
+    run_result = await execute_scheduled_report(sched, db)
 
     sched.last_run_at = datetime.utcnow()
     await db.commit()

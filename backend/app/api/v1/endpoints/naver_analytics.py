@@ -525,7 +525,10 @@ async def search_ads_keyword_rankings(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """캠페인 키워드별 네이버 쇼핑 광고 랭킹 조회."""
+    """캠페인 키워드별 품질지수 + 네이버 쇼핑 검색 랭킹 조회.
+
+    각 광고그룹 → 키워드(품질지수) + 소재(광고) → 키워드별 쇼핑 검색 랭킹
+    """
     api = await _get_naver_search_api(current_user, db)
 
     # 1) 광고그룹 조회
@@ -534,58 +537,72 @@ async def search_ads_keyword_rankings(
     except Exception as e:
         logger.error("get_adgroups failed for campaign %s: %s", campaign_id, e)
         return {
-            "campaign_id": campaign_id,
-            "total_keywords": 0,
-            "checked_keywords": 0,
-            "rankings": [],
-            "_debug": f"광고그룹 조회 실패: {e}",
-            "_adgroup_count": 0,
+            "campaign_id": campaign_id, "total_keywords": 0, "checked_keywords": 0,
+            "rankings": [], "ads": [],
+            "_debug": f"광고그룹 조회 실패: {e}", "_adgroup_count": 0,
         }
 
     if not adgroups:
         return {
-            "campaign_id": campaign_id,
-            "total_keywords": 0,
-            "checked_keywords": 0,
-            "rankings": [],
-            "_debug": "이 캠페인에 광고그룹이 없습니다.",
-            "_adgroup_count": 0,
+            "campaign_id": campaign_id, "total_keywords": 0, "checked_keywords": 0,
+            "rankings": [], "ads": [],
+            "_debug": "이 캠페인에 광고그룹이 없습니다.", "_adgroup_count": 0,
         }
 
-    # 2) 각 광고그룹의 키워드 수집
+    # 2) 각 광고그룹의 키워드 + 소재(광고) 수집
     all_keywords = []
+    all_ads = []
     keyword_errors = []
     for ag in adgroups:
         ag_id = ag.get("nccAdgroupId")
         if not ag_id:
             continue
+        ag_name = ag.get("name", "")
+
+        # 키워드 조회
         try:
             keywords = await api.get_keywords(ag_id)
             for kw in keywords:
-                kw["adgroupName"] = ag.get("name")
+                kw["adgroupName"] = ag_name
                 kw["adgroupBidAmt"] = ag.get("bidAmt", 0)
             all_keywords.extend(keywords)
         except Exception as e:
-            keyword_errors.append(f"{ag.get('name', ag_id)}: {e}")
+            keyword_errors.append(f"{ag_name}: {e}")
             logger.warning("get_keywords failed for adgroup %s: %s", ag_id, e)
 
+        # 소재(광고) 조회
+        try:
+            ads = await api.get_ads(ag_id)
+            for ad in ads:
+                pc = ad.get("ad", {}).get("pc", ad.get("pc", {})) or {}
+                mobile = ad.get("ad", {}).get("mobile", ad.get("mobile", {})) or {}
+                all_ads.append({
+                    "nccAdId": ad.get("nccAdId"),
+                    "adgroupName": ag_name,
+                    "type": ad.get("type"),
+                    "status": ad.get("status"),
+                    "inspectStatus": ad.get("inspectStatus"),
+                    "title": pc.get("subject") or mobile.get("subject") or ad.get("subject") or "",
+                    "description": pc.get("description") or mobile.get("description") or "",
+                })
+        except Exception as e:
+            logger.warning("get_ads failed for adgroup %s: %s", ag_id, e)
+
     if not all_keywords:
-        debug_msg = "키워드가 없습니다."
+        debug_msg = "이 캠페인에 등록된 키워드가 없습니다."
         if keyword_errors:
             debug_msg += f" 오류: {'; '.join(keyword_errors)}"
         return {
-            "campaign_id": campaign_id,
-            "total_keywords": 0,
-            "checked_keywords": 0,
-            "rankings": [],
+            "campaign_id": campaign_id, "total_keywords": 0, "checked_keywords": 0,
+            "rankings": [], "ads": all_ads,
             "_debug": debug_msg,
             "_adgroup_count": len(adgroups),
             "_adgroup_names": [ag.get("name") for ag in adgroups],
         }
 
-    # 3) 상위 키워드(최대 15개)에 대해 네이버 쇼핑 검색 순위 조회
+    # 3) 키워드별 품질지수 + 네이버 쇼핑 검색 순위 조회 (최대 20개)
     ranking_results = []
-    checked_keywords = all_keywords[:15]
+    checked_keywords = all_keywords[:20]
 
     for kw in checked_keywords:
         keyword_text = kw.get("keyword", "")
@@ -593,6 +610,7 @@ async def search_ads_keyword_rankings(
             continue
 
         bid_amt = kw.get("bidAmt") or kw.get("adgroupBidAmt") or 0
+        quality_index = kw.get("qualityIndex")
         kw_status = kw.get("status", "")
         is_paused = kw.get("userLock", False) or kw_status in ("PAUSED", "DELETED")
 
@@ -600,6 +618,7 @@ async def search_ads_keyword_rankings(
         shopping_rank = None
         shopping_error = None
         total_results = 0
+        matched_product = None
         if settings.NAVER_CLIENT_ID and settings.NAVER_CLIENT_SECRET:
             try:
                 async with httpx.AsyncClient(timeout=10.0) as client:
@@ -619,8 +638,14 @@ async def search_ads_keyword_rankings(
                             title_clean = item.get("title", "").replace("<b>", "").replace("</b>", "")
                             mall_name = item.get("mallName", "")
                             brand_name = item.get("brand", "")
-                            if (brand in title_clean or brand in mall_name or brand in brand_name):
+                            if brand in title_clean or brand in mall_name or brand in brand_name:
                                 shopping_rank = idx + 1
+                                matched_product = {
+                                    "title": title_clean,
+                                    "price": item.get("lprice"),
+                                    "mallName": mall_name,
+                                    "image": item.get("image"),
+                                }
                                 break
                     else:
                         shopping_error = f"HTTP {resp.status_code}"
@@ -635,11 +660,13 @@ async def search_ads_keyword_rankings(
             "nccKeywordId": kw.get("nccKeywordId"),
             "adgroupName": kw.get("adgroupName"),
             "bidAmt": bid_amt,
+            "qualityIndex": quality_index,
             "status": "중지" if is_paused else "활성",
             "shopping_rank": shopping_rank,
             "shopping_rank_label": f"{shopping_rank}위" if shopping_rank else "미노출",
             "shopping_total": total_results,
             "shopping_error": shopping_error,
+            "matched_product": matched_product,
         })
 
     return {
@@ -647,6 +674,7 @@ async def search_ads_keyword_rankings(
         "total_keywords": len(all_keywords),
         "checked_keywords": len(ranking_results),
         "rankings": ranking_results,
+        "ads": all_ads,
         "_adgroup_count": len(adgroups),
         "_keyword_errors": keyword_errors if keyword_errors else None,
     }

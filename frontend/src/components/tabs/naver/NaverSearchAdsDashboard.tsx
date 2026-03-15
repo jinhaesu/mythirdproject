@@ -777,65 +777,139 @@ function CampaignRow({ campaign, campaignId, isExpanded, status, onToggleExpand,
                 <>
                   {loadingRankings ? (
                     <div className="flex items-center gap-2 text-gray-500 text-sm py-4">
-                      <Loader2 size={16} className="animate-spin" /> 키워드 랭킹 조회 중...
+                      <Loader2 size={16} className="animate-spin" /> 키워드·품질지수·쇼핑랭킹 조회 중...
                     </div>
                   ) : !rankingData?.rankings?.length ? (
                     <div className="py-3 space-y-2">
-                      <p className="text-sm text-gray-400">키워드가 없습니다.</p>
+                      <p className="text-sm text-gray-500">이 캠페인에 등록된 키워드가 없습니다.</p>
                       {rankingData?._debug && (
                         <p className="text-xs text-yellow-600 bg-yellow-50 p-2 rounded">{rankingData._debug}</p>
                       )}
                       {rankingData?._adgroup_count !== undefined && (
-                        <p className="text-xs text-gray-400">광고그룹 수: {rankingData._adgroup_count}개
-                          {rankingData._adgroup_names?.length > 0 && ` (${rankingData._adgroup_names.join(', ')})`}
+                        <p className="text-xs text-gray-400">광고그룹 {rankingData._adgroup_count}개
+                          {rankingData._adgroup_names?.length > 0 && `: ${rankingData._adgroup_names.join(', ')}`}
                         </p>
+                      )}
+                      {/* Show ads even if no keywords */}
+                      {rankingData?.ads?.length > 0 && (
+                        <div className="mt-3">
+                          <p className="text-xs font-medium text-gray-600 mb-1">등록된 소재 ({rankingData.ads.length}개)</p>
+                          <div className="space-y-1">
+                            {rankingData.ads.map((ad: any) => (
+                              <div key={ad.nccAdId} className="flex items-center gap-2 bg-white p-2 rounded text-xs">
+                                <span className="text-gray-500">{ad.adgroupName}</span>
+                                <span className="font-medium text-gray-800">{ad.title || '(제목없음)'}</span>
+                                <span className={`px-1.5 py-0.5 rounded text-xs ${ad.status === 'ELIGIBLE' ? 'bg-green-50 text-green-600' : 'bg-gray-50 text-gray-500'}`}>{ad.inspectStatus || ad.status}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
                       )}
                     </div>
                   ) : (
-                    <div>
-                      <p className="text-xs text-gray-400 mb-2">
+                    <div className="space-y-4">
+                      <p className="text-xs text-gray-400">
                         전체 {rankingData.total_keywords}개 키워드 중 상위 {rankingData.checked_keywords}개 조회 · 브랜드: <strong className="text-green-600">널담</strong>
                         {rankingData._adgroup_count !== undefined && ` · 광고그룹 ${rankingData._adgroup_count}개`}
+                        {rankingData.ads?.length > 0 && ` · 소재 ${rankingData.ads.length}개`}
                       </p>
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="text-xs text-gray-500 uppercase">
-                            <th className="text-left px-3 py-2">키워드</th>
-                            <th className="text-left px-3 py-2">광고그룹</th>
-                            <th className="text-left px-3 py-2">상태</th>
-                            <th className="text-right px-3 py-2">입찰가</th>
-                            <th className="text-center px-3 py-2">쇼핑 랭킹</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-200">
-                          {rankingData.rankings.map((r: any) => (
-                            <tr key={r.nccKeywordId} className="hover:bg-white">
-                              <td className="px-3 py-2 font-medium text-gray-900">{r.keyword}</td>
-                              <td className="px-3 py-2 text-xs text-gray-500">{r.adgroupName}</td>
-                              <td className="px-3 py-2">
-                                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${r.status === '활성' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                                  {r.status}
-                                </span>
-                              </td>
-                              <td className="px-3 py-2 text-right text-gray-700">{formatNaverCurrency(r.bidAmt || 0)}</td>
-                              <td className="px-3 py-2 text-center">
-                                {r.shopping_rank ? (
-                                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold ${
-                                    r.shopping_rank <= 5 ? 'bg-green-100 text-green-700' :
-                                    r.shopping_rank <= 15 ? 'bg-blue-100 text-blue-700' :
-                                    r.shopping_rank <= 30 ? 'bg-yellow-100 text-yellow-700' :
-                                    'bg-gray-100 text-gray-600'
-                                  }`}>
-                                    <Award size={10} /> {r.shopping_rank_label}
-                                  </span>
-                                ) : (
-                                  <span className="text-xs text-gray-400">{r.shopping_error ? `오류: ${r.shopping_error}` : '미노출'}</span>
-                                )}
-                              </td>
+
+                      {/* Keyword + Quality + Ranking Table */}
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="text-xs text-gray-500 uppercase bg-white">
+                              <th className="text-left px-3 py-2">키워드</th>
+                              <th className="text-left px-3 py-2">광고그룹</th>
+                              <th className="text-left px-3 py-2">상태</th>
+                              <th className="text-right px-3 py-2">입찰가</th>
+                              <th className="text-center px-3 py-2">품질지수</th>
+                              <th className="text-center px-3 py-2">쇼핑 랭킹</th>
+                              <th className="text-left px-3 py-2">매칭 상품</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody className="divide-y divide-gray-200">
+                            {rankingData.rankings.map((r: any) => (
+                              <tr key={r.nccKeywordId} className="hover:bg-white">
+                                <td className="px-3 py-2 font-medium text-gray-900">{r.keyword}</td>
+                                <td className="px-3 py-2 text-xs text-gray-500">{r.adgroupName}</td>
+                                <td className="px-3 py-2">
+                                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${r.status === '활성' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                                    {r.status}
+                                  </span>
+                                </td>
+                                <td className="px-3 py-2 text-right text-gray-700">{formatNaverCurrency(r.bidAmt || 0)}</td>
+                                <td className="px-3 py-2 text-center">
+                                  {r.qualityIndex != null ? (
+                                    <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold ${
+                                      r.qualityIndex >= 8 ? 'bg-green-100 text-green-700' :
+                                      r.qualityIndex >= 5 ? 'bg-blue-100 text-blue-700' :
+                                      r.qualityIndex >= 3 ? 'bg-yellow-100 text-yellow-700' :
+                                      'bg-red-100 text-red-700'
+                                    }`}>
+                                      {r.qualityIndex}
+                                    </span>
+                                  ) : (
+                                    <span className="text-xs text-gray-300">-</span>
+                                  )}
+                                </td>
+                                <td className="px-3 py-2 text-center">
+                                  {r.shopping_rank ? (
+                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold ${
+                                      r.shopping_rank <= 5 ? 'bg-green-100 text-green-700' :
+                                      r.shopping_rank <= 15 ? 'bg-blue-100 text-blue-700' :
+                                      r.shopping_rank <= 30 ? 'bg-yellow-100 text-yellow-700' :
+                                      'bg-gray-100 text-gray-600'
+                                    }`}>
+                                      <Award size={10} /> {r.shopping_rank_label}
+                                    </span>
+                                  ) : (
+                                    <span className="text-xs text-gray-400">{r.shopping_error ? `오류` : '미노출'}</span>
+                                  )}
+                                </td>
+                                <td className="px-3 py-2">
+                                  {r.matched_product ? (
+                                    <div className="flex items-center gap-2">
+                                      {r.matched_product.image && (
+                                        <img src={r.matched_product.image} alt="" className="w-8 h-8 rounded object-cover" />
+                                      )}
+                                      <div className="min-w-0">
+                                        <p className="text-xs text-gray-800 truncate max-w-[180px]">{r.matched_product.title}</p>
+                                        <p className="text-xs text-gray-400">{r.matched_product.price ? `₩${Number(r.matched_product.price).toLocaleString()}` : ''}</p>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <span className="text-xs text-gray-300">-</span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Registered Ads */}
+                      {rankingData.ads?.length > 0 && (
+                        <div>
+                          <p className="text-xs font-medium text-gray-600 mb-2">등록된 소재 ({rankingData.ads.length}개)</p>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            {rankingData.ads.map((ad: any) => (
+                              <div key={ad.nccAdId} className="flex items-start gap-2 bg-white p-2.5 rounded-lg border border-gray-100">
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs font-medium text-gray-800 truncate">{ad.title || '(제목없음)'}</p>
+                                  {ad.description && <p className="text-xs text-gray-500 truncate">{ad.description}</p>}
+                                  <div className="flex items-center gap-1.5 mt-1">
+                                    <span className="text-xs text-gray-400">{ad.adgroupName}</span>
+                                    <span className={`px-1.5 py-0.5 rounded text-xs ${ad.status === 'ELIGIBLE' ? 'bg-green-50 text-green-600' : 'bg-gray-50 text-gray-500'}`}>
+                                      {ad.inspectStatus || ad.status || '-'}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </>
