@@ -300,6 +300,17 @@ export const naverKeywordResearchApi = {
   },
 
   /**
+   * 절대 월간 검색량 조회 (검색광고 키워드 도구 API)
+   * GET /naver/keyword-research/search-volume
+   */
+  getSearchVolume: async (keyword: string) => {
+    const { data } = await api.get('/naver/keyword-research/search-volume', {
+      params: { keyword },
+    });
+    return data;
+  },
+
+  /**
    * 브랜드 쇼핑 랭킹 AI 분석 (Claude)
    * POST /naver/keyword-research/ai-analysis
    */

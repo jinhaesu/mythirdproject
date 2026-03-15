@@ -4,6 +4,7 @@ import { useState, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Search, Loader2, TrendingUp, ShoppingBag, Star, AlertCircle, Sparkles, FileText,
+  BarChart3, Monitor, Smartphone,
 } from 'lucide-react';
 import api from '@/lib/api';
 import { naverKeywordResearchApi } from '@/lib/naver-api';
@@ -512,6 +513,28 @@ export function NaverKeywordResearch() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // ── Search volume (absolute) query ──────────────────────────────────────
+  const {
+    data: volumeData,
+    isLoading: volumeLoading,
+  } = useQuery({
+    queryKey: ['keyword-research-volume', searchedKeyword],
+    queryFn: async () => {
+      const { data } = await api.get('/naver/keyword-research/search-volume', {
+        params: { keyword: searchedKeyword },
+      });
+      return data as {
+        keyword: string;
+        available: boolean;
+        message?: string;
+        data: { keyword: string; monthlyPcQcCnt: number; monthlyMobileQcCnt: number; monthlyTotalQcCnt: number; compIdx: string }[];
+      };
+    },
+    enabled: !!searchedKeyword,
+    retry: 1,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const shoppingItems: ShoppingItem[] = shoppingData?.items ?? [];
   const trendPoints: TrendPoint[] = trendData?.data ?? [];
   const isLoading = shoppingLoading || trendLoading;
@@ -641,14 +664,100 @@ export function NaverKeywordResearch() {
             ) : trendPoints.length > 0 ? (
               <div>
                 <TrendChart data={trendPoints} height={240} />
-                <div className="flex justify-between items-center text-xs text-gray-400 mt-2 px-1">
-                  <span className="text-gray-500">검색량 트렌드 (상대 지수)</span>
-                  <span className="text-gray-400">※ 절대 검색량은 검색광고 API 연동 후 제공됩니다</span>
-                </div>
               </div>
             ) : (
               <div className="flex items-center justify-center py-16 text-gray-400 text-sm">
                 검색 결과가 없습니다.
+              </div>
+            )}
+          </div>
+
+          {/* ── Absolute Search Volume ─────────────────────────────────── */}
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2 mb-4">
+              <BarChart3 size={18} className="text-green-600" />
+              월간 검색량 (절대값)
+              <span className="ml-1 px-2 py-0.5 bg-green-50 text-green-700 rounded text-xs font-medium border border-green-200">
+                {searchedKeyword}
+              </span>
+            </h2>
+            {volumeLoading ? (
+              <div className="flex items-center justify-center py-10 gap-2 text-gray-400">
+                <Loader2 size={20} className="animate-spin text-green-500" />
+                <span className="text-sm">검색량 조회 중...</span>
+              </div>
+            ) : volumeData?.available && volumeData.data.length > 0 ? (
+              <>
+                {/* Summary cards for exact keyword */}
+                {(() => {
+                  const exact = volumeData.data.find(d => d.keyword === searchedKeyword) || volumeData.data[0];
+                  return (
+                    <div className="grid grid-cols-3 gap-4 mb-5">
+                      <div className="bg-gradient-to-br from-green-50 to-white border border-green-200 rounded-xl p-4 text-center">
+                        <div className="flex items-center justify-center gap-1.5 text-xs text-gray-500 mb-1">
+                          <BarChart3 size={13} /> 총 월간 검색량
+                        </div>
+                        <p className="text-2xl font-bold text-green-700">{exact.monthlyTotalQcCnt.toLocaleString()}</p>
+                      </div>
+                      <div className="bg-gradient-to-br from-blue-50 to-white border border-blue-200 rounded-xl p-4 text-center">
+                        <div className="flex items-center justify-center gap-1.5 text-xs text-gray-500 mb-1">
+                          <Monitor size={13} /> PC 검색량
+                        </div>
+                        <p className="text-2xl font-bold text-blue-700">{exact.monthlyPcQcCnt.toLocaleString()}</p>
+                      </div>
+                      <div className="bg-gradient-to-br from-orange-50 to-white border border-orange-200 rounded-xl p-4 text-center">
+                        <div className="flex items-center justify-center gap-1.5 text-xs text-gray-500 mb-1">
+                          <Smartphone size={13} /> 모바일 검색량
+                        </div>
+                        <p className="text-2xl font-bold text-orange-700">{exact.monthlyMobileQcCnt.toLocaleString()}</p>
+                      </div>
+                    </div>
+                  );
+                })()}
+                {/* Related keywords table */}
+                {volumeData.data.length > 1 && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-700 mb-2">연관 키워드 검색량</h3>
+                    <div className="overflow-x-auto rounded-lg border border-gray-200">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-gray-50 text-gray-600 text-xs">
+                            <th className="text-left px-3 py-2 font-medium">키워드</th>
+                            <th className="text-right px-3 py-2 font-medium">총 검색량</th>
+                            <th className="text-right px-3 py-2 font-medium">PC</th>
+                            <th className="text-right px-3 py-2 font-medium">모바일</th>
+                            <th className="text-right px-3 py-2 font-medium">경쟁강도</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {volumeData.data.slice(0, 20).map((item, idx) => (
+                            <tr key={idx} className={clsx('border-t border-gray-100', item.keyword === searchedKeyword && 'bg-green-50 font-semibold')}>
+                              <td className="px-3 py-2 text-gray-900">{item.keyword}</td>
+                              <td className="text-right px-3 py-2 text-gray-700">{item.monthlyTotalQcCnt.toLocaleString()}</td>
+                              <td className="text-right px-3 py-2 text-gray-500">{item.monthlyPcQcCnt.toLocaleString()}</td>
+                              <td className="text-right px-3 py-2 text-gray-500">{item.monthlyMobileQcCnt.toLocaleString()}</td>
+                              <td className="text-right px-3 py-2">
+                                <span className={clsx('px-1.5 py-0.5 rounded text-xs', {
+                                  'bg-red-100 text-red-700': item.compIdx === '높음',
+                                  'bg-yellow-100 text-yellow-700': item.compIdx === '중간',
+                                  'bg-green-100 text-green-700': item.compIdx === '낮음',
+                                  'bg-gray-100 text-gray-600': !item.compIdx || !['높음', '중간', '낮음'].includes(item.compIdx),
+                                })}>
+                                  {item.compIdx || '-'}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="bg-gray-50 rounded-xl p-5 text-center text-sm text-gray-500">
+                <BarChart3 size={28} className="text-gray-300 mx-auto mb-2" />
+                {volumeData?.message || '검색광고 API 연동 후 절대 검색량을 확인할 수 있습니다.'}
               </div>
             )}
           </div>

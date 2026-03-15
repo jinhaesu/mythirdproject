@@ -61,16 +61,16 @@ class NaverSearchAdsAPI:
     def _generate_signature(self, timestamp: str, method: str, path: str) -> str:
         """Generate HMAC-SHA256 signature for Naver Search Ads API.
 
-        Signature = Base64(HMAC-SHA256(Base64Decode(secret_key), "{timestamp}.{method}.{path}"))
+        Official: https://github.com/naver/searchad-apidoc/blob/master/python-sample/examples/signaturehelper.py
+        Signature = Base64(HMAC-SHA256(secret_key.encode("utf-8"), "{timestamp}.{method}.{path}"))
         """
         message = f"{timestamp}.{method}.{path}"
-        secret_bytes = base64.b64decode(self.secret_key)
         signature = hmac.new(
-            secret_bytes,
-            message.encode("utf-8"),
+            bytes(self.secret_key, "utf-8"),
+            bytes(message, "utf-8"),
             hashlib.sha256,
-        ).digest()
-        return base64.b64encode(signature).decode("utf-8")
+        )
+        return base64.b64encode(signature.digest()).decode("utf-8")
 
     def _build_headers(self, method: str, path: str) -> Dict[str, str]:
         """Build request headers including timestamp and signature."""
@@ -376,6 +376,26 @@ class NaverSearchAdsAPI:
         result = await self._request("GET", "/stats", params=params)
         if isinstance(result, dict):
             return result.get("data", [])
+        return result if isinstance(result, list) else []
+
+    # ─── Keyword Tool (검색량 조회) ─────────────────────────────
+
+    async def get_keyword_search_volume(
+        self,
+        keywords: List[str],
+    ) -> List[Dict[str, Any]]:
+        """GET /keywordstool - 키워드 월간 검색량 조회.
+
+        Returns monthlyPcQcCnt, monthlyMobileQcCnt for each keyword.
+        These are absolute monthly search volumes.
+        """
+        params = {
+            "hintKeywords": ",".join(keywords),
+            "showDetail": "1",
+        }
+        result = await self._request("GET", "/keywordstool", params=params)
+        if isinstance(result, dict):
+            return result.get("keywordList", [])
         return result if isinstance(result, list) else []
 
     # ─── Bid Estimation ──────────────────────────────────────────

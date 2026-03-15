@@ -1612,6 +1612,51 @@ async def keyword_research_trend(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/keyword-research/search-volume")
+async def keyword_research_search_volume(
+    keyword: str = Query(..., description="검색할 키워드"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """네이버 검색광고 키워드 도구 API로 절대 월간 검색량 조회.
+
+    Returns monthlyPcQcCnt + monthlyMobileQcCnt for exact keyword.
+    """
+    try:
+        api = await _get_naver_search_api(current_user, db)
+    except HTTPException:
+        return {"keyword": keyword, "available": False, "message": "검색광고 API 미연동", "data": []}
+
+    try:
+        results = await api.get_keyword_search_volume([keyword])
+        # Filter for exact keyword match and related keywords
+        keyword_data = []
+        for item in results:
+            pc = item.get("monthlyPcQcCnt", 0)
+            mobile = item.get("monthlyMobileQcCnt", 0)
+            # Handle "< 10" style values from Naver
+            if isinstance(pc, str):
+                pc = 5 if "< 10" in pc else int(pc) if pc.isdigit() else 0
+            if isinstance(mobile, str):
+                mobile = 5 if "< 10" in mobile else int(mobile) if mobile.isdigit() else 0
+            keyword_data.append({
+                "keyword": item.get("relKeyword", ""),
+                "monthlyPcQcCnt": pc,
+                "monthlyMobileQcCnt": mobile,
+                "monthlyTotalQcCnt": pc + mobile,
+                "compIdx": item.get("compIdx", ""),
+                "plAvgDepth": item.get("plAvgDepth", 0),
+            })
+        # Sort: exact match first, then by total volume
+        keyword_data.sort(
+            key=lambda x: (0 if x["keyword"] == keyword else 1, -x["monthlyTotalQcCnt"])
+        )
+        return {"keyword": keyword, "available": True, "data": keyword_data}
+    except Exception as e:
+        logger.error("keyword_research_search_volume error: %s", e)
+        return {"keyword": keyword, "available": False, "message": str(e), "data": []}
+
+
 @router.get("/keyword-research/analysis", response_model=KeywordAnalysisResponse)
 async def keyword_research_analysis(
     keyword: str = Query(..., description="분석할 키워드"),
