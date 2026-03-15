@@ -20,6 +20,9 @@ settings = get_settings()
 
 _scheduler_last_check = None
 _scheduler_status = "not started"
+_scheduler_run_count = 0
+_scheduler_last_error = None
+_scheduler_last_result = None
 
 
 async def _run_scheduled_reports():
@@ -28,13 +31,14 @@ async def _run_scheduled_reports():
     from app.models.scheduled_report import ScheduledReport
     from sqlalchemy import select
 
-    global _scheduler_last_check, _scheduler_status
+    global _scheduler_last_check, _scheduler_status, _scheduler_run_count, _scheduler_last_error, _scheduler_last_result
     _scheduler_status = "running"
     while True:
         try:
             await asyncio.sleep(60)
             now = datetime.utcnow()
             _scheduler_last_check = now
+            _scheduler_run_count += 1
             async with async_session_factory() as db:
                 result = await db.execute(
                     select(ScheduledReport).where(
@@ -43,10 +47,13 @@ async def _run_scheduled_reports():
                     )
                 )
                 due_scheds = result.scalars().all()
+                if due_scheds:
+                    logger.info("Scheduler found %d due reports", len(due_scheds))
                 for sched in due_scheds:
                     try:
                         logger.info("Running scheduled report: %s (id=%s)", sched.name, sched.id)
-                        await _execute_scheduled_report(sched, db)
+                        run_result = await _execute_scheduled_report(sched, db)
+                        _scheduler_last_result = {"sched_id": sched.id, "name": sched.name, "result": run_result, "time": now.isoformat()}
                         sched.last_run_at = now
                         # Calculate next run
                         hour = sched.send_hour if sched.send_hour is not None else 9
@@ -61,17 +68,19 @@ async def _run_scheduled_reports():
                             dom = sched.day_of_month or 1
                             sched.next_run_at = datetime(y, m, dom, utc_hour, minute, 0)
                         await db.commit()
-                        logger.info("Scheduled report completed: %s", sched.name)
+                        logger.info("Scheduled report completed: %s -> %s", sched.name, run_result)
                     except Exception as e:
-                        logger.error("Scheduled report %s failed: %s", sched.id, e)
+                        _scheduler_last_error = {"sched_id": sched.id, "error": str(e), "time": now.isoformat()}
+                        logger.error("Scheduled report %s failed: %s", sched.id, e, exc_info=True)
                         await db.rollback()
         except Exception as e:
             _scheduler_status = f"error: {e}"
-            logger.error("Schedule runner error: %s", e)
+            _scheduler_last_error = {"error": str(e), "time": datetime.utcnow().isoformat()}
+            logger.error("Schedule runner error: %s", e, exc_info=True)
 
 
-async def _execute_scheduled_report(sched, db):
-    """Execute a single scheduled report: generate + email."""
+async def _execute_scheduled_report(sched, db) -> dict:
+    """Execute a single scheduled report: generate + email. Returns status dict."""
     import json
     import httpx
     from app.models.user import User
@@ -82,15 +91,15 @@ async def _execute_scheduled_report(sched, db):
     user = user_result.scalar_one_or_none()
     if not user:
         logger.warning("Scheduled report user not found: %s", sched.user_id)
-        return
+        return {"status": "error", "reason": "user_not_found"}
 
     # Calculate date range
     end_date = datetime.utcnow().strftime("%Y-%m-%d")
     start_date = (datetime.utcnow() - timedelta(days=sched.lookback_days or 7)).strftime("%Y-%m-%d")
 
-    meta_token = user.meta_access_token
+    # Resolve Meta token: env var → user → PlatformConnection
+    meta_token = settings.META_ACCESS_TOKEN or user.meta_access_token
     if not meta_token:
-        # Try shared credentials
         from app.models.ad_platform import PlatformConnection
         shared = await db.execute(
             sa_select(PlatformConnection).where(
@@ -104,44 +113,121 @@ async def _execute_scheduled_report(sched, db):
 
     if not meta_token:
         logger.warning("No Meta token for scheduled report %s", sched.id)
-        return
+        return {"status": "error", "reason": "no_meta_token"}
 
-    meta_ad_account = user.meta_ad_account_id or ""
+    meta_ad_account = user.meta_ad_account_id or settings.META_ACCESS_TOKEN and ""
     if not meta_ad_account:
-        return
+        # Try to get from env or any reasonable default
+        logger.warning("No ad account for scheduled report %s", sched.id)
+        return {"status": "error", "reason": "no_ad_account"}
 
     ad_account_id = meta_ad_account if meta_ad_account.startswith("act_") else f"act_{meta_ad_account}"
     base_url = f"{settings.META_GRAPH_API_BASE}/{settings.META_API_VERSION}"
     insights_endpoint = f"{sched.meta_campaign_id}/insights" if sched.meta_campaign_id else f"{ad_account_id}/insights"
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        resp = await client.get(
-            f"{base_url}/{insights_endpoint}",
-            params={
-                "access_token": meta_token,
-                "fields": "spend,impressions,reach,clicks,ctr,cpc,cpm,actions,cost_per_action_type,action_values,purchase_roas,website_purchase_roas",
-                "time_range": json.dumps({"since": start_date, "until": end_date}),
-                "time_increment": 1,
-            }
-        )
-        if resp.status_code != 200:
-            logger.error("Meta API error for scheduled report: %s", resp.text[:200])
-            return
+    # Fetch Meta insights
+    insights_data = None
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.get(
+                f"{base_url}/{insights_endpoint}",
+                params={
+                    "access_token": meta_token,
+                    "fields": "spend,impressions,reach,clicks,ctr,cpc,cpm,actions,cost_per_action_type,action_values,purchase_roas,website_purchase_roas",
+                    "time_range": json.dumps({"since": start_date, "until": end_date}),
+                    "time_increment": 1,
+                }
+            )
+            if resp.status_code != 200:
+                logger.error("Meta API error for scheduled report: %s", resp.text[:300])
+                return {"status": "error", "reason": "meta_api_error", "detail": resp.text[:200]}
+            insights_data = resp.json()
+    except Exception as e:
+        logger.error("Meta API request failed: %s", e)
+        return {"status": "error", "reason": "meta_request_failed", "detail": str(e)}
 
-    if sched.email_to and settings.RESEND_API_KEY:
-        try:
-            import resend
-            resend.api_key = settings.RESEND_API_KEY
-            from_email = settings.RESEND_FROM_EMAIL or "onboarding@resend.dev"
-            resend.Emails.send({
-                "from": from_email,
-                "to": [sched.email_to],
-                "subject": f"[Meta-Commander] {sched.name} 리포트 ({start_date} ~ {end_date})",
-                "html": f"<h2>{sched.name}</h2><p>기간: {start_date} ~ {end_date}</p><p>Meta-Commander에서 자동 생성된 리포트입니다. 자세한 내용은 대시보드에서 확인해주세요.</p>",
-            })
-            logger.info("Scheduled report email sent to %s", sched.email_to)
-        except Exception as e:
-            logger.error("Scheduled report email failed: %s", e)
+    # Build email HTML with actual data
+    daily_data = insights_data.get("data", [])
+    total_spend = sum(float(d.get("spend", 0)) for d in daily_data)
+    total_impressions = sum(int(d.get("impressions", 0)) for d in daily_data)
+    total_clicks = sum(int(d.get("clicks", 0)) for d in daily_data)
+    avg_ctr = (total_clicks / total_impressions * 100) if total_impressions > 0 else 0
+    avg_cpc = (total_spend / total_clicks) if total_clicks > 0 else 0
+
+    email_html = f"""
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto;">
+      <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 24px; border-radius: 12px 12px 0 0;">
+        <h2 style="color: white; margin: 0;">{sched.name}</h2>
+        <p style="color: rgba(255,255,255,0.8); margin: 8px 0 0;">기간: {start_date} ~ {end_date}</p>
+      </div>
+      <div style="background: #f8f9fa; padding: 24px; border: 1px solid #e9ecef;">
+        <h3 style="margin: 0 0 16px; color: #333;">📊 성과 요약</h3>
+        <table style="width: 100%; border-collapse: collapse;">
+          <tr>
+            <td style="padding: 12px; background: white; border: 1px solid #e9ecef; text-align: center;">
+              <div style="font-size: 12px; color: #666;">총 비용</div>
+              <div style="font-size: 20px; font-weight: bold; color: #333;">${'{:,.0f}'.format(total_spend)}원</div>
+            </td>
+            <td style="padding: 12px; background: white; border: 1px solid #e9ecef; text-align: center;">
+              <div style="font-size: 12px; color: #666;">노출수</div>
+              <div style="font-size: 20px; font-weight: bold; color: #333;">{total_impressions:,}</div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 12px; background: white; border: 1px solid #e9ecef; text-align: center;">
+              <div style="font-size: 12px; color: #666;">클릭수</div>
+              <div style="font-size: 20px; font-weight: bold; color: #333;">{total_clicks:,}</div>
+            </td>
+            <td style="padding: 12px; background: white; border: 1px solid #e9ecef; text-align: center;">
+              <div style="font-size: 12px; color: #666;">CTR</div>
+              <div style="font-size: 20px; font-weight: bold; color: #333;">{avg_ctr:.2f}%</div>
+            </td>
+          </tr>
+          <tr>
+            <td colspan="2" style="padding: 12px; background: white; border: 1px solid #e9ecef; text-align: center;">
+              <div style="font-size: 12px; color: #666;">평균 CPC</div>
+              <div style="font-size: 20px; font-weight: bold; color: #333;">${'{:,.0f}'.format(avg_cpc)}원</div>
+            </td>
+          </tr>
+        </table>
+        <p style="margin: 16px 0 0; font-size: 12px; color: #999; text-align: center;">
+          데이터 일수: {len(daily_data)}일 | Meta-Commander 자동 리포트
+        </p>
+      </div>
+    </div>
+    """
+
+    # Send email
+    email_sent = False
+    email_error = None
+    if not sched.email_to:
+        return {"status": "success", "reason": "no_email_configured", "insights_count": len(daily_data)}
+    if not settings.RESEND_API_KEY:
+        logger.warning("RESEND_API_KEY not set, cannot send scheduled report email")
+        return {"status": "error", "reason": "resend_api_key_not_set", "insights_count": len(daily_data)}
+
+    try:
+        import resend
+        resend.api_key = settings.RESEND_API_KEY
+        from_email = settings.RESEND_FROM_EMAIL or "onboarding@resend.dev"
+        resend.Emails.send({
+            "from": from_email,
+            "to": [sched.email_to],
+            "subject": f"[Meta-Commander] {sched.name} ({start_date} ~ {end_date})",
+            "html": email_html,
+        })
+        email_sent = True
+        logger.info("Scheduled report email sent to %s", sched.email_to)
+    except Exception as e:
+        email_error = str(e)
+        logger.error("Scheduled report email failed: %s", e, exc_info=True)
+
+    return {
+        "status": "success" if email_sent else "email_failed",
+        "email_sent": email_sent,
+        "email_error": email_error,
+        "insights_count": len(daily_data),
+    }
 
 
 @asynccontextmanager
@@ -230,4 +316,10 @@ async def scheduler_status():
     return {
         "status": _scheduler_status,
         "last_check": _scheduler_last_check.isoformat() if _scheduler_last_check else None,
+        "check_count": _scheduler_run_count,
+        "last_error": _scheduler_last_error,
+        "last_result": _scheduler_last_result,
+        "resend_configured": bool(settings.RESEND_API_KEY),
+        "resend_from": settings.RESEND_FROM_EMAIL,
+        "meta_token_configured": bool(settings.META_ACCESS_TOKEN),
     }

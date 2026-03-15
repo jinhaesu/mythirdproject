@@ -180,6 +180,19 @@ export function AutoManagement() {
     onError: () => toast.error('스케줄 수정에 실패했습니다.'),
   });
 
+  const [runNowResult, setRunNowResult] = useState<any>(null);
+  const runNowMutation = useMutation({
+    mutationFn: (id: string) => analyticsApi.runScheduleNow(id),
+    onSuccess: (data: any) => {
+      setRunNowResult(data);
+      refetchSchedules();
+      if (data?.email_sent) toast.success('리포트 이메일 발송 완료!');
+      else if (data?.status === 'success' || data?.status === 'partial') toast.success(data.message || '실행 완료');
+      else toast.error(data?.message || '실행 실패');
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.detail || err?.response?.data?.message || '수동 실행 실패'),
+  });
+
   const reportMutation = useMutation({
     mutationFn: (req: { meta_campaign_id?: string; start_date: string; end_date: string }) =>
       analyticsApi.generateReport(req),
@@ -738,28 +751,45 @@ export function AutoManagement() {
         {/* Schedule List */}
         <div className="divide-y divide-gray-100">
           {Array.isArray(schedules) && schedules.length > 0 ? schedules.map((sched: any) => (
-            <div key={sched.id} className="px-5 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors">
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-gray-900">{sched.name}</span>
-                  <span className="text-xs bg-teal-100 text-teal-700 px-2 py-0.5 rounded">
-                    {sched.schedule_type === 'weekly' ? `매주 ${['일', '월', '화', '수', '목', '금', '토'][sched.day_of_week || 0]}요일` : `매월 ${sched.day_of_month}일`} {String(sched.send_hour ?? 9).padStart(2, '0')}:{String(sched.send_minute ?? 0).padStart(2, '0')}
-                  </span>
+            <div key={sched.id} className="px-5 py-3 hover:bg-gray-50 transition-colors">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-gray-900">{sched.name}</span>
+                    <span className="text-xs bg-teal-100 text-teal-700 px-2 py-0.5 rounded">
+                      {sched.schedule_type === 'weekly' ? `매주 ${['일', '월', '화', '수', '목', '금', '토'][sched.day_of_week || 0]}요일` : `매월 ${sched.day_of_month}일`} {String(sched.send_hour ?? 9).padStart(2, '0')}:{String(sched.send_minute ?? 0).padStart(2, '0')}
+                    </span>
+                    {sched.enabled ? (
+                      <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded">활성</span>
+                    ) : (
+                      <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">비활성</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    최근 {sched.lookback_days}일 | {sched.email_to || '이메일 미설정'}
+                    {sched.last_run_at && ` | 마지막 실행: ${new Date(sched.last_run_at).toLocaleString('ko-KR')}`}
+                    {sched.next_run_at && ` | 다음 실행: ${new Date(sched.next_run_at).toLocaleString('ko-KR')}`}
+                  </p>
                 </div>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  최근 {sched.lookback_days}일 | {sched.email_to || '이메일 미설정'}
-                  {sched.last_run_at && ` | 마지막: ${new Date(sched.last_run_at).toLocaleDateString('ko-KR')}`}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <button onClick={() => updateScheduleMutation.mutate({ id: sched.id, data: { enabled: !sched.enabled } })}
-                  className={`p-1.5 rounded-lg transition-colors ${sched.enabled ? 'text-green-600 hover:bg-green-50' : 'text-gray-400 hover:bg-gray-100'}`}>
-                  {sched.enabled ? <ToggleRight size={20} /> : <ToggleLeft size={20} />}
-                </button>
-                <button onClick={() => { if (confirm('이 스케줄을 삭제하시겠습니까?')) deleteScheduleMutation.mutate(sched.id); }}
-                  className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-                  <Trash2 size={14} />
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => runNowMutation.mutate(sched.id)}
+                    disabled={runNowMutation.isPending}
+                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg transition-colors disabled:opacity-50"
+                    title="지금 실행"
+                  >
+                    {runNowMutation.isPending ? <Loader2 size={12} className="animate-spin" /> : <PlayCircle size={12} />}
+                    수동 실행
+                  </button>
+                  <button onClick={() => updateScheduleMutation.mutate({ id: sched.id, data: { enabled: !sched.enabled } })}
+                    className={`p-1.5 rounded-lg transition-colors ${sched.enabled ? 'text-green-600 hover:bg-green-50' : 'text-gray-400 hover:bg-gray-100'}`}>
+                    {sched.enabled ? <ToggleRight size={20} /> : <ToggleLeft size={20} />}
+                  </button>
+                  <button onClick={() => deleteScheduleMutation.mutate(sched.id)}
+                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                    <Trash2 size={14} />
+                  </button>
+                </div>
               </div>
             </div>
           )) : (
@@ -769,6 +799,53 @@ export function AutoManagement() {
             </div>
           )}
         </div>
+
+        {/* Run Result */}
+        {runNowResult && (
+          <div className={`mx-5 mb-4 p-4 rounded-lg border text-sm ${
+            runNowResult.email_sent ? 'bg-green-50 border-green-200' :
+            runNowResult.status === 'error' ? 'bg-red-50 border-red-200' :
+            'bg-yellow-50 border-yellow-200'
+          }`}>
+            <div className="flex items-center justify-between mb-2">
+              <p className="font-medium">
+                {runNowResult.email_sent ? '✅ ' : runNowResult.status === 'error' ? '❌ ' : '⚠️ '}
+                {runNowResult.message}
+              </p>
+              <button onClick={() => setRunNowResult(null)} className="text-gray-400 hover:text-gray-600 text-xs">닫기</button>
+            </div>
+            {runNowResult.summary && (
+              <div className="grid grid-cols-4 gap-2 mt-2">
+                <div className="bg-white rounded p-2 text-center">
+                  <div className="text-xs text-gray-500">비용</div>
+                  <div className="font-semibold text-gray-900">{Math.round(runNowResult.summary.spend).toLocaleString()}원</div>
+                </div>
+                <div className="bg-white rounded p-2 text-center">
+                  <div className="text-xs text-gray-500">노출</div>
+                  <div className="font-semibold text-gray-900">{runNowResult.summary.impressions?.toLocaleString()}</div>
+                </div>
+                <div className="bg-white rounded p-2 text-center">
+                  <div className="text-xs text-gray-500">클릭</div>
+                  <div className="font-semibold text-gray-900">{runNowResult.summary.clicks?.toLocaleString()}</div>
+                </div>
+                <div className="bg-white rounded p-2 text-center">
+                  <div className="text-xs text-gray-500">CTR</div>
+                  <div className="font-semibold text-gray-900">{runNowResult.summary.ctr?.toFixed(2)}%</div>
+                </div>
+              </div>
+            )}
+            {runNowResult.reason && !runNowResult.email_sent && (
+              <p className="text-xs text-gray-600 mt-2">
+                원인: {runNowResult.reason === 'no_meta_token' ? 'Meta 액세스 토큰이 없습니다' :
+                       runNowResult.reason === 'no_ad_account' ? 'Meta 광고 계정이 설정되지 않았습니다' :
+                       runNowResult.reason === 'resend_api_key_not_set' ? 'RESEND_API_KEY 환경변수가 서버에 설정되지 않았습니다' :
+                       runNowResult.reason === 'no_email_configured' ? '이메일 주소가 설정되지 않았습니다' :
+                       runNowResult.reason}
+                {runNowResult.email_error && ` (${runNowResult.email_error})`}
+              </p>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

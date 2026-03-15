@@ -190,8 +190,8 @@ export function NaverSearchAdsDashboard() {
       bg: 'bg-emerald-50',
     },
     {
-      label: '전환매출',
-      value: formatNaverCurrency(kpi.conversion_value || kpi.total_revenue || 0),
+      label: '직접전환매출',
+      value: formatNaverCurrency(kpi.revenue || kpi.conversion_value || kpi.total_revenue || 0),
       icon: TrendingUp,
       color: 'text-rose-600',
       bg: 'bg-rose-50',
@@ -735,11 +735,22 @@ function CampaignRow({ campaign, campaignId, isExpanded, status, onToggleExpand,
                       <Loader2 size={16} className="animate-spin" /> 키워드 랭킹 조회 중...
                     </div>
                   ) : !rankingData?.rankings?.length ? (
-                    <p className="text-sm text-gray-400 py-2">키워드가 없습니다.</p>
+                    <div className="py-3 space-y-2">
+                      <p className="text-sm text-gray-400">키워드가 없습니다.</p>
+                      {rankingData?._debug && (
+                        <p className="text-xs text-yellow-600 bg-yellow-50 p-2 rounded">{rankingData._debug}</p>
+                      )}
+                      {rankingData?._adgroup_count !== undefined && (
+                        <p className="text-xs text-gray-400">광고그룹 수: {rankingData._adgroup_count}개
+                          {rankingData._adgroup_names?.length > 0 && ` (${rankingData._adgroup_names.join(', ')})`}
+                        </p>
+                      )}
+                    </div>
                   ) : (
                     <div>
                       <p className="text-xs text-gray-400 mb-2">
-                        전체 {rankingData.total_keywords}개 키워드 중 상위 {rankingData.checked_keywords}개 조회 (브랜드: 널담)
+                        전체 {rankingData.total_keywords}개 키워드 중 상위 {rankingData.checked_keywords}개 조회 · 브랜드: <strong className="text-green-600">널담</strong>
+                        {rankingData._adgroup_count !== undefined && ` · 광고그룹 ${rankingData._adgroup_count}개`}
                       </p>
                       <table className="w-full text-sm">
                         <thead>
@@ -773,7 +784,7 @@ function CampaignRow({ campaign, campaignId, isExpanded, status, onToggleExpand,
                                     <Award size={10} /> {r.shopping_rank_label}
                                   </span>
                                 ) : (
-                                  <span className="text-xs text-gray-400">미노출</span>
+                                  <span className="text-xs text-gray-400">{r.shopping_error ? `오류: ${r.shopping_error}` : '미노출'}</span>
                                 )}
                               </td>
                             </tr>

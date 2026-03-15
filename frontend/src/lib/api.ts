@@ -492,6 +492,17 @@ export const analyticsApi = {
     const { data } = await api.delete(`/analytics/schedules/${schedId}`);
     return data;
   },
+  runScheduleNow: async (schedId: string) => {
+    const { data } = await api.post(`/analytics/schedules/${schedId}/run-now`);
+    return data;
+  },
+  getSchedulerStatus: async () => {
+    // scheduler/status is at root level, not under /api/v1
+    const backendBase = API_BASE.replace(/\/api\/v1\/?$/, '');
+    const url = backendBase ? `${backendBase}/scheduler/status` : '/scheduler/status';
+    const { data } = await axios.get(url);
+    return data;
+  },
 
   // 성과 피드백 API
   getPerformanceFeedback: async (campaignId: string, datePreset = 'last_7d') => {
