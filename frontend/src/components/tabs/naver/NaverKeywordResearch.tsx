@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
-  Search, Loader2, TrendingUp, ShoppingBag, Star, AlertCircle, Sparkles,
+  Search, Loader2, TrendingUp, ShoppingBag, Star, AlertCircle, Sparkles, FileText,
 } from 'lucide-react';
 import api from '@/lib/api';
 import { naverKeywordResearchApi } from '@/lib/naver-api';
@@ -366,6 +366,24 @@ function ProductCard({ item, rank }: { item: ShoppingItem; rank: number }) {
   );
 }
 
+// ─── Markdown Helper ─────────────────────────────────────────────────────────
+
+function simpleMarkdownToHtml(text: string): string {
+  return text
+    // Headers
+    .replace(/^### (.+)$/gm, '<h4 class="text-sm font-bold text-gray-900 mt-4 mb-2">$1</h4>')
+    .replace(/^## (.+)$/gm, '<h3 class="text-base font-bold text-gray-900 mt-5 mb-2">$1</h3>')
+    // Bold
+    .replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold text-gray-900">$1</strong>')
+    // Numbered lists
+    .replace(/^(\d+)\. (.+)$/gm, '<div class="flex gap-2 ml-2 my-1"><span class="text-purple-600 font-semibold min-w-[1.2rem]">$1.</span><span>$2</span></div>')
+    // Bullet points
+    .replace(/^[-•] (.+)$/gm, '<div class="flex gap-2 ml-4 my-0.5"><span class="text-purple-400">•</span><span>$1</span></div>')
+    // Line breaks
+    .replace(/\n\n/g, '<div class="h-2"></div>')
+    .replace(/\n/g, '<br/>');
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export function NaverKeywordResearch() {
@@ -415,6 +433,42 @@ export function NaverKeywordResearch() {
       setAiError('AI 분석 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
     } finally {
       setAiLoading(false);
+    }
+  };
+
+  const handleDownloadPdf = () => {
+    if (!aiAnalysis) return;
+    const htmlContent = `
+    <!DOCTYPE html>
+    <html><head>
+      <meta charset="utf-8">
+      <title>키워드 리서치 분석 - ${searchedKeyword}</title>
+      <style>
+        body { font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; max-width: 800px; margin: 0 auto; padding: 40px; color: #333; line-height: 1.7; }
+        h1 { color: #7c3aed; border-bottom: 2px solid #7c3aed; padding-bottom: 8px; }
+        h2 { color: #374151; margin-top: 24px; }
+        h4 { color: #4b5563; margin-top: 16px; }
+        strong { color: #111827; }
+        .meta { color: #6b7280; font-size: 14px; margin-bottom: 24px; }
+        .content { font-size: 15px; }
+      </style>
+    </head><body>
+      <h1>키워드 리서치 AI 분석</h1>
+      <div class="meta">
+        <p>키워드: <strong>${searchedKeyword}</strong> | 브랜드: <strong>${BRAND_NAME}</strong></p>
+        <p>분석일: ${new Date().toLocaleDateString('ko-KR')}</p>
+      </div>
+      <div class="content">${simpleMarkdownToHtml(aiAnalysis)}</div>
+    </body></html>
+  `;
+    const blob = new Blob([htmlContent], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const printWindow = window.open(url, '_blank');
+    if (printWindow) {
+      printWindow.onload = () => {
+        printWindow.print();
+        URL.revokeObjectURL(url);
+      };
     }
   };
 
@@ -587,8 +641,9 @@ export function NaverKeywordResearch() {
             ) : trendPoints.length > 0 ? (
               <div>
                 <TrendChart data={trendPoints} height={240} />
-                <div className="flex justify-center text-xs text-gray-400 mt-2 px-1">
-                  <span className="text-gray-500">검색량 트렌드</span>
+                <div className="flex justify-between items-center text-xs text-gray-400 mt-2 px-1">
+                  <span className="text-gray-500">검색량 트렌드 (상대 지수)</span>
+                  <span className="text-gray-400">※ 절대 검색량은 검색광고 API 연동 후 제공됩니다</span>
                 </div>
               </div>
             ) : (
@@ -597,6 +652,78 @@ export function NaverKeywordResearch() {
               </div>
             )}
           </div>
+
+          {/* ── AI Ranking Analysis ─────────────────────────────────────── */}
+          {shoppingItems.length > 0 && (
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <div className="flex items-center justify-between mb-5">
+                <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+                  <Sparkles size={18} className="text-purple-500" />
+                  AI 랭킹 분석
+                  <span className="ml-1 px-2 py-0.5 bg-purple-50 text-purple-700 rounded text-xs font-medium border border-purple-200">
+                    {BRAND_NAME}
+                  </span>
+                </h2>
+                <div className="flex items-center gap-2">
+                  {aiAnalysis && (
+                    <button
+                      onClick={handleDownloadPdf}
+                      className="flex items-center gap-2 px-4 py-2 bg-white border border-purple-300 text-purple-700 rounded-lg text-sm font-medium hover:bg-purple-50 transition-colors"
+                    >
+                      <FileText size={15} />
+                      PDF 다운로드
+                    </button>
+                  )}
+                  <button
+                    onClick={handleAiAnalysis}
+                    disabled={aiLoading}
+                    className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {aiLoading ? (
+                      <Loader2 size={15} className="animate-spin" />
+                    ) : (
+                      <Sparkles size={15} />
+                    )}
+                    {aiLoading ? '분석 중...' : 'AI 랭킹 분석'}
+                  </button>
+                </div>
+              </div>
+
+              {aiLoading && (
+                <div className="flex items-center justify-center py-16 gap-2 text-gray-400">
+                  <Loader2 size={22} className="animate-spin text-purple-500" />
+                  <span className="text-sm">Claude AI가 랭킹을 분석하고 있습니다...</span>
+                </div>
+              )}
+
+              {aiError && !aiLoading && (
+                <div className="flex items-center gap-2 py-4 text-red-500 text-sm">
+                  <AlertCircle size={16} />
+                  {aiError}
+                </div>
+              )}
+
+              {aiAnalysis && !aiLoading && (
+                <div className="bg-gradient-to-br from-purple-50 to-white border border-purple-100 rounded-xl p-5">
+                  <div className="flex items-center gap-2 mb-3 text-purple-700 text-sm font-semibold">
+                    <Sparkles size={14} />
+                    Claude AI 분석 결과
+                  </div>
+                  <div
+                    className="text-sm text-gray-700 leading-relaxed prose-sm"
+                    dangerouslySetInnerHTML={{ __html: simpleMarkdownToHtml(aiAnalysis) }}
+                  />
+                </div>
+              )}
+
+              {!aiAnalysis && !aiLoading && !aiError && (
+                <div className="flex flex-col items-center justify-center py-12 gap-3 text-gray-400">
+                  <Sparkles size={40} className="text-purple-200" />
+                  <p className="text-sm">버튼을 눌러 "{BRAND_NAME}" 브랜드의 랭킹 전략을 AI로 분석해보세요.</p>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* ── Shopping Results ───────────────────────────────────────── */}
           <div className="bg-white rounded-xl border border-gray-200 p-6">
@@ -638,66 +765,6 @@ export function NaverKeywordResearch() {
               </div>
             )}
           </div>
-
-          {/* ── AI Ranking Analysis ─────────────────────────────────────── */}
-          {shoppingItems.length > 0 && (
-            <div className="bg-white rounded-xl border border-gray-200 p-6">
-              <div className="flex items-center justify-between mb-5">
-                <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
-                  <Sparkles size={18} className="text-purple-500" />
-                  AI 랭킹 분석
-                  <span className="ml-1 px-2 py-0.5 bg-purple-50 text-purple-700 rounded text-xs font-medium border border-purple-200">
-                    {BRAND_NAME}
-                  </span>
-                </h2>
-                <button
-                  onClick={handleAiAnalysis}
-                  disabled={aiLoading}
-                  className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  {aiLoading ? (
-                    <Loader2 size={15} className="animate-spin" />
-                  ) : (
-                    <Sparkles size={15} />
-                  )}
-                  {aiLoading ? '분석 중...' : 'AI 랭킹 분석'}
-                </button>
-              </div>
-
-              {aiLoading && (
-                <div className="flex items-center justify-center py-16 gap-2 text-gray-400">
-                  <Loader2 size={22} className="animate-spin text-purple-500" />
-                  <span className="text-sm">Claude AI가 랭킹을 분석하고 있습니다...</span>
-                </div>
-              )}
-
-              {aiError && !aiLoading && (
-                <div className="flex items-center gap-2 py-4 text-red-500 text-sm">
-                  <AlertCircle size={16} />
-                  {aiError}
-                </div>
-              )}
-
-              {aiAnalysis && !aiLoading && (
-                <div className="bg-gradient-to-br from-purple-50 to-white border border-purple-100 rounded-xl p-5">
-                  <div className="flex items-center gap-2 mb-3 text-purple-700 text-sm font-semibold">
-                    <Sparkles size={14} />
-                    Claude AI 분석 결과
-                  </div>
-                  <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
-                    {aiAnalysis}
-                  </div>
-                </div>
-              )}
-
-              {!aiAnalysis && !aiLoading && !aiError && (
-                <div className="flex flex-col items-center justify-center py-12 gap-3 text-gray-400">
-                  <Sparkles size={40} className="text-purple-200" />
-                  <p className="text-sm">버튼을 눌러 "{BRAND_NAME}" 브랜드의 랭킹 전략을 AI로 분석해보세요.</p>
-                </div>
-              )}
-            </div>
-          )}
         </>
       )}
     </div>

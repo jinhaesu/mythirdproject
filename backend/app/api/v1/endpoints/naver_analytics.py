@@ -232,13 +232,12 @@ async def search_ads_debug(
         "api_key_length": len(api.api_key) if api.api_key else 0,
         "secret_key_length": len(api.secret_key) if api.secret_key else 0,
         "customer_id": api.customer_id,
-        "api_key_prefix": api.api_key[:8] + "..." if api.api_key else "",
+        "api_key_prefix": api.api_key[:4] + "***" if api.api_key else "",
     }
     try:
         result = await api.get_campaigns()
         debug_info["status"] = "OK"
         debug_info["campaigns_count"] = len(result)
-        debug_info["sample"] = result[:2] if result else []
     except Exception as e:
         debug_info["status"] = "ERROR"
         debug_info["error"] = str(e)
@@ -322,7 +321,11 @@ async def search_ads_campaigns(
     api = await _get_naver_search_api(current_user, db)
     start_date, end_date = _date_range_to_dates(date_range)
 
-    campaigns = await api.get_campaigns()
+    try:
+        campaigns = await api.get_campaigns()
+    except Exception as e:
+        logger.error("Naver Search Ads get_campaigns failed: %s", e)
+        raise HTTPException(status_code=502, detail=f"네이버 검색광고 API 연결 실패: {str(e)}")
     campaign_ids = [c.get("nccCampaignId") for c in campaigns if c.get("nccCampaignId")]
 
     stats_map = {}
@@ -1669,7 +1672,7 @@ async def keyword_research_ai_analysis(
     claude = ClaudeService()
     response = claude.client.messages.create(
         model=claude.model,
-        max_tokens=2000,
+        max_tokens=4000,
         messages=[{"role": "user", "content": prompt}],
     )
     analysis = response.content[0].text

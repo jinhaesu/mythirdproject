@@ -5,7 +5,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import {
   BarChart3, DollarSign, Eye, MousePointer, Target, TrendingUp, TrendingDown,
   Loader2, RefreshCw, ChevronDown, ChevronRight, Play, Pause, Sparkles,
-  Search, Award, Activity,
+  Search, Award, Activity, AlertCircle,
 } from 'lucide-react';
 import { naverSearchAdsApi, formatNaverCurrency, formatNaverNumber, formatNaverPercent } from '@/lib/naver-api';
 import toast from 'react-hot-toast';
@@ -67,14 +67,14 @@ export function NaverSearchAdsDashboard() {
   const [aiTriggered, setAiTriggered] = useState(false);
 
   // Fetch overview
-  const { data: overview, isLoading: loadingOverview, refetch: refetchOverview } = useQuery({
+  const { data: overview, isLoading: loadingOverview, isError: overviewError, refetch: refetchOverview } = useQuery({
     queryKey: ['naver-search-overview', datePreset],
     queryFn: () => naverSearchAdsApi.getOverview(datePreset),
     retry: 1,
   });
 
   // Fetch campaigns
-  const { data: campaignsData, isLoading: loadingCampaigns } = useQuery({
+  const { data: campaignsData, isLoading: loadingCampaigns, isError: campaignsError } = useQuery({
     queryKey: ['naver-search-campaigns', datePreset],
     queryFn: () => naverSearchAdsApi.getCampaigns(datePreset),
     retry: 1,
@@ -194,6 +194,17 @@ export function NaverSearchAdsDashboard() {
         </div>
       </div>
 
+      {/* Overview Error Banner */}
+      {overviewError && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-4 flex items-center gap-3">
+          <AlertCircle className="text-red-500" size={20} />
+          <div>
+            <p className="text-red-700 font-medium text-sm">검색광고 API 연결 실패</p>
+            <p className="text-red-500 text-xs mt-0.5">네이버 검색광고 광고주 ID(숫자)를 확인해주세요. 설정 → 플랫폼 연동에서 수정할 수 있습니다.</p>
+          </div>
+        </div>
+      )}
+
       {/* KPI Cards */}
       {loadingOverview ? (
         <div className="flex items-center justify-center py-12">
@@ -256,6 +267,12 @@ export function NaverSearchAdsDashboard() {
             <Loader2 className="animate-spin text-green-600" size={24} />
             <span className="ml-2 text-gray-500">캠페인 로딩 중...</span>
           </div>
+        ) : campaignsError ? (
+          <div className="text-center py-8">
+            <AlertCircle size={32} className="text-red-400 mx-auto mb-2" />
+            <p className="text-red-500 text-sm">캠페인 데이터를 불러올 수 없습니다</p>
+            <p className="text-gray-400 text-xs mt-1">API 연결 상태를 확인해주세요</p>
+          </div>
         ) : campaigns.length === 0 ? (
           <div className="text-center py-12 text-gray-500">
             <Search size={48} className="mx-auto mb-3 text-gray-300" />
@@ -281,9 +298,9 @@ export function NaverSearchAdsDashboard() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {campaigns.map((campaign: any) => {
-                  const isExpanded = expandedCampaign === (campaign.nccCampaignId || campaign.id);
+                  const campaignId = campaign.campaign_id || campaign.nccCampaignId || campaign.id;
+                  const isExpanded = expandedCampaign === campaignId;
                   const status = STATUS_KO[campaign.status] || { label: campaign.status, color: 'bg-gray-100 text-gray-600' };
-                  const campaignId = campaign.nccCampaignId || campaign.id;
 
                   return (
                     <CampaignRow
@@ -454,7 +471,7 @@ function CampaignRow({ campaign, campaignId, isExpanded, status, onToggleExpand,
           </div>
         </td>
         <td className="px-4 py-3">
-          <span className="text-xs text-gray-500">{CAMPAIGN_TYPE_KO[campaign.campaignTp] || campaign.campaignTp || '-'}</span>
+          <span className="text-xs text-gray-500">{CAMPAIGN_TYPE_KO[campaign.campaign_tp || campaign.campaignTp] || campaign.campaign_tp || campaign.campaignTp || '-'}</span>
         </td>
         <td className="px-4 py-3">
           <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${status.color}`}>{status.label}</span>

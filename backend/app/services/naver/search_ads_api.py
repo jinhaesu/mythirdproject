@@ -10,6 +10,7 @@ Docs: https://naver.github.io/searchad-apidoc/
 import base64
 import hashlib
 import hmac
+import json
 import logging
 import time
 from datetime import date
@@ -358,7 +359,7 @@ class NaverSearchAdsAPI:
 
         params: Dict[str, Any] = {
             "id": ",".join(ids) if isinstance(ids, list) else ids,
-            "fields": str(fields),
+            "fields": json.dumps(fields),
             "datePreset": date_preset,
             "timeIncrement": time_increment,
         }
