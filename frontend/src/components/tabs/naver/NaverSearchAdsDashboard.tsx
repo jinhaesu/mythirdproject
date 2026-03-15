@@ -609,6 +609,7 @@ function CampaignRow({ campaign, campaignId, isExpanded, status, onToggleExpand,
   const [budgetValue, setBudgetValue] = useState(String(campaign.daily_budget || campaign.dailyBudget || 0));
   const [expandTab, setExpandTab] = useState<'adgroups' | 'keywords'>('adgroups');
   const [agStatusFilter, setAgStatusFilter] = useState<'ALL' | 'ACTIVE' | 'PAUSED'>('ALL');
+  const [kwStatusFilter, setKwStatusFilter] = useState<'ALL' | 'ACTIVE' | 'PAUSED'>('ALL');
 
   const { data: rankingData, isLoading: loadingRankings } = useQuery({
     queryKey: ['naver-keyword-rankings', campaignId],
@@ -737,6 +738,7 @@ function CampaignRow({ campaign, campaignId, isExpanded, status, onToggleExpand,
                               <th className="text-right px-3 py-2">클릭</th>
                               <th className="text-right px-3 py-2">CTR</th>
                               <th className="text-right px-3 py-2">CPC</th>
+                              <th className="text-right px-3 py-2">ROAS</th>
                               <th className="text-right px-3 py-2">노출순위</th>
                             </tr>
                           </thead>
@@ -754,6 +756,13 @@ function CampaignRow({ campaign, campaignId, isExpanded, status, onToggleExpand,
                                   <td className="px-3 py-2 text-right text-gray-700">{formatNaverNumber(ag.clicks || 0)}</td>
                                   <td className="px-3 py-2 text-right text-gray-700">{formatNaverPercent(ag.ctr || 0)}</td>
                                   <td className="px-3 py-2 text-right text-gray-700">{formatNaverCurrency(ag.cpc || 0)}</td>
+                                  <td className="px-3 py-2 text-right">
+                                    {ag.roas != null ? (
+                                      <span className={`font-medium ${ag.roas >= 300 ? 'text-green-600' : ag.roas >= 100 ? 'text-blue-600' : 'text-red-500'}`}>
+                                        {ag.roas.toFixed(0)}%
+                                      </span>
+                                    ) : <span className="text-gray-300">-</span>}
+                                  </td>
                                   <td className="px-3 py-2 text-right text-gray-700">
                                     {ag.avg_rank ? (
                                       <span className={`font-medium ${ag.avg_rank <= 3 ? 'text-green-600' : ag.avg_rank <= 7 ? 'text-blue-600' : 'text-gray-600'}`}>
@@ -806,7 +815,12 @@ function CampaignRow({ campaign, campaignId, isExpanded, status, onToggleExpand,
                         </div>
                       )}
                     </div>
-                  ) : (
+                  ) : (() => {
+                    const activeKws = rankingData.rankings.filter((r: any) => r.status === '활성');
+                    const pausedKws = rankingData.rankings.filter((r: any) => r.status === '중지');
+                    const filteredKws = kwStatusFilter === 'ALL' ? rankingData.rankings :
+                      kwStatusFilter === 'ACTIVE' ? activeKws : pausedKws;
+                    return (
                     <div className="space-y-4">
                       <p className="text-xs text-gray-400">
                         {rankingData.campaign_type === 'SHOPPING' ? (
@@ -824,6 +838,20 @@ function CampaignRow({ campaign, campaignId, isExpanded, status, onToggleExpand,
                         </p>
                       )}
 
+                      {/* Status filter */}
+                      <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5 w-fit">
+                        {([
+                          { v: 'ALL' as const, l: '전체', c: rankingData.rankings.length },
+                          { v: 'ACTIVE' as const, l: '활성', c: activeKws.length },
+                          { v: 'PAUSED' as const, l: '중지', c: pausedKws.length },
+                        ]).map(t => (
+                          <button key={t.v} onClick={() => setKwStatusFilter(t.v)}
+                            className={`px-2 py-1 text-xs font-medium rounded transition-colors ${kwStatusFilter === t.v ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                            {t.l} ({t.c})
+                          </button>
+                        ))}
+                      </div>
+
                       {/* Keyword + Quality + Ranking Table */}
                       <div className="overflow-x-auto">
                         <table className="w-full text-sm">
@@ -839,7 +867,7 @@ function CampaignRow({ campaign, campaignId, isExpanded, status, onToggleExpand,
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-200">
-                            {rankingData.rankings.map((r: any) => (
+                            {filteredKws.map((r: any) => (
                               <tr key={r.nccKeywordId || r.keyword} className="hover:bg-white">
                                 <td className="px-3 py-2 font-medium text-gray-900">{r.keyword}</td>
                                 <td className="px-3 py-2 text-xs text-gray-500">{r.adgroupName}</td>
@@ -923,7 +951,8 @@ function CampaignRow({ campaign, campaignId, isExpanded, status, onToggleExpand,
                         </div>
                       )}
                     </div>
-                  )}
+                    );
+                  })()}
                 </>
               )}
             </div>

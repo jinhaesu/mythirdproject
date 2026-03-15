@@ -470,7 +470,9 @@ async def search_ads_adgroups(
         imp = int(s.get("impCnt", 0))
         clk = int(s.get("clkCnt", 0))
         spend = float(s.get("salesAmt", 0))
+        conv_amt = float(s.get("convAmt", 0))
         avg_rnk = float(s.get("avgRnk", 0)) if s.get("avgRnk") else None
+        roas = round(conv_amt / spend * 100, 1) if spend > 0 and conv_amt > 0 else None
         is_paused = ag.get("userLock", False)
         ag_status = ag.get("status", "")
         status = "PAUSED" if is_paused or ag_status in ("PAUSED",) else "ACTIVE"
@@ -485,6 +487,8 @@ async def search_ads_adgroups(
             "impressions": imp,
             "ctr": (clk / imp * 100) if imp > 0 else 0,
             "cpc": (spend / clk) if clk > 0 else 0,
+            "conv_amt": conv_amt,
+            "roas": roas,
             "avg_rank": round(avg_rnk, 1) if avg_rnk else None,
         })
 
@@ -878,23 +882,41 @@ async def search_ads_ai_analysis(
 4. 주의 필요 사항 (이상 징후, 예산 소진 등)
 """
 
-    claude = ClaudeService()
-    response = claude.client.messages.create(
-        model=claude.model,
-        max_tokens=3000,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    analysis = response.content[0].text
+    try:
+        claude = ClaudeService()
+        models_to_try = [claude.model, "claude-sonnet-4-6", "claude-haiku-4-5-20251001"]
+        analysis = None
+        last_error = None
+        for model_id in models_to_try:
+            try:
+                response = claude.client.messages.create(
+                    model=model_id,
+                    max_tokens=3000,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                analysis = response.content[0].text
+                break
+            except Exception as model_err:
+                last_error = str(model_err)
+                logger.warning("AI model %s failed: %s", model_id, model_err)
 
-    return {
-        "platform": "NAVER_SEARCH",
-        "date_range": request.date_range,
-        "analysis": analysis,
-        "data_summary": {
-            "total_campaigns": len(campaigns),
-            "stats_records": len(stats),
-        },
-    }
+        if not analysis:
+            raise HTTPException(500, detail=f"AI 분석 실패: {last_error}")
+
+        return {
+            "platform": "NAVER_SEARCH",
+            "date_range": request.date_range,
+            "analysis": analysis,
+            "data_summary": {
+                "total_campaigns": len(campaigns),
+                "stats_records": len(stats),
+            },
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("AI analysis error: %s", e, exc_info=True)
+        raise HTTPException(500, detail=f"AI 분석 실패: {e}")
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -1140,23 +1162,41 @@ async def gfa_ai_analysis(
 4. 주의 필요 사항
 """
 
-    claude = ClaudeService()
-    response = claude.client.messages.create(
-        model=claude.model,
-        max_tokens=3000,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    analysis = response.content[0].text
+    try:
+        claude = ClaudeService()
+        models_to_try = [claude.model, "claude-sonnet-4-6", "claude-haiku-4-5-20251001"]
+        analysis = None
+        last_error = None
+        for model_id in models_to_try:
+            try:
+                response = claude.client.messages.create(
+                    model=model_id,
+                    max_tokens=3000,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                analysis = response.content[0].text
+                break
+            except Exception as model_err:
+                last_error = str(model_err)
+                logger.warning("GFA AI model %s failed: %s", model_id, model_err)
 
-    return {
-        "platform": "NAVER_GFA",
-        "date_range": request.date_range,
-        "analysis": analysis,
-        "data_summary": {
-            "total_campaigns": len(campaigns),
-            "stats_records": len(report),
-        },
-    }
+        if not analysis:
+            raise HTTPException(500, detail=f"AI 분석 실패: {last_error}")
+
+        return {
+            "platform": "NAVER_GFA",
+            "date_range": request.date_range,
+            "analysis": analysis,
+            "data_summary": {
+                "total_campaigns": len(campaigns),
+                "stats_records": len(report),
+            },
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("GFA AI analysis error: %s", e, exc_info=True)
+        raise HTTPException(500, detail=f"AI 분석 실패: {e}")
 
 
 # ═══════════════════════════════════════════════════════════════

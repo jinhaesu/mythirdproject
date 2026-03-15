@@ -17,7 +17,13 @@ async def execute_scheduled_report(sched, db) -> dict:
     from sqlalchemy import select as sa_select
 
     # Get user
-    user_result = await db.execute(sa_select(User).where(User.id == sched.user_id))
+    # user_id is stored as varchar but User.id is integer — cast to int
+    try:
+        uid = int(sched.user_id)
+    except (ValueError, TypeError):
+        logger.warning("Invalid user_id for scheduled report: %s", sched.user_id)
+        return {"status": "error", "reason": "user_not_found"}
+    user_result = await db.execute(sa_select(User).where(User.id == uid))
     user = user_result.scalar_one_or_none()
     if not user:
         logger.warning("Scheduled report user not found: %s", sched.user_id)
