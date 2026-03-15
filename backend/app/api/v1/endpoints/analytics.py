@@ -1606,6 +1606,7 @@ class ScheduleCreate(BaseModel):
     day_of_week: Optional[int] = None
     day_of_month: Optional[int] = None
     send_hour: int = 9
+    send_minute: int = 0
     meta_campaign_id: Optional[str] = None
     lookback_days: int = 7
     email_to: Optional[str] = None
@@ -1617,6 +1618,7 @@ class ScheduleUpdate(BaseModel):
     day_of_week: Optional[int] = None
     day_of_month: Optional[int] = None
     send_hour: Optional[int] = None
+    send_minute: Optional[int] = None
     lookback_days: Optional[int] = None
     email_to: Optional[str] = None
 
@@ -1624,13 +1626,14 @@ class ScheduleUpdate(BaseModel):
 def _calc_next_run(sched):
     now = datetime.utcnow()
     hour = sched.send_hour if sched.send_hour is not None else 9
+    minute = sched.send_minute if sched.send_minute is not None else 0
     # KST(UTC+9) → UTC 변환
     utc_hour = (hour - 9) % 24
     if sched.schedule_type == "weekly":
         days_ahead = (sched.day_of_week or 0) - now.weekday()
         if days_ahead <= 0:
             days_ahead += 7
-        target = now.replace(hour=utc_hour, minute=0, second=0, microsecond=0) + timedelta(days=days_ahead)
+        target = now.replace(hour=utc_hour, minute=minute, second=0, microsecond=0) + timedelta(days=days_ahead)
         # KST 기준으로 하루가 넘어가는 경우 보정 (예: KST 0~8시 → UTC 전날)
         if hour < 9:
             target -= timedelta(days=1)
@@ -1640,7 +1643,7 @@ def _calc_next_run(sched):
         m = now.month + 1 if now.day >= dom else now.month
         y = now.year + (1 if m > 12 else 0)
         m = m if m <= 12 else m - 12
-        return datetime(y, m, dom, utc_hour, 0, 0)
+        return datetime(y, m, dom, utc_hour, minute, 0)
 
 
 def _sched_dict(s):
@@ -1648,6 +1651,7 @@ def _sched_dict(s):
         "id": s.id, "name": s.name, "schedule_type": s.schedule_type,
         "day_of_week": s.day_of_week, "day_of_month": s.day_of_month,
         "send_hour": s.send_hour if s.send_hour is not None else 9,
+        "send_minute": s.send_minute if s.send_minute is not None else 0,
         "meta_campaign_id": s.meta_campaign_id, "lookback_days": s.lookback_days,
         "email_to": s.email_to, "enabled": s.enabled,
         "last_run_at": s.last_run_at.isoformat() if s.last_run_at else None,

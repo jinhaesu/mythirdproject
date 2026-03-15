@@ -106,7 +106,7 @@ export function AutoManagement() {
   // Schedule form state
   const [schedForm, setSchedForm] = useState({
     name: '', schedule_type: 'weekly', day_of_week: 1, day_of_month: 1,
-    send_hour: 9, meta_campaign_id: '', lookback_days: 7, email_to: '',
+    send_hour: 9, send_minute: 0, meta_campaign_id: '', lookback_days: 7, email_to: '',
   });
 
   // Queries
@@ -229,7 +229,7 @@ export function AutoManagement() {
 
   const resetScheduleForm = () => setSchedForm({
     name: '', schedule_type: 'weekly', day_of_week: 1, day_of_month: 1,
-    send_hour: 9, meta_campaign_id: '', lookback_days: 7, email_to: '',
+    send_hour: 9, send_minute: 0, meta_campaign_id: '', lookback_days: 7, email_to: '',
   });
 
   const handleCreateRule = () => {
@@ -270,6 +270,7 @@ export function AutoManagement() {
       day_of_week: schedForm.schedule_type === 'weekly' ? schedForm.day_of_week : undefined,
       day_of_month: schedForm.schedule_type === 'monthly' ? schedForm.day_of_month : undefined,
       send_hour: schedForm.send_hour,
+      send_minute: schedForm.send_minute,
       meta_campaign_id: schedForm.meta_campaign_id || undefined,
       lookback_days: schedForm.lookback_days,
       email_to: schedForm.email_to || undefined,
@@ -695,12 +696,18 @@ export function AutoManagement() {
                   ))}
                 </select>
               )}
-              <select value={schedForm.send_hour} onChange={(e) => setSchedForm(f => ({ ...f, send_hour: parseInt(e.target.value) }))}
-                className="px-3 py-2 border border-gray-200 rounded-lg text-sm">
-                {Array.from({ length: 24 }, (_, i) => (
-                  <option key={i} value={i}>{String(i).padStart(2, '0')}:00 발송</option>
-                ))}
-              </select>
+              <div className="relative">
+                <input
+                  type="time"
+                  value={`${String(schedForm.send_hour).padStart(2, '0')}:${String(schedForm.send_minute).padStart(2, '0')}`}
+                  onChange={(e) => {
+                    const [h, m] = e.target.value.split(':').map(Number);
+                    setSchedForm(f => ({ ...f, send_hour: h || 0, send_minute: m || 0 }));
+                  }}
+                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm w-full focus:outline-none focus:ring-2 focus:ring-teal-200 focus:border-teal-400"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">발송</span>
+              </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
               <select value={schedForm.meta_campaign_id} onChange={(e) => setSchedForm(f => ({ ...f, meta_campaign_id: e.target.value }))}
@@ -736,7 +743,7 @@ export function AutoManagement() {
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium text-gray-900">{sched.name}</span>
                   <span className="text-xs bg-teal-100 text-teal-700 px-2 py-0.5 rounded">
-                    {sched.schedule_type === 'weekly' ? `매주 ${['일', '월', '화', '수', '목', '금', '토'][sched.day_of_week || 0]}요일` : `매월 ${sched.day_of_month}일`} {String(sched.send_hour ?? 9).padStart(2, '0')}:00
+                    {sched.schedule_type === 'weekly' ? `매주 ${['일', '월', '화', '수', '목', '금', '토'][sched.day_of_week || 0]}요일` : `매월 ${sched.day_of_month}일`} {String(sched.send_hour ?? 9).padStart(2, '0')}:{String(sched.send_minute ?? 0).padStart(2, '0')}
                   </span>
                 </div>
                 <p className="text-xs text-gray-500 mt-0.5">

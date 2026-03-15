@@ -374,13 +374,17 @@ async def search_ads_campaigns(
 
     stats_map = {}
     if campaign_ids:
-        stats = await api.get_stat_report(
-            ids=campaign_ids,
-            date_preset="custom",
-            start_date=start_date,
-            end_date=end_date,
-            time_increment="allDays",
-        )
+        try:
+            stats = await api.get_stat_report(
+                ids=campaign_ids,
+                date_preset="custom",
+                start_date=start_date,
+                end_date=end_date,
+                time_increment="allDays",
+            )
+        except Exception as e:
+            logger.warning("Naver Search Ads get_stat_report failed for campaigns: %s", e)
+            stats = []
         for s in stats:
             stats_map[s.get("id")] = s
 

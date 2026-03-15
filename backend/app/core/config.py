@@ -74,7 +74,7 @@ class Settings(BaseSettings):
     PORT: int = 8000
 
     # CORS
-    CORS_ORIGINS: str = "http://localhost:3000"
+    CORS_ORIGINS: str = "*"
 
     @property
     def cors_origins_list(self) -> List[str]:
