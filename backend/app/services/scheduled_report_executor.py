@@ -221,14 +221,60 @@ async def execute_scheduled_report(sched, db) -> dict:
                     messages=[{"role": "user", "content": ai_prompt}],
                 )
                 ai_text = ai_resp.content[0].text
-                if "```json" in ai_text:
-                    ai_report = json.loads(ai_text.split("```json")[1].split("```")[0].strip())
-                elif "```" in ai_text:
-                    parts = ai_text.split("```")
-                    ai_report = json.loads(parts[1].replace("json", "", 1).strip()) if len(parts) >= 3 else None
-                else:
-                    idx = ai_text.find("{")
-                    ai_report = json.loads(ai_text[idx:]) if idx >= 0 else None
+                logger.info("Scheduled report AI raw response (first 300 chars): %s", ai_text[:300])
+
+                # Attempt 1: ```json ... ``` block
+                try:
+                    if "```json" in ai_text:
+                        json_block = ai_text.split("```json")[1].split("```")[0].strip()
+                        ai_report = json.loads(json_block)
+                        logger.info("Parsed AI report via ```json block")
+                except Exception as parse_err:
+                    logger.warning("```json block parsing failed: %s", parse_err)
+                    ai_report = None
+
+                # Attempt 2: ``` ... ``` block (without json tag)
+                if ai_report is None:
+                    try:
+                        if "```" in ai_text:
+                            parts = ai_text.split("```")
+                            if len(parts) >= 3:
+                                json_block = parts[1].replace("json", "", 1).strip()
+                                ai_report = json.loads(json_block)
+                                logger.info("Parsed AI report via ``` block")
+                    except Exception as parse_err:
+                        logger.warning("``` block parsing failed: %s", parse_err)
+                        ai_report = None
+
+                # Attempt 3: Find raw JSON object using first { and last }
+                if ai_report is None:
+                    try:
+                        start_idx = ai_text.find("{")
+                        end_idx = ai_text.rfind("}")
+                        if start_idx >= 0 and end_idx > start_idx:
+                            json_candidate = ai_text[start_idx:end_idx + 1]
+                            ai_report = json.loads(json_candidate)
+                            logger.info("Parsed AI report via raw JSON extraction (first { to last })")
+                    except Exception as parse_err:
+                        logger.warning("Raw JSON extraction failed: %s", parse_err)
+                        ai_report = None
+
+                # Fallback: Create minimal ai_report from raw text
+                if ai_report is None:
+                    logger.warning("All JSON parsing attempts failed. Creating fallback ai_report from raw text.")
+                    # Use first 500 chars as a summary fallback
+                    fallback_text = ai_text.strip()[:500] if ai_text else "AI 분석 결과를 파싱할 수 없습니다."
+                    ai_report = {
+                        "headline": "AI 분석 완료 (원본 텍스트)",
+                        "period_summary": fallback_text,
+                        "kpi_highlights": [],
+                        "daily_trend_insight": "",
+                        "key_insights": ["AI 응답을 JSON으로 파싱하지 못했습니다. 원본 텍스트를 참고하세요."],
+                        "recommendations": [],
+                        "overall_grade": "N/A",
+                        "grade_reason": "JSON 파싱 실패로 등급 산정 불가",
+                    }
+
                 logger.info("Scheduled report AI analysis succeeded with model: %s", model_id)
                 break
             except Exception as model_err:

@@ -832,7 +832,7 @@ async def search_ads_ai_analysis(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """검색광고 AI 분석 (Claude)."""
+    """검색광고 AI 분석 (Claude) — 집계된 데이터 기반, 구조화된 JSON 응답."""
     # 1) Check ANTHROPIC_API_KEY first
     if not settings.ANTHROPIC_API_KEY:
         raise HTTPException(500, detail="ANTHROPIC_API_KEY 환경변수가 설정되지 않았습니다.")
@@ -842,17 +842,20 @@ async def search_ads_ai_analysis(
         api = await _get_naver_search_api(current_user, db)
         start_date, end_date = _date_range_to_dates(request.date_range or "last_7_days")
         campaigns = await api.get_campaigns()
-        campaign_ids = [c.get("nccCampaignId") for c in campaigns if c.get("nccCampaignId")]
+
+        # Filter to ACTIVE campaigns only (userLock=False or None means active)
+        active_campaigns = [c for c in campaigns if not c.get("userLock")]
+        active_ids = [c.get("nccCampaignId") for c in active_campaigns if c.get("nccCampaignId")]
 
         stats = []
-        if campaign_ids:
+        if active_ids:
             try:
                 stats = await api.get_stat_report(
-                    ids=campaign_ids,
+                    ids=active_ids,
                     date_preset="custom",
                     start_date=start_date,
                     end_date=end_date,
-                    time_increment="1",
+                    time_increment="allDays",
                 )
             except Exception as e:
                 logger.warning("Stats fetch failed, continuing without stats: %s", e)
@@ -860,38 +863,139 @@ async def search_ads_ai_analysis(
         logger.error("Naver data fetch failed for AI analysis: %s", e, exc_info=True)
         raise HTTPException(500, detail=f"네이버 데이터 조회 실패: {e}")
 
-    # 3) Build context for AI
+    # 3) Aggregate totals (same logic as overview endpoint)
+    totals = {
+        "impressions": 0,
+        "clicks": 0,
+        "spend": 0,
+        "conversions": 0,
+        "revenue": 0,
+    }
+    avg_rnk_sum = 0.0
+    avg_rnk_count = 0
+    for s in stats:
+        totals["impressions"] += int(s.get("impCnt", 0))
+        totals["clicks"] += int(s.get("clkCnt", 0))
+        totals["spend"] += float(s.get("salesAmt", 0))
+        totals["conversions"] += int(s.get("ccnt", 0))
+        totals["revenue"] += float(s.get("convAmt", 0))
+        rnk = s.get("avgRnk")
+        if rnk and float(rnk) > 0:
+            avg_rnk_sum += float(rnk)
+            avg_rnk_count += 1
+
+    imp = totals["impressions"]
+    clk = totals["clicks"]
+    spend = totals["spend"]
+    rev = totals["revenue"]
+    totals["ctr"] = round((clk / imp * 100), 2) if imp > 0 else 0
+    totals["cpc"] = round((spend / clk), 0) if clk > 0 else 0
+    totals["roas"] = round((rev / spend * 100), 1) if spend > 0 else 0
+    totals["avg_rank"] = round(avg_rnk_sum / avg_rnk_count, 1) if avg_rnk_count > 0 else None
+
+    # 4) Build per-campaign aggregated data
+    stats_map = {}
+    for s in stats:
+        stats_map[s.get("id")] = s
+
+    per_campaign_data = []
+    for c in active_campaigns:
+        cid = c.get("nccCampaignId")
+        s = stats_map.get(cid, {})
+        c_imp = int(s.get("impCnt", 0))
+        c_clk = int(s.get("clkCnt", 0))
+        c_spend = float(s.get("salesAmt", 0))
+        c_conv = int(s.get("ccnt", 0))
+        c_rev = float(s.get("convAmt", 0))
+        c_avg_rnk = float(s.get("avgRnk", 0)) if s.get("avgRnk") else None
+
+        per_campaign_data.append({
+            "name": c.get("name"),
+            "type": c.get("campaignTp"),
+            "daily_budget": c.get("dailyBudget"),
+            "impressions": c_imp,
+            "clicks": c_clk,
+            "spend": c_spend,
+            "conversions": c_conv,
+            "revenue": c_rev,
+            "ctr": round((c_clk / c_imp * 100), 2) if c_imp > 0 else 0,
+            "cpc": round((c_spend / c_clk), 0) if c_clk > 0 else 0,
+            "roas": round((c_rev / c_spend * 100), 1) if c_spend > 0 else 0,
+            "avg_rank": round(c_avg_rnk, 1) if c_avg_rnk else None,
+        })
+
+    # 5) Build context for AI with aggregated data
     context = {
-        "platform": "Naver Search Ads (네이버 검색광고)",
+        "platform": "네이버 검색광고 (Naver Search Ads)",
         "date_range": f"{start_date} ~ {end_date}",
         "total_campaigns": len(campaigns),
-        "campaigns": [
-            {"name": c.get("name"), "type": c.get("campaignTp"), "budget": c.get("dailyBudget")}
-            for c in campaigns[:20]
-        ],
-        "daily_stats_sample": stats[:30],
+        "active_campaigns": len(active_campaigns),
+        "paused_campaigns": len(campaigns) - len(active_campaigns),
+        "totals": {
+            "impressions": totals["impressions"],
+            "clicks": totals["clicks"],
+            "spend": f"{totals['spend']:,.0f}원",
+            "conversions": totals["conversions"],
+            "revenue": f"{totals['revenue']:,.0f}원",
+            "ctr": f"{totals['ctr']}%",
+            "cpc": f"{totals['cpc']:,.0f}원",
+            "roas": f"{totals['roas']}%",
+            "avg_rank": totals["avg_rank"],
+        },
+        "campaigns": per_campaign_data,
     }
 
     focus_prompt = ""
     if request.focus:
-        focus_prompt = f"\n특히 '{request.focus}' 관점에서 분석해주세요."
+        focus_prompt = f"\n특히 '{request.focus}' 관점에서 심층 분석해주세요."
     if request.custom_prompt:
         focus_prompt += f"\n{request.custom_prompt}"
 
     prompt = f"""네이버 검색광고 성과 데이터를 분석해주세요.
 {focus_prompt}
 
-데이터:
+아래는 활성 캠페인만 필터링하여 집계한 실제 성과 데이터입니다:
+
 {json.dumps(context, ensure_ascii=False, default=str)}
 
-다음 형식으로 한국어로 답변해주세요:
-1. 핵심 성과 요약 (KPI 수치 포함)
-2. 주요 인사이트 (3-5개)
-3. 개선 제안 (구체적인 액션 아이템)
-4. 주의 필요 사항 (이상 징후, 예산 소진 등)
-"""
+반드시 아래 JSON 형식으로만 응답해주세요. JSON 외 다른 텍스트는 출력하지 마세요:
+```json
+{{
+  "summary": "전체 성과에 대한 2-3문장 요약 (핵심 KPI 수치 포함)",
+  "kpi_highlights": [
+    {{"metric": "지표명", "value": "수치", "evaluation": "평가 (좋음/보통/개선필요)", "detail": "설명"}}
+  ],
+  "insights": [
+    {{"type": "positive|negative|neutral|warning", "priority": "high|medium|low", "title": "인사이트 제목", "detail": "상세 설명 1-2문장"}}
+  ],
+  "recommendations": [
+    {{"priority": "high|medium|low", "title": "제안 제목", "detail": "구체적인 실행 방법", "expected_impact": "예상 효과"}}
+  ],
+  "action_items": [
+    "즉시 실행 가능한 구체적 액션 1",
+    "즉시 실행 가능한 구체적 액션 2"
+  ],
+  "active_campaigns_analysis": [
+    {{"campaign_name": "캠페인명", "grade": "A/B/C/D/F", "summary": "ROAS 중심 1-2문장 평가", "kpi_highlight": "ROAS 150% | CPC ₩500 | 전환 10건"}}
+  ],
+  "overall_grade": "A/B/C/D/F",
+  "grade_reason": "등급 부여 사유 1-2문장"
+}}
+```
 
-    # 4) Call AI with fallback models
+중요 규칙:
+- 분석의 핵심 기준은 ROAS(매출/광고비)이며, CTR은 보조 지표로만 활용
+- kpi_highlights: 4~6개 필수 (노출, 클릭, 광고비, 전환, 매출, ROAS, CTR, CPC 중 주요 지표)
+- insights: 3~5개 필수. type은 "positive"/"negative"/"neutral"/"warning" 중 택1
+- recommendations: 3~5개 필수. ROAS 개선 중심으로 정렬
+- action_items: 3~5개 필수. 즉시 실행 가능한 구체적 행동
+- active_campaigns_analysis: 활성 캠페인별 성과 평가 (최대 10개)
+- overall_grade: 전체 계정 성과 등급 (A/B/C/D/F)
+- 모든 금액은 ₩ 원화만 사용 ($ 달러 금지)
+- 위에 제공한 집계 데이터의 실제 수치를 정확히 인용하세요
+- JSON 외 다른 텍스트 출력 금지"""
+
+    # 6) Call AI with fallback models
     from anthropic import Anthropic
     try:
         client = Anthropic(api_key=settings.ANTHROPIC_API_KEY)
@@ -905,33 +1009,111 @@ async def search_ads_ai_analysis(
         "claude-3-5-sonnet-20241022",
         "claude-3-5-haiku-20241022",
     ]
-    analysis = None
+    raw_response = None
     last_error = None
     for model_id in models_to_try:
         try:
             response = client.messages.create(
                 model=model_id,
-                max_tokens=3000,
+                max_tokens=4000,
                 messages=[{"role": "user", "content": prompt}],
             )
-            analysis = response.content[0].text
-            logger.info("AI analysis succeeded with model: %s", model_id)
+            raw_response = response.content[0].text.strip()
+            logger.info("AI analysis succeeded with model: %s (len=%d)", model_id, len(raw_response))
             break
         except Exception as model_err:
             last_error = str(model_err)
             logger.warning("AI model %s failed: %s", model_id, model_err)
 
-    if not analysis:
+    if not raw_response:
         raise HTTPException(500, detail=f"사용 가능한 AI 모델이 없습니다. 마지막 오류: {last_error}")
+
+    # 7) Parse structured JSON from AI response
+    import re as _re
+    parsed_json = None
+
+    # Method 1: ```json block
+    if "```json" in raw_response:
+        block = raw_response.split("```json")[1].split("```")[0].strip()
+        try:
+            parsed_json = json.loads(block)
+        except json.JSONDecodeError:
+            pass
+
+    # Method 2: ``` block
+    if not parsed_json and "```" in raw_response:
+        parts = raw_response.split("```")
+        if len(parts) >= 3:
+            block = parts[1].strip()
+            if block.startswith("json"):
+                block = block[4:].strip()
+            try:
+                parsed_json = json.loads(block)
+            except json.JSONDecodeError:
+                pass
+
+    # Method 3: Find balanced braces
+    if not parsed_json:
+        start_idx = raw_response.find("{")
+        if start_idx >= 0:
+            depth = 0
+            in_str = False
+            esc = False
+            for idx in range(start_idx, len(raw_response)):
+                c = raw_response[idx]
+                if esc:
+                    esc = False
+                    continue
+                if c == '\\':
+                    esc = True
+                    continue
+                if c == '"':
+                    in_str = not in_str
+                    continue
+                if in_str:
+                    continue
+                if c == '{':
+                    depth += 1
+                elif c == '}':
+                    depth -= 1
+                    if depth == 0:
+                        json_str = raw_response[start_idx:idx + 1]
+                        json_str = _re.sub(r',\s*([}\]])', r'\1', json_str)
+                        try:
+                            parsed_json = json.loads(json_str)
+                        except json.JSONDecodeError:
+                            pass
+                        break
+
+    # 8) Build structured response
+    if not parsed_json:
+        logger.warning("AI analysis JSON parse failed, returning raw text as summary")
+        parsed_json = {
+            "summary": raw_response[:500],
+            "parse_error": True,
+        }
+
+    data_summary = {
+        "total_campaigns": len(campaigns),
+        "active_campaigns": len(active_campaigns),
+        "paused_campaigns": len(campaigns) - len(active_campaigns),
+        "stats_records": len(stats),
+        "totals": totals,
+    }
 
     return {
         "platform": "NAVER_SEARCH",
         "date_range": request.date_range,
-        "analysis": analysis,
-        "data_summary": {
-            "total_campaigns": len(campaigns),
-            "stats_records": len(stats),
-        },
+        "summary": parsed_json.get("summary"),
+        "analysis": parsed_json,
+        "kpi_highlights": parsed_json.get("kpi_highlights", []),
+        "insights": parsed_json.get("insights", []),
+        "recommendations": parsed_json.get("recommendations", []),
+        "action_items": parsed_json.get("action_items", []),
+        "active_campaigns_analysis": parsed_json.get("active_campaigns_analysis", []),
+        "overall_grade": parsed_json.get("overall_grade"),
+        "grade_reason": parsed_json.get("grade_reason"),
+        "data_summary": data_summary,
     }
 
 

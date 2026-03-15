@@ -1032,7 +1032,7 @@ function ReportNewsletter({ data, onEmail }: { data: any; onEmail?: () => void }
                 </div>
               </div>
               {ai?.headline ? (
-                <h2 className="text-xl sm:text-2xl font-bold text-white leading-snug mb-2">{ai.headline}</h2>
+                <h2 className="text-xl sm:text-2xl font-bold text-white leading-snug mb-2 break-words line-clamp-2">{ai.headline}</h2>
               ) : (
                 <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">성과 분석 리포트</h2>
               )}
@@ -1048,7 +1048,7 @@ function ReportNewsletter({ data, onEmail }: { data: any; onEmail?: () => void }
                 <div className={`w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br ${gradeGradient} flex items-center justify-center shadow-xl ring-4 ring-white/10`}>
                   <span className="text-2xl sm:text-3xl font-black text-white drop-shadow-lg">{grade}</span>
                 </div>
-                <span className="text-[10px] sm:text-xs text-blue-200/70 mt-1.5 font-medium text-center">{ai.grade_reason || '종합 등급'}</span>
+                <span className="text-[10px] sm:text-xs text-blue-200/70 mt-1.5 font-medium text-center max-w-[180px] line-clamp-2 break-words">{ai.grade_reason || '종합 등급'}</span>
               </div>
             )}
           </div>
@@ -1062,7 +1062,7 @@ function ReportNewsletter({ data, onEmail }: { data: any; onEmail?: () => void }
                 <div className="w-7 h-7 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
                   <BarChart3 size={14} className="text-blue-600" />
                 </div>
-                <p className="text-gray-700 text-sm leading-relaxed">{ai.period_summary}</p>
+                <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-line break-words">{ai.period_summary}</p>
               </div>
             </div>
           )}

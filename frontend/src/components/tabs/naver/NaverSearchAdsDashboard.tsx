@@ -5,7 +5,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import {
   BarChart3, DollarSign, Eye, MousePointer, Target, TrendingUp, TrendingDown,
   Loader2, RefreshCw, ChevronDown, ChevronRight, Play, Pause, Sparkles,
-  Search, Award, Activity, AlertCircle,
+  Search, Award, Activity, AlertCircle, CheckCircle, Lightbulb, Zap,
 } from 'lucide-react';
 import { naverSearchAdsApi, formatNaverCurrency, formatNaverNumber, formatNaverPercent } from '@/lib/naver-api';
 import toast from 'react-hot-toast';
@@ -548,39 +548,206 @@ export function NaverSearchAdsDashboard() {
             <span className="ml-3 text-gray-500">AI가 성과 데이터를 분석하고 있습니다...</span>
           </div>
         ) : aiMutation.data ? (
-          <div className="space-y-4">
+          <div className="space-y-5">
             {typeof aiMutation.data === 'string' ? (
               <div className="prose prose-sm max-w-none text-gray-700 whitespace-pre-wrap">{aiMutation.data}</div>
             ) : (
               <>
-                {aiMutation.data.summary && (
-                  <div className="p-4 bg-green-50 rounded-lg border border-green-200">
-                    <h3 className="text-sm font-semibold text-green-800 mb-2">요약</h3>
-                    <p className="text-sm text-green-700 whitespace-pre-wrap">{aiMutation.data.summary}</p>
+                {/* Grade Badge + Summary Card */}
+                <div className="relative rounded-xl bg-gradient-to-r from-blue-600 to-emerald-500 p-5 text-white overflow-hidden">
+                  {aiMutation.data.overall_grade && (
+                    <div className="absolute top-3 right-3 w-14 h-14 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-lg">
+                      <span className="text-3xl font-black text-white drop-shadow">{aiMutation.data.overall_grade}</span>
+                    </div>
+                  )}
+                  <div className="pr-20">
+                    <h3 className="text-base font-bold mb-1 flex items-center gap-2">
+                      <Sparkles size={18} /> AI 분석 요약
+                    </h3>
+                    {aiMutation.data.summary && (
+                      <p className="text-sm text-white/90 leading-relaxed">{aiMutation.data.summary}</p>
+                    )}
+                    {aiMutation.data.grade_reason && (
+                      <p className="text-xs text-white/70 mt-2 italic">{aiMutation.data.grade_reason}</p>
+                    )}
                   </div>
-                )}
-                {aiMutation.data.insights && Array.isArray(aiMutation.data.insights) && (
-                  <div className="space-y-2">
-                    {aiMutation.data.insights.map((insight: any, i: number) => (
-                      <div key={i} className="p-3 bg-gray-50 rounded-lg">
-                        <p className="text-sm text-gray-700">{typeof insight === 'string' ? insight : insight.description || insight.title}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {aiMutation.data.recommendations && Array.isArray(aiMutation.data.recommendations) && (
+                </div>
+
+                {/* KPI Highlights */}
+                {aiMutation.data.kpi_highlights && Array.isArray(aiMutation.data.kpi_highlights) && aiMutation.data.kpi_highlights.length > 0 && (
                   <div>
-                    <h3 className="text-sm font-semibold text-gray-800 mb-2">추천 사항</h3>
-                    <ul className="space-y-1">
-                      {aiMutation.data.recommendations.map((rec: any, i: number) => (
-                        <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
-                          <span className="text-green-500 mt-0.5">&#9679;</span>
-                          {typeof rec === 'string' ? rec : rec.description || rec.title}
-                        </li>
+                    <h3 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-1.5">
+                      <BarChart3 size={15} className="text-blue-600" /> KPI 하이라이트
+                    </h3>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      {aiMutation.data.kpi_highlights.map((kpi: any, i: number) => (
+                        <div key={i} className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow">
+                          <p className="text-xs text-gray-500 mb-1 truncate">{kpi.metric}</p>
+                          <p className="text-lg font-bold text-gray-900">{kpi.value}</p>
+                          {(kpi.evaluation || kpi.change) && (
+                            <div className={`flex items-center gap-1 text-xs mt-1 ${
+                              (kpi.evaluation === '개선필요' || String(kpi.change || '').startsWith('-')) ? 'text-red-500' :
+                              (kpi.evaluation === '좋음' || (!String(kpi.change || '').startsWith('-') && kpi.change)) ? 'text-emerald-500' : 'text-gray-500'
+                            }`}>
+                              {(kpi.evaluation === '개선필요' || String(kpi.change || '').startsWith('-'))
+                                ? <TrendingDown size={12} />
+                                : (kpi.evaluation === '좋음' ? <TrendingUp size={12} /> : null)}
+                              <span>{kpi.evaluation || kpi.change}</span>
+                            </div>
+                          )}
+                          {(kpi.detail || kpi.insight) && <p className="text-[11px] text-gray-400 mt-1 line-clamp-2">{kpi.detail || kpi.insight}</p>}
+                        </div>
                       ))}
-                    </ul>
+                    </div>
                   </div>
                 )}
+
+                {/* Key Insights */}
+                {aiMutation.data.insights && Array.isArray(aiMutation.data.insights) && aiMutation.data.insights.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-1.5">
+                      <Lightbulb size={15} className="text-amber-500" /> 핵심 인사이트
+                    </h3>
+                    <div className="space-y-2">
+                      {aiMutation.data.insights.map((insight: any, i: number) => {
+                        const typeColors: Record<string, string> = {
+                          positive: 'border-l-emerald-500 bg-emerald-50/50',
+                          negative: 'border-l-red-500 bg-red-50/50',
+                          neutral: 'border-l-blue-500 bg-blue-50/50',
+                          warning: 'border-l-orange-500 bg-orange-50/50',
+                          TREND: 'border-l-blue-500 bg-blue-50/50',
+                          ANOMALY: 'border-l-red-500 bg-red-50/50',
+                          RECOMMENDATION: 'border-l-emerald-500 bg-emerald-50/50',
+                          ALERT: 'border-l-orange-500 bg-orange-50/50',
+                        };
+                        const typeLabels: Record<string, string> = {
+                          positive: '긍정', negative: '부정', neutral: '중립', warning: '주의',
+                          TREND: '트렌드', ANOMALY: '이상감지', RECOMMENDATION: '추천', ALERT: '주의',
+                        };
+                        const priorityColors: Record<string, string> = {
+                          high: 'bg-red-100 text-red-700', medium: 'bg-yellow-100 text-yellow-700', low: 'bg-gray-100 text-gray-600',
+                        };
+                        const borderClass = (typeof insight === 'string') ? 'border-l-gray-400 bg-gray-50/50' : (typeColors[insight.type] || 'border-l-gray-400 bg-gray-50/50');
+                        return (
+                          <div key={i} className={`border-l-4 rounded-r-lg p-3 ${borderClass}`}>
+                            <div className="flex items-center gap-2 mb-1">
+                              {typeof insight !== 'string' && insight.title && (
+                                <span className="text-sm font-semibold text-gray-800">{insight.title}</span>
+                              )}
+                              {typeof insight !== 'string' && insight.type && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/80 text-gray-500 font-medium">
+                                  {typeLabels[insight.type] || insight.type}
+                                </span>
+                              )}
+                              {typeof insight !== 'string' && insight.priority && (
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${priorityColors[insight.priority] || ''}`}>
+                                  {insight.priority === 'high' ? '높음' : insight.priority === 'medium' ? '보통' : '낮음'}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-sm text-gray-600">
+                              {typeof insight === 'string' ? insight : insight.detail || insight.description || insight.title}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Recommendations */}
+                {aiMutation.data.recommendations && Array.isArray(aiMutation.data.recommendations) && aiMutation.data.recommendations.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-1.5">
+                      <Zap size={15} className="text-purple-500" /> 추천 사항
+                    </h3>
+                    <div className="space-y-2">
+                      {aiMutation.data.recommendations.map((rec: any, i: number) => {
+                        const priorityDot: Record<string, string> = {
+                          high: 'bg-red-500', medium: 'bg-yellow-400', low: 'bg-green-400',
+                        };
+                        const isString = typeof rec === 'string';
+                        return (
+                          <div key={i} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
+                            <div className="flex items-start gap-3">
+                              {!isString && rec.priority && (
+                                <span className={`mt-1.5 w-2.5 h-2.5 rounded-full flex-shrink-0 ${priorityDot[rec.priority] || 'bg-gray-300'}`} />
+                              )}
+                              <div className="flex-1 min-w-0">
+                                {!isString && rec.title && (
+                                  <p className="text-sm font-semibold text-gray-800 mb-0.5">{rec.title}</p>
+                                )}
+                                <p className="text-sm text-gray-600">
+                                  {isString ? rec : rec.detail || rec.description || rec.title}
+                                </p>
+                                {!isString && rec.expected_impact && (
+                                  <p className="text-xs text-purple-600 mt-1.5 flex items-center gap-1">
+                                    <Target size={11} /> 예상 효과: {rec.expected_impact}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Action Items */}
+                {aiMutation.data.action_items && Array.isArray(aiMutation.data.action_items) && aiMutation.data.action_items.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-1.5">
+                      <CheckCircle size={15} className="text-emerald-500" /> 실행 항목
+                    </h3>
+                    <div className="bg-gray-50 rounded-lg p-3 space-y-2">
+                      {aiMutation.data.action_items.map((item: string, i: number) => (
+                        <div key={i} className="flex items-start gap-2.5">
+                          <div className="mt-0.5 w-5 h-5 rounded border-2 border-gray-300 bg-white flex items-center justify-center flex-shrink-0">
+                            <span className="text-[10px] font-bold text-gray-400">{i + 1}</span>
+                          </div>
+                          <p className="text-sm text-gray-700">{item}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Active Campaigns Analysis */}
+                {aiMutation.data.active_campaigns_analysis && Array.isArray(aiMutation.data.active_campaigns_analysis) && aiMutation.data.active_campaigns_analysis.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-1.5">
+                      <Activity size={15} className="text-indigo-500" /> 캠페인별 분석
+                    </h3>
+                    <div className="space-y-2">
+                      {aiMutation.data.active_campaigns_analysis.map((camp: any, i: number) => {
+                        const name = camp.campaign_name || camp.name;
+                        const gradeColors: Record<string, string> = {
+                          A: 'bg-emerald-100 text-emerald-700', B: 'bg-blue-100 text-blue-700',
+                          C: 'bg-yellow-100 text-yellow-700', D: 'bg-orange-100 text-orange-700', F: 'bg-red-100 text-red-700',
+                        };
+                        return (
+                          <div key={i} className="bg-white border border-gray-200 rounded-lg p-3 hover:shadow-sm transition-shadow">
+                            <div className="flex items-center justify-between mb-1.5">
+                              <span className="text-sm font-semibold text-gray-800 truncate max-w-[200px]">{name}</span>
+                              {camp.grade && (
+                                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${gradeColors[camp.grade] || 'bg-gray-100 text-gray-600'}`}>{camp.grade}</span>
+                              )}
+                            </div>
+                            {camp.kpi_highlight && (
+                              <p className="text-xs text-gray-500 mb-1">{camp.kpi_highlight}</p>
+                            )}
+                            {camp.summary && (
+                              <p className="text-xs text-gray-600">{camp.summary}</p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Fallback for raw analysis text */}
                 {aiMutation.data.analysis && (
                   <div className="prose prose-sm max-w-none text-gray-700 whitespace-pre-wrap">{aiMutation.data.analysis}</div>
                 )}
