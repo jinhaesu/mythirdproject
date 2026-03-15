@@ -129,8 +129,25 @@ async def _get_naver_search_api(
     current_user: User,
     db: AsyncSession,
 ) -> NaverSearchAdsAPI:
-    """Resolve Naver Search Ads credentials and return API client."""
-    # 1) Try PlatformConnection
+    """Resolve Naver Search Ads credentials and return API client.
+    Priority: env vars FIRST (most reliable), then PlatformConnection DB.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    # 1) Prefer global env-var settings (always correct on Railway)
+    if settings.NAVER_ADS_API_KEY and settings.NAVER_ADS_CUSTOMER_ID:
+        logger.info(
+            "Using env-var Naver credentials (customer_id=%s)",
+            settings.NAVER_ADS_CUSTOMER_ID,
+        )
+        return NaverSearchAdsAPI(
+            api_key=settings.NAVER_ADS_API_KEY,
+            secret_key=settings.NAVER_ADS_SECRET_KEY,
+            customer_id=settings.NAVER_ADS_CUSTOMER_ID,
+        )
+
+    # 2) Fallback: PlatformConnection from DB
     result = await db.execute(
         select(PlatformConnection).where(
             PlatformConnection.user_id == current_user.id,
@@ -141,19 +158,14 @@ async def _get_naver_search_api(
     conn = result.scalar_one_or_none()
 
     if conn and conn.access_token and conn.account_id:
-        # access_token = api_key, refresh_token = secret_key
+        logger.info(
+            "Using DB PlatformConnection Naver credentials (account_id=%s)",
+            conn.account_id,
+        )
         return NaverSearchAdsAPI(
             api_key=conn.access_token,
             secret_key=conn.refresh_token or settings.NAVER_ADS_SECRET_KEY,
             customer_id=conn.account_id,
-        )
-
-    # 2) Fallback to global settings
-    if settings.NAVER_ADS_API_KEY and settings.NAVER_ADS_CUSTOMER_ID:
-        return NaverSearchAdsAPI(
-            api_key=settings.NAVER_ADS_API_KEY,
-            secret_key=settings.NAVER_ADS_SECRET_KEY,
-            customer_id=settings.NAVER_ADS_CUSTOMER_ID,
         )
 
     raise HTTPException(
@@ -227,17 +239,35 @@ async def search_ads_debug(
     db: AsyncSession = Depends(get_db),
 ):
     """검색광고 API 연결 디버그 (인증 정보 확인)."""
+    # Show which credential source will be used
+    env_available = bool(settings.NAVER_ADS_API_KEY and settings.NAVER_ADS_CUSTOMER_ID)
+
+    result_db = await db.execute(
+        select(PlatformConnection).where(
+            PlatformConnection.user_id == current_user.id,
+            PlatformConnection.platform == "NAVER",
+            PlatformConnection.is_active == True,  # noqa: E712
+        )
+    )
+    db_conn = result_db.scalar_one_or_none()
+    db_available = bool(db_conn and db_conn.access_token and db_conn.account_id)
+
     api = await _get_naver_search_api(current_user, db)
     debug_info = {
+        "credential_source": "env_vars" if env_available else ("db_platform_connection" if db_available else "none"),
+        "env_vars_set": env_available,
+        "db_connection_exists": db_available,
+        "db_account_id": db_conn.account_id if db_conn else None,
+        "env_customer_id": settings.NAVER_ADS_CUSTOMER_ID if env_available else None,
+        "resolved_customer_id": api.customer_id,
         "api_key_length": len(api.api_key) if api.api_key else 0,
         "secret_key_length": len(api.secret_key) if api.secret_key else 0,
-        "customer_id": api.customer_id,
         "api_key_prefix": api.api_key[:4] + "***" if api.api_key else "",
     }
     try:
-        result = await api.get_campaigns()
+        campaigns = await api.get_campaigns()
         debug_info["status"] = "OK"
-        debug_info["campaigns_count"] = len(result)
+        debug_info["campaigns_count"] = len(campaigns)
     except Exception as e:
         debug_info["status"] = "ERROR"
         debug_info["error"] = str(e)
