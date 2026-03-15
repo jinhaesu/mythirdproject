@@ -107,8 +107,8 @@ export function NaverSearchAdsDashboard() {
   };
 
   const campaigns = campaignsData?.campaigns || campaignsData || [];
-  const kpi = overview?.kpi || overview || {};
-  const trend = trendData?.data || trendData || [];
+  const kpi = overview?.totals || overview?.kpi || overview || {};
+  const trend = trendData?.trend || trendData?.data || trendData || [];
 
   // Trend arrays for charts
   const trendSpend = Array.isArray(trend) ? trend.map((d: any) => parseFloat(d.spend || 0)) : [];

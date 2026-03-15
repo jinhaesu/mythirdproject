@@ -1717,7 +1717,7 @@ async def keyword_research_ai_analysis(
     claude = ClaudeService()
     response = claude.client.messages.create(
         model=claude.model,
-        max_tokens=4000,
+        max_tokens=8000,
         messages=[{"role": "user", "content": prompt}],
     )
     analysis = response.content[0].text

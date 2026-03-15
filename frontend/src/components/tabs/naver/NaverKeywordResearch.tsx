@@ -156,7 +156,7 @@ function TrendChart({
                 fontSize="10"
                 fill="#9ca3af"
               >
-                {v}
+                {v.toLocaleString()}
               </text>
             </g>
           );
@@ -253,7 +253,7 @@ function TrendChart({
                 fontWeight="600"
                 fill={color}
               >
-                {d.ratio}
+                {d.ratio.toLocaleString()}
               </text>
             </>
           );
@@ -371,17 +371,20 @@ function ProductCard({ item, rank }: { item: ShoppingItem; rank: number }) {
 
 function simpleMarkdownToHtml(text: string): string {
   return text
-    // Headers
-    .replace(/^### (.+)$/gm, '<h4 class="text-sm font-bold text-gray-900 mt-4 mb-2">$1</h4>')
-    .replace(/^## (.+)$/gm, '<h3 class="text-base font-bold text-gray-900 mt-5 mb-2">$1</h3>')
+    // H2 headers - section headers
+    .replace(/^## (.+)$/gm, '<h3 class="text-base font-bold text-gray-900 mt-6 mb-3 pb-2 border-b border-gray-200">$1</h3>')
+    // H3 headers
+    .replace(/^### (.+)$/gm, '<h4 class="text-sm font-bold text-purple-800 mt-4 mb-2 flex items-center gap-1"><span class="w-1 h-4 bg-purple-500 rounded-full inline-block mr-1"></span>$1</h4>')
+    // H4 headers
+    .replace(/^#### (.+)$/gm, '<h5 class="text-sm font-semibold text-gray-700 mt-3 mb-1">$1</h5>')
     // Bold
     .replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold text-gray-900">$1</strong>')
-    // Numbered lists
-    .replace(/^(\d+)\. (.+)$/gm, '<div class="flex gap-2 ml-2 my-1"><span class="text-purple-600 font-semibold min-w-[1.2rem]">$1.</span><span>$2</span></div>')
+    // Numbered lists with better spacing
+    .replace(/^(\d+)\. (.+)$/gm, '<div class="flex gap-3 ml-1 my-1.5"><span class="flex-shrink-0 w-6 h-6 rounded-full bg-purple-100 text-purple-700 text-xs font-bold flex items-center justify-center">$1</span><span class="pt-0.5">$2</span></div>')
     // Bullet points
-    .replace(/^[-•] (.+)$/gm, '<div class="flex gap-2 ml-4 my-0.5"><span class="text-purple-400">•</span><span>$1</span></div>')
-    // Line breaks
-    .replace(/\n\n/g, '<div class="h-2"></div>')
+    .replace(/^[-•] (.+)$/gm, '<div class="flex gap-2 ml-3 my-1"><span class="text-purple-400 mt-1.5">▸</span><span>$1</span></div>')
+    // Double line breaks = paragraph gap
+    .replace(/\n\n/g, '<div class="h-3"></div>')
     .replace(/\n/g, '<br/>');
 }
 
@@ -398,6 +401,7 @@ export function NaverKeywordResearch() {
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [aiCollapsed, setAiCollapsed] = useState(true);
 
   const handleSearch = () => {
     const kw = inputValue.trim();
@@ -539,6 +543,21 @@ export function NaverKeywordResearch() {
   const trendPoints: TrendPoint[] = trendData?.data ?? [];
   const isLoading = shoppingLoading || trendLoading;
 
+  // Scale trend ratios to approximate absolute values if volume data is available
+  const scaledTrendPoints: TrendPoint[] = (() => {
+    if (!volumeData?.available || !volumeData.data.length || !trendPoints.length) return trendPoints;
+    const exact = volumeData.data.find(d => d.keyword === searchedKeyword) || volumeData.data[0];
+    const totalMonthly = exact.monthlyTotalQcCnt;
+    if (!totalMonthly) return trendPoints;
+    // The max ratio in trend data = 100 corresponds to the peak month
+    // Scale all ratios proportionally. Peak month ≈ totalMonthly (current)
+    const maxRatio = Math.max(...trendPoints.map(p => p.ratio), 1);
+    return trendPoints.map(p => ({
+      ...p,
+      ratio: Math.round((p.ratio / maxRatio) * totalMonthly),
+    }));
+  })();
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -663,7 +682,7 @@ export function NaverKeywordResearch() {
               </div>
             ) : trendPoints.length > 0 ? (
               <div>
-                <TrendChart data={trendPoints} height={240} />
+                <TrendChart data={scaledTrendPoints} height={240} />
               </div>
             ) : (
               <div className="flex items-center justify-center py-16 text-gray-400 text-sm">
@@ -730,7 +749,7 @@ export function NaverKeywordResearch() {
                           </tr>
                         </thead>
                         <tbody>
-                          {volumeData.data.slice(0, 20).map((item, idx) => (
+                          {volumeData.data.slice(0, 10).map((item, idx) => (
                             <tr key={idx} className={clsx('border-t border-gray-100', item.keyword === searchedKeyword && 'bg-green-50 font-semibold')}>
                               <td className="px-3 py-2 text-gray-900">{item.keyword}</td>
                               <td className="text-right px-3 py-2 text-gray-700">{item.monthlyTotalQcCnt.toLocaleString()}</td>
@@ -813,15 +832,38 @@ export function NaverKeywordResearch() {
               )}
 
               {aiAnalysis && !aiLoading && (
-                <div className="bg-gradient-to-br from-purple-50 to-white border border-purple-100 rounded-xl p-5">
-                  <div className="flex items-center gap-2 mb-3 text-purple-700 text-sm font-semibold">
-                    <Sparkles size={14} />
-                    Claude AI 분석 결과
+                <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                  {/* Report header */}
+                  <div className="bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-4">
+                    <div className="flex items-center gap-2 text-white">
+                      <Sparkles size={16} />
+                      <span className="font-bold text-sm">AI 마케팅 전략 리포트</span>
+                    </div>
+                    <div className="flex items-center gap-4 mt-1.5 text-purple-200 text-xs">
+                      <span>키워드: {searchedKeyword}</span>
+                      <span>브랜드: {BRAND_NAME}</span>
+                      <span>{new Date().toLocaleDateString('ko-KR')}</span>
+                    </div>
                   </div>
-                  <div
-                    className="text-sm text-gray-700 leading-relaxed prose-sm"
-                    dangerouslySetInnerHTML={{ __html: simpleMarkdownToHtml(aiAnalysis) }}
-                  />
+                  {/* Report body */}
+                  <div className={clsx('px-6 py-5 relative', aiCollapsed && 'max-h-[400px] overflow-hidden')}>
+                    <div
+                      className="text-sm text-gray-700 leading-relaxed"
+                      dangerouslySetInnerHTML={{ __html: simpleMarkdownToHtml(aiAnalysis) }}
+                    />
+                    {aiCollapsed && (
+                      <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-white to-transparent" />
+                    )}
+                  </div>
+                  {/* Toggle button */}
+                  <div className="px-6 py-3 border-t border-gray-100 flex justify-center">
+                    <button
+                      onClick={() => setAiCollapsed(!aiCollapsed)}
+                      className="text-sm text-purple-600 font-medium hover:text-purple-700 flex items-center gap-1"
+                    >
+                      {aiCollapsed ? '전체 보기 ▼' : '접기 ▲'}
+                    </button>
+                  </div>
                 </div>
               )}
 
