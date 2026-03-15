@@ -936,53 +936,54 @@ function ReportNewsletter({ data, onEmail }: { data: any; onEmail?: () => void }
         )}
       </div>
 
-      <div id="report-printable" className="rounded-3xl overflow-hidden border border-gray-100 shadow-2xl bg-white">
+      <div id="report-printable" className="rounded-2xl overflow-hidden border border-gray-200 shadow-xl bg-white">
         {/* Hero Header */}
-        <div className="bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-800 px-10 py-10 relative overflow-hidden">
-          <div className="absolute inset-0">
-            <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-bl from-blue-400/20 to-transparent rounded-full -translate-y-1/2 translate-x-1/3" />
-            <div className="absolute bottom-0 left-0 w-72 h-72 bg-gradient-to-tr from-indigo-500/15 to-transparent rounded-full translate-y-1/3 -translate-x-1/4" />
-            <div className="absolute top-1/2 left-1/2 w-40 h-40 bg-blue-400/10 rounded-full -translate-x-1/2 -translate-y-1/2" />
+        <div className="bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-800 px-6 sm:px-10 py-8 relative overflow-hidden">
+          <div className="absolute inset-0 pointer-events-none">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-blue-400/15 to-transparent rounded-full -translate-y-1/2 translate-x-1/3" />
+            <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-indigo-500/10 to-transparent rounded-full translate-y-1/3 -translate-x-1/4" />
           </div>
-          <div className="relative z-10">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 bg-white/15 backdrop-blur-sm rounded-xl flex items-center justify-center border border-white/10">
-                <BarChart3 size={20} className="text-white" />
+          <div className="relative z-10 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-9 h-9 bg-white/15 backdrop-blur-sm rounded-lg flex items-center justify-center border border-white/10">
+                  <BarChart3 size={18} className="text-white" />
+                </div>
+                <div>
+                  <span className="text-blue-300 text-[10px] font-semibold tracking-[0.15em] uppercase block">META-COMMANDER</span>
+                  <span className="text-white/60 text-xs">Performance Report</span>
+                </div>
               </div>
-              <div>
-                <span className="text-blue-300 text-[10px] font-semibold tracking-[0.2em] uppercase block">META-COMMANDER</span>
-                <span className="text-white/70 text-xs">Performance Report</span>
+              {ai?.headline ? (
+                <h2 className="text-xl sm:text-2xl font-bold text-white leading-snug mb-2">{ai.headline}</h2>
+              ) : (
+                <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">성과 분석 리포트</h2>
+              )}
+              <div className="flex flex-wrap items-center gap-2 mt-2">
+                <span className="text-blue-200/80 text-xs sm:text-sm font-medium bg-white/10 backdrop-blur-sm px-3 py-1 rounded-lg">
+                  {period.start} ~ {period.end}
+                </span>
+                {campaign && <span className="text-blue-200/80 text-xs sm:text-sm bg-white/10 backdrop-blur-sm px-3 py-1 rounded-lg truncate max-w-[200px]">{campaign.name}</span>}
               </div>
-            </div>
-            {ai?.headline ? (
-              <h2 className="text-2xl font-bold text-white leading-snug pr-24 mb-2">{ai.headline}</h2>
-            ) : (
-              <h2 className="text-2xl font-bold text-white mb-2">성과 분석 리포트</h2>
-            )}
-            <div className="flex items-center gap-3 mt-3">
-              <span className="text-blue-200/80 text-sm font-medium bg-white/10 backdrop-blur-sm px-3 py-1 rounded-lg">
-                {period.start} ~ {period.end}
-              </span>
-              {campaign && <span className="text-blue-200/80 text-sm bg-white/10 backdrop-blur-sm px-3 py-1 rounded-lg">{campaign.name}</span>}
             </div>
             {ai?.overall_grade && (
-              <div className="absolute top-8 right-10 flex flex-col items-center">
-                <div className={`w-20 h-20 rounded-2xl bg-gradient-to-br ${gradeGradient} flex items-center justify-center shadow-2xl ring-4 ring-white/10`}>
-                  <span className="text-3xl font-black text-white drop-shadow-lg">{grade}</span>
+              <div className="flex flex-col items-center shrink-0">
+                <div className={`w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br ${gradeGradient} flex items-center justify-center shadow-xl ring-4 ring-white/10`}>
+                  <span className="text-2xl sm:text-3xl font-black text-white drop-shadow-lg">{grade}</span>
                 </div>
-                <span className="text-xs text-blue-200/80 mt-2 font-medium">{ai.grade_reason || '종합 등급'}</span>
+                <span className="text-[10px] sm:text-xs text-blue-200/70 mt-1.5 font-medium text-center">{ai.grade_reason || '종합 등급'}</span>
               </div>
             )}
           </div>
         </div>
 
-        <div className="p-8 space-y-8">
+        <div className="p-5 sm:p-8 space-y-6">
           {/* Period Summary */}
           {ai?.period_summary && (
-            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-5 border border-blue-100/80">
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100/80">
               <div className="flex items-start gap-3">
-                <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <BarChart3 size={16} className="text-blue-600" />
+                <div className="w-7 h-7 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <BarChart3 size={14} className="text-blue-600" />
                 </div>
                 <p className="text-gray-700 text-sm leading-relaxed">{ai.period_summary}</p>
               </div>
@@ -990,7 +991,7 @@ function ReportNewsletter({ data, onEmail }: { data: any; onEmail?: () => void }
           )}
 
           {/* KPI Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
             <ReportKPICard icon={<DollarSign size={16} />} label="총 지출" value={formatSpend(totals.spend)} sparkData={spendData} sparkColor="#3b82f6" accent="blue" />
             <ReportKPICard icon={<Eye size={16} />} label="노출" value={formatNum(totals.impressions)} sub={`도달 ${formatNum(totals.reach)}`} sparkData={daily.map((d: any) => parseInt(d.impressions || 0))} sparkColor="#8b5cf6" accent="purple" />
             <ReportKPICard icon={<MousePointer size={16} />} label="클릭" value={formatNum(totals.clicks)} sub={`CTR ${totals.ctr?.toFixed(2) || '0'}%`} sparkData={clickData} sparkColor="#10b981" accent="green" />
