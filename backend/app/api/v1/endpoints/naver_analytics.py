@@ -330,12 +330,18 @@ async def search_ads_overview(
         "conversions": 0,
         "revenue": 0,
     }
+    avg_rnk_sum = 0.0
+    avg_rnk_count = 0
     for s in stats:
         totals["impressions"] += int(s.get("impCnt", 0))
         totals["clicks"] += int(s.get("clkCnt", 0))
         totals["spend"] += float(s.get("salesAmt", 0))
         totals["conversions"] += int(s.get("ccnt", 0))
         totals["revenue"] += float(s.get("convAmt", 0))
+        rnk = s.get("avgRnk")
+        if rnk and float(rnk) > 0:
+            avg_rnk_sum += float(rnk)
+            avg_rnk_count += 1
 
     imp = totals["impressions"]
     clk = totals["clicks"]
@@ -345,6 +351,7 @@ async def search_ads_overview(
     totals["ctr"] = (clk / imp * 100) if imp > 0 else 0
     totals["cpc"] = (spend / clk) if clk > 0 else 0
     totals["roas"] = (rev / spend * 100) if spend > 0 else 0
+    totals["avg_rank"] = round(avg_rnk_sum / avg_rnk_count, 1) if avg_rnk_count > 0 else None
 
     return {
         "platform": "NAVER_SEARCH",
@@ -402,6 +409,7 @@ async def search_ads_campaigns(
         spend = float(s.get("salesAmt", 0))
         conv = int(s.get("ccnt", 0))
         rev = float(s.get("convAmt", 0))
+        avg_rnk = float(s.get("avgRnk", 0)) if s.get("avgRnk") else None
 
         result.append({
             "campaign_id": cid,
@@ -418,6 +426,7 @@ async def search_ads_campaigns(
             "ctr": (clk / imp * 100) if imp > 0 else 0,
             "cpc": (spend / clk) if clk > 0 else 0,
             "roas": (rev / spend * 100) if spend > 0 else 0,
+            "avg_rank": round(avg_rnk, 1) if avg_rnk else None,
         })
 
     return {
@@ -430,13 +439,56 @@ async def search_ads_campaigns(
 @router.get("/search-ads/campaign/{campaign_id}/adgroups")
 async def search_ads_adgroups(
     campaign_id: str,
+    date_range: str = Query(default="last_7_days"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """캠페인 내 광고그룹 목록."""
+    """캠페인 내 광고그룹 목록 + 성과 데이터."""
     api = await _get_naver_search_api(current_user, db)
+    start_date, end_date = _date_range_to_dates(date_range)
     adgroups = await api.get_adgroups(campaign_id=campaign_id)
-    return {"campaign_id": campaign_id, "adgroups": adgroups}
+
+    # Fetch stats for adgroups
+    ag_ids = [ag.get("nccAdgroupId") for ag in adgroups if ag.get("nccAdgroupId")]
+    stats_map = {}
+    if ag_ids:
+        try:
+            stats = await api.get_stat_report(
+                ids=ag_ids, date_preset="custom",
+                start_date=start_date, end_date=end_date,
+                time_increment="allDays",
+            )
+            for s in stats:
+                stats_map[s.get("id")] = s
+        except Exception as e:
+            logger.warning("Adgroup stats failed: %s", e)
+
+    result = []
+    for ag in adgroups:
+        ag_id = ag.get("nccAdgroupId")
+        s = stats_map.get(ag_id, {})
+        imp = int(s.get("impCnt", 0))
+        clk = int(s.get("clkCnt", 0))
+        spend = float(s.get("salesAmt", 0))
+        avg_rnk = float(s.get("avgRnk", 0)) if s.get("avgRnk") else None
+        is_paused = ag.get("userLock", False)
+        ag_status = ag.get("status", "")
+        status = "PAUSED" if is_paused or ag_status in ("PAUSED",) else "ACTIVE"
+
+        result.append({
+            "nccAdgroupId": ag_id,
+            "name": ag.get("name"),
+            "status": status,
+            "bidAmt": ag.get("bidAmt", 0),
+            "spend": spend,
+            "clicks": clk,
+            "impressions": imp,
+            "ctr": (clk / imp * 100) if imp > 0 else 0,
+            "cpc": (spend / clk) if clk > 0 else 0,
+            "avg_rank": round(avg_rnk, 1) if avg_rnk else None,
+        })
+
+    return {"campaign_id": campaign_id, "adgroups": result}
 
 
 @router.get("/search-ads/campaign/{campaign_id}/keywords")

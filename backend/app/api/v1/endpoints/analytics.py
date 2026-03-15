@@ -1734,7 +1734,7 @@ async def run_schedule_now(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """수동으로 스케줄 실행 (테스트용)."""
+    """수동으로 스케줄 실행 — main.py의 _execute_scheduled_report 재사용."""
     result = await db.execute(select(ScheduledReport).where(
         ScheduledReport.id == schedule_id, ScheduledReport.user_id == str(current_user.id)
     ))
@@ -1742,191 +1742,41 @@ async def run_schedule_now(
     if not sched:
         raise HTTPException(404, "스케줄을 찾을 수 없습니다")
 
-    end_date = datetime.utcnow().strftime("%Y-%m-%d")
-    start_date = (datetime.utcnow() - timedelta(days=sched.lookback_days or 7)).strftime("%Y-%m-%d")
-
-    # Resolve Meta token: env → user → PlatformConnection
-    meta_token = settings.META_ACCESS_TOKEN or current_user.meta_access_token
-    if not meta_token:
-        from app.models.ad_platform import PlatformConnection
-        shared = await db.execute(
-            select(PlatformConnection).where(
-                PlatformConnection.platform == "META",
-                PlatformConnection.is_active == True,  # noqa: E712
-            ).limit(1)
-        )
-        conn = shared.scalar_one_or_none()
-        if conn:
-            meta_token = conn.access_token
-
-    if not meta_token:
-        return {
-            "message": "Meta 액세스 토큰이 없습니다",
-            "schedule_id": schedule_id,
-            "status": "error",
-            "reason": "no_meta_token",
-            "email_sent": False,
-            "debug": {
-                "env_META_ACCESS_TOKEN_set": bool(settings.META_ACCESS_TOKEN),
-                "user_meta_token_set": bool(current_user.meta_access_token),
-            },
-        }
-
-    meta_ad_account = current_user.meta_ad_account_id or ""
-    if not meta_ad_account:
-        return {
-            "message": "Meta 광고 계정이 설정되지 않았습니다",
-            "schedule_id": schedule_id,
-            "status": "error",
-            "reason": "no_ad_account",
-            "email_sent": False,
-        }
-
-    ad_account_id = meta_ad_account if meta_ad_account.startswith("act_") else f"act_{meta_ad_account}"
-    base_url = f"{settings.META_GRAPH_API_BASE}/{settings.META_API_VERSION}"
-    insights_endpoint = (
-        f"{sched.meta_campaign_id}/insights" if sched.meta_campaign_id
-        else f"{ad_account_id}/insights"
-    )
-
-    # Fetch insights
-    try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.get(
-                f"{base_url}/{insights_endpoint}",
-                params={
-                    "access_token": meta_token,
-                    "fields": "spend,impressions,reach,clicks,ctr,cpc,cpm,actions,cost_per_action_type,action_values,purchase_roas,website_purchase_roas",
-                    "time_range": json.dumps({"since": start_date, "until": end_date}),
-                    "time_increment": 1,
-                }
-            )
-            if resp.status_code != 200:
-                return {
-                    "message": f"Meta API 오류 ({resp.status_code})",
-                    "schedule_id": schedule_id,
-                    "status": "error",
-                    "reason": "meta_api_error",
-                    "detail": resp.text[:300],
-                    "email_sent": False,
-                }
-            insights_data = resp.json()
-    except Exception as e:
-        return {
-            "message": f"Meta API 요청 실패: {e}",
-            "schedule_id": schedule_id,
-            "status": "error",
-            "reason": "meta_request_failed",
-            "email_sent": False,
-        }
-
-    # Build email with actual data
-    daily_data = insights_data.get("data", [])
-    total_spend = sum(float(d.get("spend", 0)) for d in daily_data)
-    total_impressions = sum(int(d.get("impressions", 0)) for d in daily_data)
-    total_clicks = sum(int(d.get("clicks", 0)) for d in daily_data)
-    avg_ctr = (total_clicks / total_impressions * 100) if total_impressions > 0 else 0
-    avg_cpc = (total_spend / total_clicks) if total_clicks > 0 else 0
-
-    email_html = f"""
-    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto;">
-      <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 24px; border-radius: 12px 12px 0 0;">
-        <h2 style="color: white; margin: 0;">{sched.name}</h2>
-        <p style="color: rgba(255,255,255,0.8); margin: 8px 0 0;">기간: {start_date} ~ {end_date}</p>
-      </div>
-      <div style="background: #f8f9fa; padding: 24px; border: 1px solid #e9ecef;">
-        <h3 style="margin: 0 0 16px; color: #333;">📊 성과 요약</h3>
-        <table style="width: 100%; border-collapse: collapse;">
-          <tr>
-            <td style="padding: 12px; background: white; border: 1px solid #e9ecef; text-align: center;">
-              <div style="font-size: 12px; color: #666;">총 비용</div>
-              <div style="font-size: 20px; font-weight: bold; color: #333;">{'{:,.0f}'.format(total_spend)}원</div>
-            </td>
-            <td style="padding: 12px; background: white; border: 1px solid #e9ecef; text-align: center;">
-              <div style="font-size: 12px; color: #666;">노출수</div>
-              <div style="font-size: 20px; font-weight: bold; color: #333;">{total_impressions:,}</div>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding: 12px; background: white; border: 1px solid #e9ecef; text-align: center;">
-              <div style="font-size: 12px; color: #666;">클릭수</div>
-              <div style="font-size: 20px; font-weight: bold; color: #333;">{total_clicks:,}</div>
-            </td>
-            <td style="padding: 12px; background: white; border: 1px solid #e9ecef; text-align: center;">
-              <div style="font-size: 12px; color: #666;">CTR</div>
-              <div style="font-size: 20px; font-weight: bold; color: #333;">{avg_ctr:.2f}%</div>
-            </td>
-          </tr>
-          <tr>
-            <td colspan="2" style="padding: 12px; background: white; border: 1px solid #e9ecef; text-align: center;">
-              <div style="font-size: 12px; color: #666;">평균 CPC</div>
-              <div style="font-size: 20px; font-weight: bold; color: #333;">{'{:,.0f}'.format(avg_cpc)}원</div>
-            </td>
-          </tr>
-        </table>
-        <p style="margin: 16px 0 0; font-size: 12px; color: #999; text-align: center;">
-          데이터 일수: {len(daily_data)}일 | Meta-Commander 수동 리포트
-        </p>
-      </div>
-    </div>
-    """
-
-    # Send email
-    email_sent = False
-    email_error = None
-    if not sched.email_to:
-        sched.last_run_at = datetime.utcnow()
-        await db.commit()
-        return {
-            "message": "리포트 생성 완료 (이메일 미설정)",
-            "schedule_id": schedule_id,
-            "status": "success",
-            "email_sent": False,
-            "reason": "no_email_configured",
-            "insights_count": len(daily_data),
-            "summary": {"spend": total_spend, "impressions": total_impressions, "clicks": total_clicks, "ctr": avg_ctr},
-        }
-
-    if not settings.RESEND_API_KEY:
-        sched.last_run_at = datetime.utcnow()
-        await db.commit()
-        return {
-            "message": "리포트 생성 완료 (RESEND_API_KEY 미설정으로 이메일 발송 불가)",
-            "schedule_id": schedule_id,
-            "status": "partial",
-            "email_sent": False,
-            "reason": "resend_api_key_not_set",
-            "insights_count": len(daily_data),
-            "summary": {"spend": total_spend, "impressions": total_impressions, "clicks": total_clicks, "ctr": avg_ctr},
-        }
-
-    try:
-        import resend
-        resend.api_key = settings.RESEND_API_KEY
-        from_email = settings.RESEND_FROM_EMAIL or "onboarding@resend.dev"
-        resend.Emails.send({
-            "from": from_email,
-            "to": [sched.email_to],
-            "subject": f"[Meta-Commander] {sched.name} ({start_date} ~ {end_date})",
-            "html": email_html,
-        })
-        email_sent = True
-    except Exception as e:
-        email_error = str(e)
-        logger.error("Manual schedule email failed: %s", e, exc_info=True)
+    from app.main import _execute_scheduled_report
+    run_result = await _execute_scheduled_report(sched, db)
 
     sched.last_run_at = datetime.utcnow()
     await db.commit()
 
+    status = run_result.get("status", "unknown")
+    email_sent = run_result.get("email_sent", False)
+    reason = run_result.get("reason", "")
+
+    if status == "error":
+        msg_map = {
+            "user_not_found": "사용자를 찾을 수 없습니다",
+            "no_meta_token": "Meta 액세스 토큰이 없습니다",
+            "no_ad_account": "Meta 광고 계정이 설정되지 않았습니다",
+            "meta_api_error": f"Meta API 오류: {run_result.get('detail', '')}",
+            "meta_request_failed": f"Meta API 요청 실패: {run_result.get('detail', '')}",
+            "resend_api_key_not_set": "RESEND_API_KEY 환경변수가 설정되지 않았습니다",
+        }
+        message = msg_map.get(reason, reason)
+    elif email_sent:
+        message = "이메일 발송 완료"
+    elif reason == "no_email_configured":
+        message = "리포트 생성 완료 (이메일 미설정)"
+    else:
+        message = run_result.get("email_error", "이메일 발송 실패")
+
     return {
-        "message": "이메일 발송 완료" if email_sent else f"이메일 발송 실패: {email_error}",
+        "message": message,
         "schedule_id": schedule_id,
-        "status": "success" if email_sent else "email_failed",
-        "date_range": {"start": start_date, "end": end_date},
-        "insights_count": len(daily_data),
+        "status": status,
         "email_sent": email_sent,
-        "email_error": email_error,
-        "summary": {"spend": total_spend, "impressions": total_impressions, "clicks": total_clicks, "ctr": avg_ctr},
+        "reason": reason,
+        "email_error": run_result.get("email_error"),
+        "insights_count": run_result.get("insights_count", 0),
     }
 
 

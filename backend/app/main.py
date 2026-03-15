@@ -97,10 +97,11 @@ async def _execute_scheduled_report(sched, db) -> dict:
     end_date = datetime.utcnow().strftime("%Y-%m-%d")
     start_date = (datetime.utcnow() - timedelta(days=sched.lookback_days or 7)).strftime("%Y-%m-%d")
 
-    # Resolve Meta token: env var → user → PlatformConnection
-    meta_token = settings.META_ACCESS_TOKEN or user.meta_access_token
+    # Resolve Meta token & ad account: user → shared PlatformConnection
+    from app.models.ad_platform import PlatformConnection
+    meta_token = user.meta_access_token
+    meta_ad_account = user.meta_ad_account_id or ""
     if not meta_token:
-        from app.models.ad_platform import PlatformConnection
         shared = await db.execute(
             sa_select(PlatformConnection).where(
                 PlatformConnection.platform == "META",
@@ -110,14 +111,14 @@ async def _execute_scheduled_report(sched, db) -> dict:
         conn = shared.scalar_one_or_none()
         if conn:
             meta_token = conn.access_token
+            if not meta_ad_account:
+                meta_ad_account = conn.account_id or ""
 
     if not meta_token:
         logger.warning("No Meta token for scheduled report %s", sched.id)
         return {"status": "error", "reason": "no_meta_token"}
 
-    meta_ad_account = user.meta_ad_account_id or settings.META_ACCESS_TOKEN and ""
     if not meta_ad_account:
-        # Try to get from env or any reasonable default
         logger.warning("No ad account for scheduled report %s", sched.id)
         return {"status": "error", "reason": "no_ad_account"}
 
@@ -146,53 +147,185 @@ async def _execute_scheduled_report(sched, db) -> dict:
         logger.error("Meta API request failed: %s", e)
         return {"status": "error", "reason": "meta_request_failed", "detail": str(e)}
 
-    # Build email HTML with actual data
+    # Compute rich metrics from daily data
     daily_data = insights_data.get("data", [])
     total_spend = sum(float(d.get("spend", 0)) for d in daily_data)
     total_impressions = sum(int(d.get("impressions", 0)) for d in daily_data)
     total_clicks = sum(int(d.get("clicks", 0)) for d in daily_data)
+    total_reach = sum(int(d.get("reach", 0)) for d in daily_data)
     avg_ctr = (total_clicks / total_impressions * 100) if total_impressions > 0 else 0
     avg_cpc = (total_spend / total_clicks) if total_clicks > 0 else 0
+    avg_cpm = (total_spend / total_impressions * 1000) if total_impressions > 0 else 0
 
+    # Extract conversions & ROAS from actions
+    total_conversions = 0
+    total_purchase_value = 0.0
+    purchase_types = {"offsite_conversion.fb_pixel_purchase", "purchase", "omni_purchase", "onsite_web_purchase"}
+    for row in daily_data:
+        for act in (row.get("actions") or []):
+            if act.get("action_type") in purchase_types:
+                total_conversions += int(float(act.get("value", 0)))
+        for av in (row.get("action_values") or []):
+            if av.get("action_type") in purchase_types:
+                total_purchase_value += float(av.get("value", 0))
+        # Also try website_purchase_roas
+        if not total_purchase_value:
+            roas_list = row.get("website_purchase_roas") or row.get("purchase_roas") or []
+            if isinstance(roas_list, list):
+                for r in roas_list:
+                    roas_val = float(r.get("value", 0))
+                    if roas_val > 0:
+                        total_purchase_value += roas_val * float(row.get("spend", 0))
+
+    roas = round(total_purchase_value / total_spend, 2) if total_spend > 0 and total_purchase_value > 0 else None
+
+    # AI Analysis for email
+    ai_summary = ""
+    ai_insights_html = ""
+    ai_recommendations_html = ""
+    try:
+        from app.services.ai import ClaudeService
+        claude = ClaudeService()
+        ai_input = {
+            "period": {"start": start_date, "end": end_date},
+            "totals": {
+                "spend": total_spend, "impressions": total_impressions, "clicks": total_clicks,
+                "reach": total_reach, "ctr": avg_ctr, "cpc": avg_cpc, "cpm": avg_cpm,
+                "conversions": total_conversions, "purchase_value": total_purchase_value, "roas": roas,
+            },
+            "daily_data": [
+                {"date": d.get("date_stop") or d.get("date_start"), "spend": d.get("spend"), "impressions": d.get("impressions"),
+                 "clicks": d.get("clicks"), "ctr": d.get("ctr")}
+                for d in daily_data[-14:]  # Last 14 days max for email
+            ],
+        }
+        ai_prompt = f"""다음 Meta 광고 성과 데이터를 분석하여 이메일 리포트용 요약을 작성해주세요.
+{json.dumps(ai_input, ensure_ascii=False, indent=2)}
+
+반드시 아래 JSON 형식으로 응답하세요:
+```json
+{{
+  "headline": "핵심 한 줄 요약",
+  "summary": "3-4문장으로 전체 성과 요약",
+  "insights": ["인사이트 1", "인사이트 2", "인사이트 3"],
+  "recommendations": ["추천 1", "추천 2", "추천 3"],
+  "grade": "A/B/C/D/F"
+}}
+```"""
+        models_to_try = [claude.model, "claude-sonnet-4-6", "claude-haiku-4-5-20251001"]
+        for model_id in models_to_try:
+            try:
+                ai_resp = claude.client.messages.create(
+                    model=model_id, max_tokens=2048,
+                    messages=[{"role": "user", "content": ai_prompt}],
+                )
+                ai_text = ai_resp.content[0].text
+                if "```json" in ai_text:
+                    ai_json = json.loads(ai_text.split("```json")[1].split("```")[0].strip())
+                elif "```" in ai_text:
+                    parts = ai_text.split("```")
+                    ai_json = json.loads(parts[1].replace("json", "", 1).strip()) if len(parts) >= 3 else {}
+                else:
+                    idx = ai_text.find("{")
+                    ai_json = json.loads(ai_text[idx:]) if idx >= 0 else {}
+
+                ai_summary = ai_json.get("summary", "")
+                headline = ai_json.get("headline", "")
+                grade = ai_json.get("grade", "")
+
+                insights = ai_json.get("insights", [])
+                if insights:
+                    items = "".join(f'<li style="margin: 4px 0; color: #444;">{i}</li>' for i in insights)
+                    ai_insights_html = f'<h3 style="margin: 16px 0 8px; color: #333;">💡 핵심 인사이트</h3><ul style="padding-left: 20px;">{items}</ul>'
+
+                recs = ai_json.get("recommendations", [])
+                if recs:
+                    items = "".join(f'<li style="margin: 4px 0; color: #444;">{r}</li>' for r in recs)
+                    ai_recommendations_html = f'<h3 style="margin: 16px 0 8px; color: #333;">📋 추천 액션</h3><ul style="padding-left: 20px;">{items}</ul>'
+
+                if headline:
+                    ai_summary = f"<strong>{headline}</strong><br/>{ai_summary}"
+                if grade:
+                    ai_summary += f'<br/><span style="font-size: 14px;">종합 등급: <strong style="color: #667eea;">{grade}</strong></span>'
+
+                break
+            except Exception as model_err:
+                logger.warning("AI model %s failed for scheduled report: %s", model_id, model_err)
+    except Exception as e:
+        logger.warning("AI analysis for scheduled report failed: %s", e)
+
+    # Build rich email HTML
+    roas_display = f"{roas:.2f}x" if roas else "-"
     email_html = f"""
-    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto;">
-      <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 24px; border-radius: 12px 12px 0 0;">
-        <h2 style="color: white; margin: 0;">{sched.name}</h2>
-        <p style="color: rgba(255,255,255,0.8); margin: 8px 0 0;">기간: {start_date} ~ {end_date}</p>
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 640px; margin: 0 auto; background: #fff;">
+      <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 28px 24px; border-radius: 12px 12px 0 0;">
+        <h1 style="color: white; margin: 0; font-size: 22px;">📊 {sched.name}</h1>
+        <p style="color: rgba(255,255,255,0.85); margin: 8px 0 0; font-size: 14px;">기간: {start_date} ~ {end_date} ({len(daily_data)}일)</p>
       </div>
-      <div style="background: #f8f9fa; padding: 24px; border: 1px solid #e9ecef;">
-        <h3 style="margin: 0 0 16px; color: #333;">📊 성과 요약</h3>
-        <table style="width: 100%; border-collapse: collapse;">
+
+      <div style="padding: 24px; border: 1px solid #e9ecef; border-top: none;">
+        {'<div style="background: #f0f4ff; border-radius: 8px; padding: 16px; margin-bottom: 20px; font-size: 14px; line-height: 1.6; color: #333;">' + ai_summary + '</div>' if ai_summary else ''}
+
+        <h3 style="margin: 0 0 12px; color: #333; font-size: 16px;">📈 주요 성과 지표</h3>
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
           <tr>
-            <td style="padding: 12px; background: white; border: 1px solid #e9ecef; text-align: center;">
-              <div style="font-size: 12px; color: #666;">총 비용</div>
-              <div style="font-size: 20px; font-weight: bold; color: #333;">${'{:,.0f}'.format(total_spend)}원</div>
+            <td style="padding: 14px; background: #f8f9fa; border: 1px solid #e9ecef; text-align: center; width: 33%;">
+              <div style="font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px;">총 비용</div>
+              <div style="font-size: 22px; font-weight: bold; color: #333; margin-top: 4px;">₩{'{:,.0f}'.format(total_spend)}</div>
             </td>
-            <td style="padding: 12px; background: white; border: 1px solid #e9ecef; text-align: center;">
-              <div style="font-size: 12px; color: #666;">노출수</div>
-              <div style="font-size: 20px; font-weight: bold; color: #333;">{total_impressions:,}</div>
+            <td style="padding: 14px; background: #f8f9fa; border: 1px solid #e9ecef; text-align: center; width: 33%;">
+              <div style="font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px;">ROAS</div>
+              <div style="font-size: 22px; font-weight: bold; color: {'#16a34a' if roas and roas >= 1 else '#dc2626' if roas else '#666'}; margin-top: 4px;">{roas_display}</div>
+            </td>
+            <td style="padding: 14px; background: #f8f9fa; border: 1px solid #e9ecef; text-align: center; width: 33%;">
+              <div style="font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px;">전환매출</div>
+              <div style="font-size: 22px; font-weight: bold; color: #333; margin-top: 4px;">₩{'{:,.0f}'.format(total_purchase_value)}</div>
             </td>
           </tr>
           <tr>
-            <td style="padding: 12px; background: white; border: 1px solid #e9ecef; text-align: center;">
-              <div style="font-size: 12px; color: #666;">클릭수</div>
-              <div style="font-size: 20px; font-weight: bold; color: #333;">{total_clicks:,}</div>
+            <td style="padding: 14px; background: white; border: 1px solid #e9ecef; text-align: center;">
+              <div style="font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px;">노출수</div>
+              <div style="font-size: 18px; font-weight: bold; color: #333; margin-top: 4px;">{total_impressions:,}</div>
             </td>
-            <td style="padding: 12px; background: white; border: 1px solid #e9ecef; text-align: center;">
-              <div style="font-size: 12px; color: #666;">CTR</div>
-              <div style="font-size: 20px; font-weight: bold; color: #333;">{avg_ctr:.2f}%</div>
+            <td style="padding: 14px; background: white; border: 1px solid #e9ecef; text-align: center;">
+              <div style="font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px;">도달</div>
+              <div style="font-size: 18px; font-weight: bold; color: #333; margin-top: 4px;">{total_reach:,}</div>
+            </td>
+            <td style="padding: 14px; background: white; border: 1px solid #e9ecef; text-align: center;">
+              <div style="font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px;">클릭수</div>
+              <div style="font-size: 18px; font-weight: bold; color: #333; margin-top: 4px;">{total_clicks:,}</div>
             </td>
           </tr>
           <tr>
-            <td colspan="2" style="padding: 12px; background: white; border: 1px solid #e9ecef; text-align: center;">
-              <div style="font-size: 12px; color: #666;">평균 CPC</div>
-              <div style="font-size: 20px; font-weight: bold; color: #333;">${'{:,.0f}'.format(avg_cpc)}원</div>
+            <td style="padding: 14px; background: #f8f9fa; border: 1px solid #e9ecef; text-align: center;">
+              <div style="font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px;">CTR</div>
+              <div style="font-size: 18px; font-weight: bold; color: #333; margin-top: 4px;">{avg_ctr:.2f}%</div>
+            </td>
+            <td style="padding: 14px; background: #f8f9fa; border: 1px solid #e9ecef; text-align: center;">
+              <div style="font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px;">CPC</div>
+              <div style="font-size: 18px; font-weight: bold; color: #333; margin-top: 4px;">₩{'{:,.0f}'.format(avg_cpc)}</div>
+            </td>
+            <td style="padding: 14px; background: #f8f9fa; border: 1px solid #e9ecef; text-align: center;">
+              <div style="font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px;">CPM</div>
+              <div style="font-size: 18px; font-weight: bold; color: #333; margin-top: 4px;">₩{'{:,.0f}'.format(avg_cpm)}</div>
+            </td>
+          </tr>
+          <tr>
+            <td colspan="3" style="padding: 14px; background: white; border: 1px solid #e9ecef; text-align: center;">
+              <div style="font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px;">전환수</div>
+              <div style="font-size: 18px; font-weight: bold; color: #333; margin-top: 4px;">{total_conversions:,}건</div>
             </td>
           </tr>
         </table>
-        <p style="margin: 16px 0 0; font-size: 12px; color: #999; text-align: center;">
-          데이터 일수: {len(daily_data)}일 | Meta-Commander 자동 리포트
-        </p>
+
+        {ai_insights_html}
+        {ai_recommendations_html}
+
+        <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #e9ecef; text-align: center;">
+          <p style="font-size: 11px; color: #999;">
+            Meta-Commander 스케줄 리포트 | 자동 생성 {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC
+          </p>
+        </div>
       </div>
     </div>
     """

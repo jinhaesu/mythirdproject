@@ -183,6 +183,13 @@ export function NaverSearchAdsDashboard() {
       bg: 'bg-orange-50',
     },
     {
+      label: 'ROAS',
+      value: kpi.roas ? `${kpi.roas.toFixed(0)}%` : '-',
+      icon: TrendingUp,
+      color: 'text-indigo-600',
+      bg: 'bg-indigo-50',
+    },
+    {
       label: '전환수',
       value: formatNaverNumber(kpi.conversions || kpi.total_conversions || 0),
       icon: Award,
@@ -192,9 +199,16 @@ export function NaverSearchAdsDashboard() {
     {
       label: '직접전환매출',
       value: formatNaverCurrency(kpi.revenue || kpi.conversion_value || kpi.total_revenue || 0),
-      icon: TrendingUp,
+      icon: BarChart3,
       color: 'text-rose-600',
       bg: 'bg-rose-50',
+    },
+    {
+      label: '평균 노출순위',
+      value: kpi.avg_rank ? `${kpi.avg_rank}위` : '-',
+      icon: Activity,
+      color: 'text-amber-600',
+      bg: 'bg-amber-50',
     },
   ];
 
@@ -297,7 +311,7 @@ export function NaverSearchAdsDashboard() {
           <span className="ml-3 text-gray-500">데이터 로딩 중...</span>
         </div>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-4">
           {kpiCards.map((card) => {
             const Icon = card.icon;
             return (
@@ -418,6 +432,7 @@ export function NaverSearchAdsDashboard() {
                   <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">CPC</th>
                   <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">전환</th>
                   <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">ROAS</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">노출순위</th>
                   <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">액션</th>
                 </tr>
               </thead>
@@ -593,6 +608,7 @@ function CampaignRow({ campaign, campaignId, isExpanded, status, onToggleExpand,
   const [editingBudget, setEditingBudget] = useState(false);
   const [budgetValue, setBudgetValue] = useState(String(campaign.daily_budget || campaign.dailyBudget || 0));
   const [expandTab, setExpandTab] = useState<'adgroups' | 'keywords'>('adgroups');
+  const [agStatusFilter, setAgStatusFilter] = useState<'ALL' | 'ACTIVE' | 'PAUSED'>('ALL');
 
   const { data: rankingData, isLoading: loadingRankings } = useQuery({
     queryKey: ['naver-keyword-rankings', campaignId],
@@ -650,6 +666,7 @@ function CampaignRow({ campaign, campaignId, isExpanded, status, onToggleExpand,
         <td className="px-4 py-3 text-right text-gray-700">{formatNaverCurrency(campaign.cpc || 0)}</td>
         <td className="px-4 py-3 text-right text-gray-700">{formatNaverNumber(campaign.conversions || 0)}</td>
         <td className="px-4 py-3 text-right text-gray-700">{campaign.roas ? `${campaign.roas.toFixed(0)}%` : '-'}</td>
+        <td className="px-4 py-3 text-right text-gray-700">{campaign.avg_rank ? `${campaign.avg_rank}위` : '-'}</td>
         <td className="px-4 py-3 text-center">
           <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
             {campaign.status === 'PAUSED' ? (
@@ -668,7 +685,7 @@ function CampaignRow({ campaign, campaignId, isExpanded, status, onToggleExpand,
       </tr>
       {isExpanded && (
         <tr>
-          <td colSpan={11} className="px-0 py-0">
+          <td colSpan={12} className="px-0 py-0">
             <div className="bg-gray-50 px-6 py-4">
               {/* Tabs */}
               <div className="flex items-center gap-1 mb-3 bg-gray-200 rounded-lg p-0.5 w-fit">
@@ -683,49 +700,77 @@ function CampaignRow({ campaign, campaignId, isExpanded, status, onToggleExpand,
               </div>
 
               {/* Ad Groups Tab */}
-              {expandTab === 'adgroups' && (
-                <>
-                  {loadingAdgroups ? (
-                    <div className="flex items-center gap-2 text-gray-500 text-sm py-4">
-                      <Loader2 size={16} className="animate-spin" /> 광고그룹 로딩 중...
-                    </div>
-                  ) : adgroups.length === 0 ? (
-                    <p className="text-sm text-gray-400 py-2">광고그룹이 없습니다.</p>
-                  ) : (
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="text-xs text-gray-500 uppercase">
-                          <th className="text-left px-3 py-2">광고그룹명</th>
-                          <th className="text-left px-3 py-2">상태</th>
-                          <th className="text-right px-3 py-2">입찰가</th>
-                          <th className="text-right px-3 py-2">비용</th>
-                          <th className="text-right px-3 py-2">클릭</th>
-                          <th className="text-right px-3 py-2">CTR</th>
-                          <th className="text-right px-3 py-2">CPC</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-200">
-                        {adgroups.map((ag: any) => {
-                          const agStatus = STATUS_KO[ag.status] || { label: ag.status, color: 'bg-gray-100 text-gray-600' };
-                          return (
-                            <tr key={ag.nccAdgroupId || ag.id} className="hover:bg-white">
-                              <td className="px-3 py-2 font-medium text-gray-800">{ag.name}</td>
-                              <td className="px-3 py-2">
-                                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${agStatus.color}`}>{agStatus.label}</span>
-                              </td>
-                              <td className="px-3 py-2 text-right text-gray-700">{formatNaverCurrency(ag.bidAmt || 0)}</td>
-                              <td className="px-3 py-2 text-right text-gray-700">{formatNaverCurrency(ag.spend || 0)}</td>
-                              <td className="px-3 py-2 text-right text-gray-700">{formatNaverNumber(ag.clicks || 0)}</td>
-                              <td className="px-3 py-2 text-right text-gray-700">{formatNaverPercent(ag.ctr || 0)}</td>
-                              <td className="px-3 py-2 text-right text-gray-700">{formatNaverCurrency(ag.cpc || 0)}</td>
+              {expandTab === 'adgroups' && (() => {
+                const activeAgs = adgroups.filter((a: any) => a.status === 'ACTIVE');
+                const pausedAgs = adgroups.filter((a: any) => a.status === 'PAUSED');
+                const filteredAgs = agStatusFilter === 'ALL' ? adgroups :
+                  agStatusFilter === 'ACTIVE' ? activeAgs : pausedAgs;
+                return (
+                  <>
+                    {loadingAdgroups ? (
+                      <div className="flex items-center gap-2 text-gray-500 text-sm py-4">
+                        <Loader2 size={16} className="animate-spin" /> 광고그룹 로딩 중...
+                      </div>
+                    ) : adgroups.length === 0 ? (
+                      <p className="text-sm text-gray-400 py-2">광고그룹이 없습니다.</p>
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-1 mb-2 bg-gray-100 rounded-lg p-0.5 w-fit">
+                          {([
+                            { v: 'ALL' as const, l: '전체', c: adgroups.length },
+                            { v: 'ACTIVE' as const, l: '활성', c: activeAgs.length },
+                            { v: 'PAUSED' as const, l: '중지', c: pausedAgs.length },
+                          ]).map(t => (
+                            <button key={t.v} onClick={() => setAgStatusFilter(t.v)}
+                              className={`px-2 py-1 text-xs font-medium rounded transition-colors ${agStatusFilter === t.v ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                              {t.l} ({t.c})
+                            </button>
+                          ))}
+                        </div>
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="text-xs text-gray-500 uppercase">
+                              <th className="text-left px-3 py-2">광고그룹명</th>
+                              <th className="text-left px-3 py-2">상태</th>
+                              <th className="text-right px-3 py-2">입찰가</th>
+                              <th className="text-right px-3 py-2">비용</th>
+                              <th className="text-right px-3 py-2">클릭</th>
+                              <th className="text-right px-3 py-2">CTR</th>
+                              <th className="text-right px-3 py-2">CPC</th>
+                              <th className="text-right px-3 py-2">노출순위</th>
                             </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  )}
-                </>
-              )}
+                          </thead>
+                          <tbody className="divide-y divide-gray-200">
+                            {filteredAgs.map((ag: any) => {
+                              const agStatus = STATUS_KO[ag.status] || { label: ag.status, color: 'bg-gray-100 text-gray-600' };
+                              return (
+                                <tr key={ag.nccAdgroupId || ag.id} className="hover:bg-white">
+                                  <td className="px-3 py-2 font-medium text-gray-800">{ag.name}</td>
+                                  <td className="px-3 py-2">
+                                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${agStatus.color}`}>{agStatus.label}</span>
+                                  </td>
+                                  <td className="px-3 py-2 text-right text-gray-700">{formatNaverCurrency(ag.bidAmt || 0)}</td>
+                                  <td className="px-3 py-2 text-right text-gray-700">{formatNaverCurrency(ag.spend || 0)}</td>
+                                  <td className="px-3 py-2 text-right text-gray-700">{formatNaverNumber(ag.clicks || 0)}</td>
+                                  <td className="px-3 py-2 text-right text-gray-700">{formatNaverPercent(ag.ctr || 0)}</td>
+                                  <td className="px-3 py-2 text-right text-gray-700">{formatNaverCurrency(ag.cpc || 0)}</td>
+                                  <td className="px-3 py-2 text-right text-gray-700">
+                                    {ag.avg_rank ? (
+                                      <span className={`font-medium ${ag.avg_rank <= 3 ? 'text-green-600' : ag.avg_rank <= 7 ? 'text-blue-600' : 'text-gray-600'}`}>
+                                        {ag.avg_rank}위
+                                      </span>
+                                    ) : '-'}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </>
+                    )}
+                  </>
+                );
+              })()}
 
               {/* Keywords + Shopping Rank Tab */}
               {expandTab === 'keywords' && (

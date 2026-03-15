@@ -42,6 +42,7 @@ class NaverSearchAdsAPI:
         "cpc",          # 클릭당비용
         "ccnt",         # 전환수
         "convAmt",      # 전환매출액
+        "avgRnk",       # 평균노출순위
     ]
 
     def __init__(
