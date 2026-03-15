@@ -2,6 +2,11 @@ import api from './api';
 
 // ═══ Naver Search Ads API ═══
 export const naverSearchAdsApi = {
+  envCheck: async () => {
+    const { data } = await api.get('/naver/search-ads/env-check');
+    return data;
+  },
+
   getOverview: async (dateRange = 'last_7_days') => {
     const { data } = await api.get('/naver/search-ads/overview', {
       params: { date_range: dateRange },

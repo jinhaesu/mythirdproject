@@ -65,6 +65,7 @@ export function NaverSearchAdsDashboard() {
   const [datePreset, setDatePreset] = useState<DatePreset>('last_7_days');
   const [expandedCampaign, setExpandedCampaign] = useState<string | null>(null);
   const [aiTriggered, setAiTriggered] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<any>(null);
 
   // Fetch overview
   const { data: overview, isLoading: loadingOverview, isError: overviewError, error: overviewErrorObj, refetch: refetchOverview } = useQuery({
@@ -195,17 +196,49 @@ export function NaverSearchAdsDashboard() {
       </div>
 
       {/* Overview Error Banner */}
-      {overviewError && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-4 flex items-center gap-3">
-          <AlertCircle className="text-red-500 shrink-0" size={20} />
-          <div>
-            <p className="text-red-700 font-medium text-sm">검색광고 API 연결 실패</p>
-            <p className="text-red-500 text-xs mt-0.5">
-              {(overviewErrorObj as any)?.response?.data?.detail
-                || (overviewErrorObj as any)?.message
-                || '네이버 검색광고 API 키를 확인해주세요.'}
-            </p>
+      {(overviewError || campaignsError) && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-4 space-y-3">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="text-red-500 shrink-0" size={20} />
+            <div>
+              <p className="text-red-700 font-medium text-sm">검색광고 API 연결 실패</p>
+              <p className="text-red-500 text-xs mt-0.5">
+                {(overviewErrorObj as any)?.response?.data?.detail
+                  || (campaignsErrorObj as any)?.response?.data?.detail
+                  || (overviewErrorObj as any)?.message
+                  || (campaignsErrorObj as any)?.message
+                  || '네이버 검색광고 API 키를 확인해주세요.'}
+              </p>
+            </div>
           </div>
+          {!debugInfo && (
+            <button
+              onClick={async () => {
+                try {
+                  const info = await naverSearchAdsApi.envCheck();
+                  setDebugInfo(info);
+                } catch (e: any) {
+                  setDebugInfo({ error: e?.response?.data?.detail || e?.message || 'env-check 호출 실패' });
+                }
+              }}
+              className="text-xs bg-red-100 text-red-700 px-3 py-1.5 rounded-lg hover:bg-red-200 transition-colors"
+            >
+              환경변수 진단
+            </button>
+          )}
+          {debugInfo && (
+            <div className="bg-white rounded-lg p-3 text-xs font-mono space-y-1 border border-red-100">
+              <p className="font-semibold text-gray-700 mb-2">Railway 환경변수 상태:</p>
+              {Object.entries(debugInfo).map(([k, v]) => (
+                <div key={k} className="flex gap-2">
+                  <span className="text-gray-500">{k}:</span>
+                  <span className={v === true || v === 'OK' ? 'text-green-600' : v === false || v === 'ERROR' ? 'text-red-600' : 'text-gray-800'}>
+                    {String(v)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
