@@ -884,7 +884,13 @@ async def search_ads_ai_analysis(
 
     try:
         claude = ClaudeService()
-        models_to_try = [claude.model, "claude-sonnet-4-6", "claude-haiku-4-5-20251001"]
+        models_to_try = [
+            claude.model,
+            "claude-sonnet-4-6",
+            "claude-3-5-sonnet-20241022",
+            "claude-3-5-haiku-20241022",
+            "claude-haiku-4-5-20251001",
+        ]
         analysis = None
         last_error = None
         for model_id in models_to_try:
@@ -895,6 +901,7 @@ async def search_ads_ai_analysis(
                     messages=[{"role": "user", "content": prompt}],
                 )
                 analysis = response.content[0].text
+                logger.info("AI analysis succeeded with model: %s", model_id)
                 break
             except Exception as model_err:
                 last_error = str(model_err)
@@ -1164,7 +1171,13 @@ async def gfa_ai_analysis(
 
     try:
         claude = ClaudeService()
-        models_to_try = [claude.model, "claude-sonnet-4-6", "claude-haiku-4-5-20251001"]
+        models_to_try = [
+            claude.model,
+            "claude-sonnet-4-6",
+            "claude-3-5-sonnet-20241022",
+            "claude-3-5-haiku-20241022",
+            "claude-haiku-4-5-20251001",
+        ]
         analysis = None
         last_error = None
         for model_id in models_to_try:
@@ -1175,6 +1188,7 @@ async def gfa_ai_analysis(
                     messages=[{"role": "user", "content": prompt}],
                 )
                 analysis = response.content[0].text
+                logger.info("GFA AI analysis succeeded with model: %s", model_id)
                 break
             except Exception as model_err:
                 last_error = str(model_err)

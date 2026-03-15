@@ -115,154 +115,142 @@ async def execute_scheduled_report(sched, db) -> dict:
 
     roas = round(total_purchase_value / total_spend, 2) if total_spend > 0 and total_purchase_value > 0 else None
 
-    # AI Analysis for email
-    ai_summary = ""
-    ai_insights_html = ""
-    ai_recommendations_html = ""
+    # Compute per-row ROAS for daily data
+    for row in daily_data:
+        row_spend = float(row.get("spend", 0) or 0)
+        row_roas = 0.0
+        if row_spend > 0:
+            for rk in (row.get("website_purchase_roas") or row.get("purchase_roas") or []):
+                rv = float(rk.get("value", 0))
+                if rv > 0:
+                    row_roas = rv
+                    break
+        row["roas"] = row_roas
+
+    # Build report_data dict matching the in-app report structure
+    report_data = {
+        "period": {"start": start_date, "end": end_date},
+        "totals": {
+            "spend": total_spend,
+            "impressions": total_impressions,
+            "clicks": total_clicks,
+            "reach": total_reach,
+            "ctr": round(avg_ctr, 2),
+            "cpc": round(avg_cpc, 0),
+            "conversion_value": total_purchase_value,
+            "roas": roas,
+        },
+        "daily_data": daily_data,
+    }
+
+    # AI Analysis — same detailed prompt as in-app report
+    ai_report = None
     try:
         from app.services.ai import ClaudeService
         claude = ClaudeService()
         ai_input = {
-            "period": {"start": start_date, "end": end_date},
-            "totals": {
-                "spend": total_spend, "impressions": total_impressions, "clicks": total_clicks,
-                "reach": total_reach, "ctr": avg_ctr, "cpc": avg_cpc, "cpm": avg_cpm,
-                "conversions": total_conversions, "purchase_value": total_purchase_value, "roas": roas,
-            },
-            "daily_data": [
-                {"date": d.get("date_stop") or d.get("date_start"), "spend": d.get("spend"), "impressions": d.get("impressions"),
-                 "clicks": d.get("clicks"), "ctr": d.get("ctr")}
-                for d in daily_data[-14:]  # Last 14 days max for email
-            ],
+            "period": report_data["period"],
+            "totals": report_data["totals"],
         }
-        ai_prompt = f"""다음 Meta 광고 성과 데이터를 분석하여 이메일 리포트용 요약을 작성해주세요.
+        daily_for_ai = daily_data
+        if len(daily_for_ai) > 60:
+            ai_input["daily_data"] = [
+                {"date": d.get("date_stop") or d.get("date"), "spend": d.get("spend"),
+                 "impressions": d.get("impressions"), "clicks": d.get("clicks"),
+                 "ctr": d.get("ctr"), "roas": d.get("roas")}
+                for d in daily_for_ai
+            ]
+        else:
+            ai_input["daily_data"] = [
+                {"date": d.get("date_stop") or d.get("date_start"), "spend": d.get("spend"),
+                 "impressions": d.get("impressions"), "reach": d.get("reach"),
+                 "clicks": d.get("clicks"), "ctr": d.get("ctr"), "roas": d.get("roas")}
+                for d in daily_for_ai
+            ]
+
+        ai_prompt = f"""다음 캠페인 성과 데이터를 분석하여 한국어 리포트를 작성해주세요. 반드시 상세하고 풍부하게 분석하세요.
+
 {json.dumps(ai_input, ensure_ascii=False, indent=2)}
 
 반드시 아래 JSON 형식으로 응답하세요:
+
 ```json
 {{
-  "headline": "핵심 한 줄 요약",
-  "summary": "3-4문장으로 전체 성과 요약",
-  "insights": ["인사이트 1", "인사이트 2", "인사이트 3"],
-  "recommendations": ["추천 1", "추천 2", "추천 3"],
-  "grade": "A/B/C/D/F"
+  "headline": "한 줄 핵심 분석 제목 (예: 'ROAS 1.8x 달성, 전환 효율 개선 필요')",
+  "period_summary": "3-5문장으로 기간 전체 성과를 종합 요약. 주요 지표 변화와 의미를 포함.",
+  "kpi_highlights": [
+    {{"metric": "총 지출", "value": "₩금액", "change": "+15%", "insight": "한 줄 해석"}},
+    {{"metric": "ROAS", "value": "수치", "change": "+0.3", "insight": "한 줄 해석"}},
+    {{"metric": "CTR", "value": "수치%", "change": "-0.1%", "insight": "한 줄 해석"}},
+    {{"metric": "CPC", "value": "₩금액", "change": "+10%", "insight": "한 줄 해석"}}
+  ],
+  "daily_trend_insight": "일별 트렌드에서 발견한 핵심 패턴을 3-5문장으로 상세히 설명.",
+  "key_insights": [
+    "핵심 인사이트 1 - 2문장 이상으로 상세하게",
+    "핵심 인사이트 2 - 데이터 기반 구체적 분석",
+    "핵심 인사이트 3 - 성과 영향 요인 분석",
+    "핵심 인사이트 4 - 경쟁 환경 또는 시즌 영향",
+    "핵심 인사이트 5 - 개선 기회 포인트"
+  ],
+  "recommendations": [
+    {{"title": "추천 제목", "description": "3-5문장으로 구체적 실행 방안 상세 설명", "priority": "high", "expected_impact": "예상 효과 (수치 포함)"}},
+    {{"title": "추천 제목", "description": "상세 설명", "priority": "medium", "expected_impact": "예상 효과"}},
+    {{"title": "추천 제목", "description": "상세 설명", "priority": "low", "expected_impact": "예상 효과"}}
+  ],
+  "overall_grade": "A 또는 B 또는 C 또는 D 또는 F",
+  "grade_reason": "등급 사유를 2문장으로 설명"
 }}
-```"""
-        models_to_try = [claude.model, "claude-sonnet-4-6", "claude-haiku-4-5-20251001"]
+```
+
+규칙:
+- ROAS(광고비 대비 매출)는 특히 중요하게 분석
+- kpi_highlights는 최소 4개 이상
+- key_insights는 최소 5개, 각각 2문장 이상으로 상세하게
+- recommendations는 최소 3개, description은 3문장 이상
+- 모든 분석은 데이터에 기반하여 구체적으로 작성
+- JSON만 출력하세요"""
+
+        models_to_try = [
+            claude.model, "claude-sonnet-4-6",
+            "claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022",
+            "claude-haiku-4-5-20251001",
+        ]
         for model_id in models_to_try:
             try:
                 ai_resp = claude.client.messages.create(
-                    model=model_id, max_tokens=2048,
+                    model=model_id, max_tokens=8192,
                     messages=[{"role": "user", "content": ai_prompt}],
                 )
                 ai_text = ai_resp.content[0].text
                 if "```json" in ai_text:
-                    ai_json = json.loads(ai_text.split("```json")[1].split("```")[0].strip())
+                    ai_report = json.loads(ai_text.split("```json")[1].split("```")[0].strip())
                 elif "```" in ai_text:
                     parts = ai_text.split("```")
-                    ai_json = json.loads(parts[1].replace("json", "", 1).strip()) if len(parts) >= 3 else {}
+                    ai_report = json.loads(parts[1].replace("json", "", 1).strip()) if len(parts) >= 3 else None
                 else:
                     idx = ai_text.find("{")
-                    ai_json = json.loads(ai_text[idx:]) if idx >= 0 else {}
-
-                ai_summary = ai_json.get("summary", "")
-                headline = ai_json.get("headline", "")
-                grade = ai_json.get("grade", "")
-
-                insights = ai_json.get("insights", [])
-                if insights:
-                    items = "".join(f'<li style="margin: 4px 0; color: #444;">{i}</li>' for i in insights)
-                    ai_insights_html = f'<h3 style="margin: 16px 0 8px; color: #333;">💡 핵심 인사이트</h3><ul style="padding-left: 20px;">{items}</ul>'
-
-                recs = ai_json.get("recommendations", [])
-                if recs:
-                    items = "".join(f'<li style="margin: 4px 0; color: #444;">{r}</li>' for r in recs)
-                    ai_recommendations_html = f'<h3 style="margin: 16px 0 8px; color: #333;">📋 추천 액션</h3><ul style="padding-left: 20px;">{items}</ul>'
-
-                if headline:
-                    ai_summary = f"<strong>{headline}</strong><br/>{ai_summary}"
-                if grade:
-                    ai_summary += f'<br/><span style="font-size: 14px;">종합 등급: <strong style="color: #667eea;">{grade}</strong></span>'
-
+                    ai_report = json.loads(ai_text[idx:]) if idx >= 0 else None
+                logger.info("Scheduled report AI analysis succeeded with model: %s", model_id)
                 break
             except Exception as model_err:
                 logger.warning("AI model %s failed for scheduled report: %s", model_id, model_err)
     except Exception as e:
         logger.warning("AI analysis for scheduled report failed: %s", e)
 
-    # Build rich email HTML
-    roas_display = f"{roas:.2f}x" if roas else "-"
+    report_data["ai_report"] = ai_report
+
+    # Build rich email HTML using the same builder as in-app reports
+    from app.api.v1.endpoints.analytics import _build_report_html
     email_html = f"""
-    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 640px; margin: 0 auto; background: #fff;">
-      <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 28px 24px; border-radius: 12px 12px 0 0;">
-        <h1 style="color: white; margin: 0; font-size: 22px;">📊 {sched.name}</h1>
-        <p style="color: rgba(255,255,255,0.85); margin: 8px 0 0; font-size: 14px;">기간: {start_date} ~ {end_date} ({len(daily_data)}일)</p>
-      </div>
-
-      <div style="padding: 24px; border: 1px solid #e9ecef; border-top: none;">
-        {'<div style="background: #f0f4ff; border-radius: 8px; padding: 16px; margin-bottom: 20px; font-size: 14px; line-height: 1.6; color: #333;">' + ai_summary + '</div>' if ai_summary else ''}
-
-        <h3 style="margin: 0 0 12px; color: #333; font-size: 16px;">📈 주요 성과 지표</h3>
-        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
-          <tr>
-            <td style="padding: 14px; background: #f8f9fa; border: 1px solid #e9ecef; text-align: center; width: 33%;">
-              <div style="font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px;">총 비용</div>
-              <div style="font-size: 22px; font-weight: bold; color: #333; margin-top: 4px;">₩{'{:,.0f}'.format(total_spend)}</div>
-            </td>
-            <td style="padding: 14px; background: #f8f9fa; border: 1px solid #e9ecef; text-align: center; width: 33%;">
-              <div style="font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px;">ROAS</div>
-              <div style="font-size: 22px; font-weight: bold; color: {'#16a34a' if roas and roas >= 1 else '#dc2626' if roas else '#666'}; margin-top: 4px;">{roas_display}</div>
-            </td>
-            <td style="padding: 14px; background: #f8f9fa; border: 1px solid #e9ecef; text-align: center; width: 33%;">
-              <div style="font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px;">전환매출</div>
-              <div style="font-size: 22px; font-weight: bold; color: #333; margin-top: 4px;">₩{'{:,.0f}'.format(total_purchase_value)}</div>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding: 14px; background: white; border: 1px solid #e9ecef; text-align: center;">
-              <div style="font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px;">노출수</div>
-              <div style="font-size: 18px; font-weight: bold; color: #333; margin-top: 4px;">{total_impressions:,}</div>
-            </td>
-            <td style="padding: 14px; background: white; border: 1px solid #e9ecef; text-align: center;">
-              <div style="font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px;">도달</div>
-              <div style="font-size: 18px; font-weight: bold; color: #333; margin-top: 4px;">{total_reach:,}</div>
-            </td>
-            <td style="padding: 14px; background: white; border: 1px solid #e9ecef; text-align: center;">
-              <div style="font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px;">클릭수</div>
-              <div style="font-size: 18px; font-weight: bold; color: #333; margin-top: 4px;">{total_clicks:,}</div>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding: 14px; background: #f8f9fa; border: 1px solid #e9ecef; text-align: center;">
-              <div style="font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px;">CTR</div>
-              <div style="font-size: 18px; font-weight: bold; color: #333; margin-top: 4px;">{avg_ctr:.2f}%</div>
-            </td>
-            <td style="padding: 14px; background: #f8f9fa; border: 1px solid #e9ecef; text-align: center;">
-              <div style="font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px;">CPC</div>
-              <div style="font-size: 18px; font-weight: bold; color: #333; margin-top: 4px;">₩{'{:,.0f}'.format(avg_cpc)}</div>
-            </td>
-            <td style="padding: 14px; background: #f8f9fa; border: 1px solid #e9ecef; text-align: center;">
-              <div style="font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px;">CPM</div>
-              <div style="font-size: 18px; font-weight: bold; color: #333; margin-top: 4px;">₩{'{:,.0f}'.format(avg_cpm)}</div>
-            </td>
-          </tr>
-          <tr>
-            <td colspan="3" style="padding: 14px; background: white; border: 1px solid #e9ecef; text-align: center;">
-              <div style="font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px;">전환수</div>
-              <div style="font-size: 18px; font-weight: bold; color: #333; margin-top: 4px;">{total_conversions:,}건</div>
-            </td>
-          </tr>
-        </table>
-
-        {ai_insights_html}
-        {ai_recommendations_html}
-
-        <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #e9ecef; text-align: center;">
-          <p style="font-size: 11px; color: #999;">
-            Meta-Commander 스케줄 리포트 | 자동 생성 {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC
-          </p>
+    <div style="font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', 'Segoe UI', Arial, sans-serif; max-width: 680px; margin: 0 auto; padding: 16px;">
+        <div style="border-radius:16px;overflow:hidden;border:1px solid #e5e7eb;box-shadow:0 4px 12px rgba(0,0,0,0.08);background:white">
+            {_build_report_html(report_data)}
         </div>
-      </div>
+        <div style="text-align:center;margin-top:16px;padding:12px">
+            <p style="font-size:11px;color:#9ca3af">
+                Meta-Commander 스케줄 리포트 ({sched.name}) | 자동 생성 {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC
+            </p>
+        </div>
     </div>
     """
 
