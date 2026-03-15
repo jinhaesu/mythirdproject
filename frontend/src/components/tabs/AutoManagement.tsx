@@ -1155,6 +1155,7 @@ function ReportNewsletter({ data, onEmail }: { data: any; onEmail?: () => void }
                         <th className="text-right py-3 px-3 text-gray-500 font-semibold text-xs">클릭</th>
                         <th className="text-right py-3 px-3 text-gray-500 font-semibold text-xs">CTR</th>
                         <th className="text-right py-3 px-3 text-gray-500 font-semibold text-xs">CPC</th>
+                        <th className="text-right py-3 px-3 text-gray-500 font-semibold text-xs">전환매출</th>
                         <th className="text-right py-3 px-3 text-gray-500 font-semibold text-xs">ROAS</th>
                       </tr>
                     </thead>
@@ -1170,6 +1171,7 @@ function ReportNewsletter({ data, onEmail }: { data: any; onEmail?: () => void }
                             <td className="py-2.5 px-3 text-right text-gray-600">{formatNum(row.clicks)}</td>
                             <td className="py-2.5 px-3 text-right text-gray-600">{parseFloat(row.ctr || '0').toFixed(2)}%</td>
                             <td className="py-2.5 px-3 text-right text-gray-600">{formatCPC(row.cpc)}</td>
+                            <td className="py-2.5 px-3 text-right text-gray-600">{row.conversion_value ? formatSpend(row.conversion_value) : '-'}</td>
                             <td className={`py-2.5 px-3 text-right font-bold ${roas >= 1 ? 'text-emerald-600' : roas > 0 ? 'text-red-500' : 'text-gray-400'}`}>{formatROAS(row.roas)}</td>
                           </tr>
                         );
@@ -1184,6 +1186,7 @@ function ReportNewsletter({ data, onEmail }: { data: any; onEmail?: () => void }
                         <td className="py-3 px-3 text-right text-sm">{formatNum(totals.clicks)}</td>
                         <td className="py-3 px-3 text-right text-sm">{totals.ctr?.toFixed(2) || '0'}%</td>
                         <td className="py-3 px-3 text-right text-sm">{formatCPC(totals.cpc)}</td>
+                        <td className="py-3 px-3 text-right text-sm font-bold">{totals.conversion_value ? formatSpend(totals.conversion_value) : '-'}</td>
                         <td className="py-3 px-3 text-right text-sm font-bold">{formatROAS(totals.roas)}</td>
                       </tr>
                     </tfoot>

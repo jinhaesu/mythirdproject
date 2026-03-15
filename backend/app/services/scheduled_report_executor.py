@@ -93,7 +93,7 @@ async def execute_scheduled_report(sched, db) -> dict:
     avg_cpc = (total_spend / total_clicks) if total_clicks > 0 else 0
     avg_cpm = (total_spend / total_impressions * 1000) if total_impressions > 0 else 0
 
-    # Extract conversions & ROAS from actions
+    # Extract conversions & ROAS from actions (same logic as in-app report)
     total_conversions = 0
     total_purchase_value = 0.0
     purchase_types = {"offsite_conversion.fb_pixel_purchase", "purchase", "omni_purchase", "onsite_web_purchase"}
@@ -101,31 +101,35 @@ async def execute_scheduled_report(sched, db) -> dict:
         for act in (row.get("actions") or []):
             if act.get("action_type") in purchase_types:
                 total_conversions += int(float(act.get("value", 0)))
-        for av in (row.get("action_values") or []):
-            if av.get("action_type") in purchase_types:
-                total_purchase_value += float(av.get("value", 0))
-        # Also try website_purchase_roas
-        if not total_purchase_value:
-            roas_list = row.get("website_purchase_roas") or row.get("purchase_roas") or []
-            if isinstance(roas_list, list):
-                for r in roas_list:
-                    roas_val = float(r.get("value", 0))
-                    if roas_val > 0:
-                        total_purchase_value += roas_val * float(row.get("spend", 0))
 
-    roas = round(total_purchase_value / total_spend, 2) if total_spend > 0 and total_purchase_value > 0 else None
-
-    # Compute per-row ROAS for daily data
+    # Calculate total_purchase_value: try website_purchase_roas first, then action_values
     for row in daily_data:
         row_spend = float(row.get("spend", 0) or 0)
-        row_roas = 0.0
-        if row_spend > 0:
-            for rk in (row.get("website_purchase_roas") or row.get("purchase_roas") or []):
-                rv = float(rk.get("value", 0))
-                if rv > 0:
-                    row_roas = rv
-                    break
-        row["roas"] = row_roas
+        row_purchase_value = 0.0
+
+        # Method 1: website_purchase_roas or purchase_roas (ROAS * spend = purchase value)
+        roas_val = 0.0
+        for rk in (row.get("website_purchase_roas") or row.get("purchase_roas") or []):
+            rv = float(rk.get("value", 0))
+            if rv > 0:
+                roas_val = rv
+                break
+
+        if roas_val > 0 and row_spend > 0:
+            row_purchase_value = roas_val * row_spend
+        else:
+            # Method 2: action_values fallback
+            for av in (row.get("action_values") or []):
+                if av.get("action_type") in purchase_types:
+                    row_purchase_value += float(av.get("value", 0))
+
+        total_purchase_value += row_purchase_value
+
+        # Store per-row values
+        row["roas"] = roas_val if roas_val > 0 else (round(row_purchase_value / row_spend, 2) if row_spend > 0 and row_purchase_value > 0 else 0)
+        row["conversion_value"] = round(row_purchase_value, 0)
+
+    roas = round(total_purchase_value / total_spend, 2) if total_spend > 0 and total_purchase_value > 0 else None
 
     # Build report_data dict matching the in-app report structure
     report_data = {
@@ -354,11 +358,17 @@ def calc_next_run(sched, now_utc: datetime) -> datetime:
     if sched.schedule_type == "weekly":
         # Find next occurrence of the target day-of-week in KST
         kst_now = now_utc + timedelta(hours=9)
-        target_dow = sched.day_of_week if sched.day_of_week is not None else 0
-        days_ahead = (target_dow - kst_now.weekday()) % 7
+        # Frontend convention: 0=일(Sun), 1=월(Mon), ..., 6=토(Sat)
+        # Python weekday(): 0=Mon, 1=Tue, ..., 6=Sun
+        # Convert frontend → Python: (frontend_dow - 1) % 7
+        frontend_dow = sched.day_of_week if sched.day_of_week is not None else 1  # default=Monday
+        target_dow_python = (frontend_dow - 1) % 7  # 0(Sun)→6, 1(Mon)→0, ..., 6(Sat)→5
+        days_ahead = (target_dow_python - kst_now.weekday()) % 7
         if days_ahead == 0:
-            # Same day — schedule for next week
-            days_ahead = 7
+            # Same day — check if time already passed
+            target_time = kst_now.replace(hour=hour_kst, minute=minute, second=0, microsecond=0)
+            if kst_now >= target_time:
+                days_ahead = 7  # Schedule for next week
         next_kst = kst_now.replace(hour=hour_kst, minute=minute, second=0, microsecond=0) + timedelta(days=days_ahead)
         # Convert back to UTC
         return next_kst - timedelta(hours=9)

@@ -891,6 +891,7 @@ def _build_report_html(report: dict) -> str:
                 <th style="text-align:right;padding:10px 8px;color:#6b7280;font-weight:600">클릭</th>
                 <th style="text-align:right;padding:10px 8px;color:#6b7280;font-weight:600">CTR</th>
                 <th style="text-align:right;padding:10px 8px;color:#6b7280;font-weight:600">CPC</th>
+                <th style="text-align:right;padding:10px 8px;color:#6b7280;font-weight:600">전환매출</th>
                 <th style="text-align:right;padding:10px 8px;color:#6b7280;font-weight:600">ROAS</th>
             </tr></thead><tbody>''')
         for i, row in enumerate(daily):
@@ -907,6 +908,7 @@ def _build_report_html(report: dict) -> str:
                 <td style="padding:8px;text-align:right;color:#4b5563">{_fmt_num(row.get("clicks"))}</td>
                 <td style="padding:8px;text-align:right;color:#4b5563">{ctr_val:.2f}%</td>
                 <td style="padding:8px;text-align:right;color:#4b5563">{_fmt_spend(row.get("cpc"))}</td>
+                <td style="padding:8px;text-align:right;color:#4b5563">{_fmt_spend(row.get("conversion_value")) if row.get("conversion_value") else '-'}</td>
                 <td style="padding:8px;text-align:right;font-weight:700;color:{roas_c}">{_fmt_roas(row.get("roas"))}</td>
             </tr>''')
         # Totals footer
@@ -918,6 +920,7 @@ def _build_report_html(report: dict) -> str:
             <td style="padding:10px 8px;text-align:right;color:white;font-size:12px">{_fmt_num(totals.get("clicks"))}</td>
             <td style="padding:10px 8px;text-align:right;color:white;font-size:12px">{totals.get("ctr", 0):.2f}%</td>
             <td style="padding:10px 8px;text-align:right;color:white;font-size:12px">{_fmt_spend(totals.get("cpc"))}</td>
+            <td style="padding:10px 8px;text-align:right;color:white;font-weight:700;font-size:12px">{_fmt_spend(totals.get("conversion_value")) if totals.get("conversion_value") else '-'}</td>
             <td style="padding:10px 8px;text-align:right;color:white;font-weight:700;font-size:12px">{_fmt_roas(totals.get("roas"))}</td>
         </tr></tfoot></table></div></div>''')
 
@@ -1021,24 +1024,27 @@ async def generate_report(
                     total_purchase_value = 0.0
                     for row in daily:
                         row["roas"] = MetaAdsService._calc_roas(row)
-                        total_spend += float(row.get("spend", 0) or 0)
+                        row_spend = float(row.get("spend", 0) or 0)
+                        total_spend += row_spend
                         total_impressions += int(row.get("impressions", 0) or 0)
                         total_clicks += int(row.get("clicks", 0) or 0)
                         total_reach += int(row.get("reach", 0) or 0)
-                        # ROAS = purchase revenue / spend (only purchase-related values)
+                        # Calculate per-row conversion value (purchase revenue)
+                        row_purchase_value = 0.0
                         roas_val = MetaAdsService._extract_roas_value(row.get("website_purchase_roas"))
-                        if roas_val and float(row.get("spend", 0) or 0) > 0:
-                            total_purchase_value += roas_val * float(row.get("spend", 0))
+                        if roas_val and row_spend > 0:
+                            row_purchase_value = roas_val * row_spend
                         else:
                             roas_val = MetaAdsService._extract_roas_value(row.get("purchase_roas"))
-                            if roas_val and float(row.get("spend", 0) or 0) > 0:
-                                total_purchase_value += roas_val * float(row.get("spend", 0))
+                            if roas_val and row_spend > 0:
+                                row_purchase_value = roas_val * row_spend
                             else:
-                                # Fallback: sum purchase action_values
                                 purchase_types = {"offsite_conversion.fb_pixel_purchase", "purchase", "omni_purchase", "onsite_web_purchase"}
                                 for av in (row.get("action_values") or []):
                                     if av.get("action_type") in purchase_types:
-                                        total_purchase_value += float(av.get("value", 0))
+                                        row_purchase_value += float(av.get("value", 0))
+                        row["conversion_value"] = round(row_purchase_value, 0)
+                        total_purchase_value += row_purchase_value
                     report_data["daily_data"] = daily
                     report_data["totals"] = {
                         "spend": total_spend,

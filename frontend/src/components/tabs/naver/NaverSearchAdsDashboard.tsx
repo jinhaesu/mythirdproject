@@ -747,8 +747,8 @@ export function NaverSearchAdsDashboard() {
                   </div>
                 )}
 
-                {/* Fallback for raw analysis text */}
-                {aiMutation.data.analysis && (
+                {/* Fallback for raw analysis text (only if string) */}
+                {aiMutation.data.analysis && typeof aiMutation.data.analysis === 'string' && (
                   <div className="prose prose-sm max-w-none text-gray-700 whitespace-pre-wrap">{aiMutation.data.analysis}</div>
                 )}
               </>
