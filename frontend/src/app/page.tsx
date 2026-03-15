@@ -98,12 +98,12 @@ export default function Home() {
         {activePlatform === 'naver' && (
           <>
             {naverActiveTab === 0 && <NaverSearchAdsDashboard />}
-            {naverActiveTab === 1 && <NaverGFADashboard />}
+            {naverActiveTab === 1 && <NaverKeywordResearch />}
             {naverActiveTab === 2 && <NaverSearchAdsManager />}
-            {naverActiveTab === 3 && <NaverGFAManager />}
-            {naverActiveTab === 4 && <NaverAutoManagement />}
-            {naverActiveTab === 5 && <NaverReports />}
-            {naverActiveTab === 6 && <NaverKeywordResearch />}
+            {naverActiveTab === 3 && <NaverGFADashboard />}
+            {naverActiveTab === 4 && <NaverGFAManager />}
+            {naverActiveTab === 5 && <NaverAutoManagement />}
+            {naverActiveTab === 6 && <NaverReports />}
           </>
         )}
       </main>

@@ -312,7 +312,7 @@ export function NaverKeywordResearch() {
           period,
         },
       });
-      return data as { trend: TrendPoint[] };
+      return data as { data: TrendPoint[]; keyword: string; time_unit: string };
     },
     enabled: !!searchedKeyword,
     retry: 1,
@@ -320,7 +320,7 @@ export function NaverKeywordResearch() {
   });
 
   const shoppingItems: ShoppingItem[] = shoppingData?.items ?? [];
-  const trendPoints: TrendPoint[] = trendData?.trend ?? [];
+  const trendPoints: TrendPoint[] = trendData?.data ?? [];
   const isLoading = shoppingLoading || trendLoading;
 
   return (

@@ -221,6 +221,30 @@ def _date_range_to_dates(date_range: str):
 # ═══════════════════════════════════════════════════════════════
 
 
+@router.get("/search-ads/debug")
+async def search_ads_debug(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """검색광고 API 연결 디버그 (인증 정보 확인)."""
+    api = await _get_naver_search_api(current_user, db)
+    debug_info = {
+        "api_key_length": len(api.api_key) if api.api_key else 0,
+        "secret_key_length": len(api.secret_key) if api.secret_key else 0,
+        "customer_id": api.customer_id,
+        "api_key_prefix": api.api_key[:8] + "..." if api.api_key else "",
+    }
+    try:
+        result = await api.get_campaigns()
+        debug_info["status"] = "OK"
+        debug_info["campaigns_count"] = len(result)
+        debug_info["sample"] = result[:2] if result else []
+    except Exception as e:
+        debug_info["status"] = "ERROR"
+        debug_info["error"] = str(e)
+    return debug_info
+
+
 @router.get("/search-ads/overview")
 async def search_ads_overview(
     date_range: str = Query(default="last_7_days"),
@@ -231,19 +255,26 @@ async def search_ads_overview(
     api = await _get_naver_search_api(current_user, db)
     start_date, end_date = _date_range_to_dates(date_range)
 
-    # Fetch campaigns + stats in parallel-ish fashion
-    campaigns = await api.get_campaigns()
+    # Fetch campaigns + stats
+    try:
+        campaigns = await api.get_campaigns()
+    except Exception as e:
+        logger.error("Naver Search Ads get_campaigns failed: %s", e)
+        raise HTTPException(status_code=502, detail=f"네이버 검색광고 API 연결 실패: {str(e)}")
     campaign_ids = [c.get("nccCampaignId") for c in campaigns if c.get("nccCampaignId")]
 
     stats = []
     if campaign_ids:
-        stats = await api.get_stat_report(
-            ids=campaign_ids,
-            date_preset="custom",
-            start_date=start_date,
-            end_date=end_date,
-            time_increment="allDays",
-        )
+        try:
+            stats = await api.get_stat_report(
+                ids=campaign_ids,
+                date_preset="custom",
+                start_date=start_date,
+                end_date=end_date,
+                time_increment="allDays",
+            )
+        except Exception as e:
+            logger.warning("Naver Search Ads get_stat_report failed: %s", e)
 
     # Aggregate totals
     totals = {

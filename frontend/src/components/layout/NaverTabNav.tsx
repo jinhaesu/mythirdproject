@@ -6,12 +6,12 @@ import { clsx } from 'clsx';
 
 const naverTabs = [
   { id: 0, name: '검색광고 대시보드', icon: BarChart3, description: '검색광고 성과 분석' },
-  { id: 1, name: 'GFA 대시보드', icon: Monitor, description: '디스플레이 광고 분석' },
+  { id: 1, name: '키워드 리서치', icon: Search, description: '쇼핑 검색 랭킹 & 트렌드' },
   { id: 2, name: '검색광고 관리', icon: Settings, description: '캠페인/키워드 관리' },
-  { id: 3, name: 'GFA 관리', icon: Layers, description: '디스플레이 캠페인 관리' },
-  { id: 4, name: '자동관리', icon: Zap, description: '룰 기반 자동 최적화' },
-  { id: 5, name: '리포트', icon: FileText, description: '통합 리포트 생성' },
-  { id: 6, name: '키워드 리서치', icon: Search, description: '쇼핑 검색 랭킹 & 트렌드' },
+  { id: 3, name: 'GFA 대시보드', icon: Monitor, description: '디스플레이 광고 분석' },
+  { id: 4, name: 'GFA 관리', icon: Layers, description: '디스플레이 캠페인 관리' },
+  { id: 5, name: '자동관리', icon: Zap, description: '룰 기반 자동 최적화' },
+  { id: 6, name: '리포트', icon: FileText, description: '통합 리포트 생성' },
 ];
 
 export function NaverTabNav() {
