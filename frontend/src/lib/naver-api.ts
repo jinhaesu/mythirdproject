@@ -7,31 +7,43 @@ export const naverSearchAdsApi = {
     return data;
   },
 
-  getOverview: async (dateRange = 'last_7_days') => {
-    const { data } = await api.get('/naver/search-ads/overview', {
-      params: { date_range: dateRange },
-    });
+  getOverview: async (dateRange = 'last_7_days', startDate?: string, endDate?: string) => {
+    const params: any = { date_range: dateRange };
+    if (dateRange === 'custom' && startDate && endDate) {
+      params.start_date = startDate;
+      params.end_date = endDate;
+    }
+    const { data } = await api.get('/naver/search-ads/overview', { params });
     return data;
   },
 
-  getCampaigns: async (dateRange = 'last_7_days') => {
-    const { data } = await api.get('/naver/search-ads/campaigns', {
-      params: { date_range: dateRange },
-    });
+  getCampaigns: async (dateRange = 'last_7_days', startDate?: string, endDate?: string) => {
+    const params: any = { date_range: dateRange };
+    if (dateRange === 'custom' && startDate && endDate) {
+      params.start_date = startDate;
+      params.end_date = endDate;
+    }
+    const { data } = await api.get('/naver/search-ads/campaigns', { params });
     return data;
   },
 
-  getCampaignAdgroups: async (campaignId: string, dateRange = 'last_7_days') => {
-    const { data } = await api.get(`/naver/search-ads/campaign/${campaignId}/adgroups`, {
-      params: { date_range: dateRange },
-    });
+  getCampaignAdgroups: async (campaignId: string, dateRange = 'last_7_days', startDate?: string, endDate?: string) => {
+    const params: any = { date_range: dateRange };
+    if (dateRange === 'custom' && startDate && endDate) {
+      params.start_date = startDate;
+      params.end_date = endDate;
+    }
+    const { data } = await api.get(`/naver/search-ads/campaign/${campaignId}/adgroups`, { params });
     return data;
   },
 
-  getCampaignKeywords: async (campaignId: string, dateRange = 'last_7_days') => {
-    const { data } = await api.get(`/naver/search-ads/campaign/${campaignId}/keywords`, {
-      params: { date_range: dateRange },
-    });
+  getCampaignKeywords: async (campaignId: string, dateRange = 'last_7_days', startDate?: string, endDate?: string) => {
+    const params: any = { date_range: dateRange };
+    if (dateRange === 'custom' && startDate && endDate) {
+      params.start_date = startDate;
+      params.end_date = endDate;
+    }
+    const { data } = await api.get(`/naver/search-ads/campaign/${campaignId}/keywords`, { params });
     return data;
   },
 
@@ -40,19 +52,27 @@ export const naverSearchAdsApi = {
     return data;
   },
 
-  getTrend: async (dateRange = 'last_7_days', timeIncrement = 'daily') => {
-    const { data } = await api.get('/naver/search-ads/trend', {
-      params: { date_range: dateRange, time_increment: timeIncrement },
-    });
+  getTrend: async (dateRange = 'last_7_days', timeIncrement = 'daily', startDate?: string, endDate?: string) => {
+    const params: any = { date_range: dateRange, time_increment: timeIncrement };
+    if (dateRange === 'custom' && startDate && endDate) {
+      params.start_date = startDate;
+      params.end_date = endDate;
+    }
+    const { data } = await api.get('/naver/search-ads/trend', { params });
     return data;
   },
 
-  getAIAnalysis: async (dateRange = 'last_7_days', overviewData?: any) => {
-    const { data } = await api.post('/naver/search-ads/ai-analysis', {
+  getAIAnalysis: async (dateRange = 'last_7_days', overviewData?: any, startDate?: string, endDate?: string) => {
+    const body: any = {
       date_range: dateRange,
       focus: null,
       custom_prompt: null,
-    });
+    };
+    if (dateRange === 'custom' && startDate && endDate) {
+      body.start_date = startDate;
+      body.end_date = endDate;
+    }
+    const { data } = await api.post('/naver/search-ads/ai-analysis', body);
     return data;
   },
 
@@ -103,24 +123,33 @@ export const naverSearchAdsApi = {
 
 // ═══ Naver GFA API ═══
 export const naverGFAApi = {
-  getOverview: async (dateRange = 'last_7_days') => {
-    const { data } = await api.get('/naver/gfa/overview', {
-      params: { date_range: dateRange },
-    });
+  getOverview: async (dateRange = 'last_7_days', startDate?: string, endDate?: string) => {
+    const params: any = { date_range: dateRange };
+    if (dateRange === 'custom' && startDate && endDate) {
+      params.start_date = startDate;
+      params.end_date = endDate;
+    }
+    const { data } = await api.get('/naver/gfa/overview', { params });
     return data;
   },
 
-  getCampaigns: async (dateRange = 'last_7_days') => {
-    const { data } = await api.get('/naver/gfa/campaigns', {
-      params: { date_range: dateRange },
-    });
+  getCampaigns: async (dateRange = 'last_7_days', startDate?: string, endDate?: string) => {
+    const params: any = { date_range: dateRange };
+    if (dateRange === 'custom' && startDate && endDate) {
+      params.start_date = startDate;
+      params.end_date = endDate;
+    }
+    const { data } = await api.get('/naver/gfa/campaigns', { params });
     return data;
   },
 
-  getCampaignAdgroups: async (campaignId: string, dateRange = 'last_7_days') => {
-    const { data } = await api.get(`/naver/gfa/campaign/${campaignId}/adgroups`, {
-      params: { date_range: dateRange },
-    });
+  getCampaignAdgroups: async (campaignId: string, dateRange = 'last_7_days', startDate?: string, endDate?: string) => {
+    const params: any = { date_range: dateRange };
+    if (dateRange === 'custom' && startDate && endDate) {
+      params.start_date = startDate;
+      params.end_date = endDate;
+    }
+    const { data } = await api.get(`/naver/gfa/campaign/${campaignId}/adgroups`, { params });
     return data;
   },
 
@@ -129,19 +158,27 @@ export const naverGFAApi = {
     return data;
   },
 
-  getTrend: async (dateRange = 'last_7_days', timeIncrement = 'daily') => {
-    const { data } = await api.get('/naver/gfa/trend', {
-      params: { date_range: dateRange, time_increment: timeIncrement },
-    });
+  getTrend: async (dateRange = 'last_7_days', timeIncrement = 'daily', startDate?: string, endDate?: string) => {
+    const params: any = { date_range: dateRange, time_increment: timeIncrement };
+    if (dateRange === 'custom' && startDate && endDate) {
+      params.start_date = startDate;
+      params.end_date = endDate;
+    }
+    const { data } = await api.get('/naver/gfa/trend', { params });
     return data;
   },
 
-  getAIAnalysis: async (dateRange = 'last_7_days', overviewData?: any) => {
-    const { data } = await api.post('/naver/gfa/ai-analysis', {
+  getAIAnalysis: async (dateRange = 'last_7_days', overviewData?: any, startDate?: string, endDate?: string) => {
+    const body: any = {
       date_range: dateRange,
       focus: null,
       custom_prompt: null,
-    });
+    };
+    if (dateRange === 'custom' && startDate && endDate) {
+      body.start_date = startDate;
+      body.end_date = endDate;
+    }
+    const { data } = await api.post('/naver/gfa/ai-analysis', body);
     return data;
   },
 

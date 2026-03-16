@@ -5,12 +5,12 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import {
   BarChart3, DollarSign, Eye, MousePointer, Target, TrendingUp, TrendingDown,
   Loader2, RefreshCw, ChevronDown, ChevronRight, Play, Pause, Sparkles,
-  Search, Award, Activity, AlertCircle, CheckCircle, Lightbulb, Zap,
+  Search, Award, Activity, AlertCircle, CheckCircle, Lightbulb, Zap, Calendar,
 } from 'lucide-react';
 import { naverSearchAdsApi, formatNaverCurrency, formatNaverNumber, formatNaverPercent } from '@/lib/naver-api';
 import toast from 'react-hot-toast';
 
-type DatePreset = 'today' | 'yesterday' | 'last_7_days' | 'last_14_days' | 'last_30_days' | 'this_month';
+type DatePreset = 'today' | 'yesterday' | 'last_7_days' | 'last_14_days' | 'last_30_days' | 'this_month' | 'custom';
 
 const DATE_PRESETS: { value: DatePreset; label: string }[] = [
   { value: 'today', label: '오늘' },
@@ -19,6 +19,7 @@ const DATE_PRESETS: { value: DatePreset; label: string }[] = [
   { value: 'last_14_days', label: '최근 14일' },
   { value: 'last_30_days', label: '최근 30일' },
   { value: 'this_month', label: '이번달' },
+  { value: 'custom', label: '기간 직접설정' },
 ];
 
 const STATUS_KO: Record<string, { label: string; color: string }> = {
@@ -68,32 +69,44 @@ export function NaverSearchAdsDashboard() {
   const [debugInfo, setDebugInfo] = useState<any>(null);
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'PAUSED'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
+  const [customStartDate, setCustomStartDate] = useState<string>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    return d.toISOString().split('T')[0];
+  });
+  const [customEndDate, setCustomEndDate] = useState<string>(() => {
+    return new Date().toISOString().split('T')[0];
+  });
+
+  const effectiveDateRange = datePreset;
+  const effectiveStartDate = datePreset === 'custom' ? customStartDate : undefined;
+  const effectiveEndDate = datePreset === 'custom' ? customEndDate : undefined;
 
   // Fetch overview
   const { data: overview, isLoading: loadingOverview, isError: overviewError, error: overviewErrorObj, refetch: refetchOverview } = useQuery({
-    queryKey: ['naver-search-overview', datePreset],
-    queryFn: () => naverSearchAdsApi.getOverview(datePreset),
+    queryKey: ['naver-search-overview', effectiveDateRange, effectiveStartDate, effectiveEndDate],
+    queryFn: () => naverSearchAdsApi.getOverview(effectiveDateRange, effectiveStartDate, effectiveEndDate),
     retry: 1,
   });
 
   // Fetch campaigns
   const { data: campaignsData, isLoading: loadingCampaigns, isError: campaignsError, error: campaignsErrorObj } = useQuery({
-    queryKey: ['naver-search-campaigns', datePreset],
-    queryFn: () => naverSearchAdsApi.getCampaigns(datePreset),
+    queryKey: ['naver-search-campaigns', effectiveDateRange, effectiveStartDate, effectiveEndDate],
+    queryFn: () => naverSearchAdsApi.getCampaigns(effectiveDateRange, effectiveStartDate, effectiveEndDate),
     retry: 1,
   });
 
   // Fetch trend
   const { data: trendData } = useQuery({
-    queryKey: ['naver-search-trend', datePreset],
-    queryFn: () => naverSearchAdsApi.getTrend(datePreset),
+    queryKey: ['naver-search-trend', effectiveDateRange, effectiveStartDate, effectiveEndDate],
+    queryFn: () => naverSearchAdsApi.getTrend(effectiveDateRange, 'daily', effectiveStartDate, effectiveEndDate),
     retry: 1,
   });
 
   // Fetch ad groups for expanded campaign
   const { data: adgroupsData, isLoading: loadingAdgroups } = useQuery({
-    queryKey: ['naver-search-adgroups', expandedCampaign, datePreset],
-    queryFn: () => naverSearchAdsApi.getCampaignAdgroups(expandedCampaign!, datePreset),
+    queryKey: ['naver-search-adgroups', expandedCampaign, effectiveDateRange, effectiveStartDate, effectiveEndDate],
+    queryFn: () => naverSearchAdsApi.getCampaignAdgroups(expandedCampaign!, effectiveDateRange, effectiveStartDate, effectiveEndDate),
     enabled: !!expandedCampaign,
     retry: 1,
   });
@@ -116,7 +129,7 @@ export function NaverSearchAdsDashboard() {
 
   // AI Analysis
   const aiMutation = useMutation({
-    mutationFn: () => naverSearchAdsApi.getAIAnalysis(datePreset, overview),
+    mutationFn: () => naverSearchAdsApi.getAIAnalysis(effectiveDateRange, overview, effectiveStartDate, effectiveEndDate),
     onError: (err: any) => {
       const detail = err?.response?.data?.detail || err?.message || '알 수 없는 오류';
       toast.error(`AI 분석 실패: ${detail}`);
@@ -237,6 +250,26 @@ export function NaverSearchAdsDashboard() {
               <option key={p.value} value={p.value}>{p.label}</option>
             ))}
           </select>
+          {datePreset === 'custom' && (
+            <div className="flex items-center gap-1.5">
+              <Calendar size={14} className="text-gray-400" />
+              <input
+                type="date"
+                value={customStartDate}
+                onChange={(e) => setCustomStartDate(e.target.value)}
+                max={customEndDate}
+                className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm bg-white focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
+              />
+              <span className="text-gray-400 text-sm">~</span>
+              <input
+                type="date"
+                value={customEndDate}
+                onChange={(e) => setCustomEndDate(e.target.value)}
+                min={customStartDate}
+                className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm bg-white focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
+              />
+            </div>
+          )}
           <button
             onClick={() => refetchOverview()}
             className="p-2 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors"

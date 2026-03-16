@@ -83,6 +83,8 @@ class GFACampaignUpdate(BaseModel):
 
 class AIAnalysisRequest(BaseModel):
     date_range: Optional[str] = "last_7_days"
+    start_date: Optional[str] = None  # Custom start date (YYYY-MM-DD)
+    end_date: Optional[str] = None  # Custom end date (YYYY-MM-DD)
     focus: Optional[str] = None  # "cost", "conversion", "keyword", etc.
     custom_prompt: Optional[str] = None
 
@@ -120,6 +122,8 @@ class ReportEmailRequest(BaseModel):
     report_type: str = "weekly"  # daily, weekly, monthly
     platforms: List[str] = ["NAVER_SEARCH", "NAVER_GFA"]
     date_range: Optional[str] = "last_7_days"
+    start_date: Optional[str] = None  # Custom start date (YYYY-MM-DD)
+    end_date: Optional[str] = None  # Custom end date (YYYY-MM-DD)
 
 
 # ─── Helpers ─────────────────────────────────────────────────
@@ -213,8 +217,10 @@ async def _get_naver_gfa_api(
     )
 
 
-def _date_range_to_dates(date_range: str):
+def _date_range_to_dates(date_range: str, start_date: Optional[str] = None, end_date: Optional[str] = None):
     """Convert date range preset to (start_date, end_date) strings."""
+    if date_range == "custom" and start_date and end_date:
+        return start_date, end_date
     today = date.today()
     presets = {
         "today": (today, today),
@@ -291,12 +297,14 @@ async def search_ads_debug(
 @router.get("/search-ads/overview")
 async def search_ads_overview(
     date_range: str = Query(default="last_7_days"),
+    start_date: Optional[str] = Query(default=None, description="Custom start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(default=None, description="Custom end date (YYYY-MM-DD)"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """검색광고 계정 전체 성과 개요."""
     api = await _get_naver_search_api(current_user, db)
-    start_date, end_date = _date_range_to_dates(date_range)
+    start_date_val, end_date_val = _date_range_to_dates(date_range, start_date, end_date)
 
     # Fetch campaigns + stats
     try:
@@ -313,8 +321,8 @@ async def search_ads_overview(
             stats = await api.get_stat_report(
                 ids=campaign_ids,
                 date_preset="custom",
-                start_date=start_date,
-                end_date=end_date,
+                start_date=start_date_val,
+                end_date=end_date_val,
                 time_increment="allDays",
             )
             logger.info("Naver stat_report returned %d items for %d campaigns", len(stats), len(campaign_ids))
@@ -356,8 +364,8 @@ async def search_ads_overview(
     return {
         "platform": "NAVER_SEARCH",
         "date_range": date_range,
-        "start_date": start_date,
-        "end_date": end_date,
+        "start_date": start_date_val,
+        "end_date": end_date_val,
         "total_campaigns": len(campaigns),
         "active_campaigns": len([c for c in campaigns if not c.get("userLock")]),
         "totals": totals,
@@ -370,12 +378,14 @@ async def search_ads_overview(
 @router.get("/search-ads/campaigns")
 async def search_ads_campaigns(
     date_range: str = Query(default="last_7_days"),
+    start_date: Optional[str] = Query(default=None, description="Custom start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(default=None, description="Custom end date (YYYY-MM-DD)"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """캠페인 목록 + 성과 데이터."""
     api = await _get_naver_search_api(current_user, db)
-    start_date, end_date = _date_range_to_dates(date_range)
+    start_date_val, end_date_val = _date_range_to_dates(date_range, start_date, end_date)
 
     try:
         campaigns = await api.get_campaigns()
@@ -390,8 +400,8 @@ async def search_ads_campaigns(
             stats = await api.get_stat_report(
                 ids=campaign_ids,
                 date_preset="custom",
-                start_date=start_date,
-                end_date=end_date,
+                start_date=start_date_val,
+                end_date=end_date_val,
                 time_increment="allDays",
             )
         except Exception as e:
@@ -440,12 +450,14 @@ async def search_ads_campaigns(
 async def search_ads_adgroups(
     campaign_id: str,
     date_range: str = Query(default="last_7_days"),
+    start_date: Optional[str] = Query(default=None, description="Custom start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(default=None, description="Custom end date (YYYY-MM-DD)"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """캠페인 내 광고그룹 목록 + 성과 데이터."""
     api = await _get_naver_search_api(current_user, db)
-    start_date, end_date = _date_range_to_dates(date_range)
+    start_date_val, end_date_val = _date_range_to_dates(date_range, start_date, end_date)
     adgroups = await api.get_adgroups(campaign_id=campaign_id)
 
     # Fetch stats for adgroups
@@ -455,7 +467,7 @@ async def search_ads_adgroups(
         try:
             stats = await api.get_stat_report(
                 ids=ag_ids, date_preset="custom",
-                start_date=start_date, end_date=end_date,
+                start_date=start_date_val, end_date=end_date_val,
                 time_increment="allDays",
             )
             for s in stats:
@@ -769,13 +781,15 @@ async def search_ads_keyword_rankings(
 @router.get("/search-ads/trend")
 async def search_ads_trend(
     date_range: str = Query(default="last_7_days"),
+    start_date: Optional[str] = Query(default=None, description="Custom start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(default=None, description="Custom end date (YYYY-MM-DD)"),
     campaign_id: Optional[str] = Query(default=None),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """일별 성과 추이."""
     api = await _get_naver_search_api(current_user, db)
-    start_date, end_date = _date_range_to_dates(date_range)
+    start_date_val, end_date_val = _date_range_to_dates(date_range, start_date, end_date)
 
     if campaign_id:
         ids = [campaign_id]
@@ -788,8 +802,8 @@ async def search_ads_trend(
     daily_stats = await api.get_stat_report(
         ids=ids,
         date_preset="custom",
-        start_date=start_date,
-        end_date=end_date,
+        start_date=start_date_val,
+        end_date=end_date_val,
         time_increment="1",  # daily
     )
 
@@ -840,7 +854,7 @@ async def search_ads_ai_analysis(
     # 2) Fetch Naver data
     try:
         api = await _get_naver_search_api(current_user, db)
-        start_date, end_date = _date_range_to_dates(request.date_range or "last_7_days")
+        start_date_val, end_date_val = _date_range_to_dates(request.date_range or "last_7_days", request.start_date, request.end_date)
         campaigns = await api.get_campaigns()
 
         # Filter to ACTIVE campaigns only (userLock=False or None means active)
@@ -853,8 +867,8 @@ async def search_ads_ai_analysis(
                 stats = await api.get_stat_report(
                     ids=active_ids,
                     date_preset="custom",
-                    start_date=start_date,
-                    end_date=end_date,
+                    start_date=start_date_val,
+                    end_date=end_date_val,
                     time_increment="allDays",
                 )
             except Exception as e:
@@ -927,7 +941,7 @@ async def search_ads_ai_analysis(
     # 5) Build context for AI with aggregated data
     context = {
         "platform": "네이버 검색광고 (Naver Search Ads)",
-        "date_range": f"{start_date} ~ {end_date}",
+        "date_range": f"{start_date_val} ~ {end_date_val}",
         "total_campaigns": len(campaigns),
         "active_campaigns": len(active_campaigns),
         "paused_campaigns": len(campaigns) - len(active_campaigns),
@@ -1125,12 +1139,14 @@ async def search_ads_ai_analysis(
 @router.get("/gfa/overview")
 async def gfa_overview(
     date_range: str = Query(default="last_7_days"),
+    start_date: Optional[str] = Query(default=None, description="Custom start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(default=None, description="Custom end date (YYYY-MM-DD)"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """GFA 계정 전체 성과 개요."""
     api = await _get_naver_gfa_api(current_user, db)
-    start_date, end_date = _date_range_to_dates(date_range)
+    start_date_val, end_date_val = _date_range_to_dates(date_range, start_date, end_date)
 
     campaigns = await api.get_campaigns()
     campaign_ids = [c.get("id") for c in campaigns if c.get("id")]
@@ -1139,8 +1155,8 @@ async def gfa_overview(
     if campaign_ids:
         report = await api.get_performance_report(
             campaign_ids=campaign_ids,
-            start_date=start_date,
-            end_date=end_date,
+            start_date=start_date_val,
+            end_date=end_date_val,
             time_increment="TOTAL",
         )
 
@@ -1170,8 +1186,8 @@ async def gfa_overview(
     return {
         "platform": "NAVER_GFA",
         "date_range": date_range,
-        "start_date": start_date,
-        "end_date": end_date,
+        "start_date": start_date_val,
+        "end_date": end_date_val,
         "total_campaigns": len(campaigns),
         "active_campaigns": len([c for c in campaigns if c.get("status") == "ACTIVE"]),
         "totals": totals,
@@ -1182,12 +1198,14 @@ async def gfa_overview(
 @router.get("/gfa/campaigns")
 async def gfa_campaigns(
     date_range: str = Query(default="last_7_days"),
+    start_date: Optional[str] = Query(default=None, description="Custom start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(default=None, description="Custom end date (YYYY-MM-DD)"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """GFA 캠페인 목록 + 성과."""
     api = await _get_naver_gfa_api(current_user, db)
-    start_date, end_date = _date_range_to_dates(date_range)
+    start_date_val, end_date_val = _date_range_to_dates(date_range, start_date, end_date)
 
     campaigns = await api.get_campaigns()
 
@@ -1196,8 +1214,8 @@ async def gfa_campaigns(
     if campaign_ids:
         report = await api.get_performance_report(
             campaign_ids=campaign_ids,
-            start_date=start_date,
-            end_date=end_date,
+            start_date=start_date_val,
+            end_date=end_date_val,
             time_increment="TOTAL",
         )
         for r in report:
@@ -1251,13 +1269,15 @@ async def gfa_adgroups(
 @router.get("/gfa/trend")
 async def gfa_trend(
     date_range: str = Query(default="last_7_days"),
+    start_date: Optional[str] = Query(default=None, description="Custom start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(default=None, description="Custom end date (YYYY-MM-DD)"),
     campaign_id: Optional[str] = Query(default=None),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """GFA 일별 성과 추이."""
     api = await _get_naver_gfa_api(current_user, db)
-    start_date, end_date = _date_range_to_dates(date_range)
+    start_date_val, end_date_val = _date_range_to_dates(date_range, start_date, end_date)
 
     campaign_ids = [campaign_id] if campaign_id else None
     if not campaign_ids:
@@ -1269,8 +1289,8 @@ async def gfa_trend(
 
     daily_report = await api.get_performance_report(
         campaign_ids=campaign_ids,
-        start_date=start_date,
-        end_date=end_date,
+        start_date=start_date_val,
+        end_date=end_date_val,
         time_increment="DAILY",
     )
 
@@ -1316,7 +1336,7 @@ async def gfa_ai_analysis(
     from app.services.ai import ClaudeService
 
     api = await _get_naver_gfa_api(current_user, db)
-    start_date, end_date = _date_range_to_dates(request.date_range or "last_7_days")
+    start_date_val, end_date_val = _date_range_to_dates(request.date_range or "last_7_days", request.start_date, request.end_date)
 
     campaigns = await api.get_campaigns()
     campaign_ids = [c.get("id") for c in campaigns if c.get("id")]
@@ -1325,14 +1345,14 @@ async def gfa_ai_analysis(
     if campaign_ids:
         report = await api.get_performance_report(
             campaign_ids=campaign_ids,
-            start_date=start_date,
-            end_date=end_date,
+            start_date=start_date_val,
+            end_date=end_date_val,
             time_increment="DAILY",
         )
 
     context = {
         "platform": "Naver GFA (네이버 성과형 디스플레이 광고)",
-        "date_range": f"{start_date} ~ {end_date}",
+        "date_range": f"{start_date_val} ~ {end_date_val}",
         "total_campaigns": len(campaigns),
         "campaigns": [
             {"name": c.get("name"), "objective": c.get("objective"), "budget": c.get("dailyBudget")}
@@ -1559,18 +1579,20 @@ async def generate_report(
     report_type: str = Query(default="weekly"),
     platforms: str = Query(default="NAVER_SEARCH,NAVER_GFA"),
     date_range: str = Query(default="last_7_days"),
+    start_date: Optional[str] = Query(default=None, description="Custom start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(default=None, description="Custom end date (YYYY-MM-DD)"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """네이버 광고 리포트 생성."""
-    start_date, end_date = _date_range_to_dates(date_range)
+    start_date_val, end_date_val = _date_range_to_dates(date_range, start_date, end_date)
     platform_list = [p.strip() for p in platforms.split(",")]
 
     report_data: dict = {
         "report_type": report_type,
         "date_range": date_range,
-        "start_date": start_date,
-        "end_date": end_date,
+        "start_date": start_date_val,
+        "end_date": end_date_val,
         "generated_at": datetime.utcnow().isoformat(),
         "platforms": {},
     }
@@ -1585,8 +1607,8 @@ async def generate_report(
                 stats = await api.get_stat_report(
                     ids=cids,
                     date_preset="custom",
-                    start_date=start_date,
-                    end_date=end_date,
+                    start_date=start_date_val,
+                    end_date=end_date_val,
                     time_increment="1",
                 )
             report_data["platforms"]["NAVER_SEARCH"] = {
@@ -1605,8 +1627,8 @@ async def generate_report(
             if cids:
                 report = await api.get_performance_report(
                     campaign_ids=cids,
-                    start_date=start_date,
-                    end_date=end_date,
+                    start_date=start_date_val,
+                    end_date=end_date_val,
                     time_increment="DAILY",
                 )
             report_data["platforms"]["NAVER_GFA"] = {
@@ -1629,7 +1651,7 @@ async def email_report(
     import resend
 
     # Generate report first
-    start_date, end_date = _date_range_to_dates(request.date_range or "last_7_days")
+    start_date_val, end_date_val = _date_range_to_dates(request.date_range or "last_7_days", request.start_date, request.end_date)
 
     report_sections = []
     for platform in request.platforms:
@@ -1642,7 +1664,7 @@ async def email_report(
                 if cids:
                     stats = await api.get_stat_report(
                         ids=cids, date_preset="custom",
-                        start_date=start_date, end_date=end_date,
+                        start_date=start_date_val, end_date=end_date_val,
                         time_increment="allDays",
                     )
                 total_spend = sum(float(s.get("salesAmt", 0)) for s in stats)
@@ -1666,8 +1688,8 @@ async def email_report(
                 report = []
                 if cids:
                     report = await api.get_performance_report(
-                        campaign_ids=cids, start_date=start_date,
-                        end_date=end_date, time_increment="TOTAL",
+                        campaign_ids=cids, start_date=start_date_val,
+                        end_date=end_date_val, time_increment="TOTAL",
                     )
                 total_spend = sum(float(r.get("spend", 0)) for r in report)
                 total_clicks = sum(int(r.get("clicks", 0)) for r in report)
@@ -1685,7 +1707,7 @@ async def email_report(
     html_body = f"""
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
         <h2>네이버 광고 성과 리포트</h2>
-        <p>기간: {start_date} ~ {end_date}</p>
+        <p>기간: {start_date_val} ~ {end_date_val}</p>
         <hr>
         {"".join(report_sections)}
         <hr>
@@ -1702,7 +1724,7 @@ async def email_report(
         resend.Emails.send({
             "from": from_email,
             "to": [request.recipient_email],
-            "subject": f"네이버 광고 {request.report_type} 리포트 ({start_date} ~ {end_date})",
+            "subject": f"네이버 광고 {request.report_type} 리포트 ({start_date_val} ~ {end_date_val})",
             "html": html_body,
         })
         return {"success": True, "message": f"리포트가 {request.recipient_email}로 발송되었습니다."}

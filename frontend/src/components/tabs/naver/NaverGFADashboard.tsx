@@ -5,12 +5,12 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import {
   Monitor, DollarSign, Eye, MousePointer, Target, TrendingUp,
   Loader2, RefreshCw, ChevronDown, ChevronRight, Sparkles,
-  Image, Activity, Play, Pause, Award,
+  Image, Activity, Play, Pause, Award, Calendar,
 } from 'lucide-react';
 import { naverGFAApi, formatNaverCurrency, formatNaverNumber, formatNaverPercent } from '@/lib/naver-api';
 import toast from 'react-hot-toast';
 
-type DatePreset = 'today' | 'yesterday' | 'last_7_days' | 'last_14_days' | 'last_30_days' | 'this_month';
+type DatePreset = 'today' | 'yesterday' | 'last_7_days' | 'last_14_days' | 'last_30_days' | 'this_month' | 'custom';
 
 const DATE_PRESETS: { value: DatePreset; label: string }[] = [
   { value: 'today', label: '오늘' },
@@ -19,6 +19,7 @@ const DATE_PRESETS: { value: DatePreset; label: string }[] = [
   { value: 'last_14_days', label: '최근 14일' },
   { value: 'last_30_days', label: '최근 30일' },
   { value: 'this_month', label: '이번달' },
+  { value: 'custom', label: '기간 직접설정' },
 ];
 
 const STATUS_KO: Record<string, { label: string; color: string }> = {
@@ -78,38 +79,49 @@ export function NaverGFADashboard() {
   const [expandedCampaign, setExpandedCampaign] = useState<string | null>(null);
   const [aiTriggered, setAiTriggered] = useState(false);
 
+  // Custom date range state
+  const today = new Date().toISOString().split('T')[0];
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  const [customStartDate, setCustomStartDate] = useState<string>(sevenDaysAgo);
+  const [customEndDate, setCustomEndDate] = useState<string>(today);
+
+  // Effective date range for API calls
+  const effectiveDateRange = datePreset;
+  const effectiveStartDate = datePreset === 'custom' ? customStartDate : undefined;
+  const effectiveEndDate = datePreset === 'custom' ? customEndDate : undefined;
+
   // Fetch overview
   const { data: overview, isLoading: loadingOverview, refetch: refetchOverview } = useQuery({
-    queryKey: ['naver-gfa-overview', datePreset],
-    queryFn: () => naverGFAApi.getOverview(datePreset),
+    queryKey: ['naver-gfa-overview', effectiveDateRange, effectiveStartDate, effectiveEndDate],
+    queryFn: () => naverGFAApi.getOverview(effectiveDateRange, effectiveStartDate, effectiveEndDate),
     retry: 1,
   });
 
   // Fetch campaigns
   const { data: campaignsData, isLoading: loadingCampaigns } = useQuery({
-    queryKey: ['naver-gfa-campaigns', datePreset],
-    queryFn: () => naverGFAApi.getCampaigns(datePreset),
+    queryKey: ['naver-gfa-campaigns', effectiveDateRange, effectiveStartDate, effectiveEndDate],
+    queryFn: () => naverGFAApi.getCampaigns(effectiveDateRange, effectiveStartDate, effectiveEndDate),
     retry: 1,
   });
 
   // Fetch trend
   const { data: trendData } = useQuery({
-    queryKey: ['naver-gfa-trend', datePreset],
-    queryFn: () => naverGFAApi.getTrend(datePreset),
+    queryKey: ['naver-gfa-trend', effectiveDateRange, effectiveStartDate, effectiveEndDate],
+    queryFn: () => naverGFAApi.getTrend(effectiveDateRange, 'daily', effectiveStartDate, effectiveEndDate),
     retry: 1,
   });
 
   // Fetch ad groups for expanded campaign
   const { data: adgroupsData, isLoading: loadingAdgroups } = useQuery({
-    queryKey: ['naver-gfa-adgroups', expandedCampaign],
-    queryFn: () => naverGFAApi.getCampaignAdgroups(expandedCampaign!),
+    queryKey: ['naver-gfa-adgroups', expandedCampaign, effectiveDateRange, effectiveStartDate, effectiveEndDate],
+    queryFn: () => naverGFAApi.getCampaignAdgroups(expandedCampaign!, effectiveDateRange, effectiveStartDate, effectiveEndDate),
     enabled: !!expandedCampaign,
     retry: 1,
   });
 
   // AI Analysis
   const aiMutation = useMutation({
-    mutationFn: () => naverGFAApi.getAIAnalysis(datePreset, overview),
+    mutationFn: () => naverGFAApi.getAIAnalysis(effectiveDateRange, overview, effectiveStartDate, effectiveEndDate),
     onError: () => toast.error('AI 분석에 실패했습니다.'),
   });
 
@@ -183,7 +195,7 @@ export function NaverGFADashboard() {
           </h1>
           <p className="text-sm text-gray-500 mt-1">네이버 성과형 디스플레이 광고 분석</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <select
             value={datePreset}
             onChange={(e) => setDatePreset(e.target.value as DatePreset)}
@@ -193,6 +205,26 @@ export function NaverGFADashboard() {
               <option key={p.value} value={p.value}>{p.label}</option>
             ))}
           </select>
+          {datePreset === 'custom' && (
+            <div className="flex items-center gap-1.5">
+              <Calendar size={14} className="text-gray-400" />
+              <input
+                type="date"
+                value={customStartDate}
+                onChange={(e) => setCustomStartDate(e.target.value)}
+                max={customEndDate}
+                className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm bg-white focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
+              />
+              <span className="text-gray-400 text-sm">~</span>
+              <input
+                type="date"
+                value={customEndDate}
+                onChange={(e) => setCustomEndDate(e.target.value)}
+                min={customStartDate}
+                className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm bg-white focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
+              />
+            </div>
+          )}
           <button
             onClick={() => refetchOverview()}
             className="p-2 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors"
