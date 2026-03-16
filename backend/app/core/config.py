@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     RESEND_API_KEY: str = ""
     RESEND_FROM_EMAIL: str = "onboarding@resend.dev"
     FRONTEND_URL: str = "http://localhost:3000"
+    BACKEND_URL: str = ""  # Public backend URL for external access (e.g., https://xxx.up.railway.app)
 
     # Allowed emails (comma-separated, empty = allow all)
     ALLOWED_EMAILS: str = ""

@@ -517,6 +517,7 @@ class MetaMarketingAPI:
         name: str,
         page_id: str,
         image_url: Optional[str] = None,
+        image_hash: Optional[str] = None,
         video_id: Optional[str] = None,
         message: str = "",
         link: Optional[str] = None,
@@ -563,11 +564,14 @@ class MetaMarketingAPI:
             object_story_spec["video_data"] = video_data
         else:
             link_data: Dict[str, Any] = {
-                "image_url": image_url,
                 "message": message,
                 "link": final_link or "https://example.com",
                 "call_to_action": {"type": call_to_action}
             }
+            if image_hash:
+                link_data["image_hash"] = image_hash
+            elif image_url:
+                link_data["image_url"] = image_url
             if headline:
                 link_data["name"] = headline
             if description:

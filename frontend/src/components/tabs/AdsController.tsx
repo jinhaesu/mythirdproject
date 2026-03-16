@@ -769,10 +769,12 @@ export function AdsController() {
     const seg = { ...updated[segIndex] };
     const existingAds = seg.ads || [];
     if (existingAds.some(a => a.creative_id === creative.id)) return;
+    const sameCreativeCount = existingAds.filter((a: any) => a.creative_id === creative.id).length;
+    const suffix = sameCreativeCount > 0 ? ` (${sameCreativeCount + 1})` : '';
     const newAd: AdSetCreative = {
       creative_id: creative.id,
       creative,
-      ad_name: `${seg.name} - ${creative.name}`,
+      ad_name: `${seg.name} - ${creative.name}${suffix}`,
       media_source: 'manual',
       format: creative.creative_type === 'CAROUSEL' ? 'carousel' : 'single',
       multi_advertiser_ads: true,
@@ -1194,23 +1196,42 @@ export function AdsController() {
                                   {libraryCreatives.map((c: Creative) => {
                                     const alreadyAdded = (seg.ads || []).some(a => a.creative_id === c.id);
                                     return (
-                                      <button key={c.id} disabled={alreadyAdded}
-                                        onClick={() => addCreativeToAdSet(i, c)}
-                                        className={`relative rounded overflow-hidden border transition-all ${alreadyAdded ? 'opacity-40 cursor-not-allowed border-gray-200' : 'border-blue-300 hover:border-blue-500 hover:shadow-sm cursor-pointer'}`}>
-                                        {c.thumbnail_url || c.file_url ? (
-                                          <div className="relative group">
-                                            <img src={resolveMediaUrl(c.thumbnail_url || c.file_url)} alt={c.name} className="w-full aspect-square object-cover" />
-                                            <div onClick={(e) => { e.stopPropagation(); e.preventDefault(); setPreviewUrl(resolveMediaUrl(c.file_url || c.thumbnail_url)); }}
-                                              className="absolute top-0 right-0 p-0.5 bg-black/40 rounded-bl opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
-                                              <Eye size={10} className="text-white" />
+                                      <div key={c.id} className="relative group">
+                                        <button disabled={alreadyAdded}
+                                          onClick={() => addCreativeToAdSet(i, c)}
+                                          className={`w-full relative rounded overflow-hidden border transition-all ${alreadyAdded ? 'opacity-40 cursor-not-allowed border-gray-200' : 'border-blue-300 hover:border-blue-500 hover:shadow-sm cursor-pointer'}`}>
+                                          {c.thumbnail_url || c.file_url ? (
+                                            <div className="relative">
+                                              <img src={resolveMediaUrl(c.thumbnail_url || c.file_url)} alt={c.name} className="w-full aspect-square object-cover" />
+                                              <div onClick={(e) => { e.stopPropagation(); e.preventDefault(); setPreviewUrl(resolveMediaUrl(c.file_url || c.thumbnail_url)); }}
+                                                className="absolute top-0 right-0 p-0.5 bg-black/40 rounded-bl opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                                                <Eye size={10} className="text-white" />
+                                              </div>
                                             </div>
-                                          </div>
-                                        ) : (
-                                          <div className="w-full aspect-square bg-gray-200 flex items-center justify-center"><ImageIcon size={16} className="text-gray-400" /></div>
+                                          ) : (
+                                            <div className="w-full aspect-square bg-gray-200 flex items-center justify-center"><ImageIcon size={16} className="text-gray-400" /></div>
+                                          )}
+                                          {alreadyAdded && <div className="absolute inset-0 bg-white/50 flex items-center justify-center"><Check size={14} className="text-green-600" /></div>}
+                                          <p className="text-[9px] text-gray-600 truncate px-0.5 py-0.5">{c.name}</p>
+                                        </button>
+                                        {!alreadyAdded && (
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              segments.forEach((seg, idx) => {
+                                                if (seg.enabled && !(seg.ads || []).some((a: any) => a.creative_id === c.id)) {
+                                                  addCreativeToAdSet(idx, c);
+                                                }
+                                              });
+                                              toast.success(`${c.name}이(가) 모든 세그먼트에 추가되었습니다`);
+                                            }}
+                                            className="absolute bottom-1 right-1 text-[10px] bg-violet-500 text-white px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                                            title="모든 세그먼트에 추가"
+                                          >
+                                            전체
+                                          </button>
                                         )}
-                                        {alreadyAdded && <div className="absolute inset-0 bg-white/50 flex items-center justify-center"><Check size={14} className="text-green-600" /></div>}
-                                        <p className="text-[9px] text-gray-600 truncate px-0.5 py-0.5">{c.name}</p>
-                                      </button>
+                                      </div>
                                     );
                                   })}
                                 </div>
@@ -1239,11 +1260,14 @@ export function AdsController() {
                                       ) : <ImageIcon size={16} className="m-auto mt-2.5 text-gray-400" />}
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                      <input type="text" value={ad.ad_name}
+                                      <label className="block text-[10px] text-gray-400 mb-0.5">광고 소재 이름</label>
+                                      <input
+                                        type="text"
+                                        value={ad.ad_name}
                                         onChange={(e) => updateAdSetCreativeField(i, ad.creative_id, 'ad_name', e.target.value)}
-                                        placeholder="광고 이름"
-                                        className="w-full text-xs font-medium text-gray-800 bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-400 focus:outline-none py-0.5" />
-                                      <p className="text-[10px] text-gray-400 truncate">{ad.creative?.name || `ID: ${ad.creative_id}`}</p>
+                                        placeholder="광고 소재 이름을 입력하세요"
+                                        className="w-full text-sm font-medium bg-gray-50 border border-gray-200 rounded px-2 py-1 focus:bg-white focus:border-violet-400 focus:ring-1 focus:ring-violet-400 focus:outline-none transition-colors"
+                                      />
                                     </div>
                                     <button onClick={() => removeCreativeFromAdSet(i, ad.creative_id)}
                                       className="text-gray-400 hover:text-red-500 flex-shrink-0"><X size={13} /></button>
@@ -1341,6 +1365,34 @@ export function AdsController() {
                                           <option value="DOWNLOAD">다운로드</option>
                                         </select>
                                       </div>
+                                      <button
+                                        onClick={() => {
+                                          const currentAd = ad;
+                                          const updatedSegs = [...segments];
+                                          updatedSegs.forEach((otherSeg, otherIdx) => {
+                                            if (otherIdx !== i && otherSeg.enabled) {
+                                              const matchingAd = (otherSeg.ads || []).find(
+                                                (a: AdSetCreative) => a.creative_id === currentAd.creative_id
+                                              );
+                                              if (matchingAd) {
+                                                matchingAd.primary_text = currentAd.primary_text;
+                                                matchingAd.headline = currentAd.headline;
+                                                matchingAd.description = currentAd.description;
+                                                matchingAd.call_to_action = currentAd.call_to_action;
+                                                matchingAd.link_url = currentAd.link_url;
+                                                matchingAd.display_link = currentAd.display_link;
+                                                matchingAd.url_params = currentAd.url_params;
+                                              }
+                                            }
+                                          });
+                                          setSegments(updatedSegs);
+                                          toast.success('다른 세그먼트에도 동일 설정이 적용되었습니다');
+                                        }}
+                                        className="text-xs text-violet-500 hover:text-violet-700 flex items-center gap-1 mt-2"
+                                        title="이 소재의 광고 문구/랜딩 설정을 다른 세그먼트의 동일 소재에 복사"
+                                      >
+                                        <Copy size={12} /> 다른 세그먼트에 동일 적용
+                                      </button>
                                     </div>
                                   </details>
 

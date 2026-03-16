@@ -14,7 +14,7 @@ from app.models.creative import Creative
 from app.schemas.campaign import (
     CampaignCreate, CampaignUpdate, CampaignResponse,
     AdCreate, AdResponse,
-    StrategyRecommendation, TargetingConfig, InterestTargeting,
+    StrategyRecommendation, TargetingConfig, InterestTargeting, GeoTargeting,
     PublishRequest, PublishResponse
 )
 from app.api.v1.endpoints.auth import get_current_user, get_shared_meta_credentials
@@ -484,8 +484,35 @@ async def publish_campaign(
                 if seg.get('targeting') and isinstance(seg['targeting'], dict):
                     try:
                         seg_targeting = TargetingConfig.model_validate(seg['targeting'])
-                    except Exception:
-                        pass
+                        logger.info(f"[Publish] Targeting parsed OK: age={seg_targeting.age_range.min_age}-{seg_targeting.age_range.max_age}, genders={seg_targeting.genders}, geo={seg_targeting.geo.countries}")
+                    except Exception as e:
+                        logger.error(f"[Publish] TargetingConfig.model_validate failed: {e}, raw={seg['targeting']}")
+                        # Manual fallback parsing
+                        tgt = seg['targeting']
+                        try:
+                            if 'age_range' in tgt and isinstance(tgt['age_range'], dict):
+                                seg_targeting.age_range.min_age = max(int(tgt['age_range'].get('min_age', 18)), 13)
+                                seg_targeting.age_range.max_age = min(int(tgt['age_range'].get('max_age', 65)), 65)
+                            if 'genders' in tgt and isinstance(tgt['genders'], list):
+                                seg_targeting.genders = tgt['genders']
+                            if 'geo' in tgt and isinstance(tgt['geo'], dict):
+                                seg_targeting.geo.countries = tgt['geo'].get('countries', ['KR'])
+                                if tgt['geo'].get('cities'):
+                                    seg_targeting.geo.cities = tgt['geo']['cities']
+                            if 'interests' in tgt and tgt['interests'] and isinstance(tgt['interests'], dict):
+                                seg_targeting.interests = InterestTargeting(
+                                    interests=tgt['interests'].get('interests', []),
+                                    behaviors=tgt['interests'].get('behaviors')
+                                )
+                            if 'custom_audiences' in tgt and isinstance(tgt['custom_audiences'], list):
+                                seg_targeting.custom_audiences = tgt['custom_audiences']
+                            if 'excluded_audiences' in tgt and isinstance(tgt['excluded_audiences'], list):
+                                seg_targeting.excluded_audiences = tgt['excluded_audiences']
+                            if 'advantage_plus_audience' in tgt:
+                                seg_targeting.advantage_plus_audience = bool(tgt['advantage_plus_audience'])
+                            logger.info(f"[Publish] Manual targeting parse OK: age={seg_targeting.age_range.min_age}-{seg_targeting.age_range.max_age}")
+                        except Exception as manual_err:
+                            logger.error(f"[Publish] Manual targeting parse also failed: {manual_err}")
                 if seg.get('interests'):
                     seg_targeting.interests = InterestTargeting(
                         interests=seg['interests'] if isinstance(seg['interests'], list) else []
@@ -645,8 +672,23 @@ async def publish_campaign(
             cta = call_to_action or "LEARN_MORE"
             link = link_url or None
 
+            # Resolve relative file_url to absolute public URL for Meta access
+            resolved_file_url = creative.file_url
+            if resolved_file_url and resolved_file_url.startswith('/'):
+                from app.core.config import get_settings
+                _settings = get_settings()
+                backend_base = _settings.BACKEND_URL
+                if not backend_base:
+                    # Fallback: derive from FRONTEND_URL
+                    backend_base = _settings.FRONTEND_URL.rstrip('/')
+                    # If frontend is on :3000, backend is likely on :8000
+                    if ':3000' in backend_base:
+                        backend_base = backend_base.replace(':3000', ':8000')
+                resolved_file_url = f"{backend_base.rstrip('/')}{resolved_file_url}"
+                logger.info(f"[Publish] Resolved file_url: {creative.file_url} -> {resolved_file_url}")
+
             if creative.creative_type.value == "VIDEO":
-                media_result = await meta_api.upload_video(creative.file_url)
+                media_result = await meta_api.upload_video(resolved_file_url)
                 video_id = media_result.get("id")
                 if not video_id:
                     raise Exception(f"비디오 업로드 실패: {media_result}")
@@ -664,10 +706,23 @@ async def publish_campaign(
                     url_params=url_params,
                 )
             else:
+                # Upload image to Meta first, then use hash
+                image_hash = None
+                try:
+                    img_result = await meta_api.upload_image(resolved_file_url)
+                    images = img_result.get("images", {})
+                    if images:
+                        first_key = next(iter(images))
+                        image_hash = images[first_key].get("hash")
+                        logger.info(f"[Publish] Image uploaded to Meta, hash={image_hash}")
+                except Exception as img_err:
+                    logger.warning(f"[Publish] Image upload to Meta failed: {img_err}, falling back to URL")
+
                 cr_result = await meta_api.create_ad_creative(
                     name=ad_name,
                     page_id=page_id,
-                    image_url=creative.file_url,
+                    image_url=resolved_file_url if not image_hash else None,
+                    image_hash=image_hash,
                     message=message,
                     link=link,
                     call_to_action=cta,
@@ -779,6 +834,12 @@ async def publish_campaign(
                         await meta_api.update_adset_status(asid, "ACTIVE")
                     except Exception as e:
                         logger.warning(f"[Publish] Failed to activate adset {asid}: {e}")
+                # Also activate all created ads
+                for ad_id in created_ad_ids:
+                    try:
+                        await meta_api.update_ad_status(ad_id, "ACTIVE")
+                    except Exception as e:
+                        logger.warning(f"[Publish] Failed to activate ad {ad_id}: {e}")
                 campaign.status = CampaignStatus.ACTIVE
                 logger.info(f"[Publish] Campaign {meta_campaign_id} activated immediately")
             except Exception as e:
