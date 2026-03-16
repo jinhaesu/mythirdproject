@@ -168,6 +168,8 @@ class MetaMarketingAPI:
             # Broad (브로드): No interest targeting, no custom audiences
             # Enable Advantage+ audience for optimal reach
             spec["targeting_automation"] = {"advantage_audience": 1}
+            # Meta requires age_max=65 when using Advantage+ audience
+            spec["age_max"] = 65
 
         elif seg == "retarget":
             # Retarget (리타겟): Custom audiences (website visitors etc.)
@@ -204,6 +206,8 @@ class MetaMarketingAPI:
             # Default / unspecified segment
             if advantage_plus_audience:
                 spec["targeting_automation"] = {"advantage_audience": 1}
+                # Meta requires age_max=65 when using Advantage+ audience
+                spec["age_max"] = 65
             else:
                 spec["targeting_automation"] = {"advantage_audience": 0}
 
