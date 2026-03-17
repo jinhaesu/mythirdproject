@@ -63,7 +63,7 @@ const createDefaultSegments = (): TargetingSegment[] => [
     targeting: defaultTargetingConfig(),
     custom_audiences: [],
     exclusion_audiences: [],
-    description: '웹사이트 방문자, 장바구니 이탈자 타겟',
+    description: '웹사이트 방문자, 장바구니 이탈자, 구매자, 광고 참여자, 동영상 시청자 타겟',
   },
   {
     type: 'INTEREST',
@@ -1888,7 +1888,7 @@ export function AdsController() {
                             <div className="p-2 bg-orange-50 rounded">
                               <p className="text-xs font-medium text-orange-700 mb-1">커스텀 오디언스</p>
                               <div className="flex flex-wrap gap-1">
-                                {['웹사이트 방문자', '장바구니 이탈자', '영상 시청자'].map((audience) => (
+                                {['웹사이트 방문자', '장바구니 이탈자', '구매자', '광고 참여자(클릭)', '동영상 시청자'].map((audience) => (
                                   <label key={audience} className="inline-flex items-center gap-1 text-xs bg-white px-2 py-1 rounded border border-orange-100 cursor-pointer hover:border-orange-300">
                                     <input type="checkbox"
                                       checked={seg.custom_audiences?.includes(audience) || false}
