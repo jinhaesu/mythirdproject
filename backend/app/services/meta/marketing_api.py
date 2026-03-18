@@ -688,18 +688,15 @@ class MetaMarketingAPI:
                 "GET",
                 f"{self.ad_account_id}/customaudiences",
                 params={
-                    "fields": "id,name,subtype,approximate_count,delivery_status,operation_status",
+                    "fields": "id,name,subtype,approximate_count",
                     "limit": limit,
                 },
             )
             audiences = result.get("data", [])
-            # Filter to usable audiences (exclude deleted/error states)
-            return [
-                a for a in audiences
-                if a.get("operation_status", {}).get("status", 0) != 400  # not error
-            ]
+            logger.info(f"[CustomAudiences] Fetched {len(audiences)} audiences from {self.ad_account_id}")
+            return audiences
         except Exception as e:
-            logger.error(f"Failed to fetch custom audiences: {e}")
+            logger.error(f"[CustomAudiences] Failed to fetch from {self.ad_account_id}: {e}")
             return []
 
     # ──────────────────────────────────────────────

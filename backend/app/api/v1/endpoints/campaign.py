@@ -1141,16 +1141,19 @@ async def get_custom_audiences(
     meta_user = current_user if current_user.meta_access_token else await get_shared_meta_credentials(db)
 
     if not meta_user or not meta_user.meta_access_token or not meta_user.meta_ad_account_id:
-        raise HTTPException(status_code=400, detail="Meta 계정이 연결되지 않았습니다")
+        logger.warning("[CustomAudiences] No Meta credentials found")
+        return {"audiences": [], "error": "Meta 계정이 연결되지 않았습니다"}
 
+    logger.info(f"[CustomAudiences] Fetching for ad_account={meta_user.meta_ad_account_id}")
     meta_api = MetaMarketingAPI(meta_user.meta_access_token, meta_user.meta_ad_account_id)
 
     try:
         audiences = await meta_api.get_custom_audiences()
+        logger.info(f"[CustomAudiences] Returning {len(audiences)} audiences")
         return {"audiences": audiences}
     except Exception as e:
-        logger.error(f"Custom audiences fetch failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"[CustomAudiences] Fetch failed: {e}")
+        return {"audiences": [], "error": str(e)}
 
 
 # ──────────────────────────────────────────────

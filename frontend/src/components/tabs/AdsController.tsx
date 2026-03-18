@@ -436,12 +436,14 @@ export function AdsController() {
   });
 
   // Meta 커스텀 오디언스 목록 (리타겟팅용)
-  const { data: customAudiencesData } = useQuery({
+  const { data: customAudiencesData, isLoading: isLoadingAudiences, error: audiencesError } = useQuery({
     queryKey: ['custom-audiences'],
     queryFn: () => campaignApi.getCustomAudiences(),
     staleTime: 5 * 60 * 1000, // 5분 캐시
+    retry: 1,
   });
   const metaCustomAudiences = customAudiencesData?.audiences || [];
+  const audiencesApiError = (customAudiencesData as any)?.error;
 
   const strategyMutation = useMutation({
     mutationFn: () => campaignApi.getStrategy(Number(budget), selectedCreatives.length > 0 ? selectedCreatives.map((c) => c.id) : []),
@@ -1895,7 +1897,11 @@ export function AdsController() {
                           <div className="space-y-2">
                             <div className="p-2 bg-orange-50 rounded">
                               <p className="text-xs font-medium text-orange-700 mb-1">커스텀 오디언스 (타겟)</p>
-                              {metaCustomAudiences.length > 0 ? (
+                              {isLoadingAudiences ? (
+                                <p className="text-xs text-gray-400">커스텀 오디언스 불러오는 중...</p>
+                              ) : audiencesError || audiencesApiError ? (
+                                <p className="text-xs text-red-500">오디언스 조회 실패: {audiencesApiError || '네트워크 오류'}</p>
+                              ) : metaCustomAudiences.length > 0 ? (
                                 <div className="flex flex-wrap gap-1">
                                   {metaCustomAudiences.map((audience) => (
                                     <label key={audience.id} className="inline-flex items-center gap-1 text-xs bg-white px-2 py-1 rounded border border-orange-100 cursor-pointer hover:border-orange-300" title={`ID: ${audience.id}${audience.approximate_count ? ` | ~${audience.approximate_count.toLocaleString()}명` : ''}`}>
@@ -1913,12 +1919,14 @@ export function AdsController() {
                                   ))}
                                 </div>
                               ) : (
-                                <p className="text-xs text-gray-400">Meta 광고 계정에 커스텀 오디언스가 없거나 불러오는 중입니다.</p>
+                                <p className="text-xs text-gray-400">Meta 광고 계정에 등록된 커스텀 오디언스가 없습니다. Meta 비즈니스 관리자에서 먼저 오디언스를 생성해주세요.</p>
                               )}
                             </div>
                             <div className="p-2 bg-red-50 rounded">
                               <p className="text-xs font-medium text-red-700 mb-1">제외 오디언스</p>
-                              {metaCustomAudiences.length > 0 ? (
+                              {isLoadingAudiences ? (
+                                <p className="text-xs text-gray-400">불러오는 중...</p>
+                              ) : metaCustomAudiences.length > 0 ? (
                                 <div className="flex flex-wrap gap-1">
                                   {metaCustomAudiences.map((audience) => (
                                     <label key={audience.id} className="inline-flex items-center gap-1 text-xs bg-white px-2 py-1 rounded border border-red-100 cursor-pointer hover:border-red-300" title={`ID: ${audience.id}`}>
@@ -1935,7 +1943,7 @@ export function AdsController() {
                                   ))}
                                 </div>
                               ) : (
-                                <p className="text-xs text-gray-400">Meta 광고 계정에 커스텀 오디언스가 없거나 불러오는 중입니다.</p>
+                                <p className="text-xs text-gray-400">{audiencesApiError || '커스텀 오디언스가 없습니다.'}</p>
                               )}
                             </div>
                           </div>
