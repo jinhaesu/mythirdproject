@@ -677,10 +677,10 @@ class MetaMarketingAPI:
     # Custom Audiences
     # ──────────────────────────────────────────────
 
-    async def get_custom_audiences(self, limit: int = 100) -> List[Dict]:
+    async def get_custom_audiences(self, limit: int = 100) -> Dict[str, Any]:
         """광고 계정의 커스텀 오디언스 목록 조회.
 
-        Returns list of custom audiences with id, name, subtype, approximate_count.
+        Returns dict with 'audiences' list and optional 'error' string.
         Used for retargeting segment audience selection.
         """
         try:
@@ -694,10 +694,11 @@ class MetaMarketingAPI:
             )
             audiences = result.get("data", [])
             logger.info(f"[CustomAudiences] Fetched {len(audiences)} audiences from {self.ad_account_id}")
-            return audiences
+            return {"audiences": audiences, "error": None}
         except Exception as e:
-            logger.error(f"[CustomAudiences] Failed to fetch from {self.ad_account_id}: {e}")
-            return []
+            error_msg = str(e)
+            logger.error(f"[CustomAudiences] Failed to fetch from {self.ad_account_id}: {error_msg}")
+            return {"audiences": [], "error": error_msg}
 
     # ──────────────────────────────────────────────
     # Discovery / Suggestions

@@ -1147,13 +1147,9 @@ async def get_custom_audiences(
     logger.info(f"[CustomAudiences] Fetching for ad_account={meta_user.meta_ad_account_id}")
     meta_api = MetaMarketingAPI(meta_user.meta_access_token, meta_user.meta_ad_account_id)
 
-    try:
-        audiences = await meta_api.get_custom_audiences()
-        logger.info(f"[CustomAudiences] Returning {len(audiences)} audiences")
-        return {"audiences": audiences}
-    except Exception as e:
-        logger.error(f"[CustomAudiences] Fetch failed: {e}")
-        return {"audiences": [], "error": str(e)}
+    result = await meta_api.get_custom_audiences()
+    logger.info(f"[CustomAudiences] Result: {len(result.get('audiences', []))} audiences, error={result.get('error')}")
+    return result
 
 
 # ──────────────────────────────────────────────
