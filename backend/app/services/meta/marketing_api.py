@@ -674,6 +674,35 @@ class MetaMarketingAPI:
         )
 
     # ──────────────────────────────────────────────
+    # Custom Audiences
+    # ──────────────────────────────────────────────
+
+    async def get_custom_audiences(self, limit: int = 100) -> List[Dict]:
+        """광고 계정의 커스텀 오디언스 목록 조회.
+
+        Returns list of custom audiences with id, name, subtype, approximate_count.
+        Used for retargeting segment audience selection.
+        """
+        try:
+            result = await self._request(
+                "GET",
+                f"{self.ad_account_id}/customaudiences",
+                params={
+                    "fields": "id,name,subtype,approximate_count,delivery_status,operation_status",
+                    "limit": limit,
+                },
+            )
+            audiences = result.get("data", [])
+            # Filter to usable audiences (exclude deleted/error states)
+            return [
+                a for a in audiences
+                if a.get("operation_status", {}).get("status", 0) != 400  # not error
+            ]
+        except Exception as e:
+            logger.error(f"Failed to fetch custom audiences: {e}")
+            return []
+
+    # ──────────────────────────────────────────────
     # Discovery / Suggestions
     # ──────────────────────────────────────────────
 

@@ -521,10 +521,10 @@ async def publish_campaign(
                     seg_targeting.custom_audiences = (
                         seg['custom_audiences'] if isinstance(seg['custom_audiences'], list) else []
                     )
-                if seg.get('excluded_audiences'):
-                    seg_targeting.excluded_audiences = (
-                        seg['excluded_audiences'] if isinstance(seg['excluded_audiences'], list) else []
-                    )
+                # Frontend uses 'exclusion_audiences', backend schema uses 'excluded_audiences'
+                excl = seg.get('excluded_audiences') or seg.get('exclusion_audiences')
+                if excl and isinstance(excl, list):
+                    seg_targeting.excluded_audiences = excl
 
                 # Segment type determines targeting strategy
                 seg_type_raw = seg.get('type', seg.get('name', f'세그먼트 {len(adset_ids) + 1}'))
@@ -1129,6 +1129,28 @@ async def suggest_interests(
         suggestions = await meta_api.get_interest_suggestions(query)
         return suggestions
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/custom-audiences")
+async def get_custom_audiences(
+    current_user: User = Depends(get_current_user)
+):
+    """Meta 광고 계정의 커스텀 오디언스 목록 조회 (리타겟팅용)."""
+    creds = get_shared_meta_credentials()
+    access_token = creds.get("access_token") or getattr(current_user, "meta_access_token", None)
+    ad_account_id = creds.get("ad_account_id") or getattr(current_user, "meta_ad_account_id", None)
+
+    if not access_token or not ad_account_id:
+        raise HTTPException(status_code=400, detail="Meta 계정이 연결되지 않았습니다")
+
+    meta_api = MetaMarketingAPI(access_token, ad_account_id)
+
+    try:
+        audiences = await meta_api.get_custom_audiences()
+        return {"audiences": audiences}
+    except Exception as e:
+        logger.error(f"Custom audiences fetch failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

@@ -332,6 +332,11 @@ export const campaignApi = {
     });
     return data;
   },
+
+  getCustomAudiences: async () => {
+    const { data } = await api.get<{ audiences: Array<{ id: string; name: string; subtype?: string; approximate_count?: number }> }>('/campaign/custom-audiences');
+    return data;
+  },
 };
 
 // Analytics API (TAB 4)

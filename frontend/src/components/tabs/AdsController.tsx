@@ -435,6 +435,14 @@ export function AdsController() {
     queryFn: () => campaignApi.list(),
   });
 
+  // Meta 커스텀 오디언스 목록 (리타겟팅용)
+  const { data: customAudiencesData } = useQuery({
+    queryKey: ['custom-audiences'],
+    queryFn: () => campaignApi.getCustomAudiences(),
+    staleTime: 5 * 60 * 1000, // 5분 캐시
+  });
+  const metaCustomAudiences = customAudiencesData?.audiences || [];
+
   const strategyMutation = useMutation({
     mutationFn: () => campaignApi.getStrategy(Number(budget), selectedCreatives.length > 0 ? selectedCreatives.map((c) => c.id) : []),
     onSuccess: (data) => { setStrategy(data); toast.success('최적 전략 분석 완료'); },
@@ -1886,40 +1894,49 @@ export function AdsController() {
                         {(seg.type === 'RETARGET' || seg.type === 'CUSTOM') && (
                           <div className="space-y-2">
                             <div className="p-2 bg-orange-50 rounded">
-                              <p className="text-xs font-medium text-orange-700 mb-1">커스텀 오디언스</p>
-                              <div className="flex flex-wrap gap-1">
-                                {['웹사이트 방문자', '장바구니 이탈자', '구매자', '광고 참여자(클릭)', '동영상 시청자'].map((audience) => (
-                                  <label key={audience} className="inline-flex items-center gap-1 text-xs bg-white px-2 py-1 rounded border border-orange-100 cursor-pointer hover:border-orange-300">
-                                    <input type="checkbox"
-                                      checked={seg.custom_audiences?.includes(audience) || false}
-                                      onChange={(e) => {
-                                        const updated = [...segments];
-                                        const current = updated[i].custom_audiences || [];
-                                        updated[i] = { ...updated[i], custom_audiences: e.target.checked ? [...current, audience] : current.filter(a => a !== audience) };
-                                        setSegments(updated);
-                                      }} className="w-3 h-3" />
-                                    {audience}
-                                  </label>
-                                ))}
-                              </div>
+                              <p className="text-xs font-medium text-orange-700 mb-1">커스텀 오디언스 (타겟)</p>
+                              {metaCustomAudiences.length > 0 ? (
+                                <div className="flex flex-wrap gap-1">
+                                  {metaCustomAudiences.map((audience) => (
+                                    <label key={audience.id} className="inline-flex items-center gap-1 text-xs bg-white px-2 py-1 rounded border border-orange-100 cursor-pointer hover:border-orange-300" title={`ID: ${audience.id}${audience.approximate_count ? ` | ~${audience.approximate_count.toLocaleString()}명` : ''}`}>
+                                      <input type="checkbox"
+                                        checked={seg.custom_audiences?.includes(audience.id) || false}
+                                        onChange={(e) => {
+                                          const updated = [...segments];
+                                          const current = updated[i].custom_audiences || [];
+                                          updated[i] = { ...updated[i], custom_audiences: e.target.checked ? [...current, audience.id] : current.filter(a => a !== audience.id) };
+                                          setSegments(updated);
+                                        }} className="w-3 h-3" />
+                                      {audience.name}
+                                      {audience.approximate_count ? <span className="text-gray-400">({audience.approximate_count.toLocaleString()})</span> : null}
+                                    </label>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-xs text-gray-400">Meta 광고 계정에 커스텀 오디언스가 없거나 불러오는 중입니다.</p>
+                              )}
                             </div>
                             <div className="p-2 bg-red-50 rounded">
                               <p className="text-xs font-medium text-red-700 mb-1">제외 오디언스</p>
-                              <div className="flex flex-wrap gap-1">
-                                {['구매 완료자', '기존 고객'].map((audience) => (
-                                  <label key={audience} className="inline-flex items-center gap-1 text-xs bg-white px-2 py-1 rounded border border-red-100 cursor-pointer hover:border-red-300">
-                                    <input type="checkbox"
-                                      checked={seg.exclusion_audiences?.includes(audience) || false}
-                                      onChange={(e) => {
-                                        const updated = [...segments];
-                                        const current = updated[i].exclusion_audiences || [];
-                                        updated[i] = { ...updated[i], exclusion_audiences: e.target.checked ? [...current, audience] : current.filter(a => a !== audience) };
-                                        setSegments(updated);
-                                      }} className="w-3 h-3" />
-                                    {audience}
-                                  </label>
-                                ))}
-                              </div>
+                              {metaCustomAudiences.length > 0 ? (
+                                <div className="flex flex-wrap gap-1">
+                                  {metaCustomAudiences.map((audience) => (
+                                    <label key={audience.id} className="inline-flex items-center gap-1 text-xs bg-white px-2 py-1 rounded border border-red-100 cursor-pointer hover:border-red-300" title={`ID: ${audience.id}`}>
+                                      <input type="checkbox"
+                                        checked={seg.exclusion_audiences?.includes(audience.id) || false}
+                                        onChange={(e) => {
+                                          const updated = [...segments];
+                                          const current = updated[i].exclusion_audiences || [];
+                                          updated[i] = { ...updated[i], exclusion_audiences: e.target.checked ? [...current, audience.id] : current.filter(a => a !== audience.id) };
+                                          setSegments(updated);
+                                        }} className="w-3 h-3" />
+                                      {audience.name}
+                                    </label>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-xs text-gray-400">Meta 광고 계정에 커스텀 오디언스가 없거나 불러오는 중입니다.</p>
+                              )}
                             </div>
                           </div>
                         )}
