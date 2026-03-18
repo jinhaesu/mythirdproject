@@ -1134,17 +1134,16 @@ async def suggest_interests(
 
 @router.get("/custom-audiences")
 async def get_custom_audiences(
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """Meta 광고 계정의 커스텀 오디언스 목록 조회 (리타겟팅용)."""
-    creds = get_shared_meta_credentials()
-    access_token = creds.get("access_token") or getattr(current_user, "meta_access_token", None)
-    ad_account_id = creds.get("ad_account_id") or getattr(current_user, "meta_ad_account_id", None)
+    meta_user = current_user if current_user.meta_access_token else await get_shared_meta_credentials(db)
 
-    if not access_token or not ad_account_id:
+    if not meta_user or not meta_user.meta_access_token or not meta_user.meta_ad_account_id:
         raise HTTPException(status_code=400, detail="Meta 계정이 연결되지 않았습니다")
 
-    meta_api = MetaMarketingAPI(access_token, ad_account_id)
+    meta_api = MetaMarketingAPI(meta_user.meta_access_token, meta_user.meta_ad_account_id)
 
     try:
         audiences = await meta_api.get_custom_audiences()
