@@ -1904,7 +1904,7 @@ export function AdsController() {
                               ) : metaCustomAudiences.length > 0 ? (
                                 <div className="flex flex-wrap gap-1">
                                   {metaCustomAudiences.map((audience) => (
-                                    <label key={audience.id} className="inline-flex items-center gap-1 text-xs bg-white px-2 py-1 rounded border border-orange-100 cursor-pointer hover:border-orange-300" title={`ID: ${audience.id}${audience.approximate_count ? ` | ~${audience.approximate_count.toLocaleString()}명` : ''}`}>
+                                    <label key={audience.id} className="inline-flex items-center gap-1 text-xs bg-white px-2 py-1 rounded border border-orange-100 cursor-pointer hover:border-orange-300" title={`ID: ${audience.id}${audience.approximate_count_lower_bound ? ` | ~${audience.approximate_count_lower_bound.toLocaleString()}명` : ''}`}>
                                       <input type="checkbox"
                                         checked={seg.custom_audiences?.includes(audience.id) || false}
                                         onChange={(e) => {
@@ -1914,7 +1914,7 @@ export function AdsController() {
                                           setSegments(updated);
                                         }} className="w-3 h-3" />
                                       {audience.name}
-                                      {audience.approximate_count ? <span className="text-gray-400">({audience.approximate_count.toLocaleString()})</span> : null}
+                                      {audience.approximate_count_lower_bound ? <span className="text-gray-400">(~{audience.approximate_count_lower_bound.toLocaleString()})</span> : null}
                                     </label>
                                   ))}
                                 </div>

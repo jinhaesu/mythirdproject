@@ -688,7 +688,7 @@ class MetaMarketingAPI:
                 "GET",
                 f"{self.ad_account_id}/customaudiences",
                 params={
-                    "fields": "id,name,subtype,approximate_count",
+                    "fields": "id,name,subtype,approximate_count_lower_bound,approximate_count_upper_bound",
                     "limit": limit,
                 },
             )

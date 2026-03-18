@@ -346,7 +346,7 @@ export const campaignApi = {
   },
 
   getCustomAudiences: async () => {
-    const { data } = await api.get<{ audiences: Array<{ id: string; name: string; subtype?: string; approximate_count?: number }> }>('/campaign/custom-audiences');
+    const { data } = await api.get<{ audiences: Array<{ id: string; name: string; subtype?: string; approximate_count_lower_bound?: number; approximate_count_upper_bound?: number }>; error?: string }>('/campaign/custom-audiences');
     return data;
   },
 };
