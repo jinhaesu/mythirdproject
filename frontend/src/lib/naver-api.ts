@@ -367,6 +367,42 @@ export const naverKeywordResearchApi = {
     });
     return data;
   },
+
+  // ── 키워드 순위 모니터링 ──
+
+  checkRanks: async (keywordIds?: string[], brandName = '널담') => {
+    const { data } = await api.post('/market/keywords/rank-check', {
+      keyword_ids: keywordIds || null,
+      brand_name: brandName,
+    });
+    return data;
+  },
+
+  createRankSchedule: async (scheduleData: {
+    name?: string;
+    brand_name?: string;
+    schedule_type: string;
+    day_of_week?: number;
+    send_hour?: number;
+    email_to: string;
+  }) => {
+    const { data } = await api.post('/market/keywords/rank-schedule', scheduleData);
+    return data;
+  },
+
+  listRankSchedules: async () => {
+    const { data } = await api.get('/market/keywords/rank-schedules');
+    return data;
+  },
+
+  deleteRankSchedule: async (scheduleId: string) => {
+    await api.delete(`/market/keywords/rank-schedule/${scheduleId}`);
+  },
+
+  runRankScheduleNow: async (scheduleId: string) => {
+    const { data } = await api.post(`/market/keywords/rank-schedule/${scheduleId}/run-now`);
+    return data;
+  },
 };
 
 // Currency & number formatting utilities for Naver (KRW only)

@@ -1,14 +1,16 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Search, Loader2, TrendingUp, ShoppingBag, Star, AlertCircle, Sparkles, FileText,
-  BarChart3, Monitor, Smartphone,
+  BarChart3, Monitor, Smartphone, Target, Clock, Plus, Trash2, Play, RefreshCw,
 } from 'lucide-react';
 import api from '@/lib/api';
 import { naverKeywordResearchApi } from '@/lib/naver-api';
+import { marketApi } from '@/lib/api';
 import { clsx } from 'clsx';
+import toast from 'react-hot-toast';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -917,6 +919,226 @@ export function NaverKeywordResearch() {
             )}
           </div>
         </>
+      )}
+
+      {/* ═══ 키워드 순위 모니터링 ═══ */}
+      <KeywordRankMonitor brandName={BRAND_NAME} />
+    </div>
+  );
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// KeywordRankMonitor — 브랜드 키워드 순위 체크 + 스케줄 이메일 리포트
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function KeywordRankMonitor({ brandName }: { brandName: string }) {
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [rankResult, setRankResult] = useState<any>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [email, setEmail] = useState('');
+  const [schedType, setSchedType] = useState('daily');
+  const [schedHour, setSchedHour] = useState(9);
+  const [schedDow, setSchedDow] = useState(1);
+
+  const rankCheck = useMutation({
+    mutationFn: () => naverKeywordResearchApi.checkRanks(undefined, brandName),
+    onSuccess: (d: any) => { setRankResult(d); toast.success('순위 체크 완료!'); },
+    onError: (e: any) => toast.error(e?.response?.data?.detail || '순위 체크 실패'),
+  });
+
+  const { data: schedules = [], refetch: refetchSchedules } = useQuery<any[]>({
+    queryKey: ['naver-rank-schedules'],
+    queryFn: naverKeywordResearchApi.listRankSchedules,
+    enabled: open,
+  });
+
+  const createSched = useMutation({
+    mutationFn: () => naverKeywordResearchApi.createRankSchedule({
+      name: `${brandName} 순위 리포트`,
+      brand_name: brandName,
+      schedule_type: schedType,
+      day_of_week: schedType === 'weekly' ? schedDow : undefined,
+      send_hour: schedHour,
+      email_to: email,
+    }),
+    onSuccess: () => { refetchSchedules(); setShowForm(false); toast.success('스케줄 등록 완료'); },
+    onError: (e: any) => toast.error(e?.response?.data?.detail || '등록 실패'),
+  });
+
+  const deleteSched = useMutation({
+    mutationFn: (id: string) => naverKeywordResearchApi.deleteRankSchedule(id),
+    onSuccess: () => { refetchSchedules(); toast.success('삭제 완료'); },
+  });
+
+  const runNow = useMutation({
+    mutationFn: (id: string) => naverKeywordResearchApi.runRankScheduleNow(id),
+    onSuccess: (d: any) => { setRankResult(d); refetchSchedules(); toast.success('즉시 실행 완료!'); },
+    onError: (e: any) => toast.error(e?.response?.data?.detail || '실행 실패'),
+  });
+
+  return (
+    <div className="mt-8 rounded-xl border border-green-200 bg-white overflow-hidden">
+      {/* Header */}
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between px-5 py-4 hover:bg-green-50 transition-colors"
+      >
+        <span className="flex items-center gap-2 font-semibold text-green-900">
+          <Target size={18} /> 키워드 순위 모니터링
+        </span>
+        <span className={clsx('text-xs px-3 py-1 rounded-full font-medium', open ? 'bg-green-600 text-white' : 'bg-green-100 text-green-700')}>
+          {open ? '접기' : '펼치기'}
+        </span>
+      </button>
+
+      {open && (
+        <div className="px-5 pb-5 space-y-4 border-t border-green-100">
+          {/* 즉시 체크 */}
+          <div className="flex items-center gap-3 p-3 mt-4 bg-green-50 rounded-lg">
+            <div className="flex-1">
+              <p className="text-sm font-medium text-green-900">등록된 키워드에서 &quot;{brandName}&quot; 네이버 쇼핑/블로그 순위 체크</p>
+              <p className="text-xs text-green-600 mt-0.5">시장 분석 탭에서 등록한 키워드 기준으로 분석합니다</p>
+            </div>
+            <button
+              onClick={() => rankCheck.mutate()}
+              disabled={rankCheck.isPending}
+              className="flex items-center gap-1.5 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50"
+            >
+              {rankCheck.isPending ? <><RefreshCw size={14} className="animate-spin" /> 체크 중...</> : <><Search size={14} /> 순위 체크</>}
+            </button>
+          </div>
+
+          {/* 결과 테이블 */}
+          {rankResult?.rank_results && (
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold text-gray-800">
+                순위 결과 ({rankResult.keywords_checked || rankResult.rank_results.length}개 키워드)
+              </h3>
+              <div className="overflow-x-auto rounded-lg border">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="bg-gray-50 text-gray-600">
+                      <th className="px-4 py-2.5 text-left font-medium">키워드</th>
+                      <th className="px-4 py-2.5 text-left font-medium">네이버 쇼핑</th>
+                      <th className="px-4 py-2.5 text-left font-medium">네이버 블로그</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rankResult.rank_results.map((r: any, i: number) => (
+                      <tr key={i} className="border-t hover:bg-gray-50">
+                        <td className="px-4 py-2.5 font-medium text-gray-900">{r.keyword}</td>
+                        <td className="px-4 py-2.5">
+                          {r.shopping_ranks?.length > 0
+                            ? <span className={clsx('font-bold', r.shopping_ranks[0].rank <= 10 ? 'text-green-600' : r.shopping_ranks[0].rank <= 30 ? 'text-yellow-600' : 'text-red-600')}>{r.shopping_ranks[0].rank}위</span>
+                            : <span className="text-red-500 font-medium">미노출</span>}
+                          <span className="text-gray-400 ml-1.5">/ {r.shopping_total?.toLocaleString()}건</span>
+                        </td>
+                        <td className="px-4 py-2.5">
+                          {r.blog_ranks?.length > 0
+                            ? <span className={clsx('font-bold', r.blog_ranks[0].rank <= 10 ? 'text-green-600' : r.blog_ranks[0].rank <= 30 ? 'text-yellow-600' : 'text-red-600')}>{r.blog_ranks[0].rank}위</span>
+                            : <span className="text-red-500 font-medium">미노출</span>}
+                          <span className="text-gray-400 ml-1.5">/ {r.blog_total?.toLocaleString()}건</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* AI 분석 */}
+              {rankResult.ai_analysis && (
+                <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-200">
+                  <h4 className="text-sm font-semibold text-emerald-900 mb-2 flex items-center gap-1.5">
+                    <Sparkles size={14} /> AI 순위 분석 & 전략 제안
+                  </h4>
+                  <div className="text-xs text-gray-700 whitespace-pre-line leading-relaxed">{rankResult.ai_analysis}</div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 스케줄 */}
+          <div className="border-t border-green-100 pt-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-1.5">
+                <Clock size={14} /> 자동 순위 리포트 스케줄
+              </h3>
+              <button onClick={() => setShowForm(!showForm)} className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-green-700 bg-green-50 rounded-lg hover:bg-green-100 border border-green-200">
+                <Plus size={13} /> 스케줄 추가
+              </button>
+            </div>
+
+            {showForm && (
+              <div className="p-4 bg-gray-50 rounded-lg space-y-3 mb-3 border">
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">주기</label>
+                    <select value={schedType} onChange={(e) => setSchedType(e.target.value)} className="w-full px-2.5 py-1.5 border rounded-lg text-sm">
+                      <option value="daily">매일</option>
+                      <option value="weekly">매주</option>
+                    </select>
+                  </div>
+                  {schedType === 'weekly' && (
+                    <div>
+                      <label className="text-xs text-gray-500 mb-1 block">요일</label>
+                      <select value={schedDow} onChange={(e) => setSchedDow(Number(e.target.value))} className="w-full px-2.5 py-1.5 border rounded-lg text-sm">
+                        {['일','월','화','수','목','금','토'].map((d, i) => <option key={i} value={i}>{d}요일</option>)}
+                      </select>
+                    </div>
+                  )}
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">시간 (KST)</label>
+                    <select value={schedHour} onChange={(e) => setSchedHour(Number(e.target.value))} className="w-full px-2.5 py-1.5 border rounded-lg text-sm">
+                      {Array.from({ length: 24 }, (_, i) => <option key={i} value={i}>{String(i).padStart(2, '0')}:00</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">수신 이메일</label>
+                  <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+                    placeholder="report@example.com" className="w-full px-3 py-1.5 border rounded-lg text-sm" />
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => createSched.mutate()} disabled={!email || createSched.isPending}
+                    className="px-4 py-1.5 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50">
+                    {createSched.isPending ? '등록 중...' : '스케줄 등록'}
+                  </button>
+                  <button onClick={() => setShowForm(false)} className="px-4 py-1.5 text-sm text-gray-600 border rounded-lg hover:bg-gray-100">취소</button>
+                </div>
+              </div>
+            )}
+
+            {schedules.length > 0 ? (
+              <div className="space-y-2">
+                {schedules.map((s: any) => (
+                  <div key={s.id} className="flex items-center justify-between p-3 bg-white rounded-lg border text-xs">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium text-gray-900">{s.name}</span>
+                      <span className="text-gray-300">|</span>
+                      <span className="text-gray-600">
+                        {s.schedule_type === 'daily' ? '매일' : `매주 ${['일','월','화','수','목','금','토'][s.day_of_week || 0]}요일`}
+                        {' '}{String(s.send_hour).padStart(2, '0')}:{String(s.send_minute || 0).padStart(2, '0')}
+                      </span>
+                      <span className="text-gray-300">&rarr;</span>
+                      <span className="text-green-700">{s.email_to}</span>
+                      {s.next_run_at && <span className="text-gray-400">(다음: {new Date(s.next_run_at).toLocaleString('ko-KR')})</span>}
+                    </div>
+                    <div className="flex gap-1.5 ml-2">
+                      <button onClick={() => runNow.mutate(s.id)} disabled={runNow.isPending}
+                        className="p-1.5 bg-green-50 text-green-700 rounded hover:bg-green-100" title="즉시 실행"><Play size={13} /></button>
+                      <button onClick={() => deleteSched.mutate(s.id)}
+                        className="p-1.5 bg-red-50 text-red-700 rounded hover:bg-red-100" title="삭제"><Trash2 size={13} /></button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400 py-2">등록된 스케줄이 없습니다. 스케줄을 추가하면 정해진 시간에 순위 리포트가 이메일로 발송됩니다.</p>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Search, TrendingUp, Plus, Trash2, RefreshCw, BarChart3,
   ExternalLink, ArrowRight, Hash, MessageCircle, Sparkles,
-  Eye, Youtube, Instagram, Globe, X, Check, Clock, Mail, Play, Target,
+  Eye, Youtube, Instagram, Globe, X, Check,
 } from 'lucide-react';
 import { Button, Card, CardTitle, Input } from '@/components/ui';
 import { marketApi, benchmarkApi } from '@/lib/api';
@@ -326,55 +326,6 @@ export function MarketIntelligence() {
     },
   });
 
-  // ---- 키워드 순위 ----
-  const [showRankPanel, setShowRankPanel] = useState(false);
-  const [rankResult, setRankResult] = useState<any>(null);
-  const [showScheduleForm, setShowScheduleForm] = useState(false);
-  const [schedEmail, setSchedEmail] = useState('');
-  const [schedType, setSchedType] = useState('daily');
-  const [schedHour, setSchedHour] = useState(9);
-  const [schedDayOfWeek, setSchedDayOfWeek] = useState(1);
-
-  const rankCheckMutation = useMutation({
-    mutationFn: () => marketApi.checkKeywordRanks(undefined, '널담'),
-    onSuccess: (data: any) => { setRankResult(data); toast.success('순위 체크 완료!'); },
-    onError: (err: any) => toast.error(err?.response?.data?.detail || '순위 체크 실패'),
-  });
-
-  const { data: rankSchedules = [], refetch: refetchRankSchedules } = useQuery<any[]>({
-    queryKey: ['rank-schedules'],
-    queryFn: marketApi.listRankSchedules,
-    enabled: showRankPanel,
-  });
-
-  const createScheduleMutation = useMutation({
-    mutationFn: () => marketApi.createRankSchedule({
-      name: '키워드 순위 리포트',
-      brand_name: '널담',
-      schedule_type: schedType,
-      day_of_week: schedType === 'weekly' ? schedDayOfWeek : undefined,
-      send_hour: schedHour,
-      email_to: schedEmail,
-    }),
-    onSuccess: () => {
-      refetchRankSchedules();
-      setShowScheduleForm(false);
-      toast.success('순위 리포트 스케줄이 등록되었습니다.');
-    },
-    onError: (err: any) => toast.error(err?.response?.data?.detail || '스케줄 등록 실패'),
-  });
-
-  const deleteScheduleMutation = useMutation({
-    mutationFn: (id: string) => marketApi.deleteRankSchedule(id),
-    onSuccess: () => { refetchRankSchedules(); toast.success('스케줄이 삭제되었습니다.'); },
-  });
-
-  const runNowMutation = useMutation({
-    mutationFn: (id: string) => marketApi.runRankScheduleNow(id),
-    onSuccess: (data: any) => { setRankResult(data); refetchRankSchedules(); toast.success('즉시 실행 완료!'); },
-    onError: (err: any) => toast.error(err?.response?.data?.detail || '실행 실패'),
-  });
-
   // ---- Handlers ----
 
   const handleAddKeyword = useCallback(() => {
@@ -531,147 +482,6 @@ export function MarketIntelligence() {
             <Button onClick={handleCompare} loading={compareMutation.isPending}>
               <BarChart3 size={16} className="mr-1" /> {compareIds.length}개 키워드 비교 분석
             </Button>
-          </div>
-        )}
-      </Card>
-
-      {/* ===== 키워드 순위 모니터링 ===== */}
-      <Card variant="bordered">
-        <CardTitle className="flex items-center justify-between mb-4">
-          <span className="flex items-center gap-2"><Target size={20} /> 키워드 순위 모니터링</span>
-          <Button size="sm" variant={showRankPanel ? 'primary' : 'outline'} onClick={() => setShowRankPanel(!showRankPanel)}>
-            {showRankPanel ? '접기' : '펼치기'}
-          </Button>
-        </CardTitle>
-
-        {showRankPanel && (
-          <div className="space-y-4">
-            {/* 즉시 순위 체크 */}
-            <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
-              <div className="flex-1">
-                <p className="text-sm font-medium text-blue-900">등록된 키워드의 네이버 쇼핑/블로그 순위를 체크합니다</p>
-                <p className="text-xs text-blue-600 mt-0.5">브랜드명 &quot;널담&quot;이 포함된 결과의 순위를 분석합니다</p>
-              </div>
-              <Button size="sm" onClick={() => rankCheckMutation.mutate()} disabled={rankCheckMutation.isPending}>
-                {rankCheckMutation.isPending ? <><RefreshCw size={14} className="animate-spin mr-1" /> 체크 중...</> : <><Search size={14} className="mr-1" /> 순위 체크</>}
-              </Button>
-            </div>
-
-            {/* 순위 결과 */}
-            {rankResult && rankResult.rank_results && (
-              <div className="space-y-3">
-                <h3 className="text-sm font-semibold text-gray-800">순위 결과 ({rankResult.keywords_checked || rankResult.rank_results?.length}개 키워드)</h3>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead><tr className="bg-gray-50">
-                      <th className="px-3 py-2 text-left">키워드</th>
-                      <th className="px-3 py-2 text-left">네이버 쇼핑</th>
-                      <th className="px-3 py-2 text-left">네이버 블로그</th>
-                    </tr></thead>
-                    <tbody>
-                      {rankResult.rank_results.map((r: any, idx: number) => (
-                        <tr key={idx} className="border-t">
-                          <td className="px-3 py-2 font-medium">{r.keyword}</td>
-                          <td className="px-3 py-2">
-                            {r.shopping_ranks?.length > 0
-                              ? <span className={`font-bold ${r.shopping_ranks[0].rank <= 10 ? 'text-green-600' : r.shopping_ranks[0].rank <= 30 ? 'text-yellow-600' : 'text-red-600'}`}>{r.shopping_ranks[0].rank}위</span>
-                              : <span className="text-red-500">미노출</span>}
-                            <span className="text-gray-400 ml-1">/ {r.shopping_total?.toLocaleString()}건</span>
-                          </td>
-                          <td className="px-3 py-2">
-                            {r.blog_ranks?.length > 0
-                              ? <span className={`font-bold ${r.blog_ranks[0].rank <= 10 ? 'text-green-600' : r.blog_ranks[0].rank <= 30 ? 'text-yellow-600' : 'text-red-600'}`}>{r.blog_ranks[0].rank}위</span>
-                              : <span className="text-red-500">미노출</span>}
-                            <span className="text-gray-400 ml-1">/ {r.blog_total?.toLocaleString()}건</span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                {rankResult.ai_analysis && (
-                  <div className="p-3 bg-indigo-50 rounded-lg border border-indigo-100">
-                    <h4 className="text-sm font-semibold text-indigo-900 mb-2 flex items-center gap-1"><Sparkles size={14} /> AI 순위 분석</h4>
-                    <div className="text-xs text-gray-700 whitespace-pre-line leading-relaxed">{rankResult.ai_analysis}</div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* 스케줄 관리 */}
-            <div className="border-t pt-4">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-1"><Clock size={14} /> 자동 순위 리포트 스케줄</h3>
-                <Button size="sm" variant="outline" onClick={() => setShowScheduleForm(!showScheduleForm)}>
-                  <Plus size={14} className="mr-1" /> 스케줄 추가
-                </Button>
-              </div>
-              {showScheduleForm && (
-                <div className="p-3 bg-gray-50 rounded-lg space-y-3 mb-3">
-                  <div className="grid grid-cols-3 gap-2">
-                    <div>
-                      <label className="text-xs text-gray-500">주기</label>
-                      <select value={schedType} onChange={(e) => setSchedType(e.target.value)} className="w-full px-2 py-1.5 border rounded text-sm">
-                        <option value="daily">매일</option>
-                        <option value="weekly">매주</option>
-                      </select>
-                    </div>
-                    {schedType === 'weekly' && (
-                      <div>
-                        <label className="text-xs text-gray-500">요일</label>
-                        <select value={schedDayOfWeek} onChange={(e) => setSchedDayOfWeek(Number(e.target.value))} className="w-full px-2 py-1.5 border rounded text-sm">
-                          {['일','월','화','수','목','금','토'].map((d, i) => <option key={i} value={i}>{d}요일</option>)}
-                        </select>
-                      </div>
-                    )}
-                    <div>
-                      <label className="text-xs text-gray-500">시간 (KST)</label>
-                      <select value={schedHour} onChange={(e) => setSchedHour(Number(e.target.value))} className="w-full px-2 py-1.5 border rounded text-sm">
-                        {Array.from({ length: 24 }, (_, i) => <option key={i} value={i}>{String(i).padStart(2, '0')}:00</option>)}
-                      </select>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500">수신 이메일</label>
-                    <input type="email" value={schedEmail} onChange={(e) => setSchedEmail(e.target.value)}
-                      placeholder="report@example.com" className="w-full px-3 py-1.5 border rounded text-sm" />
-                  </div>
-                  <div className="flex gap-2">
-                    <Button size="sm" onClick={() => createScheduleMutation.mutate()} disabled={!schedEmail || createScheduleMutation.isPending}>
-                      {createScheduleMutation.isPending ? '등록 중...' : '스케줄 등록'}
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => setShowScheduleForm(false)}>취소</Button>
-                  </div>
-                </div>
-              )}
-              {rankSchedules.length > 0 ? (
-                <div className="space-y-2">
-                  {rankSchedules.map((s: any) => (
-                    <div key={s.id} className="flex items-center justify-between p-2.5 bg-white rounded border text-xs">
-                      <div>
-                        <span className="font-medium">{s.name}</span>
-                        <span className="text-gray-400 mx-2">|</span>
-                        <span className="text-gray-600">
-                          {s.schedule_type === 'daily' ? '매일' : s.schedule_type === 'weekly' ? `매주 ${['일','월','화','수','목','금','토'][s.day_of_week || 0]}요일` : '매월'}
-                          {' '}{String(s.send_hour).padStart(2, '0')}:{String(s.send_minute || 0).padStart(2, '0')}
-                        </span>
-                        <span className="text-gray-400 mx-2">&rarr;</span>
-                        <span className="text-blue-600">{s.email_to}</span>
-                        {s.next_run_at && <span className="text-gray-400 ml-2">(다음: {new Date(s.next_run_at).toLocaleString('ko-KR')})</span>}
-                      </div>
-                      <div className="flex gap-1">
-                        <button onClick={() => runNowMutation.mutate(s.id)} disabled={runNowMutation.isPending}
-                          className="px-2 py-1 bg-blue-50 text-blue-700 rounded hover:bg-blue-100" title="즉시 실행"><Play size={12} /></button>
-                        <button onClick={() => deleteScheduleMutation.mutate(s.id)}
-                          className="px-2 py-1 bg-red-50 text-red-700 rounded hover:bg-red-100" title="삭제"><Trash2 size={12} /></button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-gray-400">등록된 스케줄이 없습니다. 스케줄을 추가하면 정해진 시간에 순위 리포트가 이메일로 발송됩니다.</p>
-              )}
-            </div>
           </div>
         )}
       </Card>
