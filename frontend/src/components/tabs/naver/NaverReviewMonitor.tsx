@@ -27,6 +27,11 @@ const reviewApi = {
     const { data } = await api.post(`/naver/review-monitor/analyze?product_db_id=${productDbId}&star_threshold=${starThreshold}`);
     return data;
   },
+  // 스케줄
+  listSchedules: async () => { const { data } = await api.get('/naver/review-monitor/schedules'); return data as any[]; },
+  createSchedule: async (body: any) => { const { data } = await api.post('/naver/review-monitor/schedule', body); return data; },
+  deleteSchedule: async (id: string) => { await api.delete(`/naver/review-monitor/schedule/${id}`); },
+  runScheduleNow: async (id: string) => { const { data } = await api.post(`/naver/review-monitor/schedule/${id}/run-now`); return data; },
 };
 
 // ── 별점 렌더링 ──
@@ -348,6 +353,137 @@ export function NaverReviewMonitor() {
             </div>
           )}
         </div>
+      )}
+
+      {/* 정기 리포트 스케줄 */}
+      <ReviewSchedulePanel />
+    </div>
+  );
+}
+
+
+// ── 리뷰 리포트 스케줄 ──
+function ReviewSchedulePanel() {
+  const queryClient = useQueryClient();
+  const [showForm, setShowForm] = useState(false);
+  const [days, setDays] = useState<number[]>([1, 2, 3, 4, 5]);
+  const [hour, setHour] = useState(9);
+  const [minute, setMinute] = useState(0);
+  const [email, setEmail] = useState('');
+  const [threshold, setThreshold] = useState(3);
+
+  const toggleDay = (d: number) => setDays(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d].sort());
+
+  const { data: schedules = [] } = useQuery({ queryKey: ['review-schedules'], queryFn: reviewApi.listSchedules });
+
+  const create = useMutation({
+    mutationFn: () => reviewApi.createSchedule({ name: '리뷰 리포트', star_threshold: threshold, days_of_week: days, send_hour: hour, send_minute: minute, email_to: email }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['review-schedules'] }); setShowForm(false); toast.success('스케줄 등록 완료'); },
+    onError: (e: any) => toast.error(e?.response?.data?.detail || '등록 실패'),
+  });
+
+  const del = useMutation({
+    mutationFn: (id: string) => reviewApi.deleteSchedule(id),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['review-schedules'] }); toast.success('삭제 완료'); },
+  });
+
+  const runNow = useMutation({
+    mutationFn: (id: string) => reviewApi.runScheduleNow(id),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['review-schedules'] }); toast.success('리포트 발송 완료!'); },
+    onError: (e: any) => toast.error(e?.response?.data?.detail || '실행 실패'),
+  });
+
+  const DOW = ['월','화','수','목','금','토','일'];
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-5">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-sm font-semibold text-gray-800 flex items-center gap-1.5">
+          <BarChart3 size={15} /> 정기 리뷰 리포트 (이메일)
+        </h2>
+        <button onClick={() => setShowForm(!showForm)} className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-green-700 bg-green-50 rounded-lg hover:bg-green-100 border border-green-200">
+          <Plus size={13} /> 스케줄 추가
+        </button>
+      </div>
+
+      {showForm && (
+        <div className="p-4 bg-gray-50 rounded-lg border space-y-4 mb-4">
+          <div>
+            <label className="text-xs text-gray-500 mb-2 block">발송 요일</label>
+            <div className="flex gap-1.5">
+              {DOW.map((label, idx) => {
+                const val = idx < 5 ? idx + 1 : idx === 5 ? 6 : 0;
+                return (
+                  <button key={idx} onClick={() => toggleDay(val)}
+                    className={clsx('w-10 h-10 rounded-lg text-sm font-medium transition-all',
+                      days.includes(val) ? 'bg-green-600 text-white shadow-sm' : 'bg-white text-gray-500 border hover:border-green-300')}>
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div className="flex items-center gap-4">
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">시간 (KST)</label>
+              <div className="flex items-center gap-1">
+                <select value={hour} onChange={(e) => setHour(Number(e.target.value))} className="px-2 py-1.5 border rounded-lg text-sm w-20">
+                  {Array.from({ length: 24 }, (_, i) => <option key={i} value={i}>{String(i).padStart(2, '0')}시</option>)}
+                </select>
+                <span className="text-gray-400 font-bold">:</span>
+                <select value={minute} onChange={(e) => setMinute(Number(e.target.value))} className="px-2 py-1.5 border rounded-lg text-sm w-20">
+                  {Array.from({ length: 60 }, (_, i) => <option key={i} value={i}>{String(i).padStart(2, '0')}분</option>)}
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">별점 기준</label>
+              <select value={threshold} onChange={(e) => setThreshold(Number(e.target.value))} className="px-2 py-1.5 border rounded-lg text-sm">
+                {[1, 2, 3, 4].map(n => <option key={n} value={n}>{n}점 이하</option>)}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">수신 이메일</label>
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="report@example.com" className="w-full px-3 py-1.5 border rounded-lg text-sm" />
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => create.mutate()} disabled={!email || days.length === 0 || create.isPending}
+              className="px-4 py-1.5 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50">
+              {create.isPending ? '등록 중...' : '스케줄 등록'}
+            </button>
+            <button onClick={() => setShowForm(false)} className="px-4 py-1.5 text-sm text-gray-600 border rounded-lg hover:bg-gray-100">취소</button>
+          </div>
+        </div>
+      )}
+
+      {schedules.length > 0 ? (
+        <div className="space-y-2">
+          {schedules.map((s: any) => (
+            <div key={s.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border text-xs">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-medium text-gray-900">{s.name}</span>
+                <span className="text-gray-300">|</span>
+                <span className="text-gray-600">
+                  {(s.days_of_week || []).map((d: number) => ['일','월','화','수','목','금','토'][d]).join('·')}
+                  {' '}{String(s.send_hour ?? 9).padStart(2, '0')}:{String(s.send_minute ?? 0).padStart(2, '0')}
+                </span>
+                <span className="text-gray-300">&rarr;</span>
+                <span className="text-green-700">{s.email_to}</span>
+                <span className="px-1.5 py-0.5 bg-red-100 text-red-700 rounded text-[10px]">{s.star_threshold}점↓</span>
+              </div>
+              <div className="flex gap-1.5 ml-2">
+                <button onClick={() => runNow.mutate(s.id)} disabled={runNow.isPending}
+                  className="p-1.5 bg-green-50 text-green-700 rounded hover:bg-green-100" title="즉시 실행">
+                  {runNow.isPending ? <Loader2 size={13} className="animate-spin" /> : <Star size={13} />}
+                </button>
+                <button onClick={() => del.mutate(s.id)} className="p-1.5 bg-red-50 text-red-700 rounded hover:bg-red-100" title="삭제"><Trash2 size={13} /></button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-xs text-gray-400 py-2">등록된 스케줄이 없습니다. 스케줄을 추가하면 등록된 모든 제품의 리뷰 리포트가 이메일로 발송됩니다.</p>
       )}
     </div>
   );

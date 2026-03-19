@@ -2505,3 +2505,172 @@ async def analyze_product_reviews(
         "stats": stats,
         "ai_analysis": ai_text,
     }
+
+
+# ── 리뷰 리포트 스케줄 ──
+
+from app.models.review_monitor import ReviewReportSchedule
+from app.services.review_service import build_review_report_html
+from app.services.scheduled_report_executor import calc_next_run
+
+
+class ReviewScheduleCreate(BaseModel):
+    name: str = "리뷰 리포트"
+    star_threshold: int = 3
+    days_of_week: List[int] = [1, 2, 3, 4, 5]
+    send_hour: int = 9
+    send_minute: int = 0
+    email_to: str
+
+
+@router.post("/review-monitor/schedule")
+async def create_review_schedule(
+    body: ReviewScheduleCreate,
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """리뷰 리포트 발송 스케줄을 생성한다."""
+    import json as _json
+    sched = ReviewReportSchedule(
+        id=str(uuid.uuid4()),
+        user_id=str(current_user.id),
+        name=body.name,
+        star_threshold=body.star_threshold,
+        days_of_week=_json.dumps(body.days_of_week),
+        send_hour=body.send_hour,
+        send_minute=body.send_minute,
+        email_to=body.email_to,
+    )
+    sched.next_run_at = calc_next_run(sched, datetime.utcnow())
+    db.add(sched)
+    await db.commit()
+    await db.refresh(sched)
+    return {
+        "id": sched.id, "name": sched.name,
+        "days_of_week": body.days_of_week,
+        "send_hour": sched.send_hour, "send_minute": sched.send_minute,
+        "email_to": sched.email_to,
+        "next_run_at": sched.next_run_at.isoformat() if sched.next_run_at else None,
+    }
+
+
+@router.get("/review-monitor/schedules")
+async def list_review_schedules(
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """리뷰 리포트 스케줄 목록."""
+    import json as _json
+    from sqlalchemy import select as sa_select
+    result = await db.execute(
+        sa_select(ReviewReportSchedule)
+        .where(ReviewReportSchedule.user_id == str(current_user.id))
+        .order_by(ReviewReportSchedule.created_at.desc())
+    )
+    return [
+        {
+            "id": s.id, "name": s.name,
+            "star_threshold": s.star_threshold,
+            "days_of_week": _json.loads(s.days_of_week) if s.days_of_week else [],
+            "send_hour": s.send_hour, "send_minute": s.send_minute,
+            "email_to": s.email_to, "enabled": s.enabled,
+            "last_run_at": s.last_run_at.isoformat() if s.last_run_at else None,
+            "next_run_at": s.next_run_at.isoformat() if s.next_run_at else None,
+        }
+        for s in result.scalars().all()
+    ]
+
+
+@router.delete("/review-monitor/schedule/{schedule_id}")
+async def delete_review_schedule(
+    schedule_id: str,
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """리뷰 리포트 스케줄 삭제."""
+    from sqlalchemy import select as sa_select, delete as sa_delete
+    result = await db.execute(
+        sa_select(ReviewReportSchedule).where(
+            ReviewReportSchedule.id == schedule_id,
+            ReviewReportSchedule.user_id == str(current_user.id),
+        )
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="스케줄을 찾을 수 없습니다.")
+    await db.execute(sa_delete(ReviewReportSchedule).where(ReviewReportSchedule.id == schedule_id))
+    await db.commit()
+    return {"success": True}
+
+
+@router.post("/review-monitor/schedule/{schedule_id}/run-now")
+async def run_review_schedule_now(
+    schedule_id: str,
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """리뷰 리포트를 즉시 실행한다 (모든 등록 제품 분석 + 이메일)."""
+    import json as _json
+    import resend
+    from app.core.config import get_settings
+    from sqlalchemy import select as sa_select
+    settings = get_settings()
+
+    result = await db.execute(
+        sa_select(ReviewReportSchedule).where(
+            ReviewReportSchedule.id == schedule_id,
+            ReviewReportSchedule.user_id == str(current_user.id),
+        )
+    )
+    sched = result.scalar_one_or_none()
+    if not sched:
+        raise HTTPException(status_code=404, detail="스케줄을 찾을 수 없습니다.")
+
+    # 모든 등록 제품 분석
+    products_result = await db.execute(
+        sa_select(MonitoredProduct).where(MonitoredProduct.user_id == current_user.id)
+    )
+    products = products_result.scalars().all()
+    if not products:
+        return {"status": "skip", "reason": "등록된 제품이 없습니다."}
+
+    products_data = []
+    for p in products:
+        review_data = await fetch_naver_product_reviews(p.product_url)
+        if review_data.get("reviews"):
+            stats = analyze_reviews(review_data["reviews"], sched.star_threshold or 3)
+            ai_text = await ai_review_analysis(p.product_name, stats, stats.get("low_reviews_sample", []))
+        else:
+            stats = {"total_reviews": 0, "average_rating": 0, "star_distribution": {}, "star_threshold": sched.star_threshold or 3,
+                     "low_star_count_7d": 0, "low_star_count_14d": 0, "low_star_count_30d": 0, "low_star_total": 0}
+            ai_text = f"리뷰를 가져올 수 없습니다: {review_data.get('error', 'URL 확인 필요')}"
+        products_data.append({"product_name": p.product_name, "stats": stats, "ai_analysis": ai_text})
+
+    # 이메일 발송
+    from datetime import timezone, timedelta as td
+    kst = timezone(td(hours=9))
+    check_time = datetime.now(kst).strftime("%Y-%m-%d %H:%M KST")
+
+    email_sent = False
+    if sched.email_to and settings.RESEND_API_KEY:
+        try:
+            html = build_review_report_html(products_data, check_time)
+            resend.api_key = settings.RESEND_API_KEY
+            resend.Emails.send({
+                "from": settings.RESEND_FROM_EMAIL,
+                "to": [sched.email_to],
+                "subject": f"[리뷰 모니터링] 리포트 - {check_time}",
+                "html": html,
+            })
+            email_sent = True
+        except Exception as e:
+            logger.error(f"[ReviewSchedule] Email failed: {e}")
+
+    sched.last_run_at = datetime.utcnow()
+    await db.commit()
+
+    return {
+        "status": "success",
+        "products_analyzed": len(products_data),
+        "email_sent": email_sent,
+        "products_data": products_data,
+    }

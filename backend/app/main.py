@@ -100,6 +100,52 @@ async def _run_scheduled_reports():
                             await db.commit()
                         except Exception:
                             await db.rollback()
+
+                # ── 3. 리뷰 리포트 스케줄 ──
+                from app.models.review_monitor import ReviewReportSchedule, MonitoredProduct
+                from app.services.review_service import fetch_naver_product_reviews, analyze_reviews, ai_review_analysis, build_review_report_html
+                rr_result = await db.execute(
+                    select(ReviewReportSchedule).where(
+                        ReviewReportSchedule.enabled == True,  # noqa: E712
+                        ReviewReportSchedule.next_run_at <= now,
+                    )
+                )
+                due_rr = rr_result.scalars().all()
+                for rr_sched in due_rr:
+                    try:
+                        logger.info("Running review report: %s", rr_sched.name)
+                        user_id = int(rr_sched.user_id)
+                        prods = (await db.execute(select(MonitoredProduct).where(MonitoredProduct.user_id == user_id))).scalars().all()
+                        products_data = []
+                        for p in prods:
+                            rd = await fetch_naver_product_reviews(p.product_url)
+                            if rd.get("reviews"):
+                                st = analyze_reviews(rd["reviews"], rr_sched.star_threshold or 3)
+                                ai = await ai_review_analysis(p.product_name, st, st.get("low_reviews_sample", []))
+                            else:
+                                st = {"total_reviews": 0, "average_rating": 0, "star_distribution": {}, "star_threshold": 3,
+                                      "low_star_count_7d": 0, "low_star_count_14d": 0, "low_star_count_30d": 0, "low_star_total": 0}
+                                ai = "리뷰를 가져올 수 없습니다."
+                            products_data.append({"product_name": p.product_name, "stats": st, "ai_analysis": ai})
+                        if products_data and rr_sched.email_to:
+                            from app.core.config import get_settings as _gs
+                            _settings = _gs()
+                            if _settings.RESEND_API_KEY:
+                                import resend as _resend
+                                ct = (now + timedelta(hours=9)).strftime("%Y-%m-%d %H:%M KST")
+                                _resend.api_key = _settings.RESEND_API_KEY
+                                _resend.Emails.send({"from": _settings.RESEND_FROM_EMAIL, "to": [rr_sched.email_to],
+                                    "subject": f"[리뷰 모니터링] 리포트 - {ct}", "html": build_review_report_html(products_data, ct)})
+                        rr_sched.last_run_at = now
+                        rr_sched.next_run_at = calc_next_run(rr_sched, now)
+                        await db.commit()
+                    except Exception as e:
+                        logger.error("Review report %s failed: %s", rr_sched.id, e, exc_info=True)
+                        try:
+                            rr_sched.next_run_at = calc_next_run(rr_sched, now)
+                            await db.commit()
+                        except Exception:
+                            await db.rollback()
         except Exception as e:
             _scheduler_status = f"error: {e}"
             _scheduler_last_error = {"error": str(e), "time": datetime.utcnow().isoformat()}
