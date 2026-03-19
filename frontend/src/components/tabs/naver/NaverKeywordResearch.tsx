@@ -6,9 +6,8 @@ import {
   Search, Loader2, TrendingUp, ShoppingBag, Star, AlertCircle, Sparkles, FileText,
   BarChart3, Monitor, Smartphone, Target, Clock, Plus, Trash2, Play, RefreshCw,
 } from 'lucide-react';
-import api from '@/lib/api';
+import api, { marketApi } from '@/lib/api';
 import { naverKeywordResearchApi } from '@/lib/naver-api';
-import { marketApi } from '@/lib/api';
 import { clsx } from 'clsx';
 import toast from 'react-hot-toast';
 
@@ -398,6 +397,7 @@ export function NaverKeywordResearch() {
   const [period, setPeriod] = useState<Period>('1y');
   const [timeUnit, setTimeUnit] = useState<TimeUnit>('month');
   const inputRef = useRef<HTMLInputElement>(null);
+  const queryClient = useQueryClient();
 
   // AI analysis state
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
@@ -417,6 +417,23 @@ export function NaverKeywordResearch() {
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') handleSearch();
   };
+
+  // ── 키워드 등록/관리 (DB 저장) ──
+  const { data: registeredKeywords = [], isLoading: kwLoading } = useQuery<any[]>({
+    queryKey: ['market-keywords'],
+    queryFn: marketApi.listKeywords,
+  });
+
+  const registerKeyword = useMutation({
+    mutationFn: (kw: string) => marketApi.registerKeyword(kw),
+    onSuccess: (d: any) => { queryClient.invalidateQueries({ queryKey: ['market-keywords'] }); toast.success(`"${d.keyword}" 등록 완료`); },
+    onError: (e: any) => toast.error(e?.response?.data?.detail || '등록 실패'),
+  });
+
+  const removeKeyword = useMutation({
+    mutationFn: (id: string) => marketApi.removeKeyword(id),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['market-keywords'] }); toast.success('키워드 삭제'); },
+  });
 
   const handleAiAnalysis = async () => {
     if (!searchedKeyword || shoppingItems.length === 0) return;
@@ -605,7 +622,28 @@ export function NaverKeywordResearch() {
             )}
             검색
           </button>
+          <button
+            onClick={() => { const kw = inputValue.trim(); if (kw) registerKeyword.mutate(kw); }}
+            disabled={!inputValue.trim() || registerKeyword.isPending}
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-white text-green-700 border border-green-300 rounded-lg text-sm font-medium hover:bg-green-50 disabled:opacity-50 transition-colors"
+            title="순위 모니터링용 키워드 등록"
+          >
+            <Plus size={15} /> 등록
+          </button>
         </div>
+
+        {/* 등록된 키워드 목록 */}
+        {registeredKeywords.length > 0 && (
+          <div className="mt-3 flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-gray-500">등록 키워드:</span>
+            {registeredKeywords.map((kw: any) => (
+              <span key={kw.id} className="inline-flex items-center gap-1 px-2.5 py-1 bg-green-50 text-green-800 rounded-full text-xs border border-green-200">
+                <button onClick={() => { setInputValue(kw.keyword); setSearchedKeyword(kw.keyword); }} className="hover:underline">{kw.keyword}</button>
+                <button onClick={() => removeKeyword.mutate(kw.id)} className="text-green-400 hover:text-red-500 ml-0.5"><Trash2 size={11} /></button>
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Empty state */}
@@ -922,7 +960,7 @@ export function NaverKeywordResearch() {
       )}
 
       {/* ═══ 키워드 순위 모니터링 ═══ */}
-      <KeywordRankMonitor brandName={BRAND_NAME} />
+      <KeywordRankMonitor brandName={BRAND_NAME} registeredKeywords={registeredKeywords} />
     </div>
   );
 }
@@ -932,7 +970,7 @@ export function NaverKeywordResearch() {
 // KeywordRankMonitor — 브랜드 키워드 순위 체크 + 스케줄 이메일 리포트
 // ═══════════════════════════════════════════════════════════════════════════════
 
-function KeywordRankMonitor({ brandName }: { brandName: string }) {
+function KeywordRankMonitor({ brandName, registeredKeywords = [] }: { brandName: string; registeredKeywords: any[] }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [rankResult, setRankResult] = useState<any>(null);
@@ -998,17 +1036,20 @@ function KeywordRankMonitor({ brandName }: { brandName: string }) {
           {/* 즉시 체크 */}
           <div className="flex items-center gap-3 p-3 mt-4 bg-green-50 rounded-lg">
             <div className="flex-1">
-              <p className="text-sm font-medium text-green-900">등록된 키워드에서 &quot;{brandName}&quot; 네이버 쇼핑/블로그 순위 체크</p>
-              <p className="text-xs text-green-600 mt-0.5">시장 분석 탭에서 등록한 키워드 기준으로 분석합니다</p>
+              <p className="text-sm font-medium text-green-900">등록된 {registeredKeywords.length}개 키워드의 &quot;{brandName}&quot; 네이버 쇼핑/블로그 순위 체크</p>
+              <p className="text-xs text-green-600 mt-0.5">위 검색바에서 키워드를 등록한 후 순위를 체크하세요</p>
             </div>
             <button
               onClick={() => rankCheck.mutate()}
-              disabled={rankCheck.isPending}
+              disabled={rankCheck.isPending || registeredKeywords.length === 0}
               className="flex items-center gap-1.5 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50"
             >
               {rankCheck.isPending ? <><RefreshCw size={14} className="animate-spin" /> 체크 중...</> : <><Search size={14} /> 순위 체크</>}
             </button>
           </div>
+          {registeredKeywords.length === 0 && (
+            <p className="text-xs text-amber-600 bg-amber-50 p-2 rounded-lg">키워드가 등록되지 않았습니다. 위 검색바에서 키워드를 입력하고 [+ 등록] 버튼을 눌러주세요.</p>
+          )}
 
           {/* 결과 테이블 */}
           {rankResult?.rank_results && (
