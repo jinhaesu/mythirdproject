@@ -650,6 +650,45 @@ export const marketApi = {
     const { data } = await api.post('/market/keywords/compare', { keyword_ids: keywordIds });
     return data;
   },
+
+  // 키워드 순위 체크
+  checkKeywordRanks: async (keywordIds?: string[], brandName = '널담') => {
+    const { data } = await api.post('/market/keywords/rank-check', {
+      keyword_ids: keywordIds || null,
+      brand_name: brandName,
+    });
+    return data;
+  },
+
+  // 순위 스케줄 CRUD
+  createRankSchedule: async (scheduleData: {
+    name?: string;
+    brand_name?: string;
+    keyword_filter?: string;
+    schedule_type: string;
+    day_of_week?: number;
+    day_of_month?: number;
+    send_hour?: number;
+    send_minute?: number;
+    email_to: string;
+  }) => {
+    const { data } = await api.post('/market/keywords/rank-schedule', scheduleData);
+    return data;
+  },
+
+  listRankSchedules: async () => {
+    const { data } = await api.get('/market/keywords/rank-schedules');
+    return data;
+  },
+
+  deleteRankSchedule: async (scheduleId: string) => {
+    await api.delete(`/market/keywords/rank-schedule/${scheduleId}`);
+  },
+
+  runRankScheduleNow: async (scheduleId: string) => {
+    const { data } = await api.post(`/market/keywords/rank-schedule/${scheduleId}/run-now`);
+    return data;
+  },
 };
 
 // AI Chat API

@@ -7,6 +7,7 @@ from app.models.ad_platform import PlatformConnection, RevenueData, Report, AIIn
 from app.models.auto_rule import AutoRule, AutoRuleLog
 from app.models.scheduled_report import ScheduledReport
 from app.models.market_keyword import MarketKeyword
+from app.models.keyword_rank_schedule import KeywordRankSchedule
 
 __all__ = [
     "User",
@@ -30,4 +31,5 @@ __all__ = [
     "AutoRuleLog",
     "ScheduledReport",
     "MarketKeyword",
+    "KeywordRankSchedule",
 ]

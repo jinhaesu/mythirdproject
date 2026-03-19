@@ -13,9 +13,12 @@ from sqlalchemy import select, delete
 from app.db.database import get_db
 from app.models.user import User
 from app.models.market_keyword import MarketKeyword
+from app.models.keyword_rank_schedule import KeywordRankSchedule
 from app.api.v1.endpoints.auth import get_current_user
 from app.services.ai import ClaudeService
 from app.services.market_data import MarketDataService
+from app.services.keyword_rank_service import check_keyword_ranks, analyze_ranks_with_ai, build_rank_report_html, execute_keyword_rank_check
+from app.services.scheduled_report_executor import calc_next_run
 
 logger = logging.getLogger(__name__)
 
@@ -442,3 +445,188 @@ async def compare_keywords(
             comparison_summary = "비교 요약을 생성하는 데 실패했습니다."
 
     return CompareResponse(keywords=serialized, comparison_summary=comparison_summary)
+
+
+# ──────────────────────────────────────────────
+# Keyword Rank Check & Scheduling
+# ──────────────────────────────────────────────
+
+class RankCheckRequest(BaseModel):
+    keyword_ids: Optional[List[str]] = None  # 특정 키워드만 (없으면 전체)
+    brand_name: str = Field(default="널담")
+
+
+class RankScheduleCreate(BaseModel):
+    name: str = Field(default="키워드 순위 리포트")
+    brand_name: str = Field(default="널담")
+    keyword_filter: Optional[str] = None
+    schedule_type: str = Field(default="daily")  # daily, weekly, monthly
+    day_of_week: Optional[int] = None  # 0=일, 1=월, ..., 6=토
+    day_of_month: Optional[int] = None  # 1-28
+    send_hour: int = Field(default=9, ge=0, le=23)
+    send_minute: int = Field(default=0, ge=0, le=59)
+    email_to: str
+
+
+@router.post("/keywords/rank-check")
+async def check_keyword_rank(
+    body: RankCheckRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """등록된 키워드의 네이버 검색 순위를 체크하고 AI 분석을 반환한다."""
+    # 키워드 조회
+    if body.keyword_ids:
+        result = await db.execute(
+            select(MarketKeyword).where(
+                MarketKeyword.id.in_(body.keyword_ids),
+                MarketKeyword.user_id == current_user.id,
+            )
+        )
+    else:
+        result = await db.execute(
+            select(MarketKeyword).where(MarketKeyword.user_id == current_user.id)
+        )
+    keywords = result.scalars().all()
+
+    if not keywords:
+        raise HTTPException(status_code=404, detail="등록된 키워드가 없습니다.")
+
+    # 브랜드 관련 키워드 필터 (없으면 전체)
+    target_keywords = [kw.keyword for kw in keywords if body.brand_name in kw.keyword]
+    if not target_keywords:
+        target_keywords = [kw.keyword for kw in keywords]
+
+    # 순위 체크
+    rank_results = await check_keyword_ranks(target_keywords, body.brand_name)
+
+    # AI 분석
+    ai_analysis = await analyze_ranks_with_ai(rank_results, body.brand_name)
+
+    return {
+        "rank_results": rank_results,
+        "ai_analysis": ai_analysis,
+        "keywords_checked": len(target_keywords),
+    }
+
+
+@router.post("/keywords/rank-schedule")
+async def create_rank_schedule(
+    body: RankScheduleCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """키워드 순위 체크 스케줄을 생성한다."""
+    sched = KeywordRankSchedule(
+        id=str(uuid4()),
+        user_id=str(current_user.id),
+        name=body.name,
+        brand_name=body.brand_name,
+        keyword_filter=body.keyword_filter,
+        schedule_type=body.schedule_type,
+        day_of_week=body.day_of_week,
+        day_of_month=body.day_of_month,
+        send_hour=body.send_hour,
+        send_minute=body.send_minute,
+        email_to=body.email_to,
+        enabled=True,
+    )
+    sched.next_run_at = calc_next_run(sched, datetime.utcnow())
+
+    db.add(sched)
+    await db.commit()
+    await db.refresh(sched)
+
+    return {
+        "id": sched.id,
+        "name": sched.name,
+        "brand_name": sched.brand_name,
+        "schedule_type": sched.schedule_type,
+        "send_hour": sched.send_hour,
+        "send_minute": sched.send_minute,
+        "email_to": sched.email_to,
+        "next_run_at": sched.next_run_at.isoformat() if sched.next_run_at else None,
+        "enabled": sched.enabled,
+    }
+
+
+@router.get("/keywords/rank-schedules")
+async def list_rank_schedules(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """키워드 순위 체크 스케줄 목록을 조회한다."""
+    result = await db.execute(
+        select(KeywordRankSchedule)
+        .where(KeywordRankSchedule.user_id == str(current_user.id))
+        .order_by(KeywordRankSchedule.created_at.desc())
+    )
+    schedules = result.scalars().all()
+
+    return [
+        {
+            "id": s.id,
+            "name": s.name,
+            "brand_name": s.brand_name,
+            "keyword_filter": s.keyword_filter,
+            "schedule_type": s.schedule_type,
+            "day_of_week": s.day_of_week,
+            "day_of_month": s.day_of_month,
+            "send_hour": s.send_hour,
+            "send_minute": s.send_minute,
+            "email_to": s.email_to,
+            "enabled": s.enabled,
+            "last_run_at": s.last_run_at.isoformat() if s.last_run_at else None,
+            "next_run_at": s.next_run_at.isoformat() if s.next_run_at else None,
+            "last_result": json.loads(s.last_result) if s.last_result else None,
+        }
+        for s in schedules
+    ]
+
+
+@router.delete("/keywords/rank-schedule/{schedule_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_rank_schedule(
+    schedule_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """키워드 순위 스케줄을 삭제한다."""
+    result = await db.execute(
+        select(KeywordRankSchedule).where(
+            KeywordRankSchedule.id == schedule_id,
+            KeywordRankSchedule.user_id == str(current_user.id),
+        )
+    )
+    sched = result.scalar_one_or_none()
+    if not sched:
+        raise HTTPException(status_code=404, detail="스케줄을 찾을 수 없습니다.")
+
+    await db.execute(
+        delete(KeywordRankSchedule).where(KeywordRankSchedule.id == schedule_id)
+    )
+    await db.commit()
+
+
+@router.post("/keywords/rank-schedule/{schedule_id}/run-now")
+async def run_rank_schedule_now(
+    schedule_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """키워드 순위 스케줄을 즉시 실행한다."""
+    result = await db.execute(
+        select(KeywordRankSchedule).where(
+            KeywordRankSchedule.id == schedule_id,
+            KeywordRankSchedule.user_id == str(current_user.id),
+        )
+    )
+    sched = result.scalar_one_or_none()
+    if not sched:
+        raise HTTPException(status_code=404, detail="스케줄을 찾을 수 없습니다.")
+
+    run_result = await execute_keyword_rank_check(sched, db)
+    sched.last_run_at = datetime.utcnow()
+    sched.last_result = json.dumps(run_result, ensure_ascii=False, default=str)
+    await db.commit()
+
+    return run_result

@@ -26,11 +26,14 @@ _scheduler_last_result = None
 
 
 async def _run_scheduled_reports():
-    """Background task: check and execute due scheduled reports every 60s."""
+    """Background task: check and execute due scheduled reports + keyword rank checks every 60s."""
     from app.db.database import AsyncSessionLocal as async_session_factory
     from app.models.scheduled_report import ScheduledReport
+    from app.models.keyword_rank_schedule import KeywordRankSchedule
     from app.services.scheduled_report_executor import execute_scheduled_report, calc_next_run
+    from app.services.keyword_rank_service import execute_keyword_rank_check
     from sqlalchemy import select
+    import json as _json
 
     global _scheduler_last_check, _scheduler_status, _scheduler_run_count, _scheduler_last_error, _scheduler_last_result
     _scheduler_status = "running"
@@ -41,6 +44,7 @@ async def _run_scheduled_reports():
             _scheduler_last_check = now
             _scheduler_run_count += 1
             async with async_session_factory() as db:
+                # ── 1. 기존 스케줄 리포트 ──
                 result = await db.execute(
                     select(ScheduledReport).where(
                         ScheduledReport.enabled == True,  # noqa: E712
@@ -62,9 +66,37 @@ async def _run_scheduled_reports():
                     except Exception as e:
                         _scheduler_last_error = {"sched_id": sched.id, "error": str(e), "time": now.isoformat()}
                         logger.error("Scheduled report %s failed: %s", sched.id, e, exc_info=True)
-                        # Always advance next_run_at even on failure to prevent infinite retry
                         try:
                             sched.next_run_at = calc_next_run(sched, now)
+                            await db.commit()
+                        except Exception:
+                            await db.rollback()
+
+                # ── 2. 키워드 순위 체크 스케줄 ──
+                kr_result = await db.execute(
+                    select(KeywordRankSchedule).where(
+                        KeywordRankSchedule.enabled == True,  # noqa: E712
+                        KeywordRankSchedule.next_run_at <= now,
+                    )
+                )
+                due_rank_scheds = kr_result.scalars().all()
+                if due_rank_scheds:
+                    logger.info("Scheduler found %d due keyword rank checks", len(due_rank_scheds))
+                for kr_sched in due_rank_scheds:
+                    try:
+                        logger.info("Running keyword rank check: %s (id=%s)", kr_sched.name, kr_sched.id)
+                        kr_run_result = await execute_keyword_rank_check(kr_sched, db)
+                        _scheduler_last_result = {"sched_id": kr_sched.id, "name": kr_sched.name, "type": "keyword_rank", "result": kr_run_result, "time": now.isoformat()}
+                        kr_sched.last_run_at = now
+                        kr_sched.last_result = _json.dumps(kr_run_result, ensure_ascii=False, default=str)
+                        kr_sched.next_run_at = calc_next_run(kr_sched, now)
+                        await db.commit()
+                        logger.info("Keyword rank check completed: %s", kr_sched.name)
+                    except Exception as e:
+                        _scheduler_last_error = {"sched_id": kr_sched.id, "error": str(e), "time": now.isoformat()}
+                        logger.error("Keyword rank check %s failed: %s", kr_sched.id, e, exc_info=True)
+                        try:
+                            kr_sched.next_run_at = calc_next_run(kr_sched, now)
                             await db.commit()
                         except Exception:
                             await db.rollback()
