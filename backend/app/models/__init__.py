@@ -8,6 +8,7 @@ from app.models.auto_rule import AutoRule, AutoRuleLog
 from app.models.scheduled_report import ScheduledReport
 from app.models.market_keyword import MarketKeyword
 from app.models.keyword_rank_schedule import KeywordRankSchedule
+from app.models.review_monitor import MonitoredProduct
 
 __all__ = [
     "User",
@@ -32,4 +33,5 @@ __all__ = [
     "ScheduledReport",
     "MarketKeyword",
     "KeywordRankSchedule",
+    "MonitoredProduct",
 ]

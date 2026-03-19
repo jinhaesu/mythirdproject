@@ -2342,3 +2342,166 @@ async def keyword_research_ai_analysis(
     analysis = response.content[0].text
 
     return {"analysis": analysis}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 리뷰 모니터링 (Review Monitoring)
+# ══════════════════════════════════════════════════════════════════════════════
+
+from app.models.review_monitor import MonitoredProduct
+from app.services.review_service import fetch_naver_product_reviews, analyze_reviews, ai_review_analysis, extract_product_id
+
+
+class ProductRegisterRequest(BaseModel):
+    product_name: str
+    product_url: str
+    mall_name: Optional[str] = None
+    image_url: Optional[str] = None
+
+
+@router.post("/review-monitor/products")
+async def register_product(
+    body: ProductRegisterRequest,
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """리뷰 모니터링 제품 등록."""
+    from sqlalchemy import select as sa_select
+
+    # 중복 체크
+    existing = await db.execute(
+        sa_select(MonitoredProduct).where(
+            MonitoredProduct.user_id == current_user.id,
+            MonitoredProduct.product_url == body.product_url,
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="이미 등록된 제품입니다.")
+
+    product = MonitoredProduct(
+        id=str(uuid.uuid4()),
+        user_id=current_user.id,
+        product_name=body.product_name,
+        product_url=body.product_url,
+        product_id=extract_product_id(body.product_url),
+        mall_name=body.mall_name,
+        image_url=body.image_url,
+    )
+    db.add(product)
+    await db.commit()
+    await db.refresh(product)
+    return {
+        "id": product.id,
+        "product_name": product.product_name,
+        "product_url": product.product_url,
+        "product_id": product.product_id,
+        "mall_name": product.mall_name,
+        "created_at": product.created_at.isoformat() if product.created_at else None,
+    }
+
+
+@router.get("/review-monitor/products")
+async def list_monitored_products(
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """등록된 모니터링 제품 목록."""
+    from sqlalchemy import select as sa_select
+
+    result = await db.execute(
+        sa_select(MonitoredProduct)
+        .where(MonitoredProduct.user_id == current_user.id)
+        .order_by(MonitoredProduct.created_at.desc())
+    )
+    products = result.scalars().all()
+    return [
+        {
+            "id": p.id,
+            "product_name": p.product_name,
+            "product_url": p.product_url,
+            "product_id": p.product_id,
+            "mall_name": p.mall_name,
+            "image_url": p.image_url,
+            "created_at": p.created_at.isoformat() if p.created_at else None,
+        }
+        for p in products
+    ]
+
+
+@router.delete("/review-monitor/products/{product_id}")
+async def delete_monitored_product(
+    product_id: str,
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """모니터링 제품 삭제."""
+    from sqlalchemy import select as sa_select, delete as sa_delete
+
+    result = await db.execute(
+        sa_select(MonitoredProduct).where(
+            MonitoredProduct.id == product_id,
+            MonitoredProduct.user_id == current_user.id,
+        )
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="제품을 찾을 수 없습니다.")
+    await db.execute(sa_delete(MonitoredProduct).where(MonitoredProduct.id == product_id))
+    await db.commit()
+    return {"success": True}
+
+
+@router.post("/review-monitor/analyze")
+async def analyze_product_reviews(
+    product_db_id: str = Query(..., description="DB 제품 ID"),
+    star_threshold: int = Query(default=3, ge=1, le=5),
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """제품 리뷰를 수집하고 분석한다."""
+    from sqlalchemy import select as sa_select
+
+    result = await db.execute(
+        sa_select(MonitoredProduct).where(
+            MonitoredProduct.id == product_db_id,
+            MonitoredProduct.user_id == current_user.id,
+        )
+    )
+    product = result.scalar_one_or_none()
+    if not product:
+        raise HTTPException(status_code=404, detail="제품을 찾을 수 없습니다.")
+
+    # 리뷰 수집
+    review_data = await fetch_naver_product_reviews(product.product_url)
+
+    if not review_data.get("reviews"):
+        return {
+            "product_name": product.product_name,
+            "stats": {
+                "total_reviews": 0,
+                "average_rating": 0,
+                "star_distribution": {1: 0, 2: 0, 3: 0, 4: 0, 5: 0},
+                "low_star_count_7d": 0,
+                "low_star_count_14d": 0,
+                "low_star_count_30d": 0,
+                "low_star_total": 0,
+            },
+            "ai_analysis": "리뷰를 가져올 수 없습니다. 제품 URL을 확인해주세요.",
+            "error": review_data.get("error"),
+        }
+
+    # 통계 분석
+    stats = analyze_reviews(review_data["reviews"], star_threshold)
+
+    # AI 분석
+    ai_text = await ai_review_analysis(
+        product.product_name,
+        stats,
+        stats.get("low_reviews_sample", []),
+    )
+
+    return {
+        "product_name": product.product_name,
+        "product_url": product.product_url,
+        "stats": stats,
+        "ai_analysis": ai_text,
+    }
