@@ -355,7 +355,21 @@ def calc_next_run(sched, now_utc: datetime) -> datetime:
     hour_kst = sched.send_hour if sched.send_hour is not None else 9
     minute = sched.send_minute if hasattr(sched, 'send_minute') and sched.send_minute is not None else 0
 
-    if sched.schedule_type == "weekly":
+    if sched.schedule_type == "daily":
+        # Daily (weekdays only — skip Saturday/Sunday)
+        kst_now = now_utc + timedelta(hours=9)
+        target_time = kst_now.replace(hour=hour_kst, minute=minute, second=0, microsecond=0)
+        if kst_now >= target_time:
+            # Time already passed today, start from tomorrow
+            next_kst = target_time + timedelta(days=1)
+        else:
+            next_kst = target_time
+        # Skip weekends: weekday() 5=Saturday, 6=Sunday
+        while next_kst.weekday() >= 5:
+            next_kst += timedelta(days=1)
+        return next_kst - timedelta(hours=9)
+
+    elif sched.schedule_type == "weekly":
         # Find next occurrence of the target day-of-week in KST
         kst_now = now_utc + timedelta(hours=9)
         # Frontend convention: 0=일(Sun), 1=월(Mon), ..., 6=토(Sat)

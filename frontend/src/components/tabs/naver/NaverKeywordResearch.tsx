@@ -1117,7 +1117,7 @@ function KeywordRankMonitor({ brandName, registeredKeywords = [] }: { brandName:
                   <div>
                     <label className="text-xs text-gray-500 mb-1 block">주기</label>
                     <select value={schedType} onChange={(e) => setSchedType(e.target.value)} className="w-full px-2.5 py-1.5 border rounded-lg text-sm">
-                      <option value="daily">매일</option>
+                      <option value="daily">매일 (평일만)</option>
                       <option value="weekly">매주</option>
                     </select>
                   </div>
@@ -1125,7 +1125,7 @@ function KeywordRankMonitor({ brandName, registeredKeywords = [] }: { brandName:
                     <div>
                       <label className="text-xs text-gray-500 mb-1 block">요일</label>
                       <select value={schedDow} onChange={(e) => setSchedDow(Number(e.target.value))} className="w-full px-2.5 py-1.5 border rounded-lg text-sm">
-                        {['일','월','화','수','목','금','토'].map((d, i) => <option key={i} value={i}>{d}요일</option>)}
+                        {['월','화','수','목','금'].map((d, i) => <option key={i} value={i + 1}>{d}요일</option>)}
                       </select>
                     </div>
                   )}
@@ -1136,6 +1136,9 @@ function KeywordRankMonitor({ brandName, registeredKeywords = [] }: { brandName:
                     </select>
                   </div>
                 </div>
+                {schedType === 'daily' && (
+                  <p className="text-xs text-gray-400">* 토/일요일은 제외하고 월~금 평일에만 발송됩니다.</p>
+                )}
                 <div>
                   <label className="text-xs text-gray-500 mb-1 block">수신 이메일</label>
                   <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
@@ -1159,7 +1162,7 @@ function KeywordRankMonitor({ brandName, registeredKeywords = [] }: { brandName:
                       <span className="font-medium text-gray-900">{s.name}</span>
                       <span className="text-gray-300">|</span>
                       <span className="text-gray-600">
-                        {s.schedule_type === 'daily' ? '매일' : `매주 ${['일','월','화','수','목','금','토'][s.day_of_week || 0]}요일`}
+                        {s.schedule_type === 'daily' ? '평일 매일' : `매주 ${['일','월','화','수','목','금','토'][s.day_of_week || 0]}요일`}
                         {' '}{String(s.send_hour).padStart(2, '0')}:{String(s.send_minute || 0).padStart(2, '0')}
                       </span>
                       <span className="text-gray-300">&rarr;</span>
