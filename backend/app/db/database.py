@@ -181,6 +181,17 @@ async def init_db():
         except Exception:
             pass
 
+    # Add days_of_week column to keyword_rank_schedules if missing
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(
+                __import__('sqlalchemy').text(
+                    "ALTER TABLE keyword_rank_schedules ADD COLUMN days_of_week VARCHAR(100)"
+                )
+            )
+    except Exception:
+        pass
+
     # Add Naver advertising columns to users if missing
     naver_cols = [
         ("naver_search_ads_connected", "BOOLEAN DEFAULT FALSE"),

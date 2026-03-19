@@ -18,7 +18,8 @@ class KeywordRankSchedule(Base):
 
     # 스케줄
     schedule_type = Column(String, nullable=False)  # daily, weekly, monthly
-    day_of_week = Column(Integer, nullable=True)  # 0=일, 1=월, ..., 6=토
+    day_of_week = Column(Integer, nullable=True)  # 0=일, 1=월, ..., 6=토 (단일 요일, weekly용)
+    days_of_week = Column(String, nullable=True)  # JSON array e.g. "[1,2,3,4,5]" (복수 요일)
     day_of_month = Column(Integer, nullable=True)  # 1-28
     send_hour = Column(Integer, default=9)  # 0-23 (KST)
     send_minute = Column(Integer, default=0)  # 0-59

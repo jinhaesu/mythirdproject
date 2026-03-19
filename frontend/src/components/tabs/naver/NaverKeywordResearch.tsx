@@ -976,9 +976,11 @@ function KeywordRankMonitor({ brandName, registeredKeywords = [] }: { brandName:
   const [rankResult, setRankResult] = useState<any>(null);
   const [showForm, setShowForm] = useState(false);
   const [email, setEmail] = useState('');
-  const [schedType, setSchedType] = useState('daily');
+  const [schedDays, setSchedDays] = useState<number[]>([1, 2, 3, 4, 5]); // 1=월~5=금
   const [schedHour, setSchedHour] = useState(9);
-  const [schedDow, setSchedDow] = useState(1);
+  const [schedMinute, setSchedMinute] = useState(0);
+
+  const toggleDay = (d: number) => setSchedDays(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d].sort());
 
   const rankCheck = useMutation({
     mutationFn: () => naverKeywordResearchApi.checkRanks(undefined, brandName),
@@ -996,9 +998,10 @@ function KeywordRankMonitor({ brandName, registeredKeywords = [] }: { brandName:
     mutationFn: () => naverKeywordResearchApi.createRankSchedule({
       name: `${brandName} 순위 리포트`,
       brand_name: brandName,
-      schedule_type: schedType,
-      day_of_week: schedType === 'weekly' ? schedDow : undefined,
+      schedule_type: schedDays.length >= 5 ? 'daily' : 'weekly',
+      days_of_week: schedDays,
       send_hour: schedHour,
+      send_minute: schedMinute,
       email_to: email,
     }),
     onSuccess: () => { refetchSchedules(); setShowForm(false); toast.success('스케줄 등록 완료'); },
@@ -1112,40 +1115,45 @@ function KeywordRankMonitor({ brandName, registeredKeywords = [] }: { brandName:
             </div>
 
             {showForm && (
-              <div className="p-4 bg-gray-50 rounded-lg space-y-3 mb-3 border">
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <label className="text-xs text-gray-500 mb-1 block">주기</label>
-                    <select value={schedType} onChange={(e) => setSchedType(e.target.value)} className="w-full px-2.5 py-1.5 border rounded-lg text-sm">
-                      <option value="daily">매일 (평일만)</option>
-                      <option value="weekly">매주</option>
-                    </select>
+              <div className="p-4 bg-gray-50 rounded-lg space-y-4 mb-3 border">
+                {/* 요일 선택 */}
+                <div>
+                  <label className="text-xs text-gray-500 mb-2 block">발송 요일 (클릭하여 선택)</label>
+                  <div className="flex gap-1.5">
+                    {['월','화','수','목','금','토','일'].map((label, i) => {
+                      const dayVal = i < 5 ? i + 1 : i === 5 ? 6 : 0; // 월=1,화=2,...금=5,토=6,일=0
+                      const active = schedDays.includes(dayVal);
+                      return (
+                        <button key={i} onClick={() => toggleDay(dayVal)}
+                          className={clsx('w-10 h-10 rounded-lg text-sm font-medium transition-all',
+                            active ? 'bg-green-600 text-white shadow-sm' : 'bg-white text-gray-500 border border-gray-200 hover:border-green-300')}>
+                          {label}
+                        </button>
+                      );
+                    })}
                   </div>
-                  {schedType === 'weekly' && (
-                    <div>
-                      <label className="text-xs text-gray-500 mb-1 block">요일</label>
-                      <select value={schedDow} onChange={(e) => setSchedDow(Number(e.target.value))} className="w-full px-2.5 py-1.5 border rounded-lg text-sm">
-                        {['월','화','수','목','금'].map((d, i) => <option key={i} value={i + 1}>{d}요일</option>)}
-                      </select>
-                    </div>
-                  )}
-                  <div>
-                    <label className="text-xs text-gray-500 mb-1 block">시간 (KST)</label>
-                    <select value={schedHour} onChange={(e) => setSchedHour(Number(e.target.value))} className="w-full px-2.5 py-1.5 border rounded-lg text-sm">
-                      {Array.from({ length: 24 }, (_, i) => <option key={i} value={i}>{String(i).padStart(2, '0')}:00</option>)}
+                  {schedDays.length === 0 && <p className="text-xs text-red-500 mt-1">최소 1개 요일을 선택해주세요.</p>}
+                </div>
+                {/* 시간 입력 */}
+                <div>
+                  <label className="text-xs text-gray-500 mb-2 block">발송 시간 (KST)</label>
+                  <div className="flex items-center gap-1.5">
+                    <select value={schedHour} onChange={(e) => setSchedHour(Number(e.target.value))} className="px-2.5 py-2 border rounded-lg text-sm w-20">
+                      {Array.from({ length: 24 }, (_, i) => <option key={i} value={i}>{String(i).padStart(2, '0')}시</option>)}
+                    </select>
+                    <span className="text-gray-400 font-bold">:</span>
+                    <select value={schedMinute} onChange={(e) => setSchedMinute(Number(e.target.value))} className="px-2.5 py-2 border rounded-lg text-sm w-20">
+                      {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map(m => <option key={m} value={m}>{String(m).padStart(2, '0')}분</option>)}
                     </select>
                   </div>
                 </div>
-                {schedType === 'daily' && (
-                  <p className="text-xs text-gray-400">* 토/일요일은 제외하고 월~금 평일에만 발송됩니다.</p>
-                )}
                 <div>
                   <label className="text-xs text-gray-500 mb-1 block">수신 이메일</label>
                   <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
                     placeholder="report@example.com" className="w-full px-3 py-1.5 border rounded-lg text-sm" />
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => createSched.mutate()} disabled={!email || createSched.isPending}
+                  <button onClick={() => createSched.mutate()} disabled={!email || schedDays.length === 0 || createSched.isPending}
                     className="px-4 py-1.5 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50">
                     {createSched.isPending ? '등록 중...' : '스케줄 등록'}
                   </button>
@@ -1162,8 +1170,10 @@ function KeywordRankMonitor({ brandName, registeredKeywords = [] }: { brandName:
                       <span className="font-medium text-gray-900">{s.name}</span>
                       <span className="text-gray-300">|</span>
                       <span className="text-gray-600">
-                        {s.schedule_type === 'daily' ? '평일 매일' : `매주 ${['일','월','화','수','목','금','토'][s.day_of_week || 0]}요일`}
-                        {' '}{String(s.send_hour).padStart(2, '0')}:{String(s.send_minute || 0).padStart(2, '0')}
+                        {s.days_of_week
+                          ? (s.days_of_week as number[]).map((d: number) => ['일','월','화','수','목','금','토'][d]).join('·')
+                          : s.schedule_type === 'daily' ? '평일' : ['일','월','화','수','목','금','토'][s.day_of_week || 0]}
+                        {' '}{String(s.send_hour ?? 9).padStart(2, '0')}:{String(s.send_minute ?? 0).padStart(2, '0')}
                       </span>
                       <span className="text-gray-300">&rarr;</span>
                       <span className="text-green-700">{s.email_to}</span>

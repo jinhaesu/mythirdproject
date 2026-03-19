@@ -383,7 +383,9 @@ export const naverKeywordResearchApi = {
     brand_name?: string;
     schedule_type: string;
     day_of_week?: number;
+    days_of_week?: number[];
     send_hour?: number;
+    send_minute?: number;
     email_to: string;
   }) => {
     const { data } = await api.post('/market/keywords/rank-schedule', scheduleData);

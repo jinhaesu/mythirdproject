@@ -355,16 +355,45 @@ def calc_next_run(sched, now_utc: datetime) -> datetime:
     hour_kst = sched.send_hour if sched.send_hour is not None else 9
     minute = sched.send_minute if hasattr(sched, 'send_minute') and sched.send_minute is not None else 0
 
+    # Check for days_of_week (복수 요일 지정) — overrides schedule_type logic
+    days_of_week_str = getattr(sched, 'days_of_week', None)
+    if days_of_week_str:
+        import json as _json
+        try:
+            allowed_days = _json.loads(days_of_week_str) if isinstance(days_of_week_str, str) else days_of_week_str
+        except Exception:
+            allowed_days = None
+    else:
+        allowed_days = None
+
+    if allowed_days and len(allowed_days) > 0:
+        # 복수 요일 스케줄: allowed_days = [1,2,3,4,5] (0=일,1=월,...,6=토)
+        # Convert frontend DOW (0=Sun,1=Mon,...,6=Sat) → Python weekday (0=Mon,...,6=Sun)
+        python_days = set()
+        for fd in allowed_days:
+            python_days.add((fd - 1) % 7)  # 0(Sun)→6, 1(Mon)→0, ..., 6(Sat)→5
+
+        kst_now = now_utc + timedelta(hours=9)
+        target_time = kst_now.replace(hour=hour_kst, minute=minute, second=0, microsecond=0)
+        if kst_now >= target_time:
+            next_kst = target_time + timedelta(days=1)
+        else:
+            next_kst = target_time
+        # Advance until we hit an allowed day (max 7 iterations)
+        for _ in range(8):
+            if next_kst.weekday() in python_days:
+                break
+            next_kst += timedelta(days=1)
+        return next_kst - timedelta(hours=9)
+
     if sched.schedule_type == "daily":
         # Daily (weekdays only — skip Saturday/Sunday)
         kst_now = now_utc + timedelta(hours=9)
         target_time = kst_now.replace(hour=hour_kst, minute=minute, second=0, microsecond=0)
         if kst_now >= target_time:
-            # Time already passed today, start from tomorrow
             next_kst = target_time + timedelta(days=1)
         else:
             next_kst = target_time
-        # Skip weekends: weekday() 5=Saturday, 6=Sunday
         while next_kst.weekday() >= 5:
             next_kst += timedelta(days=1)
         return next_kst - timedelta(hours=9)

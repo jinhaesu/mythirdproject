@@ -460,9 +460,9 @@ class RankScheduleCreate(BaseModel):
     name: str = Field(default="키워드 순위 리포트")
     brand_name: str = Field(default="널담")
     keyword_filter: Optional[str] = None
-    schedule_type: str = Field(default="daily")  # daily, weekly, monthly
-    day_of_week: Optional[int] = None  # 0=일, 1=월, ..., 6=토
-    day_of_month: Optional[int] = None  # 1-28
+    schedule_type: str = Field(default="daily")  # daily, weekly
+    day_of_week: Optional[int] = None  # 단일 요일 (하위호환)
+    days_of_week: Optional[List[int]] = None  # 복수 요일 [1,2,3,4,5]
     send_hour: int = Field(default=9, ge=0, le=23)
     send_minute: int = Field(default=0, ge=0, le=59)
     email_to: str
@@ -517,6 +517,7 @@ async def create_rank_schedule(
     db: AsyncSession = Depends(get_db),
 ):
     """키워드 순위 체크 스케줄을 생성한다."""
+    days_json = json.dumps(body.days_of_week) if body.days_of_week else None
     sched = KeywordRankSchedule(
         id=str(uuid4()),
         user_id=str(current_user.id),
@@ -525,7 +526,7 @@ async def create_rank_schedule(
         keyword_filter=body.keyword_filter,
         schedule_type=body.schedule_type,
         day_of_week=body.day_of_week,
-        day_of_month=body.day_of_month,
+        days_of_week=days_json,
         send_hour=body.send_hour,
         send_minute=body.send_minute,
         email_to=body.email_to,
@@ -542,6 +543,7 @@ async def create_rank_schedule(
         "name": sched.name,
         "brand_name": sched.brand_name,
         "schedule_type": sched.schedule_type,
+        "days_of_week": body.days_of_week,
         "send_hour": sched.send_hour,
         "send_minute": sched.send_minute,
         "email_to": sched.email_to,
@@ -571,6 +573,7 @@ async def list_rank_schedules(
             "keyword_filter": s.keyword_filter,
             "schedule_type": s.schedule_type,
             "day_of_week": s.day_of_week,
+            "days_of_week": json.loads(s.days_of_week) if s.days_of_week else None,
             "day_of_month": s.day_of_month,
             "send_hour": s.send_hour,
             "send_minute": s.send_minute,
