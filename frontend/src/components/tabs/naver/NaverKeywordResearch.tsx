@@ -967,6 +967,111 @@ export function NaverKeywordResearch() {
 
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// AiRankAnalysis — AI 분석 결과를 섹션별 카드로 렌더링
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function AiRankAnalysis({ text }: { text: string }) {
+  // 텍스트를 섹션별로 파싱 (숫자. 또는 ** 로 시작하는 헤딩 기준)
+  const sections: { title: string; content: string; type: 'status' | 'up' | 'keep' | 'action' | 'default' }[] = [];
+  const lines = text.split('\n');
+  let currentTitle = '';
+  let currentLines: string[] = [];
+
+  const detectType = (title: string): 'status' | 'up' | 'keep' | 'action' | 'default' => {
+    const t = title.toLowerCase();
+    if (t.includes('평가') || t.includes('현황') || t.includes('현재')) return 'status';
+    if (t.includes('올리') || t.includes('개선') || t.includes('낮') || t.includes('높이')) return 'up';
+    if (t.includes('유지') || t.includes('높') || t.includes('방어')) return 'keep';
+    if (t.includes('액션') || t.includes('요약') || t.includes('핵심') || t.includes('전략') || t.includes('결론')) return 'action';
+    return 'default';
+  };
+
+  const flush = () => {
+    if (currentTitle || currentLines.length > 0) {
+      sections.push({
+        title: currentTitle,
+        content: currentLines.join('\n').trim(),
+        type: detectType(currentTitle),
+      });
+    }
+    currentTitle = '';
+    currentLines = [];
+  };
+
+  for (const line of lines) {
+    const headingMatch = line.match(/^(?:\d+[\.\)]\s*\**|#{1,3}\s+|\*\*\d*[\.\)]?\s*)(.+?)(?:\**\s*)$/);
+    if (headingMatch) {
+      flush();
+      currentTitle = headingMatch[1].replace(/\*\*/g, '').trim();
+    } else {
+      currentLines.push(line);
+    }
+  }
+  flush();
+
+  // 섹션이 하나뿐이면(파싱 실패) 전체를 하나의 카드로
+  if (sections.length <= 1) {
+    sections.length = 0;
+    sections.push({ title: '', content: text, type: 'default' });
+  }
+
+  const typeStyles = {
+    status: { border: 'border-blue-200', bg: 'bg-blue-50', icon: '📊', iconBg: 'bg-blue-100', titleColor: 'text-blue-900' },
+    up: { border: 'border-orange-200', bg: 'bg-orange-50', icon: '📈', iconBg: 'bg-orange-100', titleColor: 'text-orange-900' },
+    keep: { border: 'border-green-200', bg: 'bg-green-50', icon: '🛡️', iconBg: 'bg-green-100', titleColor: 'text-green-900' },
+    action: { border: 'border-purple-200', bg: 'bg-purple-50', icon: '🎯', iconBg: 'bg-purple-100', titleColor: 'text-purple-900' },
+    default: { border: 'border-gray-200', bg: 'bg-gray-50', icon: '💡', iconBg: 'bg-gray-100', titleColor: 'text-gray-900' },
+  };
+
+  const renderContent = (content: string) => {
+    return content.split('\n').map((line, i) => {
+      const trimmed = line.trim();
+      if (!trimmed) return null;
+      // 불릿 라인
+      const bulletMatch = trimmed.match(/^[-•▸▹→]\s*(.+)/);
+      if (bulletMatch) {
+        return (
+          <div key={i} className="flex gap-2 items-start py-0.5">
+            <span className="text-green-500 mt-0.5 flex-shrink-0">▸</span>
+            <span dangerouslySetInnerHTML={{ __html: boldify(bulletMatch[1]) }} />
+          </div>
+        );
+      }
+      return <p key={i} className="py-0.5" dangerouslySetInnerHTML={{ __html: boldify(trimmed) }} />;
+    });
+  };
+
+  const boldify = (s: string) => s.replace(/\*\*(.+?)\*\*/g, '<strong class="text-gray-900">$1</strong>');
+
+  return (
+    <div className="space-y-3">
+      <h4 className="text-sm font-semibold text-emerald-900 flex items-center gap-1.5">
+        <Sparkles size={15} /> AI 순위 분석 & 전략 제안
+      </h4>
+      <div className="grid gap-3">
+        {sections.map((sec, i) => {
+          const style = typeStyles[sec.type];
+          return (
+            <div key={i} className={clsx('rounded-xl border p-4', style.border, style.bg)}>
+              {sec.title && (
+                <div className="flex items-center gap-2 mb-2.5">
+                  <span className={clsx('w-7 h-7 rounded-lg flex items-center justify-center text-sm', style.iconBg)}>{style.icon}</span>
+                  <h5 className={clsx('text-sm font-semibold', style.titleColor)}>{sec.title}</h5>
+                </div>
+              )}
+              <div className="text-xs text-gray-700 leading-relaxed pl-0.5">
+                {renderContent(sec.content)}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // KeywordRankMonitor — 브랜드 키워드 순위 체크 + 스케줄 이메일 리포트
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -1093,12 +1198,7 @@ function KeywordRankMonitor({ brandName, registeredKeywords = [] }: { brandName:
 
               {/* AI 분석 */}
               {rankResult.ai_analysis && (
-                <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-200">
-                  <h4 className="text-sm font-semibold text-emerald-900 mb-2 flex items-center gap-1.5">
-                    <Sparkles size={14} /> AI 순위 분석 & 전략 제안
-                  </h4>
-                  <div className="text-xs text-gray-700 whitespace-pre-line leading-relaxed">{rankResult.ai_analysis}</div>
-                </div>
+                <AiRankAnalysis text={rankResult.ai_analysis} />
               )}
             </div>
           )}
@@ -1143,7 +1243,7 @@ function KeywordRankMonitor({ brandName, registeredKeywords = [] }: { brandName:
                     </select>
                     <span className="text-gray-400 font-bold">:</span>
                     <select value={schedMinute} onChange={(e) => setSchedMinute(Number(e.target.value))} className="px-2.5 py-2 border rounded-lg text-sm w-20">
-                      {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map(m => <option key={m} value={m}>{String(m).padStart(2, '0')}분</option>)}
+                      {Array.from({ length: 60 }, (_, i) => <option key={i} value={i}>{String(i).padStart(2, '0')}분</option>)}
                     </select>
                   </div>
                 </div>
