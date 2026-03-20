@@ -116,36 +116,66 @@ async def fetch_naver_product_reviews(
 
         headers = {"Authorization": f"Bearer {token}"}
 
-        # 여러 엔드포인트를 순차 시도 (커머스 API 버전/경로 자동 탐색)
+        # 여러 엔드포인트를 순차 시도 (originProductNo 사용)
+        pid = origin_product_no
         endpoint_candidates = [
-            # Solution API 패턴
-            f"/v1/seller/products/{product_id}/reviews",
-            f"/v1/seller/products/origin-products/{product_id}/reviews",
-            f"/v1/seller/products/origin-products/{product_id}/product-reviews",
-            # Contents API 패턴
-            f"/v1/contents/product-reviews?originProductNo={product_id}",
-            f"/v2/contents/product-reviews?originProductNo={product_id}",
-            # Products API 패턴
-            f"/v1/products/origin-products/{product_id}/product-reviews",
-            f"/v2/products/origin-products/{product_id}/reviews",
-            f"/v1/products/{product_id}/reviews",
-            # Review 직접 경로
-            f"/v1/reviews?originProductNo={product_id}",
-            f"/v2/reviews?originProductNo={product_id}",
-            f"/v1/product-reviews?originProductNo={product_id}",
+            f"/v1/seller/products/{pid}/reviews",
+            f"/v1/seller/products/origin-products/{pid}/reviews",
+            f"/v1/seller/products/origin-products/{pid}/product-reviews",
+            f"/v1/contents/product-reviews?originProductNo={pid}",
+            f"/v2/contents/product-reviews?originProductNo={pid}",
+            f"/v1/products/origin-products/{pid}/product-reviews",
+            f"/v2/products/origin-products/{pid}/reviews",
+            f"/v1/products/{pid}/reviews",
+            f"/v1/reviews?originProductNo={pid}",
+            f"/v2/reviews?originProductNo={pid}",
+            f"/v1/product-reviews?originProductNo={pid}",
         ]
 
-        # 먼저 제품 정보 조회로 API 접근 유효성 검증
+        # URL의 ID가 channelProductNo일 수 있으므로, 먼저 originProductNo를 찾는다
+        origin_product_no = product_id  # 기본값
+
+        # 1) channel-products로 원상품번호 조회 시도
+        for ch_path in [
+            f"/v1/products/channel-products/{product_id}",
+            f"/v2/products/channel-products/{product_id}",
+        ]:
+            try:
+                ch_resp = await client.get(f"{COMMERCE_API_BASE}{ch_path}", headers=headers)
+                logger.info(f"[Review] {ch_path}: {ch_resp.status_code} {ch_resp.text[:300]}")
+                tried_endpoints.append(f"channel→{ch_resp.status_code}")
+                if ch_resp.status_code == 200:
+                    ch_data = ch_resp.json()
+                    opn = ch_data.get("originProductNo") or ch_data.get("originProduct", {}).get("productNo")
+                    if opn:
+                        origin_product_no = str(opn)
+                        logger.info(f"[Review] Found originProductNo: {origin_product_no} (from channelProductNo: {product_id})")
+                    break
+            except Exception as e:
+                tried_endpoints.append(f"channel→ERR")
+
+        # 2) origin-products 정보 조회 검증
         try:
             prod_resp = await client.get(
-                f"{COMMERCE_API_BASE}/v1/products/origin-products/{product_id}",
+                f"{COMMERCE_API_BASE}/v1/products/origin-products/{origin_product_no}",
                 headers=headers,
             )
-            logger.info(f"[Review] Product info check: {prod_resp.status_code} {prod_resp.text[:200]}")
-            tried_endpoints.append(f"product-info→{prod_resp.status_code}")
+            logger.info(f"[Review] Product info (origin={origin_product_no}): {prod_resp.status_code} {prod_resp.text[:300]}")
+            tried_endpoints.append(f"origin-info→{prod_resp.status_code}")
         except Exception as e:
-            logger.warning(f"[Review] Product info check failed: {e}")
-            tried_endpoints.append(f"product-info→ERROR")
+            tried_endpoints.append(f"origin-info→ERR")
+
+        # 3) 판매자의 전체 상품 목록에서도 탐색
+        try:
+            list_resp = await client.get(
+                f"{COMMERCE_API_BASE}/v1/products/origin-products",
+                params={"page": 1, "size": 5},
+                headers=headers,
+            )
+            logger.info(f"[Review] Product list: {list_resp.status_code} {list_resp.text[:500]}")
+            tried_endpoints.append(f"product-list→{list_resp.status_code}")
+        except Exception as e:
+            tried_endpoints.append(f"product-list→ERR")
 
         working_endpoint = None
         for ep in endpoint_candidates:
