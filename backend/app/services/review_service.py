@@ -23,6 +23,17 @@ COMMERCE_API_BASE = "https://api.commerce.naver.com/external"
 SMARTSTORE_REVIEW_URL = "https://smartstore.naver.com/i/v1/reviews/paged-reviews"
 
 
+def _get_review_proxy_url() -> str:
+    """Vercel 프록시 URL 또는 스마트스토어 직접 URL을 반환."""
+    settings = get_settings()
+    frontend_url = (settings.FRONTEND_URL or "").strip().rstrip("/")
+    if frontend_url and "vercel" in frontend_url:
+        return f"{frontend_url}/api/review-proxy"
+    if frontend_url and frontend_url.startswith("http"):
+        return f"{frontend_url}/api/review-proxy"
+    return SMARTSTORE_REVIEW_URL
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # Commerce API 인증
 # ══════════════════════════════════════════════════════════════════════════════
@@ -153,6 +164,9 @@ async def _fetch_reviews_smartstore(
         "Referer": referer,
     }
 
+    review_url = _get_review_proxy_url()
+    logger.info(f"[Review] Using review URL: {review_url}")
+
     configs = []
     if merchant_no:
         configs.append({"merchantNo": merchant_no, "originProductNo": origin_product_no})
@@ -171,7 +185,7 @@ async def _fetch_reviews_smartstore(
                         logger.info(f"[Review] 429 retry {retry}/3, waiting {wait}s...")
                         await asyncio.sleep(wait)
 
-                    resp = await client.get(SMARTSTORE_REVIEW_URL, params=params, headers=headers)
+                    resp = await client.get(review_url, params=params, headers=headers)
 
                     if resp.status_code == 200:
                         data = resp.json()
