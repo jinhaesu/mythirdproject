@@ -23,8 +23,42 @@ const reviewApi = {
   deleteProduct: async (id: string) => {
     await api.delete(`/naver/review-monitor/products/${id}`);
   },
-  analyze: async (productDbId: string, starThreshold: number) => {
-    const { data } = await api.post(`/naver/review-monitor/analyze?product_db_id=${productDbId}&star_threshold=${starThreshold}`);
+  // Step 1: 백엔드에서 originProductNo/merchantNo 확보
+  resolve: async (productDbId: string) => {
+    const { data } = await api.post(`/naver/review-monitor/analyze?product_db_id=${productDbId}&star_threshold=3`);
+    return data;
+  },
+  // Step 2: Vercel 프록시로 리뷰 수집 (같은 도메인, CORS 없음)
+  fetchReviewsViaProxy: async (originProductNo: string, merchantNo: string | null, maxPages = 5) => {
+    const reviews: any[] = [];
+    let total = 0;
+    for (let page = 1; page <= maxPages; page++) {
+      const params = new URLSearchParams({ originProductNo, page: String(page), pageSize: '20' });
+      if (merchantNo) params.set('merchantNo', merchantNo);
+      try {
+        const resp = await fetch(`/api/review-proxy?${params}`);
+        if (!resp.ok) break;
+        const data = await resp.json();
+        if (data.error) break;
+        if (page === 1) total = data.totalElements || 0;
+        const contents = data.contents || [];
+        if (!contents.length) break;
+        for (const item of contents) {
+          reviews.push({
+            id: String(item.id || ''), rating: item.reviewScore || 0,
+            content: item.reviewContent || '', date: item.createDate || '',
+            product_option: item.productOptionContent || '', writer: item.writerNickname || '익명',
+          });
+        }
+      } catch { break; }
+    }
+    return { reviews, total };
+  },
+  // Step 3: 수집한 리뷰를 백엔드에서 AI 분석
+  analyzeReviews: async (productName: string, reviews: any[], starThreshold: number) => {
+    const { data } = await api.post('/naver/review-monitor/analyze-reviews', {
+      product_name: productName, reviews, star_threshold: starThreshold,
+    });
     return data;
   },
   // 스케줄
@@ -150,16 +184,44 @@ export function NaverReviewMonitor() {
   });
 
   const analyzeMutation = useMutation({
-    mutationFn: () => reviewApi.analyze(selectedProductId!, starThreshold),
+    mutationFn: async () => {
+      // 1) 백엔드: originProductNo + merchantNo 확보
+      const resolveData = await reviewApi.resolve(selectedProductId!);
+      const originNo = resolveData.origin_product_no;
+      const merchantNo = resolveData.merchant_no;
+      const prodName = resolveData.product_name || selectedProduct?.product_name || '';
+
+      if (!originNo) throw new Error('제품 ID를 확인할 수 없습니다.');
+
+      // 2) Vercel 프록시로 리뷰 수집 (같은 도메인, 429 안 걸림)
+      let { reviews, total } = await reviewApi.fetchReviewsViaProxy(originNo, merchantNo);
+
+      // merchantNo 없이 재시도
+      if (!reviews.length && merchantNo) {
+        const retry = await reviewApi.fetchReviewsViaProxy(originNo, null);
+        reviews = retry.reviews;
+        total = retry.total;
+      }
+
+      if (!reviews.length) {
+        return {
+          stats: { total_reviews: 0, average_rating: 0, star_distribution: {1:0,2:0,3:0,4:0,5:0}, low_star_count_7d:0, low_star_count_14d:0, low_star_count_30d:0, low_star_total:0 },
+          ai_analysis: '',
+          error: `리뷰를 가져올 수 없습니다. (origin=${originNo}, merchant=${merchantNo})`,
+        };
+      }
+
+      // 3) 백엔드: AI 분석
+      const analysis = await reviewApi.analyzeReviews(prodName, reviews, starThreshold);
+      return { ...analysis, product_name: prodName };
+    },
     onSuccess: (data) => {
       setAnalysisResult(data);
       if (data?.error) toast.error(data.error);
       else if (data?.stats?.total_reviews > 0) toast.success('리뷰 분석 완료!');
     },
     onError: (e: any) => {
-      const detail = e?.response?.data?.detail || e?.response?.data?.error || e?.message || '분석 실패';
-      toast.error(`리뷰 분석 오류: ${detail}`);
-      if (e?.response?.data) setAnalysisResult(e.response.data);
+      toast.error(`리뷰 분석 오류: ${e?.message || '알 수 없는 오류'}`);
     },
   });
 
