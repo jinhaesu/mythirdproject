@@ -42,3 +42,4 @@ python-dateutil==2.8.2
 
 # Naver Commerce API
 bcrypt>=4.0.0
+curl_cffi>=0.7.0

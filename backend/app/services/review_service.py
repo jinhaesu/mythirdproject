@@ -1,18 +1,19 @@
-"""네이버 리뷰 수집 서비스 — 하이브리드 방식.
+"""네이버 리뷰 수집 서비스 — curl_cffi(브라우저 TLS 위장) + 커머스 API 하이브리드.
 
-1. 커머스 API로 인증 → originProductNo + channelNo(merchantNo) 확보
-2. 스마트스토어 리뷰 API로 실제 리뷰 수집
+curl_cffi는 Chrome/Safari의 TLS 핑거프린트를 완벽히 복제하여
+네이버의 봇 탐지(429)를 우회한다.
 """
 import re
 import json
 import base64
 import time
+import asyncio
 import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 
-import httpx
 import bcrypt
+from curl_cffi import requests as cf_requests
 
 from app.core.config import get_settings
 from app.services.ai import ClaudeService
@@ -23,23 +24,12 @@ COMMERCE_API_BASE = "https://api.commerce.naver.com/external"
 SMARTSTORE_REVIEW_URL = "https://smartstore.naver.com/i/v1/reviews/paged-reviews"
 
 
-def _get_review_proxy_url() -> str:
-    """Vercel 프록시 URL 또는 스마트스토어 직접 URL을 반환."""
-    settings = get_settings()
-    frontend_url = (settings.FRONTEND_URL or "").strip().rstrip("/")
-    if frontend_url and "vercel" in frontend_url:
-        return f"{frontend_url}/api/review-proxy"
-    if frontend_url and frontend_url.startswith("http"):
-        return f"{frontend_url}/api/review-proxy"
-    return SMARTSTORE_REVIEW_URL
-
-
 # ══════════════════════════════════════════════════════════════════════════════
-# Commerce API 인증
+# Commerce API (인증 + 상품 ID 변환)
 # ══════════════════════════════════════════════════════════════════════════════
 
-async def _get_commerce_token(client: httpx.AsyncClient) -> Dict[str, Any]:
-    """커머스 API OAuth 토큰 발급."""
+async def _get_commerce_token_sync() -> Dict[str, Any]:
+    """커머스 API OAuth 토큰 발급 (curl_cffi는 sync만 지원)."""
     settings = get_settings()
     client_id = (settings.NAVER_COMMERCE_CLIENT_ID or "").strip()
     client_secret = (settings.NAVER_COMMERCE_CLIENT_SECRET or "").strip()
@@ -53,7 +43,7 @@ async def _get_commerce_token(client: httpx.AsyncClient) -> Dict[str, Any]:
     signature = base64.b64encode(hashed).decode("utf-8")
 
     try:
-        resp = await client.post(
+        resp = cf_requests.post(
             f"{COMMERCE_API_BASE}/v1/oauth2/token",
             data={
                 "client_id": client_id,
@@ -63,32 +53,30 @@ async def _get_commerce_token(client: httpx.AsyncClient) -> Dict[str, Any]:
                 "type": "SELF",
             },
             headers={"Content-Type": "application/x-www-form-urlencoded"},
+            impersonate="chrome",
+            timeout=15,
         )
         if resp.status_code == 200:
             token = resp.json().get("access_token")
             if token:
                 return {"token": token}
-            return {"error": "토큰 응답에 access_token 없음"}
-        return {"error": f"토큰 발급 실패 ({resp.status_code}): {resp.text[:200]}"}
+        return {"error": f"토큰 실패 ({resp.status_code})"}
     except Exception as e:
-        return {"error": f"토큰 요청 오류: {e}"}
+        return {"error": f"토큰 오류: {e}"}
 
 
-async def _get_product_ids(client: httpx.AsyncClient, token: str, channel_product_no: str) -> Dict[str, Any]:
-    """커머스 API로 originProductNo와 channelNo(merchantNo)를 조회."""
-    headers = {"Authorization": f"Bearer {token}"}
+def _get_product_ids_sync(token: str, channel_product_no: str) -> Dict[str, Any]:
+    """커머스 API로 originProductNo + merchantNo 조회."""
     result = {"origin_product_no": channel_product_no, "merchant_no": None}
+    headers = {"Authorization": f"Bearer {token}"}
 
-    # v2 channel-products로 조회
     try:
-        resp = await client.get(
+        resp = cf_requests.get(
             f"{COMMERCE_API_BASE}/v2/products/channel-products/{channel_product_no}",
-            headers=headers,
+            headers=headers, impersonate="chrome", timeout=15,
         )
-        logger.info(f"[Review] channel-products: {resp.status_code} {resp.text[:500]}")
         if resp.status_code == 200:
             data = resp.json()
-            # originProduct에서 상품번호 추출
             origin = data.get("originProduct", {})
             if isinstance(origin, dict):
                 for k in ["productNo", "id", "originProductNo"]:
@@ -96,26 +84,21 @@ async def _get_product_ids(client: httpx.AsyncClient, token: str, channel_produc
                     if v and str(v).isdigit():
                         result["origin_product_no"] = str(v)
                         break
-                # 못 찾으면 첫 번째 숫자값
-                if result["origin_product_no"] == channel_product_no:
-                    for k, v in origin.items():
-                        if v and str(v).isdigit() and len(str(v)) >= 4:
-                            result["origin_product_no"] = str(v)
-                            break
     except Exception as e:
         logger.warning(f"[Review] channel-products error: {e}")
 
-    # 판매자 채널 정보로 merchantNo 조회
-    for path in ["/v1/seller/channels", "/v2/seller/channels", "/v1/channels"]:
+    # merchantNo 조회
+    for path in ["/v1/seller/channels", "/v2/seller/channels"]:
         try:
-            resp2 = await client.get(f"{COMMERCE_API_BASE}{path}", headers=headers)
-            logger.info(f"[Review] {path}: {resp2.status_code} {resp2.text[:300]}")
+            resp2 = cf_requests.get(
+                f"{COMMERCE_API_BASE}{path}", headers=headers,
+                impersonate="chrome", timeout=15,
+            )
             if resp2.status_code == 200:
                 ch_data = resp2.json()
-                # 배열이면 첫 번째 요소
                 if isinstance(ch_data, list) and ch_data:
                     ch_data = ch_data[0]
-                for k in ["channelNo", "merchantNo", "channelId", "id"]:
+                for k in ["channelNo", "merchantNo"]:
                     v = ch_data.get(k)
                     if v and str(v).isdigit():
                         result["merchant_no"] = str(v)
@@ -125,47 +108,33 @@ async def _get_product_ids(client: httpx.AsyncClient, token: str, channel_produc
         except Exception:
             continue
 
-    logger.info(f"[Review] Resolved: origin={result['origin_product_no']}, merchant={result['merchant_no']}")
+    logger.info(f"[Review] IDs: origin={result['origin_product_no']}, merchant={result['merchant_no']}")
     return result
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 리뷰 수집 (스마트스토어 API)
+# 리뷰 수집 (curl_cffi — 브라우저 TLS 위장)
 # ══════════════════════════════════════════════════════════════════════════════
 
 def extract_product_id(url: str) -> Optional[str]:
     m = re.search(r'/products?/(\d+)', url)
-    if m:
-        return m.group(1)
+    if m: return m.group(1)
     m = re.search(r'(\d{8,})', url)
-    if m:
-        return m.group(1)
+    if m: return m.group(1)
     return None
 
 
-async def _fetch_reviews_smartstore(
-    client: httpx.AsyncClient,
+def _fetch_reviews_curl(
     origin_product_no: str,
     merchant_no: Optional[str],
     referer: str,
     max_pages: int = 5,
     page_size: int = 20,
 ) -> Dict[str, Any]:
-    """스마트스토어 리뷰 API로 리뷰를 수집. 429 시 재시도."""
-    import asyncio
+    """curl_cffi로 스마트스토어 리뷰 수집 (Chrome TLS 위장)."""
     reviews = []
     total = 0
     errors = []
-
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15",
-        "Accept": "application/json, text/plain, */*",
-        "Accept-Language": "ko-KR,ko;q=0.9",
-        "Referer": referer,
-    }
-
-    review_url = _get_review_proxy_url()
-    logger.info(f"[Review] Using review URL: {review_url}")
 
     configs = []
     if merchant_no:
@@ -175,52 +144,55 @@ async def _fetch_reviews_smartstore(
     for params_base in configs:
         reviews = []
         for page in range(1, max_pages + 1):
-            params = {**params_base, "page": str(page), "pageSize": str(page_size), "sortType": "REVIEW_CREATE_DATE_DESC"}
+            try:
+                params = {
+                    **params_base,
+                    "page": str(page),
+                    "pageSize": str(page_size),
+                    "sortType": "REVIEW_CREATE_DATE_DESC",
+                }
+                resp = cf_requests.get(
+                    SMARTSTORE_REVIEW_URL,
+                    params=params,
+                    headers={
+                        "Accept": "application/json",
+                        "Accept-Language": "ko-KR,ko;q=0.9",
+                        "Referer": referer,
+                    },
+                    impersonate="chrome",
+                    timeout=15,
+                )
 
-            # 429 시 최대 3회 재시도 (3초, 6초, 12초 대기)
-            for retry in range(4):
-                try:
-                    if retry > 0:
-                        wait = 3 * (2 ** (retry - 1))
-                        logger.info(f"[Review] 429 retry {retry}/3, waiting {wait}s...")
-                        await asyncio.sleep(wait)
-
-                    resp = await client.get(review_url, params=params, headers=headers)
-
-                    if resp.status_code == 200:
-                        data = resp.json()
-                        contents = data.get("contents", [])
-                        if page == 1:
-                            total = data.get("totalElements", 0)
-                            logger.info(f"[Review] SmartStore success: total={total}")
-                        if not contents:
-                            break
-                        for item in contents:
-                            reviews.append({
-                                "id": str(item.get("id", "")),
-                                "rating": item.get("reviewScore", 0),
-                                "content": item.get("reviewContent", ""),
-                                "date": item.get("createDate", ""),
-                                "product_option": item.get("productOptionContent", ""),
-                                "writer": item.get("writerNickname", "익명"),
-                            })
-                        break  # 성공 시 retry 루프 탈출
-                    elif resp.status_code == 429:
-                        if retry == 3:
-                            errors.append("SmartStore 429 (3회 재시도 후에도 실패)")
-                        continue  # 재시도
-                    else:
-                        errors.append(f"SmartStore {resp.status_code}")
+                if resp.status_code == 200:
+                    data = resp.json()
+                    contents = data.get("contents", [])
+                    if page == 1:
+                        total = data.get("totalElements", 0)
+                        logger.info(f"[Review] curl_cffi success: total={total}")
+                    if not contents:
                         break
-                except Exception as e:
-                    errors.append(f"SmartStore error: {e}")
+                    for item in contents:
+                        reviews.append({
+                            "id": str(item.get("id", "")),
+                            "rating": item.get("reviewScore", 0),
+                            "content": item.get("reviewContent", ""),
+                            "date": item.get("createDate", ""),
+                            "product_option": item.get("productOptionContent", ""),
+                            "writer": item.get("writerNickname", "익명"),
+                        })
+                elif resp.status_code == 429:
+                    errors.append(f"curl_cffi 429 (page {page})")
                     break
-            else:
-                break  # retry 루프가 continue로만 끝났으면 (모두 429) page 루프도 중단
+                else:
+                    errors.append(f"curl_cffi {resp.status_code}")
+                    break
+            except Exception as e:
+                errors.append(f"curl_cffi error: {str(e)[:80]}")
+                break
 
-            # 페이지 간 1초 대기 (rate limit 회피)
+            # 페이지 간 0.5초 대기
             if page < max_pages:
-                await asyncio.sleep(1)
+                time.sleep(0.5)
 
         if reviews:
             return {"reviews": reviews, "total": total}
@@ -234,67 +206,50 @@ async def fetch_naver_product_reviews(
     max_pages: int = 5,
     page_size: int = 20,
 ) -> Dict[str, Any]:
-    """하이브리드 방식: 커머스 API로 ID 확보 → 스마트스토어 API로 리뷰 수집."""
+    """하이브리드: 커머스 API(ID) + curl_cffi(리뷰 수집)."""
     channel_product_no = extract_product_id(product_url)
     if not channel_product_no:
         return {"reviews": [], "total": 0, "error": "URL에서 제품 ID를 추출할 수 없습니다."}
 
     settings = get_settings()
     debug_info = []
+    origin_no = channel_product_no
+    merchant_no = None
 
-    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
-        origin_no = channel_product_no
-        merchant_no = None
-
-        # Step 1: 커머스 API로 originProductNo + merchantNo 확보
-        if settings.NAVER_COMMERCE_CLIENT_ID:
-            token_result = await _get_commerce_token(client)
-            if "token" in token_result:
-                ids = await _get_product_ids(client, token_result["token"], channel_product_no)
-                origin_no = ids["origin_product_no"]
-                merchant_no = ids["merchant_no"]
-                debug_info.append(f"origin={origin_no}")
-                debug_info.append(f"merchant={merchant_no}")
-            else:
-                debug_info.append(f"auth-fail:{token_result.get('error', '')[:50]}")
-
-        # Step 2: 커머스 API 호출 후 3초 대기 (rate limit 회피)
-        import asyncio
-        await asyncio.sleep(3)
-
-        # Step 3: 스마트스토어 리뷰 API 호출
-        result = await _fetch_reviews_smartstore(
-            client, origin_no, merchant_no, product_url, max_pages, page_size,
-        )
-
-        if result["reviews"]:
-            return {
-                "reviews": result["reviews"],
-                "total": result["total"],
-                "product_id": origin_no,
-            }
-
-        # Step 3: originProductNo와 channelProductNo 모두 시도
-        if origin_no != channel_product_no:
-            result2 = await _fetch_reviews_smartstore(
-                client, channel_product_no, merchant_no, product_url, max_pages, page_size,
+    # Step 1: 커머스 API로 ID 확보 (sync, curl_cffi 사용)
+    if settings.NAVER_COMMERCE_CLIENT_ID:
+        loop = asyncio.get_event_loop()
+        token_result = await loop.run_in_executor(None, _get_commerce_token_sync)
+        if "token" in token_result:
+            ids = await loop.run_in_executor(
+                None, _get_product_ids_sync, token_result["token"], channel_product_no
             )
-            if result2["reviews"]:
-                return {
-                    "reviews": result2["reviews"],
-                    "total": result2["total"],
-                    "product_id": channel_product_no,
-                }
-            debug_info.extend(result2.get("errors", []))
+            origin_no = ids["origin_product_no"]
+            merchant_no = ids["merchant_no"]
+        debug_info.append(f"origin={origin_no}")
+        debug_info.append(f"merchant={merchant_no}")
 
-        debug_info.extend(result.get("errors", []))
+    # Step 2: curl_cffi로 리뷰 수집
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(
+        None, _fetch_reviews_curl, origin_no, merchant_no, product_url, max_pages, page_size
+    )
 
-    error_detail = " | ".join(debug_info) if debug_info else "리뷰 API 호출 실패"
-    return {
-        "reviews": [], "total": 0,
-        "product_id": origin_no,
-        "error": f"리뷰를 가져올 수 없습니다. ({error_detail})",
-    }
+    if result["reviews"]:
+        return {"reviews": result["reviews"], "total": result["total"], "product_id": origin_no}
+
+    # channelProductNo로도 시도
+    if origin_no != channel_product_no:
+        result2 = await loop.run_in_executor(
+            None, _fetch_reviews_curl, channel_product_no, merchant_no, product_url, max_pages, page_size
+        )
+        if result2["reviews"]:
+            return {"reviews": result2["reviews"], "total": result2["total"], "product_id": channel_product_no}
+        debug_info.extend(result2.get("errors", []))
+
+    debug_info.extend(result.get("errors", []))
+    error_detail = " | ".join(debug_info)
+    return {"reviews": [], "total": 0, "product_id": origin_no, "error": f"리뷰 수집 실패: {error_detail}"}
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -312,7 +267,6 @@ def analyze_reviews(reviews: List[Dict], star_threshold: int = 3) -> Dict[str, A
         if 1 <= rating <= 5:
             star_dist[rating] += 1
             total_rating += rating
-
         date_str = r.get("date", "")
         review_date = None
         for fmt in ("%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y.%m.%d", "%Y-%m-%d"):
@@ -321,7 +275,6 @@ def analyze_reviews(reviews: List[Dict], star_threshold: int = 3) -> Dict[str, A
                 break
             except (ValueError, IndexError):
                 continue
-
         if rating <= star_threshold:
             item = {"rating": rating, "content": r.get("content", ""), "date": date_str, "writer": r.get("writer", "")}
             all_low.append(item)
@@ -346,7 +299,6 @@ async def ai_review_analysis(product_name: str, stats: Dict, low_reviews: List[D
     texts = "\n".join([f"- [{r['rating']}점] {r['content'][:200]}" for r in low_reviews[:15]])
     if not texts.strip():
         return "저별점 리뷰가 없어 분석할 내용이 없습니다."
-
     prompt = f"""이커머스 리뷰 분석 전문가로서 분석해주세요.
 
 제품: {product_name}
@@ -361,7 +313,6 @@ async def ai_review_analysis(product_name: str, stats: Dict, low_reviews: List[D
 2. **긴급도 평가**
 3. **대응 전략**
 4. **긍정 포인트**"""
-
     try:
         claude = ClaudeService()
         resp = claude.client.messages.create(model=claude.model, max_tokens=1500, messages=[{"role": "user", "content": prompt}])
@@ -384,10 +335,8 @@ def build_review_report_html(products_data: List[Dict], check_time: str) -> str:
             <td style="padding:8px;background:#fef2f2;border-radius:8px;text-align:center;width:25%"><div style="font-size:22px;font-weight:bold;color:#dc2626">{s.get('low_star_count_7d',0)}</div><div style="font-size:11px;color:#6b7280">7일↓</div></td>
             <td style="padding:8px;background:#fff7ed;border-radius:8px;text-align:center;width:25%"><div style="font-size:22px;font-weight:bold;color:#c2410c">{s.get('low_star_count_30d',0)}</div><div style="font-size:11px;color:#6b7280">30일↓</div></td>
           </tr></table>
-          <div style="margin-top:14px;padding:12px 16px;background:#f0fdf4;border-left:4px solid #059669;border-radius:4px;">
-            <p style="font-size:12px;color:#374151;line-height:1.7;margin:0;">{ai}</p></div>
+          <div style="margin-top:14px;padding:12px 16px;background:#f0fdf4;border-left:4px solid #059669;border-radius:4px;"><p style="font-size:12px;color:#374151;line-height:1.7;margin:0;">{ai}</p></div>
         </td></tr>"""
-
     return f"""<!DOCTYPE html><html><head><meta charset="utf-8"></head>
 <body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,sans-serif;">
 <table width="100%" cellpadding="0" cellspacing="0" style="max-width:640px;margin:0 auto;">
@@ -395,6 +344,4 @@ def build_review_report_html(products_data: List[Dict], check_time: str) -> str:
     <h1 style="color:#fff;margin:0;font-size:20px;">리뷰 모니터링 리포트</h1>
     <p style="color:rgba(255,255,255,0.8);margin:6px 0 0;font-size:13px;">{check_time}</p>
   </td></tr>{sections}
-  <tr><td style="padding:14px 24px;text-align:center;background:#f8fafc;border-top:1px solid #e5e7eb;">
-    <p style="margin:0;color:#9ca3af;font-size:11px;">네이버 커맨더 리뷰 모니터링</p>
-  </td></tr></table></body></html>"""
+  <tr><td style="padding:14px 24px;text-align:center;background:#f8fafc;border-top:1px solid #e5e7eb;"><p style="margin:0;color:#9ca3af;font-size:11px;">네이버 커맨더 리뷰 모니터링</p></td></tr></table></body></html>"""
