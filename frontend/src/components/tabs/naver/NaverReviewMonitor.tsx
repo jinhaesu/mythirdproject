@@ -28,23 +28,26 @@ const reviewApi = {
     const { data } = await api.post(`/naver/review-monitor/analyze?product_db_id=${productDbId}&star_threshold=3`);
     return data;
   },
-  // Step 2: Vercel 프록시로 리뷰 수집 (같은 도메인, CORS 없음)
-  fetchReviewsViaProxy: async (originProductNo: string, merchantNo: string | null, maxPages = 5) => {
+  // Step 2: 브라우저에서 직접 스마트스토어 리뷰 API 호출
+  fetchReviewsDirect: async (originProductNo: string, merchantNo: string | null, maxPages = 5) => {
     const reviews: any[] = [];
     let total = 0;
     const errors: string[] = [];
+
+    // 방법 1: 직접 호출 (CORS 허용 시 동작)
     for (let page = 1; page <= maxPages; page++) {
-      const params = new URLSearchParams({ originProductNo, page: String(page), pageSize: '20' });
+      const params = new URLSearchParams({
+        originProductNo, page: String(page), pageSize: '20',
+        sortType: 'REVIEW_CREATE_DATE_DESC',
+      });
       if (merchantNo) params.set('merchantNo', merchantNo);
       try {
-        const resp = await fetch(`/api/review-proxy?${params}`);
-        if (!resp.ok) {
-          const errText = await resp.text().catch(() => '');
-          errors.push(`proxy-${resp.status}: ${errText.slice(0, 100)}`);
-          break;
-        }
+        const resp = await fetch(`https://smartstore.naver.com/i/v1/reviews/paged-reviews?${params}`, {
+          headers: { 'Accept': 'application/json' },
+        });
+        if (resp.status === 429) { errors.push('direct-429'); break; }
+        if (!resp.ok) { errors.push(`direct-${resp.status}`); break; }
         const data = await resp.json();
-        if (data.error) { errors.push(`proxy-error: ${data.error}`); break; }
         if (page === 1) total = data.totalElements || 0;
         const contents = data.contents || [];
         if (!contents.length) break;
@@ -55,8 +58,36 @@ const reviewApi = {
             product_option: item.productOptionContent || '', writer: item.writerNickname || '익명',
           });
         }
-      } catch (e: any) { errors.push(`proxy-catch: ${e.message}`); break; }
+      } catch (e: any) {
+        errors.push(`direct-error: ${e.message?.slice(0, 80)}`);
+        break;
+      }
     }
+
+    // 방법 2: 직접 호출 실패 시 Vercel 프록시 시도
+    if (!reviews.length) {
+      for (let page = 1; page <= maxPages; page++) {
+        const params = new URLSearchParams({ originProductNo, page: String(page), pageSize: '20' });
+        if (merchantNo) params.set('merchantNo', merchantNo);
+        try {
+          const resp = await fetch(`/api/review-proxy?${params}`);
+          if (!resp.ok) { errors.push(`proxy-${resp.status}`); break; }
+          const data = await resp.json();
+          if (data.error) { errors.push(`proxy: ${data.error}`); break; }
+          if (page === 1) total = data.totalElements || 0;
+          const contents = data.contents || [];
+          if (!contents.length) break;
+          for (const item of contents) {
+            reviews.push({
+              id: String(item.id || ''), rating: item.reviewScore || 0,
+              content: item.reviewContent || '', date: item.createDate || '',
+              product_option: item.productOptionContent || '', writer: item.writerNickname || '익명',
+            });
+          }
+        } catch (e: any) { errors.push(`proxy-catch: ${e.message?.slice(0, 80)}`); break; }
+      }
+    }
+
     return { reviews, total, errors };
   },
   // Step 3: 수집한 리뷰를 백엔드에서 AI 분석
@@ -199,14 +230,14 @@ export function NaverReviewMonitor() {
       if (!originNo) throw new Error('제품 ID를 확인할 수 없습니다.');
 
       // 2) Vercel 프록시로 리뷰 수집 (같은 도메인, 429 안 걸림)
-      let result1 = await reviewApi.fetchReviewsViaProxy(originNo, merchantNo);
+      let result1 = await reviewApi.fetchReviewsDirect(originNo, merchantNo);
       let reviews = result1.reviews;
       let total = result1.total;
       const allErrors = [...(result1.errors || [])];
 
       // merchantNo 없이 재시도
       if (!reviews.length && merchantNo) {
-        const retry = await reviewApi.fetchReviewsViaProxy(originNo, null);
+        const retry = await reviewApi.fetchReviewsDirect(originNo, null);
         reviews = retry.reviews;
         total = retry.total;
         allErrors.push(...(retry.errors || []));
