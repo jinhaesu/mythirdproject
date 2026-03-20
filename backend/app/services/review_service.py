@@ -23,39 +23,46 @@ logger = logging.getLogger(__name__)
 COMMERCE_API_BASE = "https://api.commerce.naver.com/external"
 
 
-def _make_commerce_signature(client_id: str, client_secret: str, timestamp: str) -> str:
-    """네이버 커머스 API 서명 생성 (HMAC-SHA256 + Base64)."""
-    import base64
-    message = f"{client_id}_{timestamp}"
-    sign = hmac.new(client_secret.encode("utf-8"), message.encode("utf-8"), hashlib.sha256)
-    return base64.b64encode(sign.digest()).decode("utf-8")
-
-
 async def _get_commerce_token(client: httpx.AsyncClient) -> Dict[str, Any]:
     """네이버 커머스 API OAuth 토큰 발급. Returns {"token": str} or {"error": str}."""
     settings = get_settings()
-    client_id = settings.NAVER_COMMERCE_CLIENT_ID
-    client_secret = settings.NAVER_COMMERCE_CLIENT_SECRET
+    client_id = (settings.NAVER_COMMERCE_CLIENT_ID or "").strip()
+    client_secret = (settings.NAVER_COMMERCE_CLIENT_SECRET or "").strip()
 
     if not client_id or not client_secret:
         return {"error": "NAVER_COMMERCE_CLIENT_ID 또는 SECRET이 설정되지 않았습니다."}
 
     timestamp = str(int(time.time() * 1000))
-    signature = _make_commerce_signature(client_id, client_secret, timestamp)
+
+    # 서명: client_id + "_" + timestamp 를 client_secret으로 HMAC-SHA256 → Base64
+    import base64
+    message = f"{client_id}_{timestamp}"
+    signature = base64.b64encode(
+        hmac.new(
+            client_secret.encode("utf-8"),
+            message.encode("utf-8"),
+            hashlib.sha256,
+        ).digest()
+    ).decode("utf-8")
+
+    payload = {
+        "client_id": client_id,
+        "timestamp": timestamp,
+        "client_secret_sign": signature,
+        "grant_type": "client_credentials",
+        "type": "SELF",
+    }
+
+    logger.info(f"[Review] Token request: client_id={client_id[:8]}..., timestamp={timestamp}, sig_len={len(signature)}")
 
     try:
         resp = await client.post(
             f"{COMMERCE_API_BASE}/v1/oauth2/token",
-            data={
-                "client_id": client_id,
-                "timestamp": timestamp,
-                "client_secret_sign": signature,
-                "grant_type": "client_credentials",
-                "type": "SELF",
-            },
+            data=payload,
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
         logger.info(f"[Review] Token response: status={resp.status_code} body={resp.text[:500]}")
+
         if resp.status_code == 200:
             token_data = resp.json()
             token = token_data.get("access_token")
@@ -63,10 +70,13 @@ async def _get_commerce_token(client: httpx.AsyncClient) -> Dict[str, Any]:
                 return {"token": token}
             return {"error": f"토큰 응답에 access_token 없음: {json.dumps(token_data)[:200]}"}
         else:
-            body = resp.text[:300]
+            body = resp.text[:500]
             try:
                 err_json = resp.json()
                 err_msg = err_json.get("message", err_json.get("error_description", body))
+                err_code = err_json.get("code", err_json.get("error", ""))
+                if err_code:
+                    err_msg = f"[{err_code}] {err_msg}"
             except Exception:
                 err_msg = body
             return {"error": f"토큰 발급 실패 ({resp.status_code}): {err_msg}"}
