@@ -116,14 +116,36 @@ async def fetch_naver_product_reviews(
 
         headers = {"Authorization": f"Bearer {token}"}
 
-        # 여러 엔드포인트를 순차 시도 (커머스 API 버전별 경로가 다름)
+        # 여러 엔드포인트를 순차 시도 (커머스 API 버전/경로 자동 탐색)
         endpoint_candidates = [
+            # Solution API 패턴
+            f"/v1/seller/products/{product_id}/reviews",
+            f"/v1/seller/products/origin-products/{product_id}/reviews",
+            f"/v1/seller/products/origin-products/{product_id}/product-reviews",
+            # Contents API 패턴
             f"/v1/contents/product-reviews?originProductNo={product_id}",
             f"/v2/contents/product-reviews?originProductNo={product_id}",
+            # Products API 패턴
             f"/v1/products/origin-products/{product_id}/product-reviews",
+            f"/v2/products/origin-products/{product_id}/reviews",
             f"/v1/products/{product_id}/reviews",
+            # Review 직접 경로
+            f"/v1/reviews?originProductNo={product_id}",
+            f"/v2/reviews?originProductNo={product_id}",
             f"/v1/product-reviews?originProductNo={product_id}",
         ]
+
+        # 먼저 제품 정보 조회로 API 접근 유효성 검증
+        try:
+            prod_resp = await client.get(
+                f"{COMMERCE_API_BASE}/v1/products/origin-products/{product_id}",
+                headers=headers,
+            )
+            logger.info(f"[Review] Product info check: {prod_resp.status_code} {prod_resp.text[:200]}")
+            tried_endpoints.append(f"product-info→{prod_resp.status_code}")
+        except Exception as e:
+            logger.warning(f"[Review] Product info check failed: {e}")
+            tried_endpoints.append(f"product-info→ERROR")
 
         working_endpoint = None
         for ep in endpoint_candidates:
