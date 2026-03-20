@@ -56,12 +56,18 @@ async def _get_commerce_token(client: httpx.AsyncClient) -> Optional[str]:
             },
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
+        logger.info(f"[Review] Token response: status={resp.status_code} body={resp.text[:500]}")
         if resp.status_code == 200:
-            token = resp.json().get("access_token")
-            logger.info("[Review] Commerce API token obtained")
-            return token
+            token_data = resp.json()
+            token = token_data.get("access_token")
+            if token:
+                logger.info("[Review] Commerce API token obtained")
+                return token
+            else:
+                logger.error(f"[Review] Token response has no access_token: {token_data}")
+                return None
         else:
-            logger.error(f"[Review] Token request failed: {resp.status_code} {resp.text[:300]}")
+            logger.error(f"[Review] Token request failed: {resp.status_code} {resp.text[:500]}")
             return None
     except Exception as e:
         logger.error(f"[Review] Token request error: {e}")
@@ -101,7 +107,7 @@ async def fetch_naver_product_reviews(
     async with httpx.AsyncClient(timeout=30.0) as client:
         token = await _get_commerce_token(client)
         if not token:
-            return {"reviews": [], "total": 0, "error": "네이버 커머스 API 인증 실패. Client ID/Secret을 확인해주세요."}
+            return {"reviews": [], "total": 0, "error": "네이버 커머스 API 인증 실패. 커머스 API 센터(apicenter.commerce.naver.com)에서 발급한 Client ID/Secret인지 확인해주세요."}
 
         headers = {
             "Authorization": f"Bearer {token}",

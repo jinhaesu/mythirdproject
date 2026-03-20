@@ -133,6 +133,10 @@ async def _create_campaign_impl(
     if campaign_data.targeting_segments:
         targeting_segments_json = json.dumps(campaign_data.targeting_segments, ensure_ascii=False)
 
+    # timezone-aware → naive 변환 (PostgreSQL TIMESTAMP WITHOUT TIME ZONE 호환)
+    start_dt = campaign_data.start_date.replace(tzinfo=None) if campaign_data.start_date and campaign_data.start_date.tzinfo else campaign_data.start_date
+    end_dt = campaign_data.end_date.replace(tzinfo=None) if campaign_data.end_date and campaign_data.end_date.tzinfo else campaign_data.end_date
+
     campaign = Campaign(
         user_id=current_user.id,
         name=campaign_data.name,
@@ -143,8 +147,8 @@ async def _create_campaign_impl(
         budget_type=campaign_data.budget_type,
         targeting=targeting_json,
         targeting_segments=targeting_segments_json,
-        start_date=campaign_data.start_date,
-        end_date=campaign_data.end_date,
+        start_date=start_dt,
+        end_date=end_dt,
         advantage_plus=campaign_data.advantage_plus,
         dataset_id=campaign_data.dataset_id,
         pixel_id=campaign_data.pixel_id,
