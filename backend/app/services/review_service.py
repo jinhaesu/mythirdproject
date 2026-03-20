@@ -140,18 +140,19 @@ async def _fetch_reviews_smartstore(
     max_pages: int = 5,
     page_size: int = 20,
 ) -> Dict[str, Any]:
-    """스마트스토어 리뷰 API로 리뷰를 수집."""
+    """스마트스토어 리뷰 API로 리뷰를 수집. 429 시 재시도."""
+    import asyncio
     reviews = []
     total = 0
     errors = []
 
     headers = {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15",
-        "Accept": "application/json",
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15",
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "ko-KR,ko;q=0.9",
         "Referer": referer,
     }
 
-    # merchantNo가 있으면 포함, 없으면 없이 시도
     configs = []
     if merchant_no:
         configs.append({"merchantNo": merchant_no, "originProductNo": origin_product_no})
@@ -160,36 +161,52 @@ async def _fetch_reviews_smartstore(
     for params_base in configs:
         reviews = []
         for page in range(1, max_pages + 1):
-            try:
-                params = {**params_base, "page": str(page), "pageSize": str(page_size), "sortType": "REVIEW_CREATE_DATE_DESC"}
-                resp = await client.get(SMARTSTORE_REVIEW_URL, params=params, headers=headers)
+            params = {**params_base, "page": str(page), "pageSize": str(page_size), "sortType": "REVIEW_CREATE_DATE_DESC"}
 
-                if resp.status_code == 200:
-                    data = resp.json()
-                    contents = data.get("contents", [])
-                    if page == 1:
-                        total = data.get("totalElements", 0)
-                        logger.info(f"[Review] SmartStore API success: total={total}, params={params_base}")
-                    if not contents:
+            # 429 시 최대 3회 재시도 (3초, 6초, 12초 대기)
+            for retry in range(4):
+                try:
+                    if retry > 0:
+                        wait = 3 * (2 ** (retry - 1))
+                        logger.info(f"[Review] 429 retry {retry}/3, waiting {wait}s...")
+                        await asyncio.sleep(wait)
+
+                    resp = await client.get(SMARTSTORE_REVIEW_URL, params=params, headers=headers)
+
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        contents = data.get("contents", [])
+                        if page == 1:
+                            total = data.get("totalElements", 0)
+                            logger.info(f"[Review] SmartStore success: total={total}")
+                        if not contents:
+                            break
+                        for item in contents:
+                            reviews.append({
+                                "id": str(item.get("id", "")),
+                                "rating": item.get("reviewScore", 0),
+                                "content": item.get("reviewContent", ""),
+                                "date": item.get("createDate", ""),
+                                "product_option": item.get("productOptionContent", ""),
+                                "writer": item.get("writerNickname", "익명"),
+                            })
+                        break  # 성공 시 retry 루프 탈출
+                    elif resp.status_code == 429:
+                        if retry == 3:
+                            errors.append("SmartStore 429 (3회 재시도 후에도 실패)")
+                        continue  # 재시도
+                    else:
+                        errors.append(f"SmartStore {resp.status_code}")
                         break
-                    for item in contents:
-                        reviews.append({
-                            "id": str(item.get("id", "")),
-                            "rating": item.get("reviewScore", 0),
-                            "content": item.get("reviewContent", ""),
-                            "date": item.get("createDate", ""),
-                            "product_option": item.get("productOptionContent", ""),
-                            "writer": item.get("writerNickname", "익명"),
-                        })
-                elif resp.status_code == 429:
-                    errors.append(f"SmartStore API 429 (rate limit)")
+                except Exception as e:
+                    errors.append(f"SmartStore error: {e}")
                     break
-                else:
-                    errors.append(f"SmartStore API {resp.status_code}")
-                    break
-            except Exception as e:
-                errors.append(f"SmartStore error: {e}")
-                break
+            else:
+                break  # retry 루프가 continue로만 끝났으면 (모두 429) page 루프도 중단
+
+            # 페이지 간 1초 대기 (rate limit 회피)
+            if page < max_pages:
+                await asyncio.sleep(1)
 
         if reviews:
             return {"reviews": reviews, "total": total}
@@ -227,7 +244,11 @@ async def fetch_naver_product_reviews(
             else:
                 debug_info.append(f"auth-fail:{token_result.get('error', '')[:50]}")
 
-        # Step 2: 스마트스토어 리뷰 API 호출
+        # Step 2: 커머스 API 호출 후 3초 대기 (rate limit 회피)
+        import asyncio
+        await asyncio.sleep(3)
+
+        # Step 3: 스마트스토어 리뷰 API 호출
         result = await _fetch_reviews_smartstore(
             client, origin_no, merchant_no, product_url, max_pages, page_size,
         )

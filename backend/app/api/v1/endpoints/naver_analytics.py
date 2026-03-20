@@ -2471,32 +2471,42 @@ async def analyze_product_reviews(
         raise HTTPException(status_code=404, detail="제품을 찾을 수 없습니다.")
 
     try:
-        # 커머스 API로 originProductNo + merchantNo 확보
-        from app.services.review_service import _get_commerce_token, _get_product_ids
-        settings = get_settings()
-        resolve_info = {}
-        async with httpx.AsyncClient(timeout=30) as hc:
-            if settings.NAVER_COMMERCE_CLIENT_ID:
-                token_result = await _get_commerce_token(hc)
-                if "token" in token_result:
-                    ch_id = extract_product_id(product.product_url) or ""
-                    resolve_info = await _get_product_ids(hc, token_result["token"], ch_id)
+        review_data = await fetch_naver_product_reviews(product.product_url, product.product_name)
+
+        if not review_data.get("reviews"):
+            return {
+                "product_name": product.product_name,
+                "stats": {
+                    "total_reviews": 0, "average_rating": 0,
+                    "star_distribution": {1: 0, 2: 0, 3: 0, 4: 0, 5: 0},
+                    "low_star_count_7d": 0, "low_star_count_14d": 0,
+                    "low_star_count_30d": 0, "low_star_total": 0,
+                },
+                "ai_analysis": "",
+                "error": review_data.get("error"),
+            }
+
+        stats = analyze_reviews(review_data["reviews"], star_threshold)
+        ai_text = await ai_review_analysis(product.product_name, stats, stats.get("low_reviews_sample", []))
 
         return {
             "product_name": product.product_name,
             "product_url": product.product_url,
-            "origin_product_no": resolve_info.get("origin_product_no", extract_product_id(product.product_url)),
-            "merchant_no": resolve_info.get("merchant_no"),
-            "mode": "client_fetch",
+            "stats": stats,
+            "ai_analysis": ai_text,
         }
     except Exception as e:
-        logger.error(f"[ReviewMonitor] resolve error: {e}", exc_info=True)
+        logger.error(f"[ReviewMonitor] analyze error: {e}", exc_info=True)
         return {
             "product_name": product.product_name,
-            "origin_product_no": extract_product_id(product.product_url),
-            "merchant_no": None,
-            "mode": "client_fetch",
-            "error": str(e),
+            "stats": {
+                "total_reviews": 0, "average_rating": 0,
+                "star_distribution": {1: 0, 2: 0, 3: 0, 4: 0, 5: 0},
+                "low_star_count_7d": 0, "low_star_count_14d": 0,
+                "low_star_count_30d": 0, "low_star_total": 0,
+            },
+            "ai_analysis": "",
+            "error": f"분석 중 오류: {str(e)}",
         }
 
 
