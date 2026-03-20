@@ -126,17 +126,49 @@ async def fetch_naver_product_reviews(
         ]:
             try:
                 ch_resp = await client.get(f"{COMMERCE_API_BASE}{ch_path}", headers=headers)
-                logger.info(f"[Review] {ch_path}: {ch_resp.status_code} {ch_resp.text[:300]}")
+                resp_text = ch_resp.text[:500]
+                logger.info(f"[Review] {ch_path}: {ch_resp.status_code} {resp_text}")
                 tried_endpoints.append(f"channel→{ch_resp.status_code}")
                 if ch_resp.status_code == 200:
                     ch_data = ch_resp.json()
-                    opn = ch_data.get("originProductNo") or ch_data.get("originProduct", {}).get("productNo")
+                    # 다양한 응답 구조에서 originProductNo 탐색
+                    opn = None
+                    # 직접 필드
+                    for key in ["originProductNo", "originProduct", "originProductId", "productNo"]:
+                        val = ch_data.get(key)
+                        if isinstance(val, dict):
+                            opn = val.get("productNo") or val.get("originProductNo") or val.get("id")
+                        elif val and str(val).isdigit():
+                            opn = val
+                        if opn:
+                            break
+                    # 재귀적 탐색 (중첩 구조 대응)
+                    if not opn:
+                        def _find_origin(obj, depth=0):
+                            if depth > 3 or not isinstance(obj, dict):
+                                return None
+                            for k, v in obj.items():
+                                if "origin" in k.lower() and "product" in k.lower() and v and str(v).isdigit():
+                                    return str(v)
+                                if isinstance(v, dict):
+                                    r = _find_origin(v, depth + 1)
+                                    if r:
+                                        return r
+                            return None
+                        opn = _find_origin(ch_data)
+
                     if opn:
                         origin_product_no = str(opn)
-                        logger.info(f"[Review] Found originProductNo: {origin_product_no} (from channelProductNo: {product_id})")
+                        logger.info(f"[Review] Found originProductNo: {origin_product_no}")
+                        tried_endpoints.append(f"origin={origin_product_no}")
+                    else:
+                        # 구조를 에러에 포함하여 디버깅
+                        keys = list(ch_data.keys())[:20]
+                        tried_endpoints.append(f"channel-keys={keys}")
+                        logger.warning(f"[Review] channel 200 but no originProductNo. keys={keys} data={resp_text}")
                     break
             except Exception as e:
-                tried_endpoints.append(f"channel→ERR")
+                tried_endpoints.append(f"channel→ERR:{e}")
 
         # 2) origin-products 정보 조회 검증
         try:
