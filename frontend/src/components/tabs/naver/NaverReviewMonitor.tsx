@@ -11,6 +11,39 @@ import { clsx } from 'clsx';
 import toast from 'react-hot-toast';
 
 // ── API ──
+// 스마트스토어 리뷰 API 직접 호출 (브라우저에서 429 안 걸림)
+async function fetchSmartStoreReviews(originProductNo: string, merchantNo: string | null, maxPages = 5) {
+  const reviews: any[] = [];
+  let total = 0;
+  const params: Record<string, string> = { originProductNo, sortType: 'REVIEW_CREATE_DATE_DESC', pageSize: '20' };
+  if (merchantNo) params.merchantNo = merchantNo;
+
+  for (let page = 1; page <= maxPages; page++) {
+    try {
+      const resp = await fetch(
+        `https://smartstore.naver.com/i/v1/reviews/paged-reviews?${new URLSearchParams({ ...params, page: String(page) })}`,
+        { headers: { 'Accept': 'application/json' } }
+      );
+      if (!resp.ok) break;
+      const data = await resp.json();
+      if (page === 1) total = data.totalElements || 0;
+      const contents = data.contents || [];
+      if (!contents.length) break;
+      for (const item of contents) {
+        reviews.push({
+          id: String(item.id || ''),
+          rating: item.reviewScore || 0,
+          content: item.reviewContent || '',
+          date: item.createDate || '',
+          product_option: item.productOptionContent || '',
+          writer: item.writerNickname || '익명',
+        });
+      }
+    } catch { break; }
+  }
+  return { reviews, total };
+}
+
 const reviewApi = {
   listProducts: async () => {
     const { data } = await api.get('/naver/review-monitor/products');
@@ -23,8 +56,16 @@ const reviewApi = {
   deleteProduct: async (id: string) => {
     await api.delete(`/naver/review-monitor/products/${id}`);
   },
-  analyze: async (productDbId: string, starThreshold: number) => {
+  // Step 1: 백엔드에서 originProductNo/merchantNo 확보
+  resolve: async (productDbId: string, starThreshold: number) => {
     const { data } = await api.post(`/naver/review-monitor/analyze?product_db_id=${productDbId}&star_threshold=${starThreshold}`);
+    return data;
+  },
+  // Step 2: 수집한 리뷰를 백엔드로 보내 AI 분석
+  analyzeReviews: async (productName: string, reviews: any[], starThreshold: number) => {
+    const { data } = await api.post('/naver/review-monitor/analyze-reviews', {
+      product_name: productName, reviews, star_threshold: starThreshold,
+    });
     return data;
   },
   // 스케줄
@@ -150,16 +191,37 @@ export function NaverReviewMonitor() {
   });
 
   const analyzeMutation = useMutation({
-    mutationFn: () => reviewApi.analyze(selectedProductId!, starThreshold),
+    mutationFn: async () => {
+      // Step 1: 백엔드에서 originProductNo/merchantNo 확보
+      const resolveData = await reviewApi.resolve(selectedProductId!, starThreshold);
+      const originNo = resolveData.origin_product_no;
+      const merchantNo = resolveData.merchant_no;
+
+      if (!originNo) throw new Error('제품 ID를 확인할 수 없습니다.');
+
+      // Step 2: 브라우저에서 직접 스마트스토어 리뷰 수집
+      const { reviews, total } = await fetchSmartStoreReviews(originNo, merchantNo);
+
+      if (!reviews.length) {
+        // merchantNo 없이 다시 시도
+        const retry = await fetchSmartStoreReviews(originNo, null);
+        if (retry.reviews.length) {
+          return await reviewApi.analyzeReviews(resolveData.product_name, retry.reviews, starThreshold);
+        }
+        return { stats: { total_reviews: 0, average_rating: 0, star_distribution: {1:0,2:0,3:0,4:0,5:0}, low_star_count_7d:0, low_star_count_14d:0, low_star_count_30d:0, low_star_total:0 }, ai_analysis: '', error: `리뷰를 가져올 수 없습니다 (origin=${originNo}, merchant=${merchantNo})` };
+      }
+
+      // Step 3: 수집한 리뷰를 백엔드로 보내 AI 분석
+      const analysis = await reviewApi.analyzeReviews(resolveData.product_name, reviews, starThreshold);
+      return { ...analysis, product_name: resolveData.product_name };
+    },
     onSuccess: (data) => {
       setAnalysisResult(data);
-      if (data.error) toast.error(data.error);
+      if (data?.error) toast.error(data.error);
+      else if (data?.stats?.total_reviews > 0) toast.success('리뷰 분석 완료!');
     },
     onError: (e: any) => {
-      const detail = e?.response?.data?.detail || e?.response?.data?.error || e?.message || '분석 실패';
-      toast.error(`리뷰 분석 오류: ${detail}`);
-      // 에러 응답 본문이 있으면 그것도 결과로 표시
-      if (e?.response?.data) setAnalysisResult(e.response.data);
+      toast.error(`리뷰 분석 오류: ${e?.message || '알 수 없는 오류'}`);
     },
   });
 
