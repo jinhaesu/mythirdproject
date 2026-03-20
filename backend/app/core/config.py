@@ -43,6 +43,10 @@ class Settings(BaseSettings):
     NAVER_GFA_SECRET_KEY: str = ""
     NAVER_GFA_CUSTOMER_ID: str = ""
 
+    # Naver Commerce API (스마트스토어 판매자 API)
+    NAVER_COMMERCE_CLIENT_ID: str = ""
+    NAVER_COMMERCE_CLIENT_SECRET: str = ""
+
     # Resend (Email)
     RESEND_API_KEY: str = ""
     RESEND_FROM_EMAIL: str = "onboarding@resend.dev"
