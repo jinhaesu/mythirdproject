@@ -116,22 +116,6 @@ async def fetch_naver_product_reviews(
 
         headers = {"Authorization": f"Bearer {token}"}
 
-        # 여러 엔드포인트를 순차 시도 (originProductNo 사용)
-        pid = origin_product_no
-        endpoint_candidates = [
-            f"/v1/seller/products/{pid}/reviews",
-            f"/v1/seller/products/origin-products/{pid}/reviews",
-            f"/v1/seller/products/origin-products/{pid}/product-reviews",
-            f"/v1/contents/product-reviews?originProductNo={pid}",
-            f"/v2/contents/product-reviews?originProductNo={pid}",
-            f"/v1/products/origin-products/{pid}/product-reviews",
-            f"/v2/products/origin-products/{pid}/reviews",
-            f"/v1/products/{pid}/reviews",
-            f"/v1/reviews?originProductNo={pid}",
-            f"/v2/reviews?originProductNo={pid}",
-            f"/v1/product-reviews?originProductNo={pid}",
-        ]
-
         # URL의 ID가 channelProductNo일 수 있으므로, 먼저 originProductNo를 찾는다
         origin_product_no = product_id  # 기본값
 
@@ -176,6 +160,22 @@ async def fetch_naver_product_reviews(
             tried_endpoints.append(f"product-list→{list_resp.status_code}")
         except Exception as e:
             tried_endpoints.append(f"product-list→ERR")
+
+        # 리뷰 엔드포인트 후보 (originProductNo 사용)
+        pid = origin_product_no
+        endpoint_candidates = [
+            f"/v1/seller/products/{pid}/reviews",
+            f"/v1/seller/products/origin-products/{pid}/reviews",
+            f"/v1/seller/products/origin-products/{pid}/product-reviews",
+            f"/v1/contents/product-reviews?originProductNo={pid}",
+            f"/v2/contents/product-reviews?originProductNo={pid}",
+            f"/v1/products/origin-products/{pid}/product-reviews",
+            f"/v2/products/origin-products/{pid}/reviews",
+            f"/v1/products/{pid}/reviews",
+            f"/v1/reviews?originProductNo={pid}",
+            f"/v2/reviews?originProductNo={pid}",
+            f"/v1/product-reviews?originProductNo={pid}",
+        ]
 
         working_endpoint = None
         for ep in endpoint_candidates:
