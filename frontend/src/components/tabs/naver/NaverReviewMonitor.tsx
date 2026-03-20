@@ -32,14 +32,19 @@ const reviewApi = {
   fetchReviewsViaProxy: async (originProductNo: string, merchantNo: string | null, maxPages = 5) => {
     const reviews: any[] = [];
     let total = 0;
+    const errors: string[] = [];
     for (let page = 1; page <= maxPages; page++) {
       const params = new URLSearchParams({ originProductNo, page: String(page), pageSize: '20' });
       if (merchantNo) params.set('merchantNo', merchantNo);
       try {
         const resp = await fetch(`/api/review-proxy?${params}`);
-        if (!resp.ok) break;
+        if (!resp.ok) {
+          const errText = await resp.text().catch(() => '');
+          errors.push(`proxy-${resp.status}: ${errText.slice(0, 100)}`);
+          break;
+        }
         const data = await resp.json();
-        if (data.error) break;
+        if (data.error) { errors.push(`proxy-error: ${data.error}`); break; }
         if (page === 1) total = data.totalElements || 0;
         const contents = data.contents || [];
         if (!contents.length) break;
@@ -50,9 +55,9 @@ const reviewApi = {
             product_option: item.productOptionContent || '', writer: item.writerNickname || '익명',
           });
         }
-      } catch { break; }
+      } catch (e: any) { errors.push(`proxy-catch: ${e.message}`); break; }
     }
-    return { reviews, total };
+    return { reviews, total, errors };
   },
   // Step 3: 수집한 리뷰를 백엔드에서 AI 분석
   analyzeReviews: async (productName: string, reviews: any[], starThreshold: number) => {
@@ -194,20 +199,25 @@ export function NaverReviewMonitor() {
       if (!originNo) throw new Error('제품 ID를 확인할 수 없습니다.');
 
       // 2) Vercel 프록시로 리뷰 수집 (같은 도메인, 429 안 걸림)
-      let { reviews, total } = await reviewApi.fetchReviewsViaProxy(originNo, merchantNo);
+      let result1 = await reviewApi.fetchReviewsViaProxy(originNo, merchantNo);
+      let reviews = result1.reviews;
+      let total = result1.total;
+      const allErrors = [...(result1.errors || [])];
 
       // merchantNo 없이 재시도
       if (!reviews.length && merchantNo) {
         const retry = await reviewApi.fetchReviewsViaProxy(originNo, null);
         reviews = retry.reviews;
         total = retry.total;
+        allErrors.push(...(retry.errors || []));
       }
 
       if (!reviews.length) {
+        const errDetail = allErrors.length ? allErrors.join(' | ') : '리뷰 없음';
         return {
           stats: { total_reviews: 0, average_rating: 0, star_distribution: {1:0,2:0,3:0,4:0,5:0}, low_star_count_7d:0, low_star_count_14d:0, low_star_count_30d:0, low_star_total:0 },
           ai_analysis: '',
-          error: `리뷰를 가져올 수 없습니다. (origin=${originNo}, merchant=${merchantNo})`,
+          error: `리뷰를 가져올 수 없습니다. origin=${originNo}, merchant=${merchantNo} (${errDetail})`,
         };
       }
 
