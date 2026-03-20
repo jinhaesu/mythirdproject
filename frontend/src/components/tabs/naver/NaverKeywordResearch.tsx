@@ -4,7 +4,7 @@ import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Search, Loader2, TrendingUp, ShoppingBag, Star, AlertCircle, Sparkles, FileText,
-  BarChart3, Monitor, Smartphone, Target, Clock, Plus, Trash2, Play, RefreshCw,
+  BarChart3, Monitor, Smartphone, Target, Clock, Plus, Trash2, Play, RefreshCw, ExternalLink,
 } from 'lucide-react';
 import api, { marketApi } from '@/lib/api';
 import { naverKeywordResearchApi } from '@/lib/naver-api';
@@ -967,6 +967,114 @@ export function NaverKeywordResearch() {
 
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// RankResultCard — 키워드별 순위 + 상세 제품/블로그 목록
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function RankResultCard({ data }: { data: any }) {
+  const [expanded, setExpanded] = useState(false);
+  const shopRanks = data.shopping_ranks || [];
+  const blogRanks = data.blog_ranks || [];
+  const hasDetail = shopRanks.length > 0 || blogRanks.length > 0;
+
+  const rankBadge = (rank: number) => {
+    const color = rank <= 10 ? 'text-green-600' : rank <= 30 ? 'text-yellow-600' : 'text-red-600';
+    const bg = rank <= 10 ? 'bg-green-50' : rank <= 30 ? 'bg-yellow-50' : 'bg-red-50';
+    return <span className={clsx('font-bold text-sm px-1.5 py-0.5 rounded', color, bg)}>{rank}위</span>;
+  };
+
+  return (
+    <div className="rounded-lg border overflow-hidden">
+      {/* 요약 행 */}
+      <button
+        onClick={() => hasDetail && setExpanded(!expanded)}
+        className={clsx('w-full flex items-center justify-between px-4 py-3 text-left transition-colors', hasDetail ? 'hover:bg-gray-50 cursor-pointer' : 'cursor-default')}
+      >
+        <span className="text-sm font-semibold text-gray-900 min-w-[100px]">{data.keyword}</span>
+        <div className="flex items-center gap-6">
+          <div className="text-xs">
+            <span className="text-gray-500 mr-1.5">쇼핑</span>
+            {shopRanks.length > 0
+              ? <>{rankBadge(shopRanks[0].rank)} <span className="text-gray-400">/ {data.shopping_total?.toLocaleString()}건</span></>
+              : <span className="text-red-500 font-medium">미노출</span>}
+          </div>
+          <div className="text-xs">
+            <span className="text-gray-500 mr-1.5">블로그</span>
+            {blogRanks.length > 0
+              ? <>{rankBadge(blogRanks[0].rank)} <span className="text-gray-400">/ {data.blog_total?.toLocaleString()}건</span></>
+              : <span className="text-red-500 font-medium">미노출</span>}
+          </div>
+          {hasDetail && (
+            <span className={clsx('text-gray-400 transition-transform text-xs', expanded && 'rotate-180')}>▼</span>
+          )}
+        </div>
+      </button>
+
+      {/* 상세 펼침 */}
+      {expanded && (
+        <div className="border-t bg-gray-50 px-4 py-3 space-y-3">
+          {/* 쇼핑 상세 */}
+          {shopRanks.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-orange-700 mb-1.5 flex items-center gap-1">
+                <ShoppingBag size={12} /> 네이버 쇼핑 노출 제품 ({shopRanks.length}건)
+              </p>
+              <div className="space-y-1">
+                {shopRanks.map((s: any, idx: number) => (
+                  <div key={idx} className="flex items-center gap-2 bg-white rounded-lg px-3 py-2 border text-xs">
+                    <span className={clsx('font-bold w-8 text-center', s.rank <= 10 ? 'text-green-600' : s.rank <= 30 ? 'text-yellow-600' : 'text-red-600')}>{s.rank}위</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-gray-900 truncate font-medium">{s.title}</p>
+                      <div className="flex items-center gap-2 text-gray-400 mt-0.5">
+                        {s.mall && <span>{s.mall}</span>}
+                        {s.price && <span>₩{Number(s.price).toLocaleString()}</span>}
+                      </div>
+                    </div>
+                    {s.link && (
+                      <a href={s.link} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-700 flex-shrink-0" title="네이버 쇼핑에서 보기">
+                        <ExternalLink size={13} />
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 블로그 상세 */}
+          {blogRanks.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-blue-700 mb-1.5 flex items-center gap-1">
+                <FileText size={12} /> 네이버 블로그 노출 ({blogRanks.length}건)
+              </p>
+              <div className="space-y-1">
+                {blogRanks.map((b: any, idx: number) => (
+                  <div key={idx} className="flex items-center gap-2 bg-white rounded-lg px-3 py-2 border text-xs">
+                    <span className={clsx('font-bold w-8 text-center', b.rank <= 10 ? 'text-green-600' : b.rank <= 30 ? 'text-yellow-600' : 'text-red-600')}>{b.rank}위</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-gray-900 truncate font-medium">{b.title}</p>
+                      <div className="flex items-center gap-2 text-gray-400 mt-0.5">
+                        {b.blogger && <span>{b.blogger}</span>}
+                        {b.postdate && <span>{b.postdate}</span>}
+                      </div>
+                    </div>
+                    {b.link && (
+                      <a href={b.link} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-700 flex-shrink-0" title="블로그 글 보기">
+                        <ExternalLink size={13} />
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // AiRankAnalysis — AI 분석 결과를 섹션별 카드로 렌더링
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -1159,44 +1267,18 @@ function KeywordRankMonitor({ brandName, registeredKeywords = [] }: { brandName:
             <p className="text-xs text-amber-600 bg-amber-50 p-2 rounded-lg">키워드가 등록되지 않았습니다. 위 검색바에서 키워드를 입력하고 [+ 등록] 버튼을 눌러주세요.</p>
           )}
 
-          {/* 결과 테이블 */}
+          {/* 결과 */}
           {rankResult?.rank_results && (
             <div className="space-y-3">
               <h3 className="text-sm font-semibold text-gray-800">
                 순위 결과 ({rankResult.keywords_checked || rankResult.rank_results.length}개 키워드)
               </h3>
-              <div className="overflow-x-auto rounded-lg border">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="bg-gray-50 text-gray-600">
-                      <th className="px-4 py-2.5 text-left font-medium">키워드</th>
-                      <th className="px-4 py-2.5 text-left font-medium">네이버 쇼핑</th>
-                      <th className="px-4 py-2.5 text-left font-medium">네이버 블로그</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rankResult.rank_results.map((r: any, i: number) => (
-                      <tr key={i} className="border-t hover:bg-gray-50">
-                        <td className="px-4 py-2.5 font-medium text-gray-900">{r.keyword}</td>
-                        <td className="px-4 py-2.5">
-                          {r.shopping_ranks?.length > 0
-                            ? <span className={clsx('font-bold', r.shopping_ranks[0].rank <= 10 ? 'text-green-600' : r.shopping_ranks[0].rank <= 30 ? 'text-yellow-600' : 'text-red-600')}>{r.shopping_ranks[0].rank}위</span>
-                            : <span className="text-red-500 font-medium">미노출</span>}
-                          <span className="text-gray-400 ml-1.5">/ {r.shopping_total?.toLocaleString()}건</span>
-                        </td>
-                        <td className="px-4 py-2.5">
-                          {r.blog_ranks?.length > 0
-                            ? <span className={clsx('font-bold', r.blog_ranks[0].rank <= 10 ? 'text-green-600' : r.blog_ranks[0].rank <= 30 ? 'text-yellow-600' : 'text-red-600')}>{r.blog_ranks[0].rank}위</span>
-                            : <span className="text-red-500 font-medium">미노출</span>}
-                          <span className="text-gray-400 ml-1.5">/ {r.blog_total?.toLocaleString()}건</span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="space-y-2">
+                {rankResult.rank_results.map((r: any, i: number) => (
+                  <RankResultCard key={i} data={r} />
+                ))}
               </div>
 
-              {/* AI 분석 */}
               {rankResult.ai_analysis && (
                 <AiRankAnalysis text={rankResult.ai_analysis} />
               )}
