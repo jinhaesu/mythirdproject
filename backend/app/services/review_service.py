@@ -5,15 +5,14 @@ https://apicenter.commerce.naver.com
 """
 import re
 import json
-import hmac
-import hashlib
+import base64
 import time
 import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
-from urllib.parse import quote
 
 import httpx
+import bcrypt
 
 from app.core.config import get_settings
 from app.services.ai import ClaudeService
@@ -34,16 +33,11 @@ async def _get_commerce_token(client: httpx.AsyncClient) -> Dict[str, Any]:
 
     timestamp = str(int(time.time() * 1000))
 
-    # 서명: client_id + "_" + timestamp 를 client_secret으로 HMAC-SHA256 → Base64
-    import base64
-    message = f"{client_id}_{timestamp}"
-    signature = base64.b64encode(
-        hmac.new(
-            client_secret.encode("utf-8"),
-            message.encode("utf-8"),
-            hashlib.sha256,
-        ).digest()
-    ).decode("utf-8")
+    # 서명: bcrypt(client_id + "_" + timestamp, client_secret as salt) → Base64
+    # client_secret은 bcrypt salt 형식 ($2a$04$...)
+    password = f"{client_id}_{timestamp}"
+    hashed = bcrypt.hashpw(password.encode("utf-8"), client_secret.encode("utf-8"))
+    signature = base64.b64encode(hashed).decode("utf-8")
 
     payload = {
         "client_id": client_id,
