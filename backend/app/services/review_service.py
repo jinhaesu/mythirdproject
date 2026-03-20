@@ -131,41 +131,43 @@ async def fetch_naver_product_reviews(
                 tried_endpoints.append(f"channel→{ch_resp.status_code}")
                 if ch_resp.status_code == 200:
                     ch_data = ch_resp.json()
-                    # 다양한 응답 구조에서 originProductNo 탐색
-                    opn = None
-                    # 직접 필드
-                    for key in ["originProductNo", "originProduct", "originProductId", "productNo"]:
-                        val = ch_data.get(key)
-                        if isinstance(val, dict):
-                            opn = val.get("productNo") or val.get("originProductNo") or val.get("id")
-                        elif val and str(val).isdigit():
-                            opn = val
-                        if opn:
-                            break
-                    # 재귀적 탐색 (중첩 구조 대응)
-                    if not opn:
-                        def _find_origin(obj, depth=0):
-                            if depth > 3 or not isinstance(obj, dict):
-                                return None
-                            for k, v in obj.items():
-                                if "origin" in k.lower() and "product" in k.lower() and v and str(v).isdigit():
-                                    return str(v)
-                                if isinstance(v, dict):
-                                    r = _find_origin(v, depth + 1)
-                                    if r:
-                                        return r
-                            return None
-                        opn = _find_origin(ch_data)
+                    # originProduct 객체에서 상품번호 추출
+                    origin_obj = ch_data.get("originProduct", {})
+                    if isinstance(origin_obj, dict):
+                        # 가능한 모든 숫자 ID 필드를 탐색
+                        for k in ["productNo", "id", "originProductNo", "no"]:
+                            v = origin_obj.get(k)
+                            if v and str(v).isdigit():
+                                origin_product_no = str(v)
+                                break
+                        # 못 찾았으면 첫 번째 숫자 값 사용
+                        if origin_product_no == product_id:
+                            for k, v in origin_obj.items():
+                                if v and str(v).isdigit() and len(str(v)) >= 5:
+                                    origin_product_no = str(v)
+                                    break
+                        origin_keys = list(origin_obj.keys())[:15]
+                        tried_endpoints.append(f"originProduct-keys={origin_keys}")
+                    else:
+                        tried_endpoints.append(f"originProduct-type={type(origin_obj).__name__}")
 
-                    if opn:
-                        origin_product_no = str(opn)
+                    # smartstoreChannelProduct에서도 시도
+                    ss_obj = ch_data.get("smartstoreChannelProduct", {})
+                    if isinstance(ss_obj, dict):
+                        ss_keys = list(ss_obj.keys())[:15]
+                        tried_endpoints.append(f"smartstore-keys={ss_keys}")
+                        # channelProductNo가 여기 있을 수 있음
+                        for k in ["originProductNo", "channelProductNo", "productNo", "id"]:
+                            v = ss_obj.get(k)
+                            if v and str(v).isdigit() and origin_product_no == product_id:
+                                origin_product_no = str(v)
+                                break
+
+                    if origin_product_no != product_id:
                         logger.info(f"[Review] Found originProductNo: {origin_product_no}")
                         tried_endpoints.append(f"origin={origin_product_no}")
                     else:
-                        # 구조를 에러에 포함하여 디버깅
-                        keys = list(ch_data.keys())[:20]
-                        tried_endpoints.append(f"channel-keys={keys}")
-                        logger.warning(f"[Review] channel 200 but no originProductNo. keys={keys} data={resp_text}")
+                        logger.warning(f"[Review] Could not extract originProductNo from channel response")
                     break
             except Exception as e:
                 tried_endpoints.append(f"channel→ERR:{e}")
