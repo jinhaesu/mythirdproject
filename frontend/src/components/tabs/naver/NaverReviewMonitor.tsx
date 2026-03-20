@@ -259,8 +259,17 @@ export function NaverReviewMonitor() {
             </div>
           </div>
 
+          {/* 에러 메시지 */}
+          {analysisResult?.error && (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
+              <p className="font-semibold mb-1">리뷰 수집 실패</p>
+              <p>{analysisResult.error}</p>
+              <p className="mt-1 text-amber-600">네이버 서버 접근 제한(429)일 수 있습니다. 잠시 후 다시 시도해주세요.</p>
+            </div>
+          )}
+
           {/* 분석 결과 */}
-          {analysisResult && analysisResult.stats && (
+          {analysisResult && analysisResult.stats && analysisResult.stats.total_reviews > 0 && (
             <div className="space-y-5">
               {/* KPI 카드 */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

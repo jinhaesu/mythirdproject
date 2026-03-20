@@ -1,7 +1,6 @@
 """네이버 쇼핑 리뷰 수집 + AI 분석 서비스.
 
-brand.naver.com / smartstore.naver.com 제품 페이지에서 리뷰를 수집한다.
-제품 페이지 HTML에서 merchantNo를 추출 → 리뷰 API 호출.
+스마트스토어/브랜드스토어 리뷰를 다단계 API 전략으로 수집.
 """
 import re
 import json
@@ -16,18 +15,21 @@ from app.services.ai import ClaudeService
 logger = logging.getLogger(__name__)
 
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Accept": "application/json, text/html, */*",
-    "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8",
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "ko-KR,ko;q=0.9",
+}
+
+API_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15",
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "ko-KR,ko;q=0.9",
 }
 
 
 def extract_product_id(url: str) -> Optional[str]:
-    """네이버 쇼핑 URL에서 제품 ID를 추출한다."""
+    """URL에서 제품 ID(originProductNo)를 추출."""
     m = re.search(r'/products?/(\d+)', url)
-    if m:
-        return m.group(1)
-    m = re.search(r'nid=(\d+)', url)
     if m:
         return m.group(1)
     m = re.search(r'(\d{8,})', url)
@@ -37,167 +39,192 @@ def extract_product_id(url: str) -> Optional[str]:
 
 
 def extract_channel_uid(url: str) -> Optional[str]:
-    """URL에서 스토어 채널 UID(슬러그)를 추출한다.
-
-    예: https://brand.naver.com/nuldam/products/... → "nuldam"
-        https://smartstore.naver.com/nuldam/products/... → "nuldam"
-    """
-    m = re.search(r'(?:brand|smartstore)\.naver\.com/([^/]+)/products?/', url)
+    """URL에서 스토어 채널 슬러그를 추출."""
+    m = re.search(r'(?:brand|smartstore)\.naver\.com/([^/\?]+)', url)
     if m:
         return m.group(1)
     return None
 
 
-async def _get_merchant_no(client: httpx.AsyncClient, product_url: str, channel_uid: str) -> Optional[str]:
-    """제품 페이지에서 merchantNo를 추출한다."""
+async def _extract_merchant_no_from_page(client: httpx.AsyncClient, url: str) -> Optional[str]:
+    """제품 페이지 HTML에서 merchantNo를 추출 (1회 시도)."""
     try:
-        resp = await client.get(product_url, headers=HEADERS, follow_redirects=True)
+        resp = await client.get(url, headers=HEADERS)
         if resp.status_code != 200:
-            logger.warning(f"[Review] Product page returned {resp.status_code}")
+            logger.warning(f"[Review] Page fetch returned {resp.status_code}")
             return None
+
         html = resp.text
 
-        # __NEXT_DATA__ JSON에서 merchantNo 추출
-        m = re.search(r'"merchantNo"\s*:\s*"(\d+)"', html)
+        # __NEXT_DATA__에서 추출
+        m = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', html, re.DOTALL)
         if m:
-            return m.group(1)
-        # window.__PRELOADED_STATE__ 에서 추출
-        m = re.search(r'"channelNo"\s*:\s*(\d+)', html)
-        if m:
-            return m.group(1)
-        # channel API로 조회
-        channel_resp = await client.get(
-            f"https://brand.naver.com/n/v2/shoppingMall/channel?channelUid={channel_uid}",
-            headers=HEADERS,
-        )
-        if channel_resp.status_code == 200:
-            ch_data = channel_resp.json()
-            return str(ch_data.get("channelNo") or ch_data.get("merchantNo", ""))
+            try:
+                nd = json.loads(m.group(1))
+                props = nd.get("props", {}).get("pageProps", {})
+                channel = props.get("channel", {})
+                merchant_no = str(channel.get("channelNo") or channel.get("merchantNo") or "")
+                if merchant_no:
+                    logger.info(f"[Review] Got merchantNo from __NEXT_DATA__: {merchant_no}")
+                    return merchant_no
+            except Exception:
+                pass
+
+        # regex fallback
+        for pattern in [r'"merchantNo"\s*:\s*"?(\d+)', r'"channelNo"\s*:\s*"?(\d+)']:
+            m = re.search(pattern, html)
+            if m:
+                logger.info(f"[Review] Got merchantNo from regex: {m.group(1)}")
+                return m.group(1)
+
     except Exception as e:
-        logger.warning(f"[Review] merchantNo extraction failed: {e}")
+        logger.warning(f"[Review] Page extraction error: {e}")
     return None
+
+
+async def _try_review_api(
+    client: httpx.AsyncClient,
+    origin_product_no: str,
+    merchant_no: Optional[str],
+    referer: str,
+    max_pages: int = 5,
+    page_size: int = 20,
+) -> List[Dict]:
+    """스마트스토어 리뷰 API를 호출하여 리뷰 목록을 반환."""
+    reviews = []
+    params_base = {
+        "originProductNo": origin_product_no,
+        "sortType": "REVIEW_CREATE_DATE_DESC",
+        "pageSize": str(page_size),
+    }
+    if merchant_no:
+        params_base["merchantNo"] = merchant_no
+
+    headers = {**API_HEADERS, "Referer": referer}
+
+    for page in range(1, max_pages + 1):
+        try:
+            params = {**params_base, "page": str(page)}
+            resp = await client.get(
+                "https://smartstore.naver.com/i/v1/reviews/paged-reviews",
+                params=params,
+                headers=headers,
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                contents = data.get("contents", [])
+                if not contents:
+                    break
+                for item in contents:
+                    reviews.append({
+                        "id": str(item.get("id", "")),
+                        "rating": item.get("reviewScore", 0),
+                        "content": item.get("reviewContent", ""),
+                        "date": item.get("createDate", ""),
+                        "product_option": item.get("productOptionContent", ""),
+                        "writer": item.get("writerNickname", "익명"),
+                    })
+                total = data.get("totalElements", 0)
+                if page == 1:
+                    logger.info(f"[Review] API success: totalElements={total}")
+            else:
+                logger.warning(f"[Review] API page {page} returned {resp.status_code}")
+                break
+        except Exception as e:
+            logger.warning(f"[Review] API page {page} error: {e}")
+            break
+    return reviews
+
+
+async def _try_naver_shopping_search_reviews(
+    client: httpx.AsyncClient,
+    product_name: str,
+    naver_client_id: str,
+    naver_client_secret: str,
+) -> List[Dict]:
+    """네이버 쇼핑 검색 API로 제품을 찾고 리뷰 정보를 가져오는 fallback."""
+    try:
+        resp = await client.get(
+            "https://openapi.naver.com/v1/search/shop.json",
+            params={"query": product_name, "display": 5, "sort": "sim"},
+            headers={
+                "X-Naver-Client-Id": naver_client_id,
+                "X-Naver-Client-Secret": naver_client_secret,
+            },
+        )
+        if resp.status_code == 200:
+            items = resp.json().get("items", [])
+            # 검색 결과에서 기본 정보 반환 (리뷰 본문은 못 가져옴)
+            reviews = []
+            for item in items:
+                title = re.sub(r'<[^>]+>', '', item.get("title", ""))
+                reviews.append({
+                    "id": item.get("productId", ""),
+                    "title": title,
+                    "price": item.get("lprice", ""),
+                    "mall": item.get("mallName", ""),
+                    "link": item.get("link", ""),
+                    "source": "shopping_search",
+                })
+            return reviews
+    except Exception as e:
+        logger.warning(f"[Review] Shopping search fallback error: {e}")
+    return []
 
 
 async def fetch_naver_product_reviews(
     product_url: str,
+    product_name: str = "",
     max_pages: int = 5,
     page_size: int = 20,
 ) -> Dict[str, Any]:
-    """네이버 브랜드스토어/스마트스토어 리뷰를 가져온다."""
+    """네이버 리뷰를 다단계 전략으로 수집."""
     product_id = extract_product_id(product_url)
     channel_uid = extract_channel_uid(product_url)
+    errors = []
 
     if not product_id:
-        return {"reviews": [], "total": 0, "error": "제품 ID를 추출할 수 없습니다."}
+        return {"reviews": [], "total": 0, "error": "제품 ID를 URL에서 추출할 수 없습니다."}
 
-    reviews: List[Dict] = []
-    total = 0
-    error_msg = None
+    logger.info(f"[Review] Fetching reviews: productId={product_id}, channel={channel_uid}")
 
     async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
-        merchant_no = None
-        if channel_uid:
-            merchant_no = await _get_merchant_no(client, product_url, channel_uid)
-            logger.info(f"[Review] channel={channel_uid}, merchantNo={merchant_no}, productId={product_id}")
+        # ── 전략 1: merchantNo 없이 API 호출 (일부 제품에서 동작) ──
+        reviews = await _try_review_api(client, product_id, None, product_url, max_pages, page_size)
+        if reviews:
+            return {"reviews": reviews, "total": len(reviews), "product_id": product_id, "strategy": "no_merchant"}
 
-        # ── 방법 1: 브랜드스토어/스마트스토어 리뷰 API (merchantNo 필요) ──
+        errors.append("전략1(merchantNo없이): 리뷰 없음")
+
+        # ── 전략 2: 페이지에서 merchantNo 추출 후 재시도 ──
+        merchant_no = await _extract_merchant_no_from_page(client, product_url)
         if merchant_no:
-            for page in range(1, max_pages + 1):
-                try:
-                    api_url = (
-                        f"https://smartstore.naver.com/i/v1/reviews/paged-reviews"
-                        f"?page={page}&pageSize={page_size}"
-                        f"&merchantNo={merchant_no}"
-                        f"&originProductNo={product_id}"
-                        f"&sortType=REVIEW_CREATE_DATE_DESC"
-                    )
-                    resp = await client.get(api_url, headers={**HEADERS, "Referer": product_url})
+            reviews = await _try_review_api(client, product_id, merchant_no, product_url, max_pages, page_size)
+            if reviews:
+                return {"reviews": reviews, "total": len(reviews), "product_id": product_id, "merchant_no": merchant_no, "strategy": "with_merchant"}
+            errors.append(f"전략2(merchantNo={merchant_no}): 리뷰 없음")
+        else:
+            errors.append("전략2: merchantNo 추출 실패 (페이지 로드 불가)")
 
-                    if resp.status_code == 200:
-                        data = resp.json()
-                        contents = data.get("contents", [])
-                        if page == 1:
-                            total = data.get("totalElements", 0)
-                        if not contents:
-                            break
-                        for item in contents:
-                            reviews.append({
-                                "id": str(item.get("id", "")),
-                                "rating": item.get("reviewScore", 0),
-                                "content": item.get("reviewContent", ""),
-                                "date": item.get("createDate", ""),
-                                "product_option": item.get("productOptionContent", ""),
-                                "writer": item.get("writerNickname", "익명"),
-                            })
-                    else:
-                        logger.warning(f"[Review] API page {page} returned {resp.status_code}: {resp.text[:200]}")
-                        break
-                except Exception as e:
-                    logger.warning(f"[Review] API page {page} error: {e}")
-                    break
+        # ── 전략 3: smartstore.naver.com 도메인으로 시도 ──
+        if channel_uid:
+            alt_url = f"https://smartstore.naver.com/{channel_uid}/products/{product_id}"
+            merchant_no2 = await _extract_merchant_no_from_page(client, alt_url)
+            if merchant_no2 and merchant_no2 != merchant_no:
+                reviews = await _try_review_api(client, product_id, merchant_no2, alt_url, max_pages, page_size)
+                if reviews:
+                    return {"reviews": reviews, "total": len(reviews), "product_id": product_id, "merchant_no": merchant_no2, "strategy": "smartstore_alt"}
+                errors.append(f"전략3(smartstore merchantNo={merchant_no2}): 리뷰 없음")
+            else:
+                errors.append("전략3: smartstore 페이지에서도 merchantNo 추출 실패")
 
-        # ── 방법 2: merchantNo 없이 originProductNo만으로 시도 ──
-        if not reviews:
-            for page in range(1, max_pages + 1):
-                try:
-                    api_url = (
-                        f"https://smartstore.naver.com/i/v1/reviews/paged-reviews"
-                        f"?page={page}&pageSize={page_size}"
-                        f"&originProductNo={product_id}"
-                        f"&sortType=REVIEW_CREATE_DATE_DESC"
-                    )
-                    resp = await client.get(api_url, headers={**HEADERS, "Referer": product_url})
-                    if resp.status_code == 200:
-                        data = resp.json()
-                        contents = data.get("contents", [])
-                        if page == 1:
-                            total = data.get("totalElements", 0)
-                        if not contents:
-                            break
-                        for item in contents:
-                            reviews.append({
-                                "id": str(item.get("id", "")),
-                                "rating": item.get("reviewScore", 0),
-                                "content": item.get("reviewContent", ""),
-                                "date": item.get("createDate", ""),
-                                "product_option": item.get("productOptionContent", ""),
-                                "writer": item.get("writerNickname", "익명"),
-                            })
-                    else:
-                        break
-                except Exception:
-                    break
-
-        # ── 방법 3: 네이버 쇼핑 통합 리뷰 API ──
-        if not reviews:
-            try:
-                shop_url = f"https://search.shopping.naver.com/api/review?nvMid={product_id}&reviewType=ALL&page=1&pageSize=100&sortType=QUALITY"
-                resp = await client.get(shop_url, headers=HEADERS)
-                if resp.status_code == 200:
-                    data = resp.json()
-                    total = data.get("totalCount", 0)
-                    for item in data.get("reviews", []):
-                        reviews.append({
-                            "id": str(item.get("reviewNo", "")),
-                            "rating": item.get("starScore", 0),
-                            "content": item.get("reviewContent", item.get("body", "")),
-                            "date": item.get("registerDate", item.get("createDate", "")),
-                            "product_option": item.get("productOptionContent", ""),
-                            "writer": item.get("writerNickname", item.get("userId", "익명")),
-                        })
-            except Exception as e:
-                error_msg = f"모든 리뷰 API 호출 실패: {e}"
-
-        if not reviews and not error_msg:
-            error_msg = f"리뷰를 가져올 수 없습니다 (merchantNo={merchant_no}, productId={product_id}). URL 형식을 확인해주세요."
-
-    logger.info(f"[Review] Final: {len(reviews)} reviews, total={total}")
+    error_detail = " | ".join(errors)
+    logger.warning(f"[Review] All strategies failed for {product_id}: {error_detail}")
     return {
-        "reviews": reviews,
-        "total": total or len(reviews),
+        "reviews": [],
+        "total": 0,
         "product_id": product_id,
-        "merchant_no": merchant_no,
-        "error": error_msg,
+        "error": f"리뷰를 가져올 수 없습니다. 네이버 서버 접근 제한일 수 있습니다. ({error_detail})",
     }
 
 
@@ -205,15 +232,11 @@ def analyze_reviews(
     reviews: List[Dict],
     star_threshold: int = 3,
 ) -> Dict[str, Any]:
-    """리뷰 통계 분석 (별점 분포, 기간별 저별점 수 등)."""
+    """리뷰 통계 분석."""
     now = datetime.utcnow()
-
     star_dist = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
     total_rating = 0.0
-    low_reviews_7d = []
-    low_reviews_14d = []
-    low_reviews_30d = []
-    all_low_reviews = []
+    low_7d, low_14d, low_30d, all_low = [], [], [], []
 
     for r in reviews:
         rating = int(r.get("rating", 0))
@@ -221,7 +244,6 @@ def analyze_reviews(
             star_dist[rating] += 1
             total_rating += rating
 
-        # 날짜 파싱 (다양한 포맷 대응)
         date_str = r.get("date", "")
         review_date = None
         for fmt in ("%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y.%m.%d", "%Y-%m-%d"):
@@ -233,15 +255,12 @@ def analyze_reviews(
 
         if rating <= star_threshold:
             item = {"rating": rating, "content": r.get("content", ""), "date": date_str, "writer": r.get("writer", "")}
-            all_low_reviews.append(item)
+            all_low.append(item)
             if review_date:
                 days_ago = (now - review_date).days
-                if days_ago <= 7:
-                    low_reviews_7d.append(item)
-                if days_ago <= 14:
-                    low_reviews_14d.append(item)
-                if days_ago <= 30:
-                    low_reviews_30d.append(item)
+                if days_ago <= 7: low_7d.append(item)
+                if days_ago <= 14: low_14d.append(item)
+                if days_ago <= 30: low_30d.append(item)
 
     total_count = sum(star_dist.values())
     avg_rating = round(total_rating / total_count, 2) if total_count > 0 else 0
@@ -251,11 +270,11 @@ def analyze_reviews(
         "average_rating": avg_rating,
         "star_distribution": star_dist,
         "star_threshold": star_threshold,
-        "low_star_count_7d": len(low_reviews_7d),
-        "low_star_count_14d": len(low_reviews_14d),
-        "low_star_count_30d": len(low_reviews_30d),
-        "low_star_total": len(all_low_reviews),
-        "low_reviews_sample": all_low_reviews[:20],
+        "low_star_count_7d": len(low_7d),
+        "low_star_count_14d": len(low_14d),
+        "low_star_count_30d": len(low_30d),
+        "low_star_total": len(all_low),
+        "low_reviews_sample": all_low[:20],
     }
 
 
@@ -264,7 +283,7 @@ async def ai_review_analysis(
     stats: Dict[str, Any],
     low_reviews: List[Dict],
 ) -> str:
-    """AI로 저별점 리뷰의 주요 이슈를 분석한다."""
+    """AI로 저별점 리뷰의 주요 이슈를 분석."""
     review_texts = "\n".join([
         f"- [{r['rating']}점] {r['content'][:200]}"
         for r in low_reviews[:15]
@@ -284,7 +303,6 @@ async def ai_review_analysis(
 {review_texts}
 
 다음을 분석해주세요:
-
 1. **주요 불만 이슈 TOP 3**: 가장 빈번한 불만 유형과 구체적 내용
 2. **긴급도 평가**: 즉시 대응이 필요한 이슈 vs 장기 개선 사항
 3. **대응 전략**: 각 이슈별 구체적 개선 방안
@@ -309,7 +327,7 @@ def build_review_report_html(
     products_data: List[Dict[str, Any]],
     check_time: str,
 ) -> str:
-    """전체 제품 리뷰 리포트 이메일 HTML을 생성한다."""
+    """전체 제품 리뷰 리포트 이메일 HTML."""
     product_sections = ""
     for pd in products_data:
         name = pd.get("product_name", "")
@@ -317,12 +335,9 @@ def build_review_report_html(
         ai = pd.get("ai_analysis", "")
         avg = stats.get("average_rating", 0)
         total = stats.get("total_reviews", 0)
-        dist = stats.get("star_distribution", {})
         low_7 = stats.get("low_star_count_7d", 0)
-        low_14 = stats.get("low_star_count_14d", 0)
         low_30 = stats.get("low_star_count_30d", 0)
         threshold = stats.get("star_threshold", 3)
-
         ai_html = ai.replace("\n\n", "</p><p style='margin:6px 0;'>").replace("\n", "<br>")
 
         product_sections += f"""

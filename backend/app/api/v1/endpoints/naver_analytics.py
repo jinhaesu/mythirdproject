@@ -2471,7 +2471,7 @@ async def analyze_product_reviews(
         raise HTTPException(status_code=404, detail="제품을 찾을 수 없습니다.")
 
     # 리뷰 수집
-    review_data = await fetch_naver_product_reviews(product.product_url)
+    review_data = await fetch_naver_product_reviews(product.product_url, product.product_name)
 
     if not review_data.get("reviews"):
         return {
