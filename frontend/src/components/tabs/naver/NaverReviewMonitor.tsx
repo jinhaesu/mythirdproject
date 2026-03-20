@@ -151,8 +151,16 @@ export function NaverReviewMonitor() {
 
   const analyzeMutation = useMutation({
     mutationFn: () => reviewApi.analyze(selectedProductId!, starThreshold),
-    onSuccess: (data) => setAnalysisResult(data),
-    onError: (e: any) => toast.error(e?.response?.data?.detail || '분석 실패'),
+    onSuccess: (data) => {
+      setAnalysisResult(data);
+      if (data.error) toast.error(data.error);
+    },
+    onError: (e: any) => {
+      const detail = e?.response?.data?.detail || e?.response?.data?.error || e?.message || '분석 실패';
+      toast.error(`리뷰 분석 오류: ${detail}`);
+      // 에러 응답 본문이 있으면 그것도 결과로 표시
+      if (e?.response?.data) setAnalysisResult(e.response.data);
+    },
   });
 
   const selectedProduct = products.find((p: any) => p.id === selectedProductId);

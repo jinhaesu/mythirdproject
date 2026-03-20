@@ -2470,41 +2470,55 @@ async def analyze_product_reviews(
     if not product:
         raise HTTPException(status_code=404, detail="제품을 찾을 수 없습니다.")
 
-    # 리뷰 수집
-    review_data = await fetch_naver_product_reviews(product.product_url, product.product_name)
+    try:
+        # 리뷰 수집
+        review_data = await fetch_naver_product_reviews(product.product_url, product.product_name)
 
-    if not review_data.get("reviews"):
+        if not review_data.get("reviews"):
+            return {
+                "product_name": product.product_name,
+                "stats": {
+                    "total_reviews": 0,
+                    "average_rating": 0,
+                    "star_distribution": {1: 0, 2: 0, 3: 0, 4: 0, 5: 0},
+                    "low_star_count_7d": 0,
+                    "low_star_count_14d": 0,
+                    "low_star_count_30d": 0,
+                    "low_star_total": 0,
+                },
+                "ai_analysis": "",
+                "error": review_data.get("error"),
+            }
+
+        # 통계 분석
+        stats = analyze_reviews(review_data["reviews"], star_threshold)
+
+        # AI 분석
+        ai_text = await ai_review_analysis(
+            product.product_name,
+            stats,
+            stats.get("low_reviews_sample", []),
+        )
+
+        return {
+            "product_name": product.product_name,
+            "product_url": product.product_url,
+            "stats": stats,
+            "ai_analysis": ai_text,
+        }
+    except Exception as e:
+        logger.error(f"[ReviewMonitor] analyze error: {e}", exc_info=True)
         return {
             "product_name": product.product_name,
             "stats": {
-                "total_reviews": 0,
-                "average_rating": 0,
+                "total_reviews": 0, "average_rating": 0,
                 "star_distribution": {1: 0, 2: 0, 3: 0, 4: 0, 5: 0},
-                "low_star_count_7d": 0,
-                "low_star_count_14d": 0,
-                "low_star_count_30d": 0,
-                "low_star_total": 0,
+                "low_star_count_7d": 0, "low_star_count_14d": 0,
+                "low_star_count_30d": 0, "low_star_total": 0,
             },
-            "ai_analysis": "리뷰를 가져올 수 없습니다. 제품 URL을 확인해주세요.",
-            "error": review_data.get("error"),
+            "ai_analysis": "",
+            "error": f"분석 중 오류: {str(e)}",
         }
-
-    # 통계 분석
-    stats = analyze_reviews(review_data["reviews"], star_threshold)
-
-    # AI 분석
-    ai_text = await ai_review_analysis(
-        product.product_name,
-        stats,
-        stats.get("low_reviews_sample", []),
-    )
-
-    return {
-        "product_name": product.product_name,
-        "product_url": product.product_url,
-        "stats": stats,
-        "ai_analysis": ai_text,
-    }
 
 
 # ── 리뷰 리포트 스케줄 ──
