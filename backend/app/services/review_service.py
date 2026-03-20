@@ -106,7 +106,7 @@ async def fetch_naver_product_reviews(
 
     reviews: List[Dict] = []
     total = 0
-    error_msg = None
+    tried_endpoints = []
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         token_result = await _get_commerce_token(client)
@@ -114,32 +114,63 @@ async def fetch_naver_product_reviews(
             return {"reviews": [], "total": 0, "error": f"커머스 API 인증 실패: {token_result['error']}"}
         token = token_result["token"]
 
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-        }
+        headers = {"Authorization": f"Bearer {token}"}
 
-        # 커머스 API: 상품 리뷰 조회
-        # GET /v1/products/{originProductNo}/reviews
-        for page in range(1, max_pages + 1):
+        # 여러 엔드포인트를 순차 시도 (커머스 API 버전별 경로가 다름)
+        endpoint_candidates = [
+            f"/v1/contents/product-reviews?originProductNo={product_id}",
+            f"/v2/contents/product-reviews?originProductNo={product_id}",
+            f"/v1/products/origin-products/{product_id}/product-reviews",
+            f"/v1/products/{product_id}/reviews",
+            f"/v1/product-reviews?originProductNo={product_id}",
+        ]
+
+        working_endpoint = None
+        for ep in endpoint_candidates:
             try:
-                resp = await client.get(
-                    f"{COMMERCE_API_BASE}/v1/products/{product_id}/reviews",
-                    params={
-                        "page": page,
-                        "size": page_size,
-                        "sortType": "CREATE_DATE_DESC",
-                    },
-                    headers=headers,
-                )
+                url = f"{COMMERCE_API_BASE}{ep}"
+                sep = "&" if "?" in ep else "?"
+                resp = await client.get(f"{url}{sep}page=1&size=5", headers=headers)
+                tried_endpoints.append(f"{ep.split('?')[0]}→{resp.status_code}")
+                logger.info(f"[Review] Try {ep.split('?')[0]}: {resp.status_code}")
 
                 if resp.status_code == 200:
                     data = resp.json()
-                    contents = data.get("contents", data.get("reviews", []))
+                    # 다양한 응답 구조 대응
+                    contents = data.get("contents", data.get("reviews", data.get("data", [])))
+                    if isinstance(contents, list) and len(contents) > 0:
+                        working_endpoint = ep
+                        total = data.get("totalElements", data.get("totalCount", data.get("total", 0)))
+                        logger.info(f"[Review] Found working endpoint: {ep}, total={total}")
+                        break
+                    # 응답은 200이지만 contents가 비어있을 수 있음 (리뷰가 실제로 0개)
+                    if data.get("totalElements", data.get("totalCount", -1)) == 0:
+                        working_endpoint = ep
+                        total = 0
+                        break
+            except Exception as e:
+                tried_endpoints.append(f"{ep.split('?')[0]}→ERROR:{e}")
+                logger.warning(f"[Review] Endpoint {ep} error: {e}")
 
+        if working_endpoint is None:
+            error_detail = " | ".join(tried_endpoints)
+            return {
+                "reviews": [], "total": 0, "product_id": product_id,
+                "error": f"모든 API 엔드포인트에서 리뷰를 찾을 수 없습니다. ({error_detail})",
+            }
+
+        # 찾은 엔드포인트로 전체 리뷰 수집
+        for page in range(1, max_pages + 1):
+            try:
+                url = f"{COMMERCE_API_BASE}{working_endpoint}"
+                sep = "&" if "?" in working_endpoint else "?"
+                resp = await client.get(f"{url}{sep}page={page}&size={page_size}", headers=headers)
+
+                if resp.status_code == 200:
+                    data = resp.json()
+                    contents = data.get("contents", data.get("reviews", data.get("data", [])))
                     if page == 1:
-                        total = data.get("totalElements", data.get("totalCount", 0))
-                        logger.info(f"[Review] Commerce API success: total={total} for product {product_id}")
+                        total = data.get("totalElements", data.get("totalCount", data.get("total", 0)))
 
                     if not contents:
                         break
@@ -153,27 +184,16 @@ async def fetch_naver_product_reviews(
                             "product_option": item.get("productOptionContent", ""),
                             "writer": item.get("writerNickname", item.get("writerId", "익명")),
                         })
-                elif resp.status_code == 404:
-                    error_msg = f"제품 ID {product_id}에 해당하는 리뷰를 찾을 수 없습니다."
-                    logger.warning(f"[Review] Product {product_id} not found (404)")
-                    break
                 else:
-                    error_msg = f"커머스 API 오류 ({resp.status_code}): {resp.text[:200]}"
-                    logger.error(f"[Review] Commerce API error: {resp.status_code} {resp.text[:300]}")
                     break
-            except Exception as e:
-                error_msg = f"API 호출 오류: {str(e)}"
-                logger.error(f"[Review] Commerce API call error: {e}")
+            except Exception:
                 break
-
-    if not reviews and not error_msg:
-        error_msg = f"제품 {product_id}의 리뷰가 없거나 접근할 수 없습니다."
 
     return {
         "reviews": reviews,
         "total": total or len(reviews),
         "product_id": product_id,
-        "error": error_msg if not reviews else None,
+        "error": None if reviews else f"리뷰가 없습니다 (endpoint: {working_endpoint})",
     }
 
 
