@@ -28,8 +28,8 @@ SMARTSTORE_REVIEW_URL = "https://smartstore.naver.com/i/v1/reviews/paged-reviews
 # Commerce API (인증 + 상품 ID 변환)
 # ══════════════════════════════════════════════════════════════════════════════
 
-async def _get_commerce_token_sync() -> Dict[str, Any]:
-    """커머스 API OAuth 토큰 발급 (curl_cffi는 sync만 지원)."""
+def _get_commerce_token_sync() -> Dict[str, Any]:
+    """커머스 API OAuth 토큰 발급 (sync, curl_cffi 사용)."""
     settings = get_settings()
     client_id = (settings.NAVER_COMMERCE_CLIENT_ID or "").strip()
     client_secret = (settings.NAVER_COMMERCE_CLIENT_SECRET or "").strip()
