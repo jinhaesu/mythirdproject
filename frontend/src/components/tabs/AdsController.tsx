@@ -636,6 +636,42 @@ export function AdsController() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
+  // ── 캠페인 복제 ──
+  const duplicateCampaign = useCallback((campaign: Campaign) => {
+    setCampaignName(`${campaign.name} (복사)`);
+    setObjective(campaign.objective);
+    setBudget(String(campaign.total_budget));
+    setBudgetType(campaign.budget_type || 'DAILY');
+    setStartDate(campaign.start_date ? campaign.start_date.split('T')[0] : '');
+    setEndDate(campaign.end_date ? campaign.end_date.split('T')[0] : '');
+    setAdvantagePlus(campaign.advantage_plus || false);
+    setAdvantagePlusAudience(campaign.advantage_plus_audience || false);
+    setDatasetOption(campaign.dataset_id ? 'custom' : '');
+    setCustomDatasetId(campaign.dataset_id || '');
+    setPixelOption(campaign.pixel_id ? 'custom' : 'auto');
+    setCustomPixelId(campaign.pixel_id || '');
+
+    if (campaign.targeting) {
+      setShowTargeting(true);
+      setAgeMin(campaign.targeting.age_range?.min_age ?? 18);
+      setAgeMax(campaign.targeting.age_range?.max_age ?? 65);
+      setGenders(campaign.targeting.genders || ['all']);
+      setCountries(campaign.targeting.geo?.countries || ['KR']);
+      setInterests(campaign.targeting.interests?.interests || []);
+    }
+
+    if (campaign.targeting_segments && campaign.targeting_segments.length > 0) {
+      setSegments(campaign.targeting_segments.map(seg => ({ ...seg })));
+    }
+
+    // 수정 모드가 아닌 새 캠페인 생성 모드로
+    setEditingCampaignId(null);
+    setLoadedDraftId(null);
+    setActiveStep(1);
+    toast.success(`"${campaign.name}" 복제됨 — 수정 후 생성하세요`);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
   // 수정 완료 후 캠페인 업데이트
   const updateCampaignMutation = useMutation({
     mutationFn: () => campaignApi.update(editingCampaignId!, {
@@ -2337,6 +2373,7 @@ export function AdsController() {
                   campaign={campaign}
                   onPublish={() => handlePublish(campaign.id)}
                   onEdit={() => editCampaign(campaign)}
+                  onDuplicate={() => duplicateCampaign(campaign)}
                   onViewAnalytics={() => handleViewAnalytics(campaign)}
                   isPublishing={publishMutation.isPending}
                   isEditing={editingCampaignId === campaign.id}
@@ -2388,9 +2425,9 @@ const objectiveLabel = (obj: string): string => {
 };
 
 function CampaignCard({
-  campaign, onPublish, onEdit, onViewAnalytics, isPublishing, isEditing, onRefresh,
+  campaign, onPublish, onEdit, onDuplicate, onViewAnalytics, isPublishing, isEditing, onRefresh,
 }: {
-  campaign: Campaign; onPublish: () => void; onEdit: () => void; onViewAnalytics: () => void;
+  campaign: Campaign; onPublish: () => void; onEdit: () => void; onDuplicate: () => void; onViewAnalytics: () => void;
   isPublishing: boolean; isEditing?: boolean; onRefresh: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -2546,6 +2583,9 @@ function CampaignCard({
               </Button>
             </>
           )}
+          <Button size="sm" variant="outline" onClick={onDuplicate}>
+            <Copy size={14} className="mr-1" /> 복제
+          </Button>
           {(campaign.status === 'DRAFT' || campaign.status === 'COMPLETED') && (
             <Button size="sm" variant="outline" onClick={handleDelete} loading={deleteMutation.isPending}
               className="text-red-600 border-red-200 hover:bg-red-50">
