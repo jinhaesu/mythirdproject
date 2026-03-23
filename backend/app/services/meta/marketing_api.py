@@ -164,18 +164,23 @@ class MetaMarketingAPI:
         # ── Segment-type specific logic ──
         seg = (segment_type or "").lower()
 
+        # 관심사 ID 처리 헬퍼 (publish 시점에서 이미 ID로 변환된 상태)
+        def _build_interest_list(interest_items):
+            result = []
+            for item in (interest_items or []):
+                s = str(item).strip()
+                if s and s.isdigit():
+                    result.append({"id": s})
+            return result
+
         if seg == "broad":
             # Broad (브로드): Advantage+ audience
             spec["targeting_automation"] = {"advantage_audience": 1}
             spec["age_max"] = 65
-            # 브로드에도 관심사가 설정되어 있으면 적용 (Advantage+가 확장)
             if targeting.interests and targeting.interests.interests:
-                valid_interests = [
-                    {"id": i} for i in targeting.interests.interests
-                    if str(i).isdigit()
-                ]
-                if valid_interests:
-                    spec["flexible_spec"] = [{"interests": valid_interests}]
+                valid = _build_interest_list(targeting.interests.interests)
+                if valid:
+                    spec["flexible_spec"] = [{"interests": valid}]
 
         elif seg == "retarget":
             # Retarget (리타겟): Custom audiences (website visitors etc.)
@@ -189,20 +194,14 @@ class MetaMarketingAPI:
                 spec["excluded_custom_audiences"] = [{"id": ea_id} for ea_id in excluded_audiences]
 
         elif seg == "interest":
-            # Interest (관심사): Specific interest IDs, detailed targeting
+            # Interest (관심사): Specific interest IDs/names
             spec["targeting_automation"] = {"advantage_audience": 0}
             if targeting.interests and targeting.interests.interests:
-                valid_interests = [
-                    {"id": i} for i in targeting.interests.interests
-                    if str(i).isdigit()
-                ]
-                if valid_interests:
-                    spec["flexible_spec"] = [{"interests": valid_interests}]
+                valid = _build_interest_list(targeting.interests.interests)
+                if valid:
+                    spec["flexible_spec"] = [{"interests": valid}]
             if targeting.interests and targeting.interests.behaviors:
-                valid_behaviors = [
-                    {"id": b} for b in targeting.interests.behaviors
-                    if str(b).isdigit()
-                ]
+                valid_behaviors = _build_interest_list(targeting.interests.behaviors)
                 if valid_behaviors:
                     if "flexible_spec" not in spec:
                         spec["flexible_spec"] = [{}]
@@ -219,12 +218,9 @@ class MetaMarketingAPI:
 
             # Apply interests if available
             if targeting.interests and targeting.interests.interests:
-                valid_interests = [
-                    {"id": i} for i in targeting.interests.interests
-                    if str(i).isdigit()
-                ]
-                if valid_interests:
-                    spec["flexible_spec"] = [{"interests": valid_interests}]
+                valid = _build_interest_list(targeting.interests.interests)
+                if valid:
+                    spec["flexible_spec"] = [{"interests": valid}]
 
             # Apply custom audiences if available
             if targeting.custom_audiences:

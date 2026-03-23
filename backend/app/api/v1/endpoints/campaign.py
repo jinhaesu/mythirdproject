@@ -549,6 +549,28 @@ async def publish_campaign(
                     seg_targeting.interests = InterestTargeting(
                         interests=seg['interests'] if isinstance(seg['interests'], list) else []
                     )
+
+                # 관심사 텍스트 → Meta Interest ID 변환
+                if seg_targeting.interests and seg_targeting.interests.interests:
+                    resolved_ids = []
+                    for item in seg_targeting.interests.interests:
+                        s = str(item).strip()
+                        if s.isdigit():
+                            resolved_ids.append(s)
+                        elif s:
+                            try:
+                                search_result = await meta_api.get_interest_suggestions(s, limit=1)
+                                suggestions = search_result.get("data", [])
+                                if suggestions:
+                                    resolved_ids.append(str(suggestions[0].get("id")))
+                                    logger.info(f"[Publish] Interest '{s}' -> ID {suggestions[0].get('id')} ({suggestions[0].get('name')})")
+                                else:
+                                    logger.warning(f"[Publish] No Meta interest found for '{s}'")
+                            except Exception as ie:
+                                logger.warning(f"[Publish] Interest search failed for '{s}': {ie}")
+                    seg_targeting.interests.interests = resolved_ids
+                    logger.info(f"[Publish] Resolved interests: {resolved_ids}")
+
                 if seg.get('custom_audiences'):
                     seg_targeting.custom_audiences = (
                         seg['custom_audiences'] if isinstance(seg['custom_audiences'], list) else []
@@ -573,35 +595,32 @@ async def publish_campaign(
                 else:
                     segment_type = seg_type_lower if seg_type_lower else None
 
-                # 세그먼트별 일정 (없으면 캠페인 일정 사용)
-                seg_start = None
-                seg_end = None
-                if seg.get('start_date'):
-                    try:
-                        seg_start = datetime.fromisoformat(seg['start_date'].replace('Z', '+00:00')).replace(tzinfo=None)
-                    except Exception:
-                        seg_start = campaign.start_date
-                else:
-                    seg_start = campaign.start_date
-                if seg.get('end_date'):
-                    try:
-                        seg_end = datetime.fromisoformat(seg['end_date'].replace('Z', '+00:00')).replace(tzinfo=None)
-                    except Exception:
-                        seg_end = campaign.end_date
-                else:
-                    seg_end = campaign.end_date
-                # schedule 객체에서도 시도
+                # 세그먼트별 일정 파싱 헬퍼
+                def _parse_date(val):
+                    if not val:
+                        return None
+                    if isinstance(val, datetime):
+                        return val.replace(tzinfo=None) if val.tzinfo else val
+                    s = str(val).strip()
+                    for fmt in ("%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+                        try:
+                            return datetime.strptime(s[:26].split('+')[0].split('Z')[0], fmt)
+                        except ValueError:
+                            continue
+                    return None
+
+                # 세그먼트 > schedule > 캠페인 순으로 날짜 탐색
                 sched = seg.get('schedule', {}) or {}
-                if not seg_start and sched.get('start_date'):
-                    try:
-                        seg_start = datetime.fromisoformat(sched['start_date'].replace('Z', '+00:00')).replace(tzinfo=None)
-                    except Exception:
-                        pass
-                if not seg_end and sched.get('end_date'):
-                    try:
-                        seg_end = datetime.fromisoformat(sched['end_date'].replace('Z', '+00:00')).replace(tzinfo=None)
-                    except Exception:
-                        pass
+                seg_start = (
+                    _parse_date(seg.get('start_date'))
+                    or _parse_date(sched.get('start_date'))
+                    or (campaign.start_date.replace(tzinfo=None) if campaign.start_date and hasattr(campaign.start_date, 'replace') else campaign.start_date)
+                )
+                seg_end = (
+                    _parse_date(seg.get('end_date'))
+                    or _parse_date(sched.get('end_date'))
+                    or (campaign.end_date.replace(tzinfo=None) if campaign.end_date and hasattr(campaign.end_date, 'replace') else campaign.end_date)
+                )
 
                 logger.info(f"[Publish] Segment '{seg_name}': start={seg_start}, end={seg_end}, interests={seg_targeting.interests}")
 
