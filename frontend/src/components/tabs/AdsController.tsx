@@ -497,6 +497,11 @@ export function AdsController() {
           use_display_link: a.use_display_link ?? false,
           display_link: a.display_link,
           url_params: a.url_params,
+          utm_label: (a as any).utm_label,
+          advantage_catalog: (a as any).advantage_catalog ?? false,
+          catalog_id: (a as any).catalog_id,
+          product_set_id: (a as any).product_set_id,
+          advantage_plus_creative: (a as any).advantage_plus_creative ?? false,
         })),
       })) : undefined,
       start_date: startDate || undefined,
@@ -784,7 +789,7 @@ export function AdsController() {
     const newAd: AdSetCreative = {
       creative_id: creative.id,
       creative,
-      ad_name: `${seg.name} - ${creative.name}${suffix}`,
+      ad_name: `${campaignName}_${seg.name}_${creative.name}${suffix}`,
       media_source: 'manual',
       format: creative.creative_type === 'CAROUSEL' ? 'carousel' : 'single',
       multi_advertiser_ads: true,
@@ -795,6 +800,8 @@ export function AdsController() {
       landing_type: 'website',
       link_url: '',
       use_display_link: false,
+      advantage_catalog: false,
+      advantage_plus_creative: false,
     };
     seg.ads = [...existingAds, newAd];
     updated[segIndex] = seg;
@@ -1283,179 +1290,170 @@ export function AdsController() {
                                       className="text-gray-400 hover:text-red-500 flex-shrink-0"><X size={13} /></button>
                                   </div>
 
-                                  {/* ── 섹션 1: 광고 설정 (Ad Setup) ── */}
+                                  {/* ── 1. 광고 크리에이티브 설정 ── */}
                                   <details className="border-t border-gray-100">
                                     <summary className="px-2 py-1.5 text-[10px] font-medium text-gray-600 cursor-pointer hover:bg-gray-50 flex items-center gap-1">
-                                      <Settings size={10} /> 광고 설정
+                                      <Layers size={10} /> 광고 크리에이티브
                                     </summary>
                                     <div className="px-2 pb-2 space-y-2">
-                                      {/* 미디어 설정 */}
-                                      <div>
-                                        <label className="text-[10px] text-gray-500">미디어 설정</label>
-                                        <div className="flex gap-1.5 mt-0.5">
-                                          <button onClick={() => updateAdSetCreativeField(i, ad.creative_id, 'media_source', 'manual')}
-                                            className={`flex-1 px-2 py-1 rounded text-[10px] font-medium transition-colors ${(ad.media_source || 'manual') === 'manual' ? 'bg-blue-500 text-white' : 'bg-white border border-gray-300 text-gray-600'}`}>
-                                            수동 업로드
-                                          </button>
-                                          <button onClick={() => updateAdSetCreativeField(i, ad.creative_id, 'media_source', 'advantage_catalog')}
-                                            className={`flex-1 px-2 py-1 rounded text-[10px] font-medium transition-colors ${ad.media_source === 'advantage_catalog' ? 'bg-blue-500 text-white' : 'bg-white border border-gray-300 text-gray-600'}`}>
-                                            Advantage+ 카탈로그
-                                          </button>
-                                        </div>
-                                      </div>
-                                      {/* 형식 */}
                                       <div>
                                         <label className="text-[10px] text-gray-500">형식</label>
                                         <div className="flex gap-1.5 mt-0.5">
                                           <button onClick={() => updateAdSetCreativeField(i, ad.creative_id, 'format', 'single')}
-                                            className={`flex-1 px-2 py-1 rounded text-[10px] font-medium transition-colors ${(ad.format || 'single') === 'single' ? 'bg-blue-500 text-white' : 'bg-white border border-gray-300 text-gray-600'}`}>
+                                            className={`flex-1 px-2 py-1 rounded text-[10px] font-medium ${(ad.format || 'single') === 'single' ? 'bg-blue-500 text-white' : 'bg-white border border-gray-300 text-gray-600'}`}>
                                             단일 이미지/동영상
                                           </button>
                                           <button onClick={() => updateAdSetCreativeField(i, ad.creative_id, 'format', 'carousel')}
-                                            className={`flex-1 px-2 py-1 rounded text-[10px] font-medium transition-colors ${ad.format === 'carousel' ? 'bg-blue-500 text-white' : 'bg-white border border-gray-300 text-gray-600'}`}>
-                                            슬라이드(캐러셀)
+                                            className={`flex-1 px-2 py-1 rounded text-[10px] font-medium ${ad.format === 'carousel' ? 'bg-blue-500 text-white' : 'bg-white border border-gray-300 text-gray-600'}`}>
+                                            슬라이드(카탈로그)
                                           </button>
                                         </div>
                                       </div>
-                                      {/* 여러 광고주의 광고 */}
-                                      <label className="flex items-center gap-2 cursor-pointer">
-                                        <input type="checkbox" checked={ad.multi_advertiser_ads ?? true}
-                                          onChange={(e) => updateAdSetCreativeField(i, ad.creative_id, 'multi_advertiser_ads', e.target.checked ? 'true' : 'false')}
-                                          className="w-3 h-3" />
-                                        <span className="text-[10px] text-gray-600">여러 광고주의 광고</span>
-                                      </label>
                                     </div>
                                   </details>
 
-                                  {/* ── 섹션 2: 광고 문구 (Ad Copy) ── */}
+                                  {/* ── 2. 광고 문구 ── */}
                                   <details className="border-t border-gray-100" open>
                                     <summary className="px-2 py-1.5 text-[10px] font-medium text-gray-600 cursor-pointer hover:bg-gray-50 flex items-center gap-1">
-                                      <Zap size={10} /> 광고 문구 {ad.primary_text || ad.headline ? '(설정됨)' : ''}
+                                      <Zap size={10} /> 광고 문구 {ad.primary_text || ad.headline ? '✓' : ''}
                                     </summary>
                                     <div className="px-2 pb-2 space-y-1.5">
                                       <div>
-                                        <label className="text-[10px] text-gray-500">본문 (Primary Text)</label>
-                                        <textarea value={ad.primary_text} rows={2}
-                                          onChange={(e) => updateAdSetCreativeField(i, ad.creative_id, 'primary_text', e.target.value)}
-                                          placeholder="광고 본문을 입력하세요..."
-                                          className="w-full px-2 py-1 border border-gray-200 rounded text-xs resize-none" />
-                                      </div>
-                                      <div className="grid grid-cols-2 gap-1.5">
-                                        <div>
-                                          <label className="text-[10px] text-gray-500">제목 (Headline)</label>
-                                          <input type="text" value={ad.headline}
-                                            onChange={(e) => updateAdSetCreativeField(i, ad.creative_id, 'headline', e.target.value)}
-                                            placeholder="광고 제목"
-                                            className="w-full px-2 py-1 border border-gray-200 rounded text-xs" />
-                                        </div>
-                                        <div>
-                                          <label className="text-[10px] text-gray-500">설명 (Description)</label>
-                                          <input type="text" value={ad.description}
-                                            onChange={(e) => updateAdSetCreativeField(i, ad.creative_id, 'description', e.target.value)}
-                                            placeholder="링크 설명"
-                                            className="w-full px-2 py-1 border border-gray-200 rounded text-xs" />
-                                        </div>
+                                        <div className="flex justify-between"><label className="text-[10px] text-gray-500">제목 (Headline)</label><span className="text-[10px] text-gray-400">{ad.headline?.length || 0}/40</span></div>
+                                        <input type="text" value={ad.headline} maxLength={40}
+                                          onChange={(e) => updateAdSetCreativeField(i, ad.creative_id, 'headline', e.target.value)}
+                                          placeholder="광고 제목 (40자 이내)"
+                                          className="w-full px-2 py-1 border border-gray-200 rounded text-xs" />
                                       </div>
                                       <div>
-                                        <label className="text-[10px] text-gray-500">CTA 버튼</label>
+                                        <div className="flex justify-between"><label className="text-[10px] text-gray-500">기본 문구 (Primary Text)</label><span className="text-[10px] text-gray-400">{ad.primary_text?.length || 0}/300</span></div>
+                                        <textarea value={ad.primary_text} rows={3} maxLength={300}
+                                          onChange={(e) => updateAdSetCreativeField(i, ad.creative_id, 'primary_text', e.target.value)}
+                                          placeholder="광고 기본 문구 (300자 이내)"
+                                          className="w-full px-2 py-1 border border-gray-200 rounded text-xs resize-none" />
+                                      </div>
+                                      <div>
+                                        <label className="text-[10px] text-gray-500">행동 유도 (CTA)</label>
                                         <select value={ad.call_to_action}
                                           onChange={(e) => updateAdSetCreativeField(i, ad.creative_id, 'call_to_action', e.target.value)}
                                           className="w-full px-2 py-1 border border-gray-200 rounded text-xs bg-white">
-                                          <option value="SHOP_NOW">지금 쇼핑하기</option>
-                                          <option value="LEARN_MORE">자세히 알아보기</option>
-                                          <option value="SIGN_UP">가입하기</option>
+                                          <option value="SHOP_NOW">지금 구매하기</option>
+                                          <option value="LEARN_MORE">더 알아보기</option>
                                           <option value="ORDER_NOW">지금 주문하기</option>
                                           <option value="BUY_NOW">지금 구매</option>
                                           <option value="GET_OFFER">혜택 받기</option>
+                                          <option value="SIGN_UP">가입하기</option>
                                           <option value="BOOK_NOW">지금 예약하기</option>
                                           <option value="CONTACT_US">문의하기</option>
                                           <option value="SUBSCRIBE">구독하기</option>
-                                          <option value="WATCH_MORE">더 보기</option>
-                                          <option value="APPLY_NOW">지금 신청하기</option>
                                           <option value="DOWNLOAD">다운로드</option>
                                         </select>
                                       </div>
-                                      <button
-                                        onClick={() => {
-                                          const currentAd = ad;
-                                          const updatedSegs = [...segments];
-                                          updatedSegs.forEach((otherSeg, otherIdx) => {
-                                            if (otherIdx !== i && otherSeg.enabled) {
-                                              const matchingAd = (otherSeg.ads || []).find(
-                                                (a: AdSetCreative) => a.creative_id === currentAd.creative_id
-                                              );
-                                              if (matchingAd) {
-                                                matchingAd.primary_text = currentAd.primary_text;
-                                                matchingAd.headline = currentAd.headline;
-                                                matchingAd.description = currentAd.description;
-                                                matchingAd.call_to_action = currentAd.call_to_action;
-                                                matchingAd.link_url = currentAd.link_url;
-                                                matchingAd.display_link = currentAd.display_link;
-                                                matchingAd.url_params = currentAd.url_params;
-                                              }
-                                            }
-                                          });
-                                          setSegments(updatedSegs);
-                                          toast.success('다른 세그먼트에도 동일 설정이 적용되었습니다');
-                                        }}
-                                        className="text-xs text-violet-500 hover:text-violet-700 flex items-center gap-1 mt-2"
-                                        title="이 소재의 광고 문구/랜딩 설정을 다른 세그먼트의 동일 소재에 복사"
-                                      >
+                                      <button onClick={() => {
+                                        const updatedSegs = [...segments];
+                                        updatedSegs.forEach((os, oi) => { if (oi !== i && os.enabled) { const m = (os.ads || []).find((a: AdSetCreative) => a.creative_id === ad.creative_id); if (m) { m.primary_text = ad.primary_text; m.headline = ad.headline; m.description = ad.description; m.call_to_action = ad.call_to_action; m.link_url = ad.link_url; m.utm_label = (ad as any).utm_label; m.url_params = ad.url_params; } } });
+                                        setSegments(updatedSegs);
+                                        toast.success('다른 세그먼트에 동일 적용 완료');
+                                      }} className="text-xs text-violet-500 hover:text-violet-700 flex items-center gap-1 mt-1">
                                         <Copy size={12} /> 다른 세그먼트에 동일 적용
                                       </button>
                                     </div>
                                   </details>
 
-                                  {/* ── 섹션 3: 랜딩 페이지 (Landing) ── */}
-                                  <details className="border-t border-gray-100" open>
+                                  {/* ── 3. 광고 설정 (어드밴티지+ 카탈로그) ── */}
+                                  <details className="border-t border-gray-100">
                                     <summary className="px-2 py-1.5 text-[10px] font-medium text-gray-600 cursor-pointer hover:bg-gray-50 flex items-center gap-1">
-                                      <MapPin size={10} /> 랜딩 페이지 {ad.link_url ? '(설정됨)' : ''}
+                                      <Database size={10} /> 광고 설정 {(ad as any).advantage_catalog ? '(카탈로그 ON)' : ''}
                                     </summary>
-                                    <div className="px-2 pb-2 space-y-1.5">
-                                      {/* 기본 랜딩 페이지 */}
-                                      <div>
-                                        <label className="text-[10px] text-gray-500">기본 랜딩 페이지</label>
-                                        <select value={ad.landing_type || 'website'}
-                                          onChange={(e) => updateAdSetCreativeField(i, ad.creative_id, 'landing_type', e.target.value)}
-                                          className="w-full px-2 py-1 border border-gray-200 rounded text-xs bg-white">
-                                          <option value="website">웹사이트</option>
-                                          <option value="app">앱</option>
-                                          <option value="messenger">Messenger</option>
-                                          <option value="instant_form">인스턴트 양식</option>
-                                        </select>
-                                      </div>
-                                      {/* 웹사이트 URL */}
-                                      <div>
-                                        <label className="text-[10px] text-gray-500">웹사이트 URL <span className="text-red-400">*</span></label>
-                                        <input type="url" value={ad.link_url}
-                                          onChange={(e) => updateAdSetCreativeField(i, ad.creative_id, 'link_url', e.target.value)}
-                                          placeholder="https://example.com/landing"
-                                          className={`w-full px-2 py-1 border rounded text-xs ${!ad.link_url ? 'border-red-200 bg-red-50' : 'border-gray-200'}`} />
-                                      </div>
-                                      {/* 표시 링크 사용 */}
+                                    <div className="px-2 pb-2 space-y-2">
                                       <label className="flex items-center gap-2 cursor-pointer">
-                                        <input type="checkbox" checked={ad.use_display_link ?? false}
-                                          onChange={(e) => updateAdSetCreativeField(i, ad.creative_id, 'use_display_link', e.target.checked ? 'true' : 'false')}
-                                          className="w-3 h-3" />
-                                        <span className="text-[10px] text-gray-600">표시 링크 사용</span>
+                                        <input type="checkbox" checked={(ad as any).advantage_catalog ?? false}
+                                          onChange={(e) => updateAdSetCreativeField(i, ad.creative_id, 'advantage_catalog', e.target.checked ? 'true' : 'false')}
+                                          className="w-3.5 h-3.5 rounded" />
+                                        <div><span className="text-[10px] font-medium text-gray-700">어드밴티지+ 카탈로그</span>
+                                        <p className="text-[9px] text-gray-400">카탈로그의 관련 제품 미디어를 표시하여 판매 증대</p></div>
                                       </label>
-                                      {(ad.use_display_link) && (
-                                        <div>
-                                          <label className="text-[10px] text-gray-500">표시 링크</label>
-                                          <input type="text" value={ad.display_link || ''}
-                                            onChange={(e) => updateAdSetCreativeField(i, ad.creative_id, 'display_link', e.target.value)}
-                                            placeholder="shop.example.com"
-                                            className="w-full px-2 py-1 border border-gray-200 rounded text-xs" />
+                                      {(ad as any).advantage_catalog && (
+                                        <div className="space-y-1.5 pl-5">
+                                          <div>
+                                            <label className="text-[10px] text-gray-500">카탈로그 ID</label>
+                                            <input type="text" value={(ad as any).catalog_id || ''}
+                                              onChange={(e) => updateAdSetCreativeField(i, ad.creative_id, 'catalog_id', e.target.value)}
+                                              placeholder="카탈로그 ID" className="w-full px-2 py-1 border border-gray-200 rounded text-xs" />
+                                          </div>
+                                          <div>
+                                            <label className="text-[10px] text-gray-500">제품 세트 ID (선택)</label>
+                                            <input type="text" value={(ad as any).product_set_id || ''}
+                                              onChange={(e) => updateAdSetCreativeField(i, ad.creative_id, 'product_set_id', e.target.value)}
+                                              placeholder="제품 세트 ID" className="w-full px-2 py-1 border border-gray-200 rounded text-xs" />
+                                          </div>
                                         </div>
                                       )}
-                                      {/* URL 매개변수 */}
+                                    </div>
+                                  </details>
+
+                                  {/* ── 4. 랜딩 페이지 + UTM ── */}
+                                  <details className="border-t border-gray-100" open>
+                                    <summary className="px-2 py-1.5 text-[10px] font-medium text-gray-600 cursor-pointer hover:bg-gray-50 flex items-center gap-1">
+                                      <MapPin size={10} /> 랜딩 페이지 {ad.link_url ? '✓' : ''}
+                                    </summary>
+                                    <div className="px-2 pb-2 space-y-1.5">
                                       <div>
-                                        <label className="text-[10px] text-gray-500">URL 매개변수 (UTM)</label>
-                                        <input type="text" value={ad.url_params || ''}
-                                          onChange={(e) => updateAdSetCreativeField(i, ad.creative_id, 'url_params', e.target.value)}
-                                          placeholder="utm_source=meta&utm_medium=cpc&utm_campaign=..."
+                                        <label className="text-[10px] text-gray-500">랜딩 페이지 URL <span className="text-red-400">*</span></label>
+                                        <input type="url" value={ad.link_url}
+                                          onChange={(e) => {
+                                            updateAdSetCreativeField(i, ad.creative_id, 'link_url', e.target.value);
+                                            // UTM 자동 생성
+                                            const label = (ad as any).utm_label || '';
+                                            if (label) {
+                                              const utm = `utm_source=facebook&utm_medium=cpc&utm_campaign=${encodeURIComponent(label)}&utm_content=${ad.format === 'carousel' ? 'carousel' : 'single'}`;
+                                              updateAdSetCreativeField(i, ad.creative_id, 'url_params', utm);
+                                            }
+                                          }}
+                                          placeholder="https://www.nuldam.com/product/list.html?cate_no=62"
+                                          className={`w-full px-2 py-1 border rounded text-xs ${!ad.link_url ? 'border-red-200 bg-red-50' : 'border-gray-200'}`} />
+                                      </div>
+                                      <div>
+                                        <label className="text-[10px] text-gray-500">UTM 구분값 <span className="text-gray-400">(빈칸 시 생략)</span></label>
+                                        <input type="text" value={(ad as any).utm_label || ''}
+                                          onChange={(e) => {
+                                            updateAdSetCreativeField(i, ad.creative_id, 'utm_label', e.target.value);
+                                            // UTM 자동 생성
+                                            const label = e.target.value;
+                                            if (label) {
+                                              const utm = `utm_source=facebook&utm_medium=cpc&utm_campaign=${encodeURIComponent(label)}&utm_content=${ad.format === 'carousel' ? 'carousel' : 'single'}`;
+                                              updateAdSetCreativeField(i, ad.creative_id, 'url_params', utm);
+                                            } else {
+                                              updateAdSetCreativeField(i, ad.creative_id, 'url_params', '');
+                                            }
+                                          }}
+                                          placeholder="260323_promotion"
                                           className="w-full px-2 py-1 border border-gray-200 rounded text-xs" />
                                       </div>
+                                      {ad.link_url && (ad as any).utm_label && (
+                                        <div>
+                                          <label className="text-[10px] text-gray-500">UTM 확인 (자동 생성)</label>
+                                          <div className="p-1.5 bg-gray-50 rounded text-[10px] text-gray-600 break-all font-mono">
+                                            {ad.link_url}{ad.link_url.includes('?') ? '&' : '?'}{ad.url_params}
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </details>
+
+                                  {/* ── 5. 어드밴티지+ 크리에이티브 ── */}
+                                  <details className="border-t border-gray-100">
+                                    <summary className="px-2 py-1.5 text-[10px] font-medium text-gray-600 cursor-pointer hover:bg-gray-50 flex items-center gap-1">
+                                      <ToggleRight size={10} /> 어드밴티지+ 크리에이티브 {(ad as any).advantage_plus_creative ? '(ON)' : ''}
+                                    </summary>
+                                    <div className="px-2 pb-2">
+                                      <label className="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" checked={(ad as any).advantage_plus_creative ?? false}
+                                          onChange={(e) => updateAdSetCreativeField(i, ad.creative_id, 'advantage_plus_creative', e.target.checked ? 'true' : 'false')}
+                                          className="w-3.5 h-3.5 rounded" />
+                                        <div><span className="text-[10px] font-medium text-gray-700">어드밴티지+ 크리에이티브 활성화</span>
+                                        <p className="text-[9px] text-gray-400">Meta AI가 광고 소재를 자동 최적화합니다</p></div>
+                                      </label>
                                     </div>
                                   </details>
                                 </div>
