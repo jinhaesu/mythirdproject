@@ -126,19 +126,27 @@ async def upload_creative(
             logger.warning(f"Could not detect image dimensions: {e}")
             format_value = "1:1"
 
-    # Save file to uploads/ directory
-    upload_dir = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))),
-        "uploads"
-    )
-    os.makedirs(upload_dir, exist_ok=True)
+    # Supabase Storage에 업로드 (설정되어 있으면), 아니면 로컬 저장
     filename = f"{uuid.uuid4().hex}{ext}"
-    filepath = os.path.join(upload_dir, filename)
+    content_type_map = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".gif": "image/gif", ".webp": "image/webp", ".mp4": "video/mp4", ".mov": "video/quicktime"}
+    content_type = content_type_map.get(ext.lower(), "application/octet-stream")
 
-    with open(filepath, "wb") as f:
-        f.write(file_content)
+    from app.services.storage import upload_to_supabase
+    supabase_url = await upload_to_supabase(file_content, filename, content_type)
 
-    file_url = f"/uploads/{filename}"
+    if supabase_url:
+        file_url = supabase_url
+    else:
+        # Fallback: 로컬 저장
+        upload_dir = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))),
+            "uploads"
+        )
+        os.makedirs(upload_dir, exist_ok=True)
+        filepath = os.path.join(upload_dir, filename)
+        with open(filepath, "wb") as f:
+            f.write(file_content)
+        file_url = f"/uploads/{filename}"
 
     # Use original filename as name if not provided
     creative_name = name or os.path.splitext(file.filename)[0]

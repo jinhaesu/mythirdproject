@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = "sqlite+aiosqlite:///./meta_commander.db"
 
+    # Supabase Storage
+    SUPABASE_URL: str = ""          # https://xxx.supabase.co
+    SUPABASE_SERVICE_KEY: str = ""  # service_role key
+
     # Meta API
     META_APP_ID: str = ""
     META_APP_SECRET: str = ""
