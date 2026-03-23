@@ -322,6 +322,34 @@ async def publish_campaign(
         # Pixel: prefer user-specified in request, then campaign-level, then auto-fetch
         pixel_id = request.pixel_id or campaign.pixel_id or meta_user.meta_pixel_id
         dataset_id = request.dataset_id or campaign.dataset_id
+        # 데이터셋 ID가 'cafe24', 'smartstore' 같은 별칭이면 Meta에서 실제 ID 조회
+        if dataset_id and not dataset_id.isdigit():
+            logger.info(f"[Publish] Dataset alias '{dataset_id}' -> fetching real dataset from Meta")
+            try:
+                datasets = await meta_api._request(
+                    "GET", f"{meta_api.ad_account_id}/dataset",
+                    params={"fields": "id,name"}
+                )
+                ds_list = datasets.get("data", [])
+                matched = None
+                alias_lower = dataset_id.lower()
+                for ds in ds_list:
+                    ds_name = (ds.get("name", "") or "").lower()
+                    if alias_lower in ds_name or ds_name in alias_lower:
+                        matched = ds.get("id")
+                        break
+                if not matched and ds_list:
+                    # 별칭이 'cafe24'인데 이름에 없으면 첫번째 데이터셋 사용
+                    matched = ds_list[0].get("id")
+                if matched:
+                    logger.info(f"[Publish] Resolved dataset: '{dataset_id}' -> {matched}")
+                    dataset_id = matched
+                else:
+                    logger.warning(f"[Publish] No dataset found for alias '{dataset_id}', clearing")
+                    dataset_id = None
+            except Exception as ds_err:
+                logger.warning(f"[Publish] Dataset lookup failed: {ds_err}")
+                dataset_id = None
 
         if not page_id:
             pages = await meta_api.get_pages()
@@ -545,6 +573,38 @@ async def publish_campaign(
                 else:
                     segment_type = seg_type_lower if seg_type_lower else None
 
+                # 세그먼트별 일정 (없으면 캠페인 일정 사용)
+                seg_start = None
+                seg_end = None
+                if seg.get('start_date'):
+                    try:
+                        seg_start = datetime.fromisoformat(seg['start_date'].replace('Z', '+00:00')).replace(tzinfo=None)
+                    except Exception:
+                        seg_start = campaign.start_date
+                else:
+                    seg_start = campaign.start_date
+                if seg.get('end_date'):
+                    try:
+                        seg_end = datetime.fromisoformat(seg['end_date'].replace('Z', '+00:00')).replace(tzinfo=None)
+                    except Exception:
+                        seg_end = campaign.end_date
+                else:
+                    seg_end = campaign.end_date
+                # schedule 객체에서도 시도
+                sched = seg.get('schedule', {}) or {}
+                if not seg_start and sched.get('start_date'):
+                    try:
+                        seg_start = datetime.fromisoformat(sched['start_date'].replace('Z', '+00:00')).replace(tzinfo=None)
+                    except Exception:
+                        pass
+                if not seg_end and sched.get('end_date'):
+                    try:
+                        seg_end = datetime.fromisoformat(sched['end_date'].replace('Z', '+00:00')).replace(tzinfo=None)
+                    except Exception:
+                        pass
+
+                logger.info(f"[Publish] Segment '{seg_name}': start={seg_start}, end={seg_end}, interests={seg_targeting.interests}")
+
                 # Build adset kwargs
                 adset_kwargs = {
                     "campaign_id": meta_campaign_id,
@@ -560,8 +620,8 @@ async def publish_campaign(
                     "advantage_plus_audience": (
                         advantage_plus or seg_targeting.advantage_plus_audience
                     ),
-                    "start_time": campaign.start_date,
-                    "end_time": campaign.end_date,
+                    "start_time": seg_start,
+                    "end_time": seg_end,
                     "bid_strategy": bid_strategy if not use_cbo else None,
                     "bid_amount": bid_amount if not use_cbo else None,
                 }
@@ -801,30 +861,50 @@ async def publish_campaign(
                     except Exception as ad_err:
                         logger.error(f"[Publish] Ad creation failed for {ad_name}: {ad_err}")
 
-        elif ads and adset_ids:
-            # ── Fallback: round-robin distribution of campaign ads ──
-            for ad in ads:
-                creative_result = await db.execute(
-                    select(Creative).where(Creative.id == ad.creative_id)
-                )
-                creative = creative_result.scalar_one_or_none()
+        elif adset_ids:
+            # ── Fallback: campaign ads 또는 creative_ids로 크리에이티브 생성 ──
+            creatives_to_publish = []
 
-                if creative and creative.file_url:
-                    ad_index = list(ads).index(ad) if hasattr(ads, 'index') else 0
-                    target_adset_id = adset_ids[ad_index % len(adset_ids)]
+            # 1차: campaign ads 테이블에서
+            if ads:
+                for ad in ads:
+                    cr = await db.execute(select(Creative).where(Creative.id == ad.creative_id))
+                    creative = cr.scalar_one_or_none()
+                    if creative and creative.file_url:
+                        creatives_to_publish.append((creative, ad.name))
 
-                    try:
-                        meta_ad_id = await _create_meta_ad(
-                            creative=creative,
-                            target_adset_id=target_adset_id,
-                            ad_name=ad.name,
-                        )
-                        if meta_ad_id:
-                            ad.meta_ad_id = meta_ad_id
-                            ad.status = "PENDING_REVIEW"
-                    except Exception as ad_err:
-                        logger.error(f"[Publish] Ad creation failed for {ad.name}: {ad_err}")
-                        ad.status = "FAILED"
+            # 2차: ads가 비어있으면 campaign에 연결된 creative_ids에서 직접 가져옴
+            if not creatives_to_publish:
+                all_creative_ids = set()
+                if segments:
+                    for seg in segments:
+                        for sa in (seg.get("ads") or []):
+                            cid = sa.get("creative_id")
+                            if cid:
+                                all_creative_ids.add(cid)
+                if all_creative_ids:
+                    for cid in all_creative_ids:
+                        cr = await db.execute(select(Creative).where(Creative.id == cid))
+                        creative = cr.scalar_one_or_none()
+                        if creative and creative.file_url:
+                            creatives_to_publish.append((creative, creative.name or f"Ad-{cid}"))
+
+            for idx, (creative, ad_name) in enumerate(creatives_to_publish):
+                target_adset_id = adset_ids[idx % len(adset_ids)]
+                try:
+                    meta_ad_id = await _create_meta_ad(
+                        creative=creative,
+                        target_adset_id=target_adset_id,
+                        ad_name=ad_name,
+                    )
+                    if meta_ad_id and ads:
+                        for ad in ads:
+                            if ad.creative_id == creative.id:
+                                ad.meta_ad_id = meta_ad_id
+                                ad.status = "PENDING_REVIEW"
+                                break
+                except Exception as ad_err:
+                    logger.error(f"[Publish] Ad creation failed for {ad_name}: {ad_err}")
 
         # ──────────────────────────────────────────────
         # 6. Activate if launch_immediately

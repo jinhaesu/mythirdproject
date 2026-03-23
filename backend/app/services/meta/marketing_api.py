@@ -165,11 +165,17 @@ class MetaMarketingAPI:
         seg = (segment_type or "").lower()
 
         if seg == "broad":
-            # Broad (브로드): No interest targeting, no custom audiences
-            # Enable Advantage+ audience for optimal reach
+            # Broad (브로드): Advantage+ audience
             spec["targeting_automation"] = {"advantage_audience": 1}
-            # Meta requires age_max=65 when using Advantage+ audience
             spec["age_max"] = 65
+            # 브로드에도 관심사가 설정되어 있으면 적용 (Advantage+가 확장)
+            if targeting.interests and targeting.interests.interests:
+                valid_interests = [
+                    {"id": i} for i in targeting.interests.interests
+                    if str(i).isdigit()
+                ]
+                if valid_interests:
+                    spec["flexible_spec"] = [{"interests": valid_interests}]
 
         elif seg == "retarget":
             # Retarget (리타겟): Custom audiences (website visitors etc.)
