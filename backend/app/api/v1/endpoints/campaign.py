@@ -1214,6 +1214,52 @@ async def update_campaign(
     )
 
 
+@router.get("/debug-segments/{campaign_id}")
+async def debug_campaign_segments(
+    campaign_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """캠페인에 저장된 세그먼트 데이터를 디버그용으로 반환."""
+    result = await db.execute(
+        select(Campaign).where(Campaign.id == campaign_id, Campaign.user_id == current_user.id)
+    )
+    campaign = result.scalar_one_or_none()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="캠페인 없음")
+    segments = []
+    if campaign.targeting_segments:
+        try:
+            segments = json.loads(campaign.targeting_segments)
+        except Exception:
+            pass
+    # 각 세그먼트에서 핵심 필드 추출
+    debug = []
+    for seg in segments:
+        t = seg.get('targeting', {})
+        debug.append({
+            "name": seg.get("name"),
+            "type": seg.get("type"),
+            "start_date": seg.get("start_date"),
+            "end_date": seg.get("end_date"),
+            "schedule": seg.get("schedule"),
+            "interests_root": seg.get("interests"),
+            "interests_in_targeting": t.get("interests") if isinstance(t, dict) else None,
+            "custom_audiences": seg.get("custom_audiences"),
+            "ads_count": len(seg.get("ads", [])),
+            "ads_creative_ids": [a.get("creative_id") for a in seg.get("ads", [])],
+        })
+    return {
+        "campaign_id": campaign_id,
+        "campaign_name": campaign.name,
+        "campaign_start_date": str(campaign.start_date),
+        "campaign_end_date": str(campaign.end_date),
+        "dataset_id": campaign.dataset_id,
+        "segments_count": len(segments),
+        "segments": debug,
+    }
+
+
 @router.get("/interests/suggest")
 async def suggest_interests(
     query: str,
