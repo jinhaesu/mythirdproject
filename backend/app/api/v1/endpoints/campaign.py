@@ -702,14 +702,35 @@ async def publish_campaign(
                 except Exception as adset_err:
                     error_str = str(adset_err)
                     logger.error(f"[Publish] AdSet creation failed for {seg_name}: {adset_err}")
-                    # Custom Audience TOS or similar non-fatal error → skip this segment, continue others
+                    # Custom Audience TOS error → 커스텀 오디언스 제거 후 재시도
                     if "1870090" in error_str or "customaudiences/tos" in error_str:
-                        ad_account_raw = meta_api.ad_account_id.replace("act_", "")
-                        tos_url = f"https://business.facebook.com/ads/manage/customaudiences/tos/?act={ad_account_raw}"
-                        logger.warning(
-                            f"[Publish] Skipping segment '{seg_name}' due to TOS: {tos_url}"
+                        logger.warning(f"[Publish] TOS error for '{seg_name}', retrying without custom audiences")
+                        retry_kwargs = {**adset_kwargs}
+                        retry_kwargs.pop("custom_audiences", None)
+                        retry_kwargs.pop("excluded_audiences", None)
+                        # segment_type을 broad로 변경하여 커스텀 오디언스 없이 생성
+                        retry_kwargs["segment_type"] = "broad"
+                        # targeting spec에서 custom_audiences 제거
+                        retry_targeting = TargetingConfig(
+                            age_range=seg_targeting.age_range,
+                            genders=seg_targeting.genders,
+                            geo=seg_targeting.geo,
+                            interests=seg_targeting.interests,
                         )
-                        skipped_segments.append(seg_name)
+                        retry_kwargs["targeting"] = retry_targeting
+                        try:
+                            adset_result = await meta_api.create_adset(**retry_kwargs)
+                            adset_id = adset_result.get("id")
+                            if adset_id:
+                                adset_ids.append(adset_id)
+                                created_adset_ids.append(adset_id)
+                                logger.info(f"[Publish] AdSet created on retry (without custom audiences): {seg_name} ({adset_id})")
+                                skipped_segments.append(f"{seg_name}(커스텀 오디언스 제외됨)")
+                            else:
+                                skipped_segments.append(seg_name)
+                        except Exception as retry_err:
+                            logger.error(f"[Publish] Retry also failed for {seg_name}: {retry_err}")
+                            skipped_segments.append(seg_name)
                         continue
                     raise Exception(f"광고세트 '{seg_name}' 생성 실패: {adset_err}")
         else:
@@ -778,15 +799,9 @@ async def publish_campaign(
             url_params: Optional[str] = None,
         ) -> Optional[str]:
             """Create Meta creative + ad, return meta_ad_id or None."""
+            # standard_enhancements는 Meta에서 지원 중단 (subcode=3858504)
+            # 개별 기능 설정으로 전환하거나 None으로 보내야 함
             degrees_of_freedom_spec = None
-            if advantage_plus_creative:
-                degrees_of_freedom_spec = {
-                    "creative_features_spec": {
-                        "standard_enhancements": {
-                            "enroll_status": "OPT_IN"
-                        }
-                    }
-                }
 
             message = primary_text or creative.primary_text or ""
             cta = call_to_action or "LEARN_MORE"
