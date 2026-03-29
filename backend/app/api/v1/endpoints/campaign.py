@@ -338,29 +338,35 @@ async def publish_campaign(
         dataset_id = request.dataset_id or campaign.dataset_id
         # 데이터셋 ID가 'cafe24', 'smartstore' 같은 별칭이면 Meta에서 실제 ID 조회
         if dataset_id and not dataset_id.isdigit():
-            logger.info(f"[Publish] Dataset alias '{dataset_id}' -> fetching real dataset from Meta")
+            logger.info(f"[Publish] Dataset alias '{dataset_id}' -> fetching real dataset/pixel from Meta")
             try:
+                # 1) 데이터셋(픽셀) 목록 조회
                 datasets = await meta_api._request(
-                    "GET", f"{meta_api.ad_account_id}/dataset",
+                    "GET", f"{meta_api.ad_account_id}/adspixels",
                     params={"fields": "id,name"}
                 )
                 ds_list = datasets.get("data", [])
-                matched = None
+                matched_ds = None
+                matched_pixel = None
                 alias_lower = dataset_id.lower()
-                # 정확한 이름 매칭 우선 (cafe24 → cafe24 포함 데이터셋)
                 for ds in ds_list:
                     ds_name = (ds.get("name", "") or "").lower()
-                    if alias_lower in ds_name:
-                        matched = ds.get("id")
-                        logger.info(f"[Publish] Dataset matched: '{dataset_id}' -> '{ds.get('name')}' (ID: {matched})")
+                    if alias_lower in ds_name or ds_name in alias_lower:
+                        matched_ds = ds.get("id")
+                        matched_pixel = ds.get("id")  # 픽셀 ID = 데이터셋 ID
+                        logger.info(f"[Publish] Dataset/Pixel matched: '{dataset_id}' -> '{ds.get('name')}' (ID: {matched_ds})")
                         break
-                # 매칭 안 되면 데이터셋 목록 로깅 (첫번째 자동선택 하지 않음)
-                if not matched:
-                    ds_names = [f"{d.get('name')} ({d.get('id')})" for d in ds_list]
-                    logger.warning(f"[Publish] No dataset matched for '{dataset_id}'. Available: {ds_names}")
-                    dataset_id = None
+                if matched_ds:
+                    dataset_id = matched_ds
+                    # 매칭된 데이터셋의 픽셀로 pixel_id도 업데이트
+                    if matched_pixel:
+                        logger.info(f"[Publish] Overriding pixel_id: {pixel_id} -> {matched_pixel} (matched from '{dataset_id}' alias)")
+                        pixel_id = matched_pixel
                 else:
-                    dataset_id = matched
+                    ds_names = [f"{d.get('name')} ({d.get('id')})" for d in ds_list]
+                    logger.warning(f"[Publish] No dataset matched for '{dataset_id}'. Available pixels: {ds_names}")
+                    # 별칭 매칭 실패 시 dataset_id 유지 (사용자가 직접 입력한 pixel_id 사용)
+                    dataset_id = None
             except Exception as ds_err:
                 logger.warning(f"[Publish] Dataset lookup failed: {ds_err}")
                 dataset_id = None
@@ -639,13 +645,11 @@ async def publish_campaign(
 
                 logger.info(f"[Publish] Segment '{seg_name}': start={seg_start}, end={seg_end}, interests={seg_targeting.interests}")
 
-                # 리타겟 세그먼트인데 커스텀 오디언스가 없으면 스킵 (TOS 에러 방지)
+                # 리타겟: 커스텀 오디언스 없으면 일반 타겟팅으로 생성 (스킵하지 않음)
                 if segment_type == 'retarget':
                     has_audiences = bool(seg_targeting.custom_audiences) or bool(seg.get('custom_audiences'))
                     if not has_audiences:
-                        logger.warning(f"[Publish] Skipping retarget segment '{seg_name}': 커스텀 오디언스 미설정")
-                        skipped_segments.append(f"{seg_name}(커스텀 오디언스 미설정)")
-                        continue
+                        logger.info(f"[Publish] Retarget segment '{seg_name}' has no custom audiences, creating as general targeting")
 
                 # Build adset kwargs
                 adset_kwargs = {
@@ -872,14 +876,8 @@ async def publish_campaign(
         adset_idx = 0
         if segments and adset_ids:
             for seg_idx, seg in enumerate(segments):
-                seg_type_raw = seg.get('type', '').lower()
                 seg_was_skipped = any(
                     seg.get('name', '') in sk for sk in skipped_segments
-                ) or (
-                    seg_type_raw in ('retarget', '리타겟') and not (
-                        bool(seg.get('custom_audiences')) or
-                        (seg.get('targeting', {}) or {}).get('custom_audiences')
-                    )
                 )
                 if not seg_was_skipped and adset_idx < len(adset_ids):
                     seg_to_adset[seg_idx] = adset_ids[adset_idx]
@@ -1635,15 +1633,56 @@ async def sync_campaign_insights(
     if not campaign:
         raise HTTPException(status_code=404, detail="캠페인을 찾을 수 없습니다.")
 
-    if not campaign.meta_campaign_id or not current_user.meta_access_token:
+    if not campaign.meta_campaign_id:
         raise HTTPException(status_code=400, detail="Meta 캠페인이 연결되지 않았습니다.")
 
+    # 공유 Meta 인증 사용
+    meta_user = current_user
+    if not meta_user.meta_access_token:
+        shared = await get_shared_meta_credentials(db)
+        if shared:
+            meta_user = shared
+    if not meta_user.meta_access_token:
+        raise HTTPException(status_code=400, detail="Meta 계정이 연결되지 않았습니다.")
+
     meta_api = MetaMarketingAPI(
-        current_user.meta_access_token,
-        current_user.meta_ad_account_id
+        meta_user.meta_access_token,
+        meta_user.meta_ad_account_id
     )
 
     try:
+        # 먼저 Meta에서 캠페인 존재 여부 확인
+        meta_campaign = await meta_api.get_campaign_by_id(campaign.meta_campaign_id)
+        if not meta_campaign or not meta_campaign.get("id"):
+            # Meta에서 삭제된 캠페인 → 로컬 상태 업데이트
+            campaign.status = CampaignStatus.COMPLETED
+            campaign.meta_campaign_id = None
+            campaign.meta_adset_id = None
+            campaign.meta_adset_ids = None
+            await db.commit()
+            return {
+                "success": False,
+                "campaign_id": campaign_id,
+                "message": "Meta에서 해당 캠페인이 삭제/보관되었습니다. 로컬 상태를 업데이트했습니다."
+            }
+
+        # Meta 캠페인 상태 동기화
+        meta_status = meta_campaign.get("status", "").upper()
+        if meta_status == "ACTIVE" and campaign.status != CampaignStatus.ACTIVE:
+            campaign.status = CampaignStatus.ACTIVE
+        elif meta_status == "PAUSED" and campaign.status != CampaignStatus.PAUSED:
+            campaign.status = CampaignStatus.PAUSED
+        elif meta_status in ("DELETED", "ARCHIVED"):
+            campaign.status = CampaignStatus.COMPLETED
+            campaign.meta_campaign_id = None
+            await db.commit()
+            return {
+                "success": False,
+                "campaign_id": campaign_id,
+                "message": f"Meta에서 캠페인이 {meta_status} 상태입니다. 로컬 상태를 업데이트했습니다."
+            }
+        await db.commit()
+
         insights = await meta_api.get_campaign_insights(
             campaign.meta_campaign_id,
             date_preset=date_preset

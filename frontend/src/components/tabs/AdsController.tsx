@@ -2604,27 +2604,47 @@ function CampaignCard({
           </div>
         </div>
 
-        {/* 타겟팅 요약 — campaign.targeting 또는 첫번째 세그먼트의 targeting에서 읽음 */}
+        {/* 타겟팅 요약 — 세그먼트별 표시 */}
         {(() => {
-          const t = campaign.targeting || (campaign.targeting_segments?.[0] as any)?.targeting;
+          const segs = campaign.targeting_segments as any[] | undefined;
+          const t = campaign.targeting;
+          if (segs && segs.length > 0) {
+            return (
+              <div className="mb-3 space-y-1">
+                {segs.filter((s: any) => s.enabled !== false).map((seg: any, i: number) => {
+                  const st = seg.targeting || t || {};
+                  const genders = st.genders ?? ['all'];
+                  const genderLabel = genders.includes('all') ? '전체' : genders.includes('male') ? '남성' : genders.includes('female') ? '여성' : genders.join(',');
+                  return (
+                    <div key={i} className="flex flex-wrap gap-1 items-center">
+                      <span className="text-[10px] font-medium text-gray-500 w-12">{seg.name}</span>
+                      <span className="inline-flex items-center gap-0.5 text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">
+                        {st.age_range?.min_age ?? 18}-{st.age_range?.max_age ?? 65}세
+                      </span>
+                      <span className="inline-flex items-center gap-0.5 text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">
+                        {genderLabel}
+                      </span>
+                      <span className="inline-flex items-center gap-0.5 text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">
+                        {st.geo?.countries?.join(', ') || 'KR'}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          }
           if (!t) return null;
+          const genders = t.genders ?? ['all'];
+          const genderLabel = genders.includes('all') ? '전체' : genders.includes('male') ? '남성' : genders.includes('female') ? '여성' : genders.join(',');
           return (
             <div className="mb-3 flex flex-wrap gap-1.5">
               <span className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">
                 <Users size={10} /> {t.age_range?.min_age ?? 18}-{t.age_range?.max_age ?? 65}세
               </span>
-              <span className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">
-                {(t.genders ?? []).includes('all') ? '전체' : (t.genders ?? []).includes('male') ? '남성' : '여성'}
-              </span>
+              <span className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">{genderLabel}</span>
               {t.geo?.countries && (
                 <span className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">
                   <MapPin size={10} /> {t.geo.countries.join(', ')}
-                </span>
-              )}
-              {t.interests?.interests && t.interests.interests.length > 0 && (
-                <span className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">
-                  <Layers size={10} /> {t.interests.interests.slice(0, 2).join(', ')}
-                  {t.interests.interests.length > 2 && ` +${t.interests.interests.length - 2}`}
                 </span>
               )}
             </div>
