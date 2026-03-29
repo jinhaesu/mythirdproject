@@ -128,6 +128,21 @@ export function AdsController() {
   // Preview modal
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
+  // Fallback handler for creative preview images with broken/expired URLs
+  const IMG_FALLBACK = 'data:image/svg+xml,' + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200">' +
+    '<rect fill="#f3f4f6" width="200" height="200"/>' +
+    '<text x="100" y="95" text-anchor="middle" fill="#9ca3af" font-size="14" font-family="sans-serif">이미지</text>' +
+    '<text x="100" y="115" text-anchor="middle" fill="#9ca3af" font-size="14" font-family="sans-serif">로드 실패</text>' +
+    '</svg>'
+  );
+  const handleImageError = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget;
+    if (img.src !== IMG_FALLBACK) {
+      img.src = IMG_FALLBACK;
+    }
+  }, []);
+
   // Step navigation for 3-level hierarchy
   const [activeStep, setActiveStep] = useState<1 | 2 | 3>(1);
 
@@ -430,6 +445,20 @@ export function AdsController() {
     }
   }, [autoPlanResult]);
 
+  // Sync global targeting changes to all segment targeting configs
+  useEffect(() => {
+    if (!showTargeting) return;
+    setSegments(prev => prev.map(seg => ({
+      ...seg,
+      targeting: {
+        ...(seg.targeting || defaultTargetingConfig()),
+        age_range: { min_age: ageMin, max_age: ageMax },
+        genders: genders,
+        geo: { ...((seg.targeting || defaultTargetingConfig()).geo), countries },
+      }
+    })));
+  }, [ageMin, ageMax, genders, countries, showTargeting]);
+
   const { data: campaigns, refetch: refetchCampaigns } = useQuery({
     queryKey: ['campaigns'],
     queryFn: () => campaignApi.list(),
@@ -571,7 +600,13 @@ export function AdsController() {
         refetchCampaigns();
         toast.success(data.message || 'Meta 발행 완료');
       } else {
-        toast.error(data.message || '발행 실패');
+        const msg = data.message || '발행 실패';
+        // TOS URL이 포함된 에러는 더 오래 보여주기
+        if (msg.includes('business.facebook.com') || msg.includes('약관')) {
+          toast.error(msg, { duration: 15000 });
+        } else {
+          toast.error(msg, { duration: 8000 });
+        }
       }
     },
     onError: (err: any) => {
@@ -612,9 +647,9 @@ export function AdsController() {
     setPixelOption(campaign.pixel_id ? 'custom' : 'auto');
     setCustomPixelId(campaign.pixel_id || '');
 
-    // 타겟팅 복원
+    // 타겟팅 복원 (수정모드에서는 항상 활성화)
+    setShowTargeting(true);
     if (campaign.targeting) {
-      setShowTargeting(true);
       setAgeMin(campaign.targeting.age_range?.min_age ?? 18);
       setAgeMax(campaign.targeting.age_range?.max_age ?? 65);
       setGenders(campaign.targeting.genders || ['all']);
@@ -622,9 +657,20 @@ export function AdsController() {
       setInterests(campaign.targeting.interests?.interests || []);
     }
 
-    // 세그먼트 복원
+    // 세그먼트 복원 + 세그먼트 타겟팅에도 글로벌 값 반영
     if (campaign.targeting_segments && campaign.targeting_segments.length > 0) {
-      setSegments(campaign.targeting_segments);
+      const restoredAge = campaign.targeting?.age_range || { min_age: 18, max_age: 65 };
+      const restoredGenders = campaign.targeting?.genders || ['all'];
+      const restoredCountries = campaign.targeting?.geo?.countries || ['KR'];
+      setSegments(campaign.targeting_segments.map((seg: any) => ({
+        ...seg,
+        targeting: {
+          ...(seg.targeting || defaultTargetingConfig()),
+          age_range: { min_age: restoredAge.min_age, max_age: restoredAge.max_age },
+          genders: restoredGenders,
+          geo: { ...(seg.targeting?.geo || { countries: ['KR'] }), countries: restoredCountries },
+        }
+      })));
     }
 
     setEditingCampaignId(campaign.id);
@@ -1151,7 +1197,7 @@ export function AdsController() {
                         >
                           {(creative.thumbnail_url || creative.file_url) ? (
                             <div className="relative group">
-                              <img src={resolveMediaUrl(creative.thumbnail_url || creative.file_url)} alt={creative.name} className="w-full h-16 object-cover" />
+                              <img src={resolveMediaUrl(creative.thumbnail_url || creative.file_url)} alt={creative.name} className="w-full h-16 object-cover" onError={handleImageError} />
                               <button onClick={(e) => { e.stopPropagation(); setPreviewUrl(resolveMediaUrl(creative.file_url || creative.thumbnail_url)); }}
                                 className="absolute inset-0 bg-black/0 group-hover:bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all">
                                 <Eye size={14} className="text-white drop-shadow" />
@@ -1255,7 +1301,7 @@ export function AdsController() {
                                           className={`w-full relative rounded overflow-hidden border transition-all ${alreadyAdded ? 'opacity-40 cursor-not-allowed border-gray-200' : 'border-blue-300 hover:border-blue-500 hover:shadow-sm cursor-pointer'}`}>
                                           {c.thumbnail_url || c.file_url ? (
                                             <div className="relative">
-                                              <img src={resolveMediaUrl(c.thumbnail_url || c.file_url)} alt={c.name} className="w-full aspect-square object-cover" />
+                                              <img src={resolveMediaUrl(c.thumbnail_url || c.file_url)} alt={c.name} className="w-full aspect-square object-cover" onError={handleImageError} />
                                               <div onClick={(e) => { e.stopPropagation(); e.preventDefault(); setPreviewUrl(resolveMediaUrl(c.file_url || c.thumbnail_url)); }}
                                                 className="absolute top-0 right-0 p-0.5 bg-black/40 rounded-bl opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
                                                 <Eye size={10} className="text-white" />
@@ -1305,7 +1351,7 @@ export function AdsController() {
                                       onClick={() => { const url = resolveMediaUrl(ad.creative?.file_url || ad.creative?.thumbnail_url); if (url) setPreviewUrl(url); }}>
                                       {(ad.creative?.thumbnail_url || ad.creative?.file_url) ? (
                                         <>
-                                          <img src={resolveMediaUrl(ad.creative?.thumbnail_url || ad.creative?.file_url)} alt="" className="w-full h-full object-cover" />
+                                          <img src={resolveMediaUrl(ad.creative?.thumbnail_url || ad.creative?.file_url)} alt="" className="w-full h-full object-cover" onError={handleImageError} />
                                           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all">
                                             <Eye size={12} className="text-white drop-shadow" />
                                           </div>
@@ -1955,6 +2001,25 @@ export function AdsController() {
                                 setSegments(updated);
                               }}
                             />
+                            {seg.type === 'RETARGET' && (
+                              <div className="p-2 bg-amber-50 border border-amber-200 rounded text-xs">
+                                <div className="flex items-start gap-1.5">
+                                  <AlertTriangle size={11} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                                  <div>
+                                    <p className="font-medium text-amber-800">맞춤 타겟 약관 동의 필요</p>
+                                    <p className="text-amber-600 mt-0.5">리타겟팅 광고를 발행하려면 Meta 맞춤 타겟 서비스 약관에 사전 동의가 필요합니다.</p>
+                                    <a
+                                      href="https://business.facebook.com/ads/manage/customaudiences/tos/"
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-blue-600 hover:underline mt-1 inline-block"
+                                    >
+                                      Meta 맞춤 타겟 약관 동의하기 →
+                                    </a>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
 
@@ -2402,7 +2467,8 @@ export function AdsController() {
             {previewUrl.match(/\.(mp4|mov|webm|avi)$/i) ? (
               <video src={previewUrl} controls autoPlay className="max-w-full max-h-[85vh] rounded-lg shadow-2xl" />
             ) : (
-              <img src={previewUrl} alt="미리보기" className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl" />
+              <img src={previewUrl} alt="미리보기" className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl"
+                onError={(e) => { e.currentTarget.src = IMG_FALLBACK; }} />
             )}
           </div>
         </div>
@@ -2562,6 +2628,26 @@ function CampaignCard({
                 <Upload size={14} className="mr-1" /> Meta 발행
               </Button>
             </>
+          )}
+          {/* Custom Audience TOS Warning — shown when a RETARGET segment is active */}
+          {campaign.status === 'DRAFT' && campaign.targeting_segments?.some((s: any) => s.type === 'RETARGET' && s.enabled !== false) && (
+            <div className="w-full mt-2 p-2 bg-amber-50 border border-amber-200 rounded text-xs">
+              <div className="flex items-start gap-1.5">
+                <AlertTriangle size={12} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-medium text-amber-800">리타겟팅 사전 설정 필요</p>
+                  <p className="text-amber-600 mt-0.5">맞춤 타겟 약관에 동의해야 Meta 발행이 가능합니다.</p>
+                  <a
+                    href={`https://business.facebook.com/ads/manage/customaudiences/tos/?act=${campaign.meta_campaign_id || ''}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:underline mt-1 inline-block"
+                  >
+                    Meta 맞춤 타겟 약관 동의하기 →
+                  </a>
+                </div>
+              </div>
+            </div>
           )}
           {campaign.status === 'ACTIVE' && (
             <Button size="sm" variant="outline" onClick={() => pauseMutation.mutate()} loading={pauseMutation.isPending}>

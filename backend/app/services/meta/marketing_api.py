@@ -174,9 +174,18 @@ class MetaMarketingAPI:
             return result
 
         if seg == "broad":
-            # Broad (브로드): Advantage+ audience
-            spec["targeting_automation"] = {"advantage_audience": 1}
-            spec["age_max"] = 65
+            # Broad (브로드): Advantage+ audience unless user set a custom age range
+            user_has_custom_age = (targeting.age_range.min_age != 18 or targeting.age_range.max_age != 65)
+            if user_has_custom_age:
+                # Meta requires 18-65 for Advantage+ audience; respect user's custom range instead
+                spec["targeting_automation"] = {"advantage_audience": 0}
+                logger.info(
+                    f"[Targeting] Broad segment with custom age "
+                    f"{targeting.age_range.min_age}-{targeting.age_range.max_age}, "
+                    f"skipping Advantage+ audience"
+                )
+            else:
+                spec["targeting_automation"] = {"advantage_audience": 1}
             if targeting.interests and targeting.interests.interests:
                 valid = _build_interest_list(targeting.interests.interests)
                 if valid:
@@ -210,9 +219,16 @@ class MetaMarketingAPI:
         else:
             # Default / unspecified segment
             if advantage_plus_audience:
+                user_has_custom_age = (targeting.age_range.min_age != 18 or targeting.age_range.max_age != 65)
                 spec["targeting_automation"] = {"advantage_audience": 1}
-                # Meta requires age_max=65 when using Advantage+ audience
-                spec["age_max"] = 65
+                if not user_has_custom_age:
+                    # Meta requires age_max=65; only override when user hasn't set a custom range
+                    spec["age_max"] = 65
+                else:
+                    logger.info(
+                        f"[Targeting] Advantage+ audience enabled but custom age range "
+                        f"{targeting.age_range.min_age}-{targeting.age_range.max_age}"
+                    )
             else:
                 spec["targeting_automation"] = {"advantage_audience": 0}
 

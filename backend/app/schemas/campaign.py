@@ -111,10 +111,20 @@ class CampaignCreate(BaseModel):
 class CampaignUpdate(BaseModel):
     """Schema for updating campaign."""
     name: Optional[str] = None
+    objective: Optional[CampaignObjective] = None
     total_budget: Optional[float] = None
     daily_budget: Optional[float] = None
+    budget_type: Optional[str] = None
     targeting: Optional[TargetingConfig] = None
+    targeting_segments: Optional[list] = None
     status: Optional[CampaignStatus] = None
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+    advantage_plus: Optional[bool] = None
+    advantage_plus_audience: Optional[bool] = None
+    advantage_plus_creative: Optional[bool] = None
+    dataset_id: Optional[str] = None
+    pixel_id: Optional[str] = None
 
 
 class AdCreate(BaseModel):
@@ -152,9 +162,11 @@ class CampaignResponse(BaseModel):
     budget_type: str = "DAILY"
     currency: str = "KRW"
     targeting: Optional[TargetingConfig] = None
+    targeting_segments: Optional[list] = None
     meta_campaign_id: Optional[str] = None
     meta_adset_ids: Optional[str] = None
     advantage_plus: bool = False
+    advantage_plus_audience: bool = False
     dataset_id: Optional[str] = None
     pixel_id: Optional[str] = None
     start_date: Optional[datetime] = None
@@ -173,6 +185,7 @@ class PublishRequest(BaseModel):
     launch_immediately: bool = False  # Whether to activate right away
     budget_type: str = "DAILY"  # "DAILY" or "LIFETIME"
     advantage_plus: bool = False  # Enable Advantage+
+    advantage_plus_audience: bool = False  # Enable Advantage+ Audience expansion
     advantage_plus_creative: bool = False  # Enable Advantage+ Creative (image generation)
     dataset_id: Optional[str] = None  # Cafe24 or custom dataset
     pixel_id: Optional[str] = None  # Custom pixel ID

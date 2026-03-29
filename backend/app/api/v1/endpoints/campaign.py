@@ -27,6 +27,17 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _parse_targeting_segments(raw: str | None) -> list | None:
+    """Campaign의 targeting_segments JSON 문자열을 list로 파싱."""
+    if not raw:
+        return None
+    try:
+        parsed = json.loads(raw)
+        return parsed if isinstance(parsed, list) else None
+    except Exception:
+        return None
+
+
 @router.post("/strategy", response_model=StrategyRecommendation)
 async def get_strategy_recommendation(
     budget: float,
@@ -168,6 +179,7 @@ async def _create_campaign_impl(
             objective=campaign.objective, status=campaign.status,
             total_budget=campaign.total_budget, daily_budget=campaign.daily_budget,
             spent_amount=campaign.spent_amount, targeting=targeting_response,
+            targeting_segments=_parse_targeting_segments(campaign.targeting_segments),
             budget_type=campaign.budget_type,
             advantage_plus=campaign.advantage_plus,
             dataset_id=campaign.dataset_id,
@@ -208,6 +220,7 @@ async def _create_campaign_impl(
         dataset_id=campaign.dataset_id,
         pixel_id=campaign.pixel_id,
         targeting=targeting_response,
+        targeting_segments=_parse_targeting_segments(campaign.targeting_segments),
         start_date=campaign.start_date,
         end_date=campaign.end_date,
         ads=[
@@ -303,6 +316,7 @@ async def publish_campaign(
     use_cbo = request.use_cbo
     budget_type = request.budget_type  # "DAILY" or "LIFETIME"
     advantage_plus = request.advantage_plus or campaign.advantage_plus
+    advantage_plus_audience = getattr(request, 'advantage_plus_audience', False)
     advantage_plus_creative = request.advantage_plus_creative or advantage_plus
     bid_strategy = request.bid_strategy or None  # 빈 문자열 → None
     bid_amount = request.bid_amount
@@ -624,6 +638,13 @@ async def publish_campaign(
 
                 logger.info(f"[Publish] Segment '{seg_name}': start={seg_start}, end={seg_end}, interests={seg_targeting.interests}")
 
+                # 리타겟 세그먼트인데 커스텀 오디언스가 없으면 스킵 (TOS 에러 방지)
+                if segment_type == 'retarget':
+                    has_audiences = bool(seg_targeting.custom_audiences) or bool(seg.get('custom_audiences'))
+                    if not has_audiences:
+                        logger.warning(f"[Publish] Skipping retarget segment '{seg_name}': 커스텀 오디언스 미설정")
+                        continue
+
                 # Build adset kwargs
                 adset_kwargs = {
                     "campaign_id": meta_campaign_id,
@@ -637,7 +658,7 @@ async def publish_campaign(
                     "custom_audiences": seg_targeting.custom_audiences,
                     "excluded_audiences": seg_targeting.excluded_audiences,
                     "advantage_plus_audience": (
-                        advantage_plus or seg_targeting.advantage_plus_audience
+                        advantage_plus or advantage_plus_audience or seg_targeting.advantage_plus_audience
                     ),
                     "start_time": seg_start,
                     "end_time": seg_end,
@@ -673,7 +694,16 @@ async def publish_campaign(
                     else:
                         raise Exception(f"AdSet 생성 실패 ({seg_name}): {adset_result}")
                 except Exception as adset_err:
+                    error_str = str(adset_err)
                     logger.error(f"[Publish] AdSet creation failed for {seg_name}: {adset_err}")
+                    # Custom Audience TOS 미동의 에러 감지
+                    if "1870090" in error_str or "customaudiences/tos" in error_str:
+                        ad_account_raw = meta_api.ad_account_id.replace("act_", "")
+                        tos_url = f"https://business.facebook.com/ads/manage/customaudiences/tos/?act={ad_account_raw}"
+                        raise Exception(
+                            f"광고세트 '{seg_name}' 생성 실패: 맞춤 타겟 약관 동의가 필요합니다. "
+                            f"아래 링크에서 약관에 동의한 후 다시 시도하세요:\n{tos_url}"
+                        )
                     raise Exception(f"광고세트 '{seg_name}' 생성 실패: {adset_err}")
         else:
             # Single adset
@@ -692,7 +722,7 @@ async def publish_campaign(
                 "use_cbo": use_cbo,
                 "page_id": page_id,
                 "pixel_id": pixel_id,
-                "advantage_plus_audience": advantage_plus or targeting.advantage_plus_audience,
+                "advantage_plus_audience": advantage_plus or advantage_plus_audience or targeting.advantage_plus_audience,
                 "start_time": campaign.start_date,
                 "end_time": campaign.end_date,
                 "bid_strategy": bid_strategy,
@@ -1074,6 +1104,7 @@ async def list_campaigns(
             budget_type=campaign.budget_type,
             currency=campaign.currency,
             targeting=targeting,
+            targeting_segments=_parse_targeting_segments(campaign.targeting_segments),
             meta_campaign_id=campaign.meta_campaign_id,
             meta_adset_ids=campaign.meta_adset_ids,
             advantage_plus=campaign.advantage_plus,
@@ -1153,16 +1184,32 @@ async def update_campaign(
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
 
-    if update_data.name:
+    if update_data.name is not None:
         campaign.name = update_data.name
-    if update_data.total_budget:
+    if update_data.objective is not None:
+        campaign.objective = CampaignObjective(update_data.objective.value)
+    if update_data.total_budget is not None:
         campaign.total_budget = update_data.total_budget
-    if update_data.daily_budget:
+    if update_data.daily_budget is not None:
         campaign.daily_budget = update_data.daily_budget
-    if update_data.targeting:
+    if update_data.budget_type is not None:
+        campaign.budget_type = update_data.budget_type
+    if update_data.targeting is not None:
         campaign.targeting = update_data.targeting.model_dump_json()
-    if update_data.status:
+    if update_data.targeting_segments is not None:
+        campaign.targeting_segments = json.dumps(update_data.targeting_segments, ensure_ascii=False)
+    if update_data.status is not None:
         campaign.status = CampaignStatus(update_data.status.value)
+    if update_data.start_date is not None:
+        campaign.start_date = update_data.start_date.replace(tzinfo=None) if update_data.start_date.tzinfo else update_data.start_date
+    if update_data.end_date is not None:
+        campaign.end_date = update_data.end_date.replace(tzinfo=None) if update_data.end_date.tzinfo else update_data.end_date
+    if update_data.advantage_plus is not None:
+        campaign.advantage_plus = update_data.advantage_plus
+    if update_data.dataset_id is not None:
+        campaign.dataset_id = update_data.dataset_id
+    if update_data.pixel_id is not None:
+        campaign.pixel_id = update_data.pixel_id
 
     await db.commit()
     await db.refresh(campaign)
@@ -1189,6 +1236,7 @@ async def update_campaign(
         budget_type=campaign.budget_type,
         currency=campaign.currency,
         targeting=targeting,
+        targeting_segments=_parse_targeting_segments(campaign.targeting_segments),
         meta_campaign_id=campaign.meta_campaign_id,
         meta_adset_ids=campaign.meta_adset_ids,
         advantage_plus=campaign.advantage_plus,
