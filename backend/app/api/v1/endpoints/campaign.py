@@ -347,20 +347,20 @@ async def publish_campaign(
                 ds_list = datasets.get("data", [])
                 matched = None
                 alias_lower = dataset_id.lower()
+                # 정확한 이름 매칭 우선 (cafe24 → cafe24 포함 데이터셋)
                 for ds in ds_list:
                     ds_name = (ds.get("name", "") or "").lower()
-                    if alias_lower in ds_name or ds_name in alias_lower:
+                    if alias_lower in ds_name:
                         matched = ds.get("id")
+                        logger.info(f"[Publish] Dataset matched: '{dataset_id}' -> '{ds.get('name')}' (ID: {matched})")
                         break
-                if not matched and ds_list:
-                    # 별칭이 'cafe24'인데 이름에 없으면 첫번째 데이터셋 사용
-                    matched = ds_list[0].get("id")
-                if matched:
-                    logger.info(f"[Publish] Resolved dataset: '{dataset_id}' -> {matched}")
-                    dataset_id = matched
-                else:
-                    logger.warning(f"[Publish] No dataset found for alias '{dataset_id}', clearing")
+                # 매칭 안 되면 데이터셋 목록 로깅 (첫번째 자동선택 하지 않음)
+                if not matched:
+                    ds_names = [f"{d.get('name')} ({d.get('id')})" for d in ds_list]
+                    logger.warning(f"[Publish] No dataset matched for '{dataset_id}'. Available: {ds_names}")
                     dataset_id = None
+                else:
+                    dataset_id = matched
             except Exception as ds_err:
                 logger.warning(f"[Publish] Dataset lookup failed: {ds_err}")
                 dataset_id = None
@@ -644,12 +644,13 @@ async def publish_campaign(
                     has_audiences = bool(seg_targeting.custom_audiences) or bool(seg.get('custom_audiences'))
                     if not has_audiences:
                         logger.warning(f"[Publish] Skipping retarget segment '{seg_name}': 커스텀 오디언스 미설정")
+                        skipped_segments.append(f"{seg_name}(커스텀 오디언스 미설정)")
                         continue
 
                 # Build adset kwargs
                 adset_kwargs = {
                     "campaign_id": meta_campaign_id,
-                    "name": f"{campaign.name} - {seg_name}",
+                    "name": seg_name,
                     "targeting": seg_targeting,
                     "objective": meta_objective,
                     "use_cbo": use_cbo,
@@ -718,7 +719,7 @@ async def publish_campaign(
 
             adset_kwargs = {
                 "campaign_id": meta_campaign_id,
-                "name": f"{campaign.name} - AdSet",
+                "name": "기본",
                 "targeting": targeting,
                 "objective": meta_objective,
                 "use_cbo": use_cbo,
@@ -866,6 +867,24 @@ async def publish_campaign(
             return meta_ad_id
 
         # Check if segments have per-adset creative assignments
+        # 세그먼트 → adset_id 매핑 (스킵된 세그먼트 제외)
+        seg_to_adset = {}
+        adset_idx = 0
+        if segments and adset_ids:
+            for seg_idx, seg in enumerate(segments):
+                seg_type_raw = seg.get('type', '').lower()
+                seg_was_skipped = any(
+                    seg.get('name', '') in sk for sk in skipped_segments
+                ) or (
+                    seg_type_raw in ('retarget', '리타겟') and not (
+                        bool(seg.get('custom_audiences')) or
+                        (seg.get('targeting', {}) or {}).get('custom_audiences')
+                    )
+                )
+                if not seg_was_skipped and adset_idx < len(adset_ids):
+                    seg_to_adset[seg_idx] = adset_ids[adset_idx]
+                    adset_idx += 1
+
         has_per_adset_ads = False
         if segments and adset_ids:
             for seg in segments:
@@ -876,9 +895,9 @@ async def publish_campaign(
         if has_per_adset_ads and segments and adset_ids:
             # ── Per-adset creative assignments from segment['ads'] ──
             for seg_idx, seg in enumerate(segments):
-                if seg_idx >= len(adset_ids):
-                    break
-                target_adset_id = adset_ids[seg_idx]
+                if seg_idx not in seg_to_adset:
+                    continue
+                target_adset_id = seg_to_adset[seg_idx]
                 seg_ads = seg.get("ads", [])
                 seg_name = seg.get("name", f"Segment {seg_idx + 1}")
 

@@ -510,7 +510,7 @@ export function AdsController() {
       daily_budget: budgetType === 'DAILY' ? Number(budget) : (dailyEquivalent || undefined),
       budget_type: budgetType,
       creative_ids: allAdSetCreativeIds.length > 0 ? allAdSetCreativeIds : (selectedCreatives.length > 0 ? selectedCreatives.map((c) => c.id) : []),
-      targeting: buildTargetingConfig(),
+      targeting: buildTargetingConfig(true),
       targeting_segments: enabledSegments.length > 0 ? enabledSegments.map(seg => ({
         ...seg,
         ads: (seg.ads || []).map(a => ({
@@ -2596,28 +2596,32 @@ function CampaignCard({
           </div>
         </div>
 
-        {/* 타겟팅 요약 */}
-        {campaign.targeting && (
-          <div className="mb-3 flex flex-wrap gap-1.5">
-            <span className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">
-              <Users size={10} /> {campaign.targeting.age_range?.min_age ?? 18}-{campaign.targeting.age_range?.max_age ?? 65}세
-            </span>
-            <span className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">
-              {(campaign.targeting.genders ?? []).includes('all') ? '전체' : (campaign.targeting.genders ?? []).includes('male') ? '남성' : '여성'}
-            </span>
-            {campaign.targeting.geo?.countries && (
+        {/* 타겟팅 요약 — campaign.targeting 또는 첫번째 세그먼트의 targeting에서 읽음 */}
+        {(() => {
+          const t = campaign.targeting || (campaign.targeting_segments?.[0] as any)?.targeting;
+          if (!t) return null;
+          return (
+            <div className="mb-3 flex flex-wrap gap-1.5">
               <span className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">
-                <MapPin size={10} /> {campaign.targeting.geo.countries.join(', ')}
+                <Users size={10} /> {t.age_range?.min_age ?? 18}-{t.age_range?.max_age ?? 65}세
               </span>
-            )}
-            {campaign.targeting.interests?.interests && campaign.targeting.interests.interests.length > 0 && (
               <span className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">
-                <Layers size={10} /> {campaign.targeting.interests.interests.slice(0, 2).join(', ')}
-                {campaign.targeting.interests.interests.length > 2 && ` +${campaign.targeting.interests.interests.length - 2}`}
+                {(t.genders ?? []).includes('all') ? '전체' : (t.genders ?? []).includes('male') ? '남성' : '여성'}
               </span>
-            )}
-          </div>
-        )}
+              {t.geo?.countries && (
+                <span className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">
+                  <MapPin size={10} /> {t.geo.countries.join(', ')}
+                </span>
+              )}
+              {t.interests?.interests && t.interests.interests.length > 0 && (
+                <span className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">
+                  <Layers size={10} /> {t.interests.interests.slice(0, 2).join(', ')}
+                  {t.interests.interests.length > 2 && ` +${t.interests.interests.length - 2}`}
+                </span>
+              )}
+            </div>
+          );
+        })()}
 
         {/* 액션 버튼 */}
         <div className="flex flex-wrap gap-2">
