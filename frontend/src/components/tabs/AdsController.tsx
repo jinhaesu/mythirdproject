@@ -512,7 +512,15 @@ export function AdsController() {
       creative_ids: allAdSetCreativeIds.length > 0 ? allAdSetCreativeIds : (selectedCreatives.length > 0 ? selectedCreatives.map((c) => c.id) : []),
       targeting: buildTargetingConfig(true),
       targeting_segments: enabledSegments.length > 0 ? enabledSegments.map(seg => ({
-        ...seg,
+        type: seg.type,
+        name: seg.name,
+        enabled: seg.enabled,
+        ratio: seg.ratio,
+        targeting: seg.targeting,
+        description: seg.description,
+        custom_audiences: seg.custom_audiences,
+        exclusion_audiences: seg.exclusion_audiences,
+        interests: seg.interests,
         ads: (seg.ads || []).map(a => ({
           creative_id: a.creative_id,
           ad_name: a.ad_name,

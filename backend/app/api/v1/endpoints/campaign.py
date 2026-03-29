@@ -1402,11 +1402,17 @@ async def activate_campaign(
     if campaign.status not in [CampaignStatus.PAUSED, CampaignStatus.PENDING_REVIEW]:
         raise HTTPException(status_code=400, detail=f"현재 상태({campaign.status.value})에서는 활성화할 수 없습니다.")
 
-    # Update Meta if connected
-    if campaign.meta_campaign_id and current_user.meta_access_token:
+    # 공유 Meta 인증 사용
+    meta_user = current_user
+    if not meta_user.meta_access_token:
+        shared = await get_shared_meta_credentials(db)
+        if shared:
+            meta_user = shared
+
+    if campaign.meta_campaign_id and meta_user.meta_access_token:
         meta_api = MetaMarketingAPI(
-            current_user.meta_access_token,
-            current_user.meta_ad_account_id
+            meta_user.meta_access_token,
+            meta_user.meta_ad_account_id
         )
         try:
             await meta_api.update_campaign_status(campaign.meta_campaign_id, "ACTIVE")
@@ -1424,7 +1430,11 @@ async def activate_campaign(
                 except Exception as e:
                     logger.warning(f"Failed to activate adset: {e}")
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Meta 캠페인 활성화 실패: {str(e)}")
+            error_str = str(e)
+            if "does not exist" in error_str.lower() or "unknown" in error_str.lower():
+                campaign.meta_campaign_id = None
+            else:
+                raise HTTPException(status_code=500, detail=f"Meta 캠페인 활성화 실패: {error_str}")
 
     campaign.status = CampaignStatus.ACTIVE
     await db.commit()
@@ -1447,13 +1457,20 @@ async def pause_campaign(
     if not campaign:
         raise HTTPException(status_code=404, detail="캠페인을 찾을 수 없습니다.")
 
-    if campaign.status != CampaignStatus.ACTIVE:
+    if campaign.status not in [CampaignStatus.ACTIVE, CampaignStatus.PENDING_REVIEW]:
         raise HTTPException(status_code=400, detail=f"현재 상태({campaign.status.value})에서는 일시정지할 수 없습니다.")
 
-    if campaign.meta_campaign_id and current_user.meta_access_token:
+    # 공유 Meta 인증 사용
+    meta_user = current_user
+    if not meta_user.meta_access_token:
+        shared = await get_shared_meta_credentials(db)
+        if shared:
+            meta_user = shared
+
+    if campaign.meta_campaign_id and meta_user.meta_access_token:
         meta_api = MetaMarketingAPI(
-            current_user.meta_access_token,
-            current_user.meta_ad_account_id
+            meta_user.meta_access_token,
+            meta_user.meta_ad_account_id
         )
         try:
             await meta_api.update_campaign_status(campaign.meta_campaign_id, "PAUSED")
@@ -1471,7 +1488,16 @@ async def pause_campaign(
                 except Exception as e:
                     logger.warning(f"Failed to pause adset: {e}")
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Meta 캠페인 일시정지 실패: {str(e)}")
+            error_str = str(e)
+            logger.warning(f"[Pause] Meta API error: {error_str}")
+            # Meta에서 이미 삭제/보관된 캠페인이면 로컬만 업데이트
+            if "does not exist" in error_str.lower() or "unknown" in error_str.lower() or "100" in error_str:
+                logger.info(f"[Pause] Campaign {campaign.meta_campaign_id} not found on Meta, updating local only")
+                campaign.meta_campaign_id = None
+                campaign.meta_adset_id = None
+                campaign.meta_adset_ids = None
+            else:
+                raise HTTPException(status_code=500, detail=f"Meta 캠페인 일시정지 실패: {error_str}")
 
     campaign.status = CampaignStatus.PAUSED
     await db.commit()
