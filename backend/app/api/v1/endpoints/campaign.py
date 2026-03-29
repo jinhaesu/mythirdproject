@@ -1169,7 +1169,7 @@ async def delete_campaign(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """캠페인 삭제 (DRAFT/COMPLETED 상태만 가능)."""
+    """캠페인 삭제 — 모든 상태에서 가능. Meta에도 삭제 요청."""
     result = await db.execute(
         select(Campaign)
         .where(Campaign.id == campaign_id, Campaign.user_id == current_user.id)
@@ -1178,11 +1178,20 @@ async def delete_campaign(
     if not campaign:
         raise HTTPException(status_code=404, detail="캠페인을 찾을 수 없습니다.")
 
-    if campaign.status not in [CampaignStatus.DRAFT, CampaignStatus.COMPLETED]:
-        raise HTTPException(
-            status_code=400,
-            detail=f"현재 상태({campaign.status.value})에서는 삭제할 수 없습니다. 초안 또는 완료 상태에서만 삭제 가능합니다."
-        )
+    # Meta에서도 삭제 시도
+    if campaign.meta_campaign_id:
+        meta_user = current_user
+        if not meta_user.meta_access_token:
+            shared = await get_shared_meta_credentials(db)
+            if shared:
+                meta_user = shared
+        if meta_user.meta_access_token and meta_user.meta_ad_account_id:
+            try:
+                meta_api = MetaMarketingAPI(meta_user.meta_access_token, meta_user.meta_ad_account_id)
+                await meta_api.update_campaign_status(campaign.meta_campaign_id, "DELETED")
+                logger.info(f"[Delete] Meta campaign {campaign.meta_campaign_id} deleted")
+            except Exception as e:
+                logger.warning(f"[Delete] Meta campaign deletion failed (may already be deleted): {e}")
 
     # Delete associated ads first
     ads_result = await db.execute(
