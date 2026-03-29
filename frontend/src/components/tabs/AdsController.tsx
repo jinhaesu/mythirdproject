@@ -480,9 +480,11 @@ export function AdsController() {
     onError: () => toast.error('전략 분석 실패'),
   });
 
-  // Build targeting config for API
-  const buildTargetingConfig = () => {
-    if (!showTargeting) return undefined;
+  // Build targeting config for API.
+  // Pass force=true in update mode to always include targeting data even if
+  // showTargeting is somehow false (guards against stale closure values).
+  const buildTargetingConfig = (force = false) => {
+    if (!showTargeting && !force) return undefined;
     return {
       age_range: { min_age: ageMin, max_age: ageMax },
       genders,
@@ -648,14 +650,14 @@ export function AdsController() {
     setCustomPixelId(campaign.pixel_id || '');
 
     // 타겟팅 복원 (수정모드에서는 항상 활성화)
+    // Always reset to campaign's values (or safe defaults) so stale state from
+    // a previous edit never leaks into the current campaign's save payload.
     setShowTargeting(true);
-    if (campaign.targeting) {
-      setAgeMin(campaign.targeting.age_range?.min_age ?? 18);
-      setAgeMax(campaign.targeting.age_range?.max_age ?? 65);
-      setGenders(campaign.targeting.genders || ['all']);
-      setCountries(campaign.targeting.geo?.countries || ['KR']);
-      setInterests(campaign.targeting.interests?.interests || []);
-    }
+    setAgeMin(campaign.targeting?.age_range?.min_age ?? 18);
+    setAgeMax(campaign.targeting?.age_range?.max_age ?? 65);
+    setGenders(campaign.targeting?.genders || ['all']);
+    setCountries(campaign.targeting?.geo?.countries || ['KR']);
+    setInterests(campaign.targeting?.interests?.interests || []);
 
     // 세그먼트 복원 + 세그먼트 타겟팅에도 글로벌 값 반영
     if (campaign.targeting_segments && campaign.targeting_segments.length > 0) {
@@ -726,7 +728,7 @@ export function AdsController() {
       total_budget: Number(budget),
       daily_budget: budgetType === 'DAILY' ? Number(budget) : undefined,
       budget_type: budgetType,
-      targeting: buildTargetingConfig() || undefined,
+      targeting: buildTargetingConfig(true),
       targeting_segments: enabledSegments.length > 0 ? enabledSegments : undefined,
       start_date: startDate || undefined,
       end_date: endDate || undefined,
@@ -2598,10 +2600,10 @@ function CampaignCard({
         {campaign.targeting && (
           <div className="mb-3 flex flex-wrap gap-1.5">
             <span className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">
-              <Users size={10} /> {campaign.targeting.age_range.min_age}-{campaign.targeting.age_range.max_age}세
+              <Users size={10} /> {campaign.targeting.age_range?.min_age ?? 18}-{campaign.targeting.age_range?.max_age ?? 65}세
             </span>
             <span className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">
-              {campaign.targeting.genders.includes('all') ? '전체' : campaign.targeting.genders.includes('male') ? '남성' : '여성'}
+              {(campaign.targeting.genders ?? []).includes('all') ? '전체' : (campaign.targeting.genders ?? []).includes('male') ? '남성' : '여성'}
             </span>
             {campaign.targeting.geo?.countries && (
               <span className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">

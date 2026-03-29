@@ -511,6 +511,7 @@ async def publish_campaign(
         # 4. Create AdSets (with CBO-aware budget handling)
         # ──────────────────────────────────────────────
         adset_ids = []
+        skipped_segments = []
         segments = []
         if campaign.targeting_segments:
             try:
@@ -696,14 +697,15 @@ async def publish_campaign(
                 except Exception as adset_err:
                     error_str = str(adset_err)
                     logger.error(f"[Publish] AdSet creation failed for {seg_name}: {adset_err}")
-                    # Custom Audience TOS 미동의 에러 감지
+                    # Custom Audience TOS or similar non-fatal error → skip this segment, continue others
                     if "1870090" in error_str or "customaudiences/tos" in error_str:
                         ad_account_raw = meta_api.ad_account_id.replace("act_", "")
                         tos_url = f"https://business.facebook.com/ads/manage/customaudiences/tos/?act={ad_account_raw}"
-                        raise Exception(
-                            f"광고세트 '{seg_name}' 생성 실패: 맞춤 타겟 약관 동의가 필요합니다. "
-                            f"아래 링크에서 약관에 동의한 후 다시 시도하세요:\n{tos_url}"
+                        logger.warning(
+                            f"[Publish] Skipping segment '{seg_name}' due to TOS: {tos_url}"
                         )
+                        skipped_segments.append(seg_name)
+                        continue
                     raise Exception(f"광고세트 '{seg_name}' 생성 실패: {adset_err}")
         else:
             # Single adset
@@ -988,6 +990,15 @@ async def publish_campaign(
         await db.commit()
 
         # Build success message
+        # If ALL segments were skipped due to TOS, treat as failure
+        if skipped_segments and not adset_ids:
+            ad_account_raw = meta_api.ad_account_id.replace("act_", "")
+            tos_url = f"https://business.facebook.com/ads/manage/customaudiences/tos/?act={ad_account_raw}"
+            raise Exception(
+                f"모든 광고세트 생성이 실패했습니다. 맞춤 타겟 약관 동의가 필요합니다. "
+                f"아래 링크에서 약관에 동의한 후 다시 시도하세요:\n{tos_url}"
+            )
+
         adset_msg = f"{len(adset_ids)}개 광고세트" if len(adset_ids) > 1 else "1개 광고세트"
         ad_success_count = len(created_ad_ids)
         budget_msg = (
@@ -997,6 +1008,7 @@ async def publish_campaign(
         )
         cbo_msg = " (CBO 적용)" if use_cbo else ""
         status_msg = "ACTIVE" if (request.launch_immediately and campaign.status == CampaignStatus.ACTIVE) else "PENDING_REVIEW"
+        skipped_msg = f" (스킵: {', '.join(skipped_segments)} - 맞춤타겟 약관 동의 필요)" if skipped_segments else ""
 
         return PublishResponse(
             success=True,
@@ -1006,7 +1018,7 @@ async def publish_campaign(
             status=status_msg,
             message=(
                 f"Meta 발행 완료! 캠페인 ID: {meta_campaign_id} "
-                f"({adset_msg}, 광고 {ad_success_count}개 생성, {budget_msg}{cbo_msg})"
+                f"({adset_msg}, 광고 {ad_success_count}개 생성, {budget_msg}{cbo_msg}){skipped_msg}"
             )
         )
 
