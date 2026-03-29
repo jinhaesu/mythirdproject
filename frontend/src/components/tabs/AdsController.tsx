@@ -445,9 +445,25 @@ export function AdsController() {
     }
   }, [autoPlanResult]);
 
-  // Sync global targeting changes to all segment targeting configs
+  // 글로벌 타겟팅 변경을 세그먼트에 동기화 — 단, 사용자가 직접 변경할 때만
+  // (복제/수정 시 프로그래밍적으로 설정할 때는 동기화 안 함)
+  const isManualTargetingChange = useRef(false);
+  const prevTargetingValues = useRef({ ageMin, ageMax, genders: genders.join(','), countries: countries.join(',') });
+
   useEffect(() => {
     if (!showTargeting) return;
+    const prev = prevTargetingValues.current;
+    const changed = prev.ageMin !== ageMin || prev.ageMax !== ageMax ||
+      prev.genders !== genders.join(',') || prev.countries !== countries.join(',');
+    prevTargetingValues.current = { ageMin, ageMax, genders: genders.join(','), countries: countries.join(',') };
+
+    // 첫 호출이거나 프로그래밍적 변경은 무시
+    if (!isManualTargetingChange.current) {
+      isManualTargetingChange.current = true;
+      return;
+    }
+    if (!changed) return;
+
     setSegments(prev => prev.map(seg => ({
       ...seg,
       targeting: {
@@ -686,6 +702,7 @@ export function AdsController() {
     setEditingCampaignId(campaign.id);
     setLoadedDraftId(null);
     setActiveStep(1);
+    isManualTargetingChange.current = false; // 동기화 방지
     toast.success(`"${campaign.name}" 수정 모드`);
 
     // 스크롤 맨 위로
@@ -724,6 +741,7 @@ export function AdsController() {
     setEditingCampaignId(null);
     setLoadedDraftId(null);
     setActiveStep(1);
+    isManualTargetingChange.current = false; // 동기화 방지
     toast.success(`"${campaign.name}" 복제됨 — 수정 후 생성하세요`);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
@@ -2706,12 +2724,10 @@ function CampaignCard({
           <Button size="sm" variant="outline" onClick={onDuplicate}>
             <Copy size={14} className="mr-1" /> 복제
           </Button>
-          {(campaign.status === 'DRAFT' || campaign.status === 'COMPLETED') && (
-            <Button size="sm" variant="outline" onClick={handleDelete} loading={deleteMutation.isPending}
-              className="text-red-600 border-red-200 hover:bg-red-50">
-              <Trash2 size={14} className="mr-1" /> 삭제
-            </Button>
-          )}
+          <Button size="sm" variant="outline" onClick={handleDelete} loading={deleteMutation.isPending}
+            className="text-red-600 border-red-200 hover:bg-red-50">
+            <Trash2 size={14} className="mr-1" /> 삭제
+          </Button>
         </div>
       </div>
 
