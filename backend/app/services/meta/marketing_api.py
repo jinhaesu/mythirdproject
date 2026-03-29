@@ -743,7 +743,32 @@ class MetaMarketingAPI:
     # ──────────────────────────────────────────────
 
     async def upload_image(self, image_url: str) -> Dict[str, Any]:
-        """Upload image from URL for ad creative."""
+        """Upload image for ad creative.
+
+        First tries to download the image and upload as bytes (more reliable).
+        Falls back to URL-based upload if download fails.
+        """
+        # 방법 1: 이미지를 먼저 다운로드한 후 바이너리로 업로드 (권한 문제 회피)
+        try:
+            async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as dl_client:
+                img_resp = await dl_client.get(image_url)
+                if img_resp.status_code == 200:
+                    import base64
+                    img_bytes = base64.b64encode(img_resp.content).decode('utf-8')
+                    # filename 추출
+                    fname = image_url.split('/')[-1].split('?')[0] or 'image.jpg'
+                    result = await self._request(
+                        "POST",
+                        f"{self.ad_account_id}/adimages",
+                        data={"bytes": img_bytes, "name": fname}
+                    )
+                    if result.get("images"):
+                        logger.info(f"[Upload] Image uploaded via bytes: {fname}")
+                        return result
+        except Exception as e:
+            logger.warning(f"[Upload] Bytes upload failed: {e}, trying URL method")
+
+        # 방법 2: URL 기반 업로드 (fallback)
         return await self._request(
             "POST",
             f"{self.ad_account_id}/adimages",

@@ -707,17 +707,17 @@ export function AdsController() {
     setPixelOption(campaign.pixel_id ? 'custom' : 'auto');
     setCustomPixelId(campaign.pixel_id || '');
 
-    if (campaign.targeting) {
-      setShowTargeting(true);
-      setAgeMin(campaign.targeting.age_range?.min_age ?? 18);
-      setAgeMax(campaign.targeting.age_range?.max_age ?? 65);
-      setGenders(campaign.targeting.genders || ['all']);
-      setCountries(campaign.targeting.geo?.countries || ['KR']);
-      setInterests(campaign.targeting.interests?.interests || []);
-    }
+    // 타겟팅 복원 (항상 활성화)
+    setShowTargeting(true);
+    setAgeMin(campaign.targeting?.age_range?.min_age ?? 18);
+    setAgeMax(campaign.targeting?.age_range?.max_age ?? 65);
+    setGenders(campaign.targeting?.genders || ['all']);
+    setCountries(campaign.targeting?.geo?.countries || ['KR']);
+    setInterests(campaign.targeting?.interests?.interests || []);
 
+    // 세그먼트 복원 (deep copy + 타겟팅 유지)
     if (campaign.targeting_segments && campaign.targeting_segments.length > 0) {
-      setSegments(campaign.targeting_segments.map(seg => ({ ...seg })));
+      setSegments(campaign.targeting_segments.map((seg: any) => JSON.parse(JSON.stringify(seg))));
     }
 
     // 수정 모드가 아닌 새 캠페인 생성 모드로

@@ -836,12 +836,14 @@ async def publish_campaign(
                         image_hash = images[first_key].get("hash")
                         logger.info(f"[Publish] Image uploaded to Meta, hash={image_hash}")
                 except Exception as img_err:
-                    logger.warning(f"[Publish] Image upload to Meta failed: {img_err}, falling back to URL")
+                    logger.error(f"[Publish] Image upload to Meta failed: {img_err}")
+
+                if not image_hash:
+                    raise Exception(f"이미지를 Meta에 업로드할 수 없습니다. 소재를 다시 업로드해주세요. ({resolved_file_url})")
 
                 cr_result = await meta_api.create_ad_creative(
                     name=ad_name,
                     page_id=page_id,
-                    image_url=resolved_file_url if not image_hash else None,
                     image_hash=image_hash,
                     message=message,
                     link=link,
