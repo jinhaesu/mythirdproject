@@ -2038,7 +2038,6 @@ export function AdsController() {
                               <p className="text-[10px] text-amber-600">맞춤 타겟 사용 시 Meta 맞춤 타겟 약관 동의가 필요합니다.</p>
                             )}
                           </div>
-                        )}
 
                         {/* 세그먼트별 일정 */}
                         <details className="mt-1">
