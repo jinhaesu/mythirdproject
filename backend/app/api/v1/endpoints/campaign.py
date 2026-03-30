@@ -805,6 +805,7 @@ async def publish_campaign(
             link_url: Optional[str] = None,
             display_link: Optional[str] = None,
             url_params: Optional[str] = None,
+            ad_setting: Optional[dict] = None,
         ) -> Optional[str]:
             """Create Meta creative + ad, return meta_ad_id or None."""
             # standard_enhancements는 Meta에서 지원 중단 (subcode=3858504)
@@ -814,6 +815,7 @@ async def publish_campaign(
             message = primary_text or creative.primary_text or ""
             cta = call_to_action or "LEARN_MORE"
             link = link_url or None
+            ad_format = (ad_setting or {}).get("format", "")
 
             # Resolve relative file_url to absolute public URL for Meta access
             resolved_file_url = creative.file_url
@@ -830,7 +832,79 @@ async def publish_campaign(
                 resolved_file_url = f"{backend_base.rstrip('/')}{resolved_file_url}"
                 logger.info(f"[Publish] Resolved file_url: {creative.file_url} -> {resolved_file_url}")
 
-            if creative.creative_type.value == "VIDEO":
+            # ── Format branching ──
+            if ad_format == "carousel" and (ad_setting or {}).get("carousel_cards"):
+                # Upload each card's image and build card list
+                raw_cards = ad_setting["carousel_cards"]
+                uploaded_cards = []
+                for card in raw_cards:
+                    card_image_url = card.get("image_url") or resolved_file_url
+                    card_hash = card.get("image_hash")
+                    if not card_hash and card_image_url:
+                        try:
+                            img_result = await meta_api.upload_image(card_image_url)
+                            images = img_result.get("images", {})
+                            if images:
+                                first_key = next(iter(images))
+                                card_hash = images[first_key].get("hash")
+                                logger.info(f"[Publish] Carousel card image uploaded, hash={card_hash}")
+                        except Exception as img_err:
+                            logger.error(f"[Publish] Carousel card image upload failed: {img_err}")
+                    uploaded_cards.append({
+                        "image_hash": card_hash,
+                        "headline": card.get("headline", headline or ""),
+                        "description": card.get("description", description or ""),
+                        "link_url": card.get("link_url") or link,
+                    })
+                cr_result = await meta_api.create_carousel_creative(
+                    name=ad_name,
+                    page_id=page_id,
+                    cards=uploaded_cards,
+                    message=message,
+                    link=link,
+                    call_to_action=cta,
+                )
+
+            elif (ad_setting or {}).get("advantage_catalog") and (ad_setting or {}).get("catalog_id"):
+                # Catalog creative — no image upload needed; Meta pulls from catalog
+                catalog_id = ad_setting["catalog_id"]
+                product_set_id = ad_setting.get("product_set_id")
+                object_story_spec: dict = {
+                    "page_id": page_id,
+                    "template_data": {
+                        "message": message,
+                        "link": link or "https://example.com",
+                        "call_to_action": {"type": cta},
+                        "child_attachments": [
+                            {
+                                "link": "{{product.url}}",
+                                "name": headline or "{{product.name}}",
+                                "description": description or "{{product.description}}",
+                                "image_hash": "{{product.image_url}}",
+                            }
+                        ],
+                        "multi_share_end_card": False,
+                    }
+                }
+                template_url_spec = {
+                    "web": {
+                        "url": link or "https://example.com",
+                        "parameter": url_params or "",
+                    }
+                }
+                catalog_data: dict = {
+                    "name": ad_name,
+                    "object_story_spec": object_story_spec,
+                    "product_set_id": product_set_id or catalog_id,
+                    "template_url_spec": template_url_spec,
+                }
+                cr_result = await meta_api._request(
+                    "POST",
+                    f"{meta_api.ad_account_id}/adcreatives",
+                    data=catalog_data,
+                )
+
+            elif creative.creative_type.value == "VIDEO":
                 media_result = await meta_api.upload_video(resolved_file_url)
                 video_id = media_result.get("id")
                 if not video_id:
@@ -882,10 +956,16 @@ async def publish_campaign(
             if not meta_creative_id:
                 raise Exception(f"크리에이티브 생성 실패: {cr_result}")
 
+            # Tracking data from ad_setting
+            tracking_specs = (ad_setting or {}).get("tracking_specs") or None
+            view_tags = (ad_setting or {}).get("view_tags") or None
+
             ad_result = await meta_api.create_ad(
                 name=ad_name,
                 adset_id=target_adset_id,
                 creative_id=meta_creative_id,
+                tracking_specs=tracking_specs,
+                view_tags=view_tags,
             )
             meta_ad_id = ad_result.get("id")
             if not meta_ad_id:
@@ -947,6 +1027,7 @@ async def publish_campaign(
                             headline=ad_setting.get("headline"),
                             description=ad_setting.get("description"),
                             call_to_action=ad_setting.get("call_to_action"),
+                            ad_setting=ad_setting,
                             link_url=ad_setting.get("link_url"),
                             display_link=ad_setting.get("display_link"),
                             url_params=ad_setting.get("url_params"),
@@ -1114,6 +1195,43 @@ async def publish_campaign(
             status="FAILED",
             message=f"발행 실패: {error_msg}"
         )
+
+
+# ──────────────────────────────────────────────
+# Catalog endpoints
+# ──────────────────────────────────────────────
+
+@router.get("/catalogs")
+async def get_catalogs(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return product catalogs accessible by the ad account."""
+    meta_user = current_user
+    if not meta_user.meta_access_token:
+        meta_user = await get_shared_meta_credentials(db)
+    if not meta_user or not meta_user.meta_access_token or not meta_user.meta_ad_account_id:
+        raise HTTPException(status_code=400, detail="Meta 인증 정보가 없습니다.")
+    meta_api = MetaMarketingAPI(meta_user.meta_access_token, meta_user.meta_ad_account_id)
+    catalogs = await meta_api.get_product_catalogs()
+    return {"catalogs": catalogs}
+
+
+@router.get("/catalogs/{catalog_id}/product-sets")
+async def get_product_sets(
+    catalog_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return product sets for the given catalog."""
+    meta_user = current_user
+    if not meta_user.meta_access_token:
+        meta_user = await get_shared_meta_credentials(db)
+    if not meta_user or not meta_user.meta_access_token or not meta_user.meta_ad_account_id:
+        raise HTTPException(status_code=400, detail="Meta 인증 정보가 없습니다.")
+    meta_api = MetaMarketingAPI(meta_user.meta_access_token, meta_user.meta_ad_account_id)
+    product_sets = await meta_api.get_product_sets(catalog_id)
+    return {"product_sets": product_sets}
 
 
 @router.get("", response_model=List[CampaignResponse])

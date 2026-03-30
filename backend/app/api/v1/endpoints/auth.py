@@ -1,7 +1,7 @@
 """Authentication endpoints - Magic Link via Resend."""
 import logging
 from datetime import timedelta
-from typing import Annotated
+from typing import Annotated, Optional
 
 import resend
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -528,29 +528,39 @@ async def get_meta_connection_status(
                 meta_user.meta_ad_account_id,
             )
             pages = await marketing_api.get_pages()
-            result["pages"] = pages  # [{id, name}, ...]
 
-            # Get IG account from first page
+            # Enrich each page with its connected Instagram accounts
+            enriched_pages = []
             ig_account_id = None
             ig_username = None
             for page in pages:
+                page_entry = dict(page)
                 try:
                     ig_data = await graph_api.get_instagram_account(page["id"])
                     ig_biz = ig_data.get("instagram_business_account")
                     if ig_biz:
-                        ig_account_id = ig_biz.get("id")
-                        # Fetch IG username
+                        biz_id = ig_biz.get("id")
                         try:
                             ig_profile = await graph_api._request(
-                                "GET", ig_account_id,
-                                params={"fields": "username,name"}
+                                "GET", biz_id,
+                                params={"fields": "id,username,name"}
                             )
-                            ig_username = ig_profile.get("username")
+                            page_entry["instagram_accounts"] = [ig_profile]
+                            # Use first found IG account for top-level fields
+                            if ig_account_id is None:
+                                ig_account_id = biz_id
+                                ig_username = ig_profile.get("username")
                         except Exception:
-                            pass
-                        break
+                            page_entry["instagram_accounts"] = [{"id": biz_id}]
+                            if ig_account_id is None:
+                                ig_account_id = biz_id
+                    else:
+                        page_entry["instagram_accounts"] = []
                 except Exception:
-                    continue
+                    page_entry["instagram_accounts"] = []
+                enriched_pages.append(page_entry)
+
+            result["pages"] = enriched_pages
             result["ig_account_id"] = ig_account_id
             result["ig_username"] = ig_username
 
@@ -579,3 +589,36 @@ async def get_meta_connection_status(
             result["message"] = "토큰이 만료되었습니다. 다시 연결해주세요."
 
     return result
+
+
+@router.put("/meta/settings")
+async def update_meta_settings(
+    page_id: Optional[str] = None,
+    instagram_account_id: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Save the user's preferred Meta Page ID and Instagram account ID.
+
+    Both fields are optional; only provided fields are updated.
+    """
+    if not current_user.meta_access_token:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Meta 계정이 연결되지 않았습니다."
+        )
+
+    if page_id is not None:
+        current_user.meta_page_id = page_id
+    if instagram_account_id is not None:
+        current_user.meta_ig_account_id = instagram_account_id
+
+    await db.commit()
+
+    return {
+        "success": True,
+        "meta_page_id": current_user.meta_page_id,
+        "meta_ig_account_id": current_user.meta_ig_account_id,
+        "message": "대표 계정 설정이 저장되었습니다.",
+    }

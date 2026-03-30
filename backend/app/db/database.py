@@ -192,6 +192,18 @@ async def init_db():
     except Exception:
         pass
 
+    # Add width and height columns to creatives if missing
+    for col in ["width", "height"]:
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(
+                    __import__('sqlalchemy').text(
+                        f"ALTER TABLE creatives ADD COLUMN {col} INTEGER"
+                    )
+                )
+        except Exception:
+            pass
+
     # Add Naver advertising columns to users if missing
     naver_cols = [
         ("naver_search_ads_connected", "BOOLEAN DEFAULT FALSE"),

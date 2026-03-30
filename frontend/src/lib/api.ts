@@ -113,6 +113,11 @@ export const authApi = {
     const { data } = await api.post('/auth/meta/disconnect');
     return data;
   },
+
+  updateMetaSettings: async (settings: { page_id?: string; instagram_account_id?: string }) => {
+    const { data } = await api.put('/auth/meta/settings', settings);
+    return data;
+  },
 };
 
 // Benchmark API (TAB 1)
@@ -347,6 +352,16 @@ export const campaignApi = {
 
   getCustomAudiences: async () => {
     const { data } = await api.get<{ audiences: Array<{ id: string; name: string; subtype?: string; approximate_count_lower_bound?: number; approximate_count_upper_bound?: number }>; error?: string }>('/campaign/custom-audiences');
+    return data;
+  },
+
+  getCatalogs: async () => {
+    const { data } = await api.get<Array<{ id: string; name: string }>>('/campaign/catalogs');
+    return data;
+  },
+
+  getProductSets: async (catalogId: string) => {
+    const { data } = await api.get<Array<{ id: string; name: string }>>(`/campaign/catalogs/${catalogId}/product-sets`);
     return data;
   },
 };

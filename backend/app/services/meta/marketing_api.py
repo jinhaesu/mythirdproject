@@ -593,23 +593,90 @@ class MetaMarketingAPI:
             data=data,
         )
 
+    async def create_carousel_creative(
+        self,
+        name: str,
+        page_id: str,
+        cards: List[Dict],  # [{image_hash, headline, description, link_url}, ...]
+        message: str = "",
+        link: Optional[str] = None,
+        call_to_action: str = "LEARN_MORE",
+    ) -> Dict[str, Any]:
+        """Create a carousel ad creative with multiple cards."""
+        child_attachments = []
+        for card in cards:
+            attachment = {
+                "link": card.get("link_url") or link or "https://example.com",
+                "name": card.get("headline", ""),
+                "description": card.get("description", ""),
+            }
+            if card.get("image_hash"):
+                attachment["image_hash"] = card["image_hash"]
+            child_attachments.append(attachment)
+
+        object_story_spec = {
+            "page_id": page_id,
+            "link_data": {
+                "message": message,
+                "link": link or "https://example.com",
+                "child_attachments": child_attachments,
+                "call_to_action": {"type": call_to_action},
+            }
+        }
+        return await self._request(
+            "POST",
+            f"{self.ad_account_id}/adcreatives",
+            data={"name": name, "object_story_spec": object_story_spec},
+        )
+
+    async def get_product_catalogs(self) -> List[Dict]:
+        """Get product catalogs for the ad account."""
+        try:
+            result = await self._request(
+                "GET",
+                f"{self.ad_account_id}/owned_product_catalogs",
+                params={"fields": "id,name,product_count"}
+            )
+            return result.get("data", [])
+        except Exception:
+            return []
+
+    async def get_product_sets(self, catalog_id: str) -> List[Dict]:
+        """Get product sets for a catalog."""
+        try:
+            result = await self._request(
+                "GET",
+                f"{catalog_id}/product_sets",
+                params={"fields": "id,name,product_count"}
+            )
+            return result.get("data", [])
+        except Exception:
+            return []
+
     async def create_ad(
         self,
         name: str,
         adset_id: str,
         creative_id: str,
-        status: str = "PAUSED"
+        status: str = "PAUSED",
+        tracking_specs: Optional[List[Dict]] = None,
+        view_tags: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """Create an ad using existing adset and creative."""
+        data: Dict[str, Any] = {
+            "name": name,
+            "adset_id": adset_id,
+            "creative": {"creative_id": creative_id},
+            "status": status,
+        }
+        if tracking_specs:
+            data["tracking_specs"] = tracking_specs
+        if view_tags:
+            data["view_tags"] = view_tags
         return await self._request(
             "POST",
             f"{self.ad_account_id}/ads",
-            data={
-                "name": name,
-                "adset_id": adset_id,
-                "creative": {"creative_id": creative_id},
-                "status": status,
-            }
+            data=data,
         )
 
     async def update_ad_status(

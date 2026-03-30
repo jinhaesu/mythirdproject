@@ -105,8 +105,10 @@ async def upload_creative(
             detail=f"Video file too large: {file_size / (1024*1024*1024):.1f}GB. Maximum: 4GB"
         )
 
-    # Detect format/aspect ratio from image dimensions
+    # Detect format/aspect ratio from image dimensions, then auto-resize if needed
     format_value = "1:1"  # default
+    img_width: Optional[int] = None
+    img_height: Optional[int] = None
     if creative_type == "IMAGE":
         try:
             img = PILImage.open(io.BytesIO(file_content))
@@ -122,6 +124,32 @@ async def upload_creative(
                 format_value = "16:9"
             else:
                 format_value = "1:1"  # default
+
+            # Auto-resize: upscale if smallest dimension < 400px
+            new_width, new_height = width, height
+            if min(width, height) < 400:
+                scale = 400 / min(width, height)
+                new_width = round(width * scale)
+                new_height = round(height * scale)
+            # Auto-resize: downscale if largest dimension > 4096px
+            elif max(width, height) > 4096:
+                scale = 4096 / max(width, height)
+                new_width = round(width * scale)
+                new_height = round(height * scale)
+
+            if (new_width, new_height) != (width, height):
+                # Convert RGBA to RGB for JPEG compatibility before resizing
+                if img.mode == "RGBA" and ext.lower() in (".jpg", ".jpeg"):
+                    img = img.convert("RGB")
+                img = img.resize((new_width, new_height), PILImage.LANCZOS)
+                buf = io.BytesIO()
+                save_format = img.format or ("JPEG" if ext.lower() in (".jpg", ".jpeg") else "PNG")
+                img.save(buf, format=save_format)
+                file_content = buf.getvalue()
+                logger.info(f"[Upload] Resized {width}x{height} -> {new_width}x{new_height}")
+                img_width, img_height = new_width, new_height
+            else:
+                img_width, img_height = width, height
         except Exception as e:
             logger.warning(f"Could not detect image dimensions: {e}")
             format_value = "1:1"
@@ -162,6 +190,8 @@ async def upload_creative(
         headline=headline,
         primary_text=primary_text,
         call_to_action=call_to_action,
+        width=img_width,
+        height=img_height,
     )
     db.add(creative)
     await db.commit()

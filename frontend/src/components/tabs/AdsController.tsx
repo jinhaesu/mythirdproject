@@ -188,6 +188,10 @@ export function AdsController() {
   // Collapsible state for ad set cards in Step 3
   const [expandedCreativeAdSets, setExpandedCreativeAdSets] = useState<Record<number, boolean>>({ 0: true });
 
+  // ── Catalog state (for Advantage+ catalog dropdowns) ──
+  const [catalogs, setCatalogs] = useState<Array<{ id: string; name: string }>>([]);
+  const [productSets, setProductSets] = useState<Record<string, Array<{ id: string; name: string }>>>({});
+
   // ── 임시 저장 (Draft) state ──
   const [drafts, setDrafts] = useState<CampaignDraft[]>(loadDrafts);
   const [loadedDraftId, setLoadedDraftId] = useState<string | null>(null);
@@ -944,6 +948,48 @@ export function AdsController() {
     setSegments(updated);
   };
 
+  // ── Carousel card CRUD helpers ──
+  const updateCarouselCard = (segIndex: number, creativeId: number, cardIndex: number, field: string, value: string) => {
+    const updated = [...segments];
+    const seg = { ...updated[segIndex] };
+    seg.ads = (seg.ads || []).map(a => {
+      if (a.creative_id !== creativeId) return a;
+      const cards = [...((a as any).carousel_cards || [])];
+      cards[cardIndex] = { ...cards[cardIndex], [field]: value };
+      return { ...a, carousel_cards: cards };
+    });
+    updated[segIndex] = seg;
+    setSegments(updated);
+  };
+
+  const addCarouselCard = (segIndex: number, creativeId: number) => {
+    const updated = [...segments];
+    const seg = { ...updated[segIndex] };
+    seg.ads = (seg.ads || []).map(a => {
+      if (a.creative_id !== creativeId) return a;
+      const cards = [...((a as any).carousel_cards || [])];
+      if (cards.length >= 10) return a;
+      cards.push({ headline: '', link_url: '' });
+      return { ...a, carousel_cards: cards };
+    });
+    updated[segIndex] = seg;
+    setSegments(updated);
+  };
+
+  const removeCarouselCard = (segIndex: number, creativeId: number, cardIndex: number) => {
+    const updated = [...segments];
+    const seg = { ...updated[segIndex] };
+    seg.ads = (seg.ads || []).map(a => {
+      if (a.creative_id !== creativeId) return a;
+      const cards = [...((a as any).carousel_cards || [])];
+      if (cards.length <= 2) return a;
+      cards.splice(cardIndex, 1);
+      return { ...a, carousel_cards: cards };
+    });
+    updated[segIndex] = seg;
+    setSegments(updated);
+  };
+
   // Compute ad set preview based on segments + budget
   const adSetPreview = useMemo(() => {
     const active = segments.filter(s => s.enabled);
@@ -1423,6 +1469,25 @@ export function AdsController() {
                                             슬라이드(카탈로그)
                                           </button>
                                         </div>
+                                        {ad.format === 'carousel' && (
+                                          <div className="mt-2 space-y-2">
+                                            <p className="text-[10px] text-gray-500">캐러셀 카드 (2~10개)</p>
+                                            {((ad as any).carousel_cards || []).map((card: any, ci: number) => (
+                                              <div key={ci} className="flex items-center gap-2 p-1.5 bg-gray-50 rounded text-[10px]">
+                                                <span className="text-gray-400 w-4">{ci + 1}</span>
+                                                <input placeholder="헤드라인" value={card.headline || ''}
+                                                  onChange={e => updateCarouselCard(i, ad.creative_id, ci, 'headline', e.target.value)}
+                                                  className="flex-1 px-1.5 py-0.5 border border-gray-200 rounded text-[10px]" />
+                                                <input placeholder="링크 URL" value={card.link_url || ''}
+                                                  onChange={e => updateCarouselCard(i, ad.creative_id, ci, 'link_url', e.target.value)}
+                                                  className="flex-1 px-1.5 py-0.5 border border-gray-200 rounded text-[10px]" />
+                                                <button onClick={() => removeCarouselCard(i, ad.creative_id, ci)} className="text-red-400 hover:text-red-600"><X size={10} /></button>
+                                              </div>
+                                            ))}
+                                            <button onClick={() => addCarouselCard(i, ad.creative_id)}
+                                              className="text-[10px] text-blue-600 hover:text-blue-700">+ 카드 추가</button>
+                                          </div>
+                                        )}
                                       </div>
                                     </div>
                                   </details>
@@ -1491,16 +1556,48 @@ export function AdsController() {
                                       {(ad as any).advantage_catalog && (
                                         <div className="space-y-1.5 pl-5">
                                           <div>
-                                            <label className="text-[10px] text-gray-500">카탈로그 ID</label>
-                                            <input type="text" value={(ad as any).catalog_id || ''}
-                                              onChange={(e) => updateAdSetCreativeField(i, ad.creative_id, 'catalog_id', e.target.value)}
-                                              placeholder="카탈로그 ID" className="w-full px-2 py-1 border border-gray-200 rounded text-xs" />
+                                            <label className="text-[10px] text-gray-500">카탈로그</label>
+                                            {catalogs.length > 0 ? (
+                                              <select value={(ad as any).catalog_id || ''}
+                                                onChange={(e) => {
+                                                  const catId = e.target.value;
+                                                  updateAdSetCreativeField(i, ad.creative_id, 'catalog_id', catId);
+                                                  updateAdSetCreativeField(i, ad.creative_id, 'product_set_id', '');
+                                                  if (catId && !productSets[catId]) {
+                                                    campaignApi.getProductSets(catId).then(sets => {
+                                                      setProductSets(prev => ({ ...prev, [catId]: sets }));
+                                                    }).catch(() => {});
+                                                  }
+                                                }}
+                                                className="w-full px-2 py-1 border border-gray-200 rounded text-xs bg-white">
+                                                <option value="">카탈로그 선택</option>
+                                                {catalogs.map(c => <option key={c.id} value={c.id}>{c.name} ({c.id})</option>)}
+                                              </select>
+                                            ) : (
+                                              <div className="flex gap-1">
+                                                <input type="text" value={(ad as any).catalog_id || ''}
+                                                  onChange={(e) => updateAdSetCreativeField(i, ad.creative_id, 'catalog_id', e.target.value)}
+                                                  placeholder="카탈로그 ID" className="flex-1 px-2 py-1 border border-gray-200 rounded text-xs" />
+                                                <button onClick={() => {
+                                                  campaignApi.getCatalogs().then(data => setCatalogs(data)).catch(() => {});
+                                                }} className="px-2 py-1 text-[10px] bg-gray-100 border border-gray-200 rounded hover:bg-gray-200">불러오기</button>
+                                              </div>
+                                            )}
                                           </div>
                                           <div>
-                                            <label className="text-[10px] text-gray-500">제품 세트 ID (선택)</label>
-                                            <input type="text" value={(ad as any).product_set_id || ''}
-                                              onChange={(e) => updateAdSetCreativeField(i, ad.creative_id, 'product_set_id', e.target.value)}
-                                              placeholder="제품 세트 ID" className="w-full px-2 py-1 border border-gray-200 rounded text-xs" />
+                                            <label className="text-[10px] text-gray-500">제품 세트 (선택)</label>
+                                            {(ad as any).catalog_id && productSets[(ad as any).catalog_id]?.length > 0 ? (
+                                              <select value={(ad as any).product_set_id || ''}
+                                                onChange={(e) => updateAdSetCreativeField(i, ad.creative_id, 'product_set_id', e.target.value)}
+                                                className="w-full px-2 py-1 border border-gray-200 rounded text-xs bg-white">
+                                                <option value="">전체 제품</option>
+                                                {productSets[(ad as any).catalog_id].map(ps => <option key={ps.id} value={ps.id}>{ps.name} ({ps.id})</option>)}
+                                              </select>
+                                            ) : (
+                                              <input type="text" value={(ad as any).product_set_id || ''}
+                                                onChange={(e) => updateAdSetCreativeField(i, ad.creative_id, 'product_set_id', e.target.value)}
+                                                placeholder="제품 세트 ID" className="w-full px-2 py-1 border border-gray-200 rounded text-xs" />
+                                            )}
                                           </div>
                                         </div>
                                       )}
@@ -1556,7 +1653,63 @@ export function AdsController() {
                                     </div>
                                   </details>
 
-                                  {/* ── 5. 어드밴티지+ 크리에이티브 ── */}
+                                  {/* ── 5. 추적 설정 ── */}
+                                  <details className="border-t border-gray-100">
+                                    <summary className="px-2 py-1.5 text-[10px] font-medium text-gray-600 cursor-pointer hover:bg-gray-50 flex items-center gap-1">
+                                      <Target size={10} /> 추적 설정
+                                    </summary>
+                                    <div className="px-2 pb-2 space-y-2">
+                                      <div>
+                                        <label className="text-[10px] text-gray-500">추적 이벤트</label>
+                                        <div className="flex flex-wrap gap-1 mt-1">
+                                          {['Purchase', 'AddToCart', 'ViewContent', 'Lead', 'CompleteRegistration'].map(evt => (
+                                            <button key={evt}
+                                              onClick={() => {
+                                                const current: string[] = (ad as any).pixel_events || [];
+                                                const next = current.includes(evt)
+                                                  ? current.filter((e: string) => e !== evt)
+                                                  : [...current, evt];
+                                                const updated = [...segments];
+                                                const seg = { ...updated[i] };
+                                                seg.ads = (seg.ads || []).map(a =>
+                                                  a.creative_id === ad.creative_id ? { ...a, pixel_events: next } : a
+                                                );
+                                                updated[i] = seg;
+                                                setSegments(updated);
+                                              }}
+                                              className={`text-[10px] px-2 py-0.5 rounded border ${
+                                                ((ad as any).pixel_events || []).includes(evt)
+                                                  ? 'bg-blue-100 border-blue-300 text-blue-700'
+                                                  : 'border-gray-200 text-gray-500'
+                                              }`}>
+                                              {evt}
+                                            </button>
+                                          ))}
+                                        </div>
+                                      </div>
+                                      <div>
+                                        <label className="text-[10px] text-gray-500">조회 태그 (impression tracking URLs)</label>
+                                        <textarea
+                                          value={((ad as any).view_tags || []).join('\n')}
+                                          onChange={e => {
+                                            const tags = e.target.value.split('\n').filter(Boolean);
+                                            const updated = [...segments];
+                                            const seg = { ...updated[i] };
+                                            seg.ads = (seg.ads || []).map(a =>
+                                              a.creative_id === ad.creative_id ? { ...a, view_tags: tags } : a
+                                            );
+                                            updated[i] = seg;
+                                            setSegments(updated);
+                                          }}
+                                          placeholder="https://tracking.example.com/pixel?id=123"
+                                          className="w-full px-2 py-1 border border-gray-200 rounded text-[10px] h-12 resize-none"
+                                          rows={2}
+                                        />
+                                      </div>
+                                    </div>
+                                  </details>
+
+                                  {/* ── 6. 어드밴티지+ 크리에이티브 ── */}
                                   <details className="border-t border-gray-100">
                                     <summary className="px-2 py-1.5 text-[10px] font-medium text-gray-600 cursor-pointer hover:bg-gray-50 flex items-center gap-1">
                                       <ToggleRight size={10} /> 어드밴티지+ 크리에이티브 {(ad as any).advantage_plus_creative ? '(ON)' : ''}
@@ -1569,6 +1722,24 @@ export function AdsController() {
                                         <div><span className="text-[10px] font-medium text-gray-700">어드밴티지+ 크리에이티브 활성화</span>
                                         <p className="text-[9px] text-gray-400">Meta AI가 광고 소재를 자동 최적화합니다</p></div>
                                       </label>
+                                    </div>
+                                  </details>
+
+                                  {/* ── 7. 파트너십 광고 ── */}
+                                  <details className="border-t border-gray-100 mt-1">
+                                    <summary className="px-2 py-1.5 text-[10px] text-gray-500 cursor-pointer hover:bg-gray-50">파트너십 광고 설정</summary>
+                                    <div className="mt-1 space-y-1.5 px-2 pb-2 bg-gray-50 rounded">
+                                      <label className="flex items-center gap-1.5 text-[10px]">
+                                        <input type="checkbox" checked={(ad as any).partnership_enabled || false}
+                                          onChange={e => updateAdSetCreativeField(i, ad.creative_id, 'partnership_enabled' as any, String(e.target.checked))} />
+                                        파트너십 광고 활성화
+                                      </label>
+                                      {(ad as any).partnership_enabled && (
+                                        <input placeholder="파트너 페이지 ID"
+                                          value={(ad as any).partner_page_id || ''}
+                                          onChange={e => updateAdSetCreativeField(i, ad.creative_id, 'partner_page_id' as any, e.target.value)}
+                                          className="w-full px-2 py-1 border border-gray-200 rounded text-[10px]" />
+                                      )}
                                     </div>
                                   </details>
                                 </div>

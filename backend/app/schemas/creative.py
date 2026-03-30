@@ -104,6 +104,8 @@ class CreativeResponse(CreativeBase):
     user_id: int
     file_url: Optional[str]
     thumbnail_url: Optional[str]
+    width: Optional[int] = None
+    height: Optional[int] = None
     created_at: datetime
     updated_at: datetime
 

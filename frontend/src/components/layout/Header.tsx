@@ -15,13 +15,25 @@ export function Header() {
   const [showSettings, setShowSettings] = useState(false);
   const [metaStatus, setMetaStatus] = useState<any>(null);
   const [loadingStatus, setLoadingStatus] = useState(false);
+  const [selectedPageId, setSelectedPageId] = useState('');
+  const [selectedIgId, setSelectedIgId] = useState('');
+  const [savingSettings, setSavingSettings] = useState(false);
 
   // Load Meta account details when settings is opened
   useEffect(() => {
     if (showSettings && user?.meta_connected) {
       setLoadingStatus(true);
       authApi.getMetaStatus()
-        .then(data => setMetaStatus(data))
+        .then(data => {
+          setMetaStatus(data);
+          // Pre-select current values if available
+          if (data.pages?.length > 0) {
+            setSelectedPageId(data.selected_page_id || data.pages[0]?.id || '');
+          }
+          if (data.ig_account_id) {
+            setSelectedIgId(data.ig_account_id);
+          }
+        })
         .catch(() => {})
         .finally(() => setLoadingStatus(false));
     }
@@ -230,35 +242,74 @@ export function Header() {
                       <p className="text-xs text-gray-400">계정 정보 로딩 중...</p>
                     ) : metaStatus && (
                       <div className="space-y-3">
-                        {/* Facebook Pages */}
+                        {/* Facebook Pages — selectable dropdown */}
                         {metaStatus.pages?.length > 0 && (
                           <div>
                             <h4 className="text-xs font-semibold text-gray-600 mb-2 flex items-center gap-1.5">
                               <Facebook size={12} /> Facebook 페이지
                             </h4>
-                            <div className="space-y-1">
+                            <select
+                              value={selectedPageId}
+                              onChange={e => setSelectedPageId(e.target.value)}
+                              className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-xs bg-white"
+                            >
                               {metaStatus.pages.map((page: any) => (
-                                <div key={page.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg text-xs">
-                                  <span className="font-medium text-gray-800">{page.name}</span>
-                                  <span className="text-gray-400">ID: {page.id}</span>
-                                </div>
+                                <option key={page.id} value={page.id}>{page.name} (ID: {page.id})</option>
                               ))}
-                            </div>
+                            </select>
                           </div>
                         )}
 
-                        {/* Instagram Account */}
+                        {/* Instagram Account — selectable dropdown if multiple, otherwise display */}
                         {metaStatus.ig_account_id && (
                           <div>
                             <h4 className="text-xs font-semibold text-gray-600 mb-2 flex items-center gap-1.5">
                               <Instagram size={12} /> Instagram 계정
                             </h4>
-                            <div className="p-2 bg-gray-50 rounded-lg text-xs">
-                              <span className="font-medium text-gray-800">
-                                {metaStatus.ig_username ? `@${metaStatus.ig_username}` : `ID: ${metaStatus.ig_account_id}`}
-                              </span>
-                            </div>
+                            {metaStatus.ig_accounts?.length > 1 ? (
+                              <select
+                                value={selectedIgId}
+                                onChange={e => setSelectedIgId(e.target.value)}
+                                className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-xs bg-white"
+                              >
+                                {metaStatus.ig_accounts.map((acc: any) => (
+                                  <option key={acc.id} value={acc.id}>{acc.username ? `@${acc.username}` : acc.id}</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <div className="p-2 bg-gray-50 rounded-lg text-xs">
+                                <span className="font-medium text-gray-800">
+                                  {metaStatus.ig_username ? `@${metaStatus.ig_username}` : `ID: ${metaStatus.ig_account_id}`}
+                                </span>
+                              </div>
+                            )}
                           </div>
+                        )}
+
+                        {/* Save button for page/IG selection */}
+                        {(metaStatus.pages?.length > 0 || metaStatus.ig_account_id) && (
+                          <button
+                            onClick={async () => {
+                              setSavingSettings(true);
+                              try {
+                                await authApi.updateMetaSettings({
+                                  page_id: selectedPageId || undefined,
+                                  instagram_account_id: selectedIgId || undefined,
+                                });
+                                const me = await authApi.getMe();
+                                setAuth(me, token!);
+                                toast.success('설정이 저장되었습니다.');
+                              } catch {
+                                toast.error('설정 저장에 실패했습니다.');
+                              } finally {
+                                setSavingSettings(false);
+                              }
+                            }}
+                            disabled={savingSettings}
+                            className="w-full py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 disabled:opacity-50"
+                          >
+                            {savingSettings ? '저장 중...' : '설정 저장'}
+                          </button>
                         )}
 
                         {/* Ad Accounts */}
