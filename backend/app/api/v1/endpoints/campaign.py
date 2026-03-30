@@ -710,8 +710,8 @@ async def publish_campaign(
                 except Exception as adset_err:
                     error_str = str(adset_err)
                     logger.error(f"[Publish] AdSet creation failed for {seg_name}: {adset_err}")
-                    # Custom Audience TOS error → 커스텀 오디언스 제거 후 재시도
-                    if "1870090" in error_str or "customaudiences/tos" in error_str:
+                    # Custom Audience 에러 (TOS 미동의 또는 삭제된 오디언스) → 커스텀 오디언스 제거 후 재시도
+                    if "1870090" in error_str or "customaudiences/tos" in error_str or "3858527" in error_str or "더 이상 사용할 수 없습니다" in error_str:
                         logger.warning(f"[Publish] TOS error for '{seg_name}', retrying without custom audiences")
                         retry_kwargs = {**adset_kwargs}
                         retry_kwargs.pop("custom_audiences", None)
