@@ -1452,10 +1452,10 @@ export function AdsController() {
                                   </div>
 
                                   {/* ── 1. 광고 크리에이티브 설정 ── */}
-                                  <details className="border-t border-gray-100">
-                                    <summary className="px-2 py-1.5 text-[10px] font-medium text-gray-600 cursor-pointer hover:bg-gray-50 flex items-center gap-1">
+                                  <div className="border-t border-gray-100">
+                                    <div className="px-2 py-1.5 text-[10px] font-medium text-gray-600 flex items-center gap-1">
                                       <Layers size={10} /> 광고 크리에이티브
-                                    </summary>
+                                    </div>
                                     <div className="px-2 pb-2 space-y-2">
                                       <div>
                                         <label className="text-[10px] text-gray-500">형식</label>
@@ -1490,10 +1490,10 @@ export function AdsController() {
                                         )}
                                       </div>
                                     </div>
-                                  </details>
+                                  </div>
 
                                   {/* ── 2. 광고 문구 ── */}
-                                  <details className="border-t border-gray-100" open>
+                                  <details className="border-t border-gray-100" open={true}>
                                     <summary className="px-2 py-1.5 text-[10px] font-medium text-gray-600 cursor-pointer hover:bg-gray-50 flex items-center gap-1">
                                       <Zap size={10} /> 광고 문구 {ad.primary_text || ad.headline ? '✓' : ''}
                                     </summary>
@@ -1541,7 +1541,7 @@ export function AdsController() {
                                   </details>
 
                                   {/* ── 3. 광고 설정 (어드밴티지+ 카탈로그) ── */}
-                                  <details className="border-t border-gray-100">
+                                  <details className="border-t border-gray-100" open={true}>
                                     <summary className="px-2 py-1.5 text-[10px] font-medium text-gray-600 cursor-pointer hover:bg-gray-50 flex items-center gap-1">
                                       <Database size={10} /> 광고 설정 {(ad as any).advantage_catalog ? '(카탈로그 ON)' : ''}
                                     </summary>
@@ -1605,7 +1605,7 @@ export function AdsController() {
                                   </details>
 
                                   {/* ── 4. 랜딩 페이지 + UTM ── */}
-                                  <details className="border-t border-gray-100" open>
+                                  <details className="border-t border-gray-100" open={true}>
                                     <summary className="px-2 py-1.5 text-[10px] font-medium text-gray-600 cursor-pointer hover:bg-gray-50 flex items-center gap-1">
                                       <MapPin size={10} /> 랜딩 페이지 {ad.link_url ? '✓' : ''}
                                     </summary>
@@ -1654,7 +1654,7 @@ export function AdsController() {
                                   </details>
 
                                   {/* ── 5. 추적 설정 ── */}
-                                  <details className="border-t border-gray-100">
+                                  <details className="border-t border-gray-100" open={true}>
                                     <summary className="px-2 py-1.5 text-[10px] font-medium text-gray-600 cursor-pointer hover:bg-gray-50 flex items-center gap-1">
                                       <Target size={10} /> 추적 설정
                                     </summary>
@@ -1710,7 +1710,7 @@ export function AdsController() {
                                   </details>
 
                                   {/* ── 6. 어드밴티지+ 크리에이티브 ── */}
-                                  <details className="border-t border-gray-100">
+                                  <details className="border-t border-gray-100" open={true}>
                                     <summary className="px-2 py-1.5 text-[10px] font-medium text-gray-600 cursor-pointer hover:bg-gray-50 flex items-center gap-1">
                                       <ToggleRight size={10} /> 어드밴티지+ 크리에이티브 {(ad as any).advantage_plus_creative ? '(ON)' : ''}
                                     </summary>
@@ -1726,7 +1726,7 @@ export function AdsController() {
                                   </details>
 
                                   {/* ── 7. 파트너십 광고 ── */}
-                                  <details className="border-t border-gray-100 mt-1">
+                                  <details className="border-t border-gray-100 mt-1" open={true}>
                                     <summary className="px-2 py-1.5 text-[10px] text-gray-500 cursor-pointer hover:bg-gray-50">파트너십 광고 설정</summary>
                                     <div className="mt-1 space-y-1.5 px-2 pb-2 bg-gray-50 rounded">
                                       <label className="flex items-center gap-1.5 text-[10px]">
@@ -2211,7 +2211,7 @@ export function AdsController() {
                           </div>
 
                         {/* 세그먼트별 일정 */}
-                        <details className="mt-1">
+                        <details className="mt-1" open={true}>
                           <summary className="text-xs text-gray-500 cursor-pointer hover:text-gray-700">일정 설정 (선택)</summary>
                           <div className="grid grid-cols-2 gap-2 mt-1.5">
                             <div>
