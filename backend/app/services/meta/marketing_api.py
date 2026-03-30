@@ -173,70 +173,46 @@ class MetaMarketingAPI:
                     result.append({"id": s})
             return result
 
+        # ── 세그먼트별 targeting_automation 설정 ──
         if seg == "broad":
-            # Broad (브로드): Advantage+ audience unless user set a custom age range
             user_has_custom_age = (targeting.age_range.min_age != 18 or targeting.age_range.max_age != 65)
             if user_has_custom_age:
-                # Meta requires 18-65 for Advantage+ audience; respect user's custom range instead
                 spec["targeting_automation"] = {"advantage_audience": 0}
-                logger.info(
-                    f"[Targeting] Broad segment with custom age "
-                    f"{targeting.age_range.min_age}-{targeting.age_range.max_age}, "
-                    f"skipping Advantage+ audience"
-                )
             else:
                 spec["targeting_automation"] = {"advantage_audience": 1}
-            if targeting.interests and targeting.interests.interests:
-                valid = _build_interest_list(targeting.interests.interests)
-                if valid:
-                    spec["flexible_spec"] = [{"interests": valid}]
-
-        elif seg == "retarget":
-            # Retarget (리타겟): Custom audiences (website visitors etc.)
+        elif seg in ("retarget", "interest"):
             spec["targeting_automation"] = {"advantage_audience": 0}
-            if custom_audiences:
-                spec["custom_audiences"] = [{"id": ca_id} for ca_id in custom_audiences]
-            elif targeting.custom_audiences:
-                spec["custom_audiences"] = [{"id": ca_id} for ca_id in targeting.custom_audiences]
-            # Exclude purchasers
-            if excluded_audiences:
-                spec["excluded_custom_audiences"] = [{"id": ea_id} for ea_id in excluded_audiences]
-
-        elif seg == "interest":
-            # Interest (관심사): Specific interest IDs/names
-            spec["targeting_automation"] = {"advantage_audience": 0}
-            if targeting.interests and targeting.interests.interests:
-                valid = _build_interest_list(targeting.interests.interests)
-                if valid:
-                    spec["flexible_spec"] = [{"interests": valid}]
-            if targeting.interests and targeting.interests.behaviors:
-                valid_behaviors = _build_interest_list(targeting.interests.behaviors)
-                if valid_behaviors:
-                    if "flexible_spec" not in spec:
-                        spec["flexible_spec"] = [{}]
-                    spec["flexible_spec"][0]["behaviors"] = valid_behaviors
-
         else:
-            # Default / unspecified segment
             if advantage_plus_audience:
-                user_has_custom_age = (targeting.age_range.min_age != 18 or targeting.age_range.max_age != 65)
                 spec["targeting_automation"] = {"advantage_audience": 1}
-                if not user_has_custom_age:
-                    # Meta requires age_max=65; only override when user hasn't set a custom range
+                if targeting.age_range.min_age == 18 and targeting.age_range.max_age == 65:
                     spec["age_max"] = 65
-                else:
-                    logger.info(
-                        f"[Targeting] Advantage+ audience enabled but custom age range "
-                        f"{targeting.age_range.min_age}-{targeting.age_range.max_age}"
-                    )
             else:
                 spec["targeting_automation"] = {"advantage_audience": 0}
 
-            # Apply interests if available
-            if targeting.interests and targeting.interests.interests:
-                valid = _build_interest_list(targeting.interests.interests)
-                if valid:
-                    spec["flexible_spec"] = [{"interests": valid}]
+        # ── 관심사 (모든 세그먼트 공통) ──
+        if targeting.interests and targeting.interests.interests:
+            valid = _build_interest_list(targeting.interests.interests)
+            if valid:
+                spec["flexible_spec"] = [{"interests": valid}]
+        if targeting.interests and getattr(targeting.interests, 'behaviors', None):
+            valid_behaviors = _build_interest_list(targeting.interests.behaviors)
+            if valid_behaviors:
+                if "flexible_spec" not in spec:
+                    spec["flexible_spec"] = [{}]
+                spec["flexible_spec"][0]["behaviors"] = valid_behaviors
+
+        # ── 맞춤 타겟 / 커스텀 오디언스 (모든 세그먼트 공통) ──
+        all_custom = custom_audiences or (targeting.custom_audiences if hasattr(targeting, 'custom_audiences') else None)
+        if all_custom:
+            spec["custom_audiences"] = [{"id": str(ca_id)} for ca_id in all_custom]
+            logger.info(f"[Targeting] custom_audiences: {[str(ca) for ca in all_custom]}")
+
+        # ── 제외 오디언스 (모든 세그먼트 공통) ──
+        all_excluded = excluded_audiences or (targeting.excluded_audiences if hasattr(targeting, 'excluded_audiences') else None)
+        if all_excluded:
+            spec["excluded_custom_audiences"] = [{"id": str(ea_id)} for ea_id in all_excluded]
+            logger.info(f"[Targeting] excluded_custom_audiences: {[str(ea) for ea in all_excluded]}")
 
             # Apply custom audiences if available
             if targeting.custom_audiences:

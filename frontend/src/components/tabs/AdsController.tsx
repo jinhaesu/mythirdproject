@@ -53,6 +53,8 @@ const createDefaultSegments = (): TargetingSegment[] => [
     enabled: true,
     ratio: 40,
     targeting: defaultTargetingConfig(),
+    custom_audiences: [],
+    exclusion_audiences: [],
     description: '넓은 타겟팅, 관심사 제한 없음',
   },
   {
@@ -71,6 +73,8 @@ const createDefaultSegments = (): TargetingSegment[] => [
     enabled: true,
     ratio: 25,
     targeting: defaultTargetingConfig(),
+    custom_audiences: [],
+    exclusion_audiences: [],
     interests: [],
     description: '관심사 키워드 기반 타겟팅',
   },
@@ -837,7 +841,8 @@ export function AdsController() {
       ratio: 20,
       targeting: defaultTargetingConfig(),
       description: '',
-      ...(type === 'RETARGET' ? { custom_audiences: [], exclusion_audiences: [] } : {}),
+      custom_audiences: [],
+      exclusion_audiences: [],
       ...(type === 'INTEREST' || type === 'CUSTOM' ? { interests: [] } : {}),
     };
     setSegments(prev => [...prev, newSeg]);
@@ -2001,52 +2006,36 @@ export function AdsController() {
                           </div>
                         )}
 
-                        {(seg.type === 'RETARGET' || seg.type === 'CUSTOM') && (
-                          <div className="space-y-2">
-                            <AudienceSearchSelect
-                              label="커스텀 오디언스 (타겟)"
-                              color="orange"
-                              audiences={metaCustomAudiences}
-                              selected={seg.custom_audiences || []}
-                              isLoading={isLoadingAudiences}
-                              error={audiencesError ? '네트워크 오류' : audiencesApiError}
-                              onChange={(ids) => {
-                                const updated = [...segments];
-                                updated[i] = { ...updated[i], custom_audiences: ids };
-                                setSegments(updated);
-                              }}
-                            />
-                            <AudienceSearchSelect
-                              label="제외 오디언스"
-                              color="red"
-                              audiences={metaCustomAudiences}
-                              selected={seg.exclusion_audiences || []}
-                              isLoading={isLoadingAudiences}
-                              error={audiencesError ? '네트워크 오류' : audiencesApiError}
-                              onChange={(ids) => {
-                                const updated = [...segments];
-                                updated[i] = { ...updated[i], exclusion_audiences: ids };
-                                setSegments(updated);
-                              }}
-                            />
-                            {seg.type === 'RETARGET' && (
-                              <div className="p-2 bg-amber-50 border border-amber-200 rounded text-xs">
-                                <div className="flex items-start gap-1.5">
-                                  <AlertTriangle size={11} className="text-amber-600 flex-shrink-0 mt-0.5" />
-                                  <div>
-                                    <p className="font-medium text-amber-800">맞춤 타겟 약관 동의 필요</p>
-                                    <p className="text-amber-600 mt-0.5">리타겟팅 광고를 발행하려면 Meta 맞춤 타겟 서비스 약관에 사전 동의가 필요합니다.</p>
-                                    <a
-                                      href="https://business.facebook.com/ads/manage/customaudiences/tos/"
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="text-blue-600 hover:underline mt-1 inline-block"
-                                    >
-                                      Meta 맞춤 타겟 약관 동의하기 →
-                                    </a>
-                                  </div>
-                                </div>
-                              </div>
+                        {/* ── 맞춤 타겟 (모든 세그먼트 공통) ── */}
+                        <div className="space-y-2">
+                          <AudienceSearchSelect
+                            label="맞춤 타겟 (커스텀 오디언스)"
+                            color="orange"
+                            audiences={metaCustomAudiences}
+                            selected={seg.custom_audiences || []}
+                            isLoading={isLoadingAudiences}
+                            error={audiencesError ? '네트워크 오류' : audiencesApiError}
+                            onChange={(ids) => {
+                              const updated = [...segments];
+                              updated[i] = { ...updated[i], custom_audiences: ids };
+                              setSegments(updated);
+                            }}
+                          />
+                          <AudienceSearchSelect
+                            label="제외 오디언스"
+                            color="red"
+                            audiences={metaCustomAudiences}
+                            selected={seg.exclusion_audiences || []}
+                            isLoading={isLoadingAudiences}
+                            error={audiencesError ? '네트워크 오류' : audiencesApiError}
+                            onChange={(ids) => {
+                              const updated = [...segments];
+                              updated[i] = { ...updated[i], exclusion_audiences: ids };
+                              setSegments(updated);
+                            }}
+                          />
+                            {(seg.custom_audiences || []).length > 0 && (
+                              <p className="text-[10px] text-amber-600">맞춤 타겟 사용 시 Meta 맞춤 타겟 약관 동의가 필요합니다.</p>
                             )}
                           </div>
                         )}

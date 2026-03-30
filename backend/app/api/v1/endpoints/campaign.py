@@ -651,6 +651,14 @@ async def publish_campaign(
                     if not has_audiences:
                         logger.info(f"[Publish] Retarget segment '{seg_name}' has no custom audiences, creating as general targeting")
 
+                logger.info(
+                    f"[Publish] Segment '{seg_name}' audiences: "
+                    f"custom={seg_targeting.custom_audiences}, "
+                    f"excluded={seg_targeting.excluded_audiences}, "
+                    f"seg_custom={seg.get('custom_audiences')}, "
+                    f"seg_excl={seg.get('exclusion_audiences')}"
+                )
+
                 # Build adset kwargs
                 adset_kwargs = {
                     "campaign_id": meta_campaign_id,
