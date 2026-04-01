@@ -191,6 +191,12 @@ export interface AdSetCreative {
   url_params?: string;        // 자동 생성된 UTM 파라미터
   // 7. 어드밴티지+ 크리에이티브
   advantage_plus_creative: boolean;
+  // 8. 캐러셀 / 픽셀 / 파트너십
+  carousel_cards?: Array<{headline?: string; description?: string; link_url?: string; image_url?: string; image_hash?: string}>;
+  pixel_events?: string[];
+  view_tags?: string[];
+  partnership_enabled?: boolean;
+  partner_page_id?: string;
 }
 
 export interface TargetingSegment {

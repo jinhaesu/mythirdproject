@@ -525,6 +525,7 @@ class MetaMarketingAPI:
         description: Optional[str] = None,
         display_link: Optional[str] = None,
         url_params: Optional[str] = None,
+        branded_content_sponsor_page_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Create an ad creative.
 
@@ -586,6 +587,10 @@ class MetaMarketingAPI:
         # Advantage+ creative enhancements
         if degrees_of_freedom_spec:
             data["degrees_of_freedom_spec"] = degrees_of_freedom_spec
+
+        # Partnership / branded content
+        if branded_content_sponsor_page_id:
+            data["branded_content_sponsor_page_id"] = branded_content_sponsor_page_id
 
         return await self._request(
             "POST",

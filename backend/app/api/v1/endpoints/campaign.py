@@ -816,6 +816,7 @@ async def publish_campaign(
             cta = call_to_action or "LEARN_MORE"
             link = link_url or None
             ad_format = (ad_setting or {}).get("format", "")
+            partnership_page = (ad_setting or {}).get("partner_page_id") if (ad_setting or {}).get("partnership_enabled") else None
 
             # Resolve relative file_url to absolute public URL for Meta access
             resolved_file_url = creative.file_url
@@ -921,6 +922,7 @@ async def publish_campaign(
                     description=description,
                     display_link=display_link,
                     url_params=url_params,
+                    branded_content_sponsor_page_id=partnership_page,
                 )
             else:
                 # Upload image to Meta first, then use hash
@@ -950,6 +952,7 @@ async def publish_campaign(
                     description=description,
                     display_link=display_link,
                     url_params=url_params,
+                    branded_content_sponsor_page_id=partnership_page,
                 )
 
             meta_creative_id = cr_result.get("id")
@@ -957,7 +960,16 @@ async def publish_campaign(
                 raise Exception(f"크리에이티브 생성 실패: {cr_result}")
 
             # Tracking data from ad_setting
-            tracking_specs = (ad_setting or {}).get("tracking_specs") or None
+            # Convert pixel_events to Meta tracking_specs format
+            pixel_events = (ad_setting or {}).get("pixel_events")
+            if pixel_events and pixel_id:
+                tracking_specs = [{
+                    "action.type": ["offsite_conversion"],
+                    "fb_pixel": [pixel_id],
+                }]
+            else:
+                tracking_specs = (ad_setting or {}).get("tracking_specs") or None
+
             view_tags = (ad_setting or {}).get("view_tags") or None
 
             ad_result = await meta_api.create_ad(
@@ -1070,6 +1082,7 @@ async def publish_campaign(
                         creative=creative,
                         target_adset_id=target_adset_id,
                         ad_name=ad_name,
+                        ad_setting={},
                     )
                     if meta_ad_id and ads:
                         for ad in ads:
