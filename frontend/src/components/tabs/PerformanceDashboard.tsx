@@ -1426,7 +1426,7 @@ function MiniLineChart({ data, color, formatValue }: {
   const chartData = data.map(d => ({ label: d.label, value: d.value }));
 
   return (
-    <ResponsiveContainer width="100%" height={120}>
+    <ResponsiveContainer width="100%" height={180}>
       <AreaChart data={chartData} margin={{ top: 8, right: 8, bottom: 16, left: 44 }}>
         <defs>
           <linearGradient id={c.gradientId} x1="0" y1="0" x2="0" y2="1">
