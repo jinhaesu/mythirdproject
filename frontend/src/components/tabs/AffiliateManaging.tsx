@@ -117,6 +117,12 @@ type SectionKey = 'dashboard' | 'campaigns' | 'partners' | 'referral' | 'settlem
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+// Safe number formatting — prevents crash on undefined/null
+function n(val: any): number { return Number(val) || 0; }
+function fmt(val: any): string { return n(val).toLocaleString(); }
+function fmtPct(val: any, decimals = 1): string { return n(val).toFixed(decimals); }
+function fmtMan(val: any): string { return n(val) > 0 ? `₩${(n(val) / 10000).toFixed(0)}만` : '₩0'; }
+
 function campaignStatusBadge(status: AffiliateCampaign['status']) {
   if (status === 'active') return 'bg-emerald-500/20 text-emerald-400';
   if (status === 'paused') return 'bg-yellow-500/20 text-yellow-400';
@@ -181,12 +187,12 @@ function DashboardSection() {
   };
 
   const kpis = [
-    { label: '총 매출', value: d.total_sales > 0 ? `₩${(d.total_sales / 10000).toFixed(0)}만` : '₩0', icon: <ShoppingBag size={16} />, color: 'text-blue-400', bg: 'bg-blue-500/10' },
-    { label: '총 커미션', value: d.total_commission > 0 ? `₩${(d.total_commission / 10000).toFixed(0)}만` : '₩0', icon: <DollarSign size={16} />, color: 'text-green-400', bg: 'bg-green-500/10' },
+    { label: '총 매출', value: fmtMan(d.total_sales), icon: <ShoppingBag size={16} />, color: 'text-blue-400', bg: 'bg-blue-500/10' },
+    { label: '총 커미션', value: fmtMan(d.total_commission), icon: <DollarSign size={16} />, color: 'text-green-400', bg: 'bg-green-500/10' },
     { label: '활성 파트너', value: `${d.active_partners}명`, icon: <Users size={16} />, color: 'text-purple-400', bg: 'bg-purple-500/10' },
-    { label: '총 클릭', value: d.total_clicks.toLocaleString(), icon: <Eye size={16} />, color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
-    { label: '전환', value: d.total_conversions.toLocaleString(), icon: <CheckCircle size={16} />, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-    { label: '전환율', value: `${d.conversion_rate.toFixed(1)}%`, icon: <Percent size={16} />, color: 'text-orange-400', bg: 'bg-orange-500/10' },
+    { label: '총 클릭', value: fmt(d.total_clicks), icon: <Eye size={16} />, color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
+    { label: '전환', value: fmt(d.total_conversions), icon: <CheckCircle size={16} />, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+    { label: '전환율', value: `${fmtPct(d.conversion_rate)}%`, icon: <Percent size={16} />, color: 'text-orange-400', bg: 'bg-orange-500/10' },
   ];
 
   const rankColors = [
@@ -244,9 +250,9 @@ function DashboardSection() {
                   </div>
                   <div className="grid grid-cols-4 gap-2 text-center">
                     <div><p className="text-[10px] text-gray-500">파트너</p><p className="text-xs font-medium text-white">{c.partner_count}</p></div>
-                    <div><p className="text-[10px] text-gray-500">클릭</p><p className="text-xs font-medium text-white">{c.click_count.toLocaleString()}</p></div>
+                    <div><p className="text-[10px] text-gray-500">클릭</p><p className="text-xs font-medium text-white">{fmt(c.click_count)}</p></div>
                     <div><p className="text-[10px] text-gray-500">전환</p><p className="text-xs font-medium text-white">{c.conversion_count}</p></div>
-                    <div><p className="text-[10px] text-gray-500">매출</p><p className="text-xs font-medium text-white">₩{(c.total_sales / 10000).toFixed(0)}만</p></div>
+                    <div><p className="text-[10px] text-gray-500">매출</p><p className="text-xs font-medium text-white">{fmtMan(c.total_sales)}</p></div>
                   </div>
                 </div>
               ))}
@@ -274,10 +280,10 @@ function DashboardSection() {
                   </span>
                   <div className="flex-1">
                     <p className="text-sm text-white font-medium">{p.name}</p>
-                    <p className="text-[10px] text-gray-500">{p.channel} · {p.followers.toLocaleString()} followers</p>
+                    <p className="text-[10px] text-gray-500">{p.channel} · {fmt(p.followers)} followers</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-medium text-emerald-400">₩{p.total_sales.toLocaleString()}</p>
+                    <p className="text-sm font-medium text-emerald-400">₩{fmt(p.total_sales)}</p>
                     <p className="text-[10px] text-gray-500">{p.conversion_count}건 전환</p>
                   </div>
                 </div>
@@ -345,7 +351,11 @@ function CampaignsSection() {
   const handleCreate = () => {
     if (!form.name.trim()) { toast.error('캠페인명을 입력하세요'); return; }
     if (!form.start_date) { toast.error('시작일을 입력하세요'); return; }
-    createMutation.mutate(form);
+    createMutation.mutate({
+      ...form,
+      start_date: form.start_date || null,
+      end_date: form.end_date || null,
+    });
   };
 
   const handleToggleStatus = (c: AffiliateCampaign) => {
@@ -480,7 +490,7 @@ function CampaignsSection() {
                     </span>
                   </div>
                   <p className="text-xs text-gray-500 mt-0.5">
-                    {c.product} · {c.commission_type === 'percentage' ? `${c.commission_rate}%` : `₩${c.commission_rate.toLocaleString()}/건`}
+                    {c.product} · {c.commission_type === 'percentage' ? `${c.commission_rate}%` : `₩${fmt(c.commission_rate)}/건`}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -507,10 +517,10 @@ function CampaignsSection() {
               </div>
               <div className="grid grid-cols-5 gap-3 text-center bg-[#141516] rounded-lg p-3">
                 <div><p className="text-[10px] text-gray-500">파트너</p><p className="text-sm font-bold text-white">{c.partner_count}명</p></div>
-                <div><p className="text-[10px] text-gray-500">클릭</p><p className="text-sm font-bold text-white">{c.click_count.toLocaleString()}</p></div>
+                <div><p className="text-[10px] text-gray-500">클릭</p><p className="text-sm font-bold text-white">{fmt(c.click_count)}</p></div>
                 <div><p className="text-[10px] text-gray-500">전환</p><p className="text-sm font-bold text-cyan-400">{c.conversion_count}건</p></div>
-                <div><p className="text-[10px] text-gray-500">매출</p><p className="text-sm font-bold text-emerald-400">₩{c.total_sales.toLocaleString()}</p></div>
-                <div><p className="text-[10px] text-gray-500">커미션</p><p className="text-sm font-bold text-yellow-400">₩{c.total_commission.toLocaleString()}</p></div>
+                <div><p className="text-[10px] text-gray-500">매출</p><p className="text-sm font-bold text-emerald-400">₩{fmt(c.total_sales)}</p></div>
+                <div><p className="text-[10px] text-gray-500">커미션</p><p className="text-sm font-bold text-yellow-400">₩{fmt(c.total_commission)}</p></div>
               </div>
             </div>
           ))}
@@ -694,7 +704,7 @@ function PartnersSection() {
                         {partnerStatusLabel(p.status)}
                       </span>
                     </div>
-                    <p className="text-[10px] text-gray-500">{p.channel} · {p.followers.toLocaleString()} followers · {p.email}</p>
+                    <p className="text-[10px] text-gray-500">{p.channel} · {fmt(p.followers)} followers · {p.email}</p>
                   </div>
                 </div>
                 {p.status === 'pending' && (
@@ -721,11 +731,11 @@ function PartnersSection() {
               {p.status === 'approved' && (
                 <>
                   <div className="grid grid-cols-5 gap-3 text-center bg-[#141516] rounded-lg p-3 mb-2">
-                    <div><p className="text-[10px] text-gray-500">클릭</p><p className="text-sm font-bold text-white">{p.click_count.toLocaleString()}</p></div>
+                    <div><p className="text-[10px] text-gray-500">클릭</p><p className="text-sm font-bold text-white">{fmt(p.click_count)}</p></div>
                     <div><p className="text-[10px] text-gray-500">전환</p><p className="text-sm font-bold text-cyan-400">{p.conversion_count}건</p></div>
-                    <div><p className="text-[10px] text-gray-500">매출</p><p className="text-sm font-bold text-emerald-400">₩{p.total_sales.toLocaleString()}</p></div>
-                    <div><p className="text-[10px] text-gray-500">총 커미션</p><p className="text-sm font-bold text-yellow-400">₩{p.total_commission.toLocaleString()}</p></div>
-                    <div><p className="text-[10px] text-gray-500">미정산</p><p className="text-sm font-bold text-red-400">₩{p.unpaid_commission.toLocaleString()}</p></div>
+                    <div><p className="text-[10px] text-gray-500">매출</p><p className="text-sm font-bold text-emerald-400">₩{fmt(p.total_sales)}</p></div>
+                    <div><p className="text-[10px] text-gray-500">총 커미션</p><p className="text-sm font-bold text-yellow-400">₩{fmt(p.total_commission)}</p></div>
+                    <div><p className="text-[10px] text-gray-500">미정산</p><p className="text-sm font-bold text-red-400">₩{fmt(p.unpaid_commission)}</p></div>
                   </div>
                   {p.referral_link && (
                     <div className="flex items-center gap-2 bg-[#141516] rounded-lg px-3 py-2">
@@ -912,11 +922,11 @@ function ReferralSection() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
               <div className="bg-[#141516] rounded-lg p-3 text-center">
                 <p className="text-[10px] text-gray-500">추천인 보상</p>
-                <p className="text-lg font-bold text-emerald-400">{prog.referrer_reward.toLocaleString()}{prog.reward_type === 'points' ? 'P' : prog.reward_type === 'cash' ? '원' : ''}</p>
+                <p className="text-lg font-bold text-emerald-400">{fmt(prog.referrer_reward)}{prog.reward_type === 'points' ? 'P' : prog.reward_type === 'cash' ? '원' : ''}</p>
               </div>
               <div className="bg-[#141516] rounded-lg p-3 text-center">
                 <p className="text-[10px] text-gray-500">피추천인 보상</p>
-                <p className="text-lg font-bold text-cyan-400">{prog.referee_reward.toLocaleString()}{prog.reward_type === 'points' ? 'P' : prog.reward_type === 'cash' ? '원' : ''}</p>
+                <p className="text-lg font-bold text-cyan-400">{fmt(prog.referee_reward)}{prog.reward_type === 'points' ? 'P' : prog.reward_type === 'cash' ? '원' : ''}</p>
               </div>
               <div className="bg-[#141516] rounded-lg p-3 text-center">
                 <p className="text-[10px] text-gray-500">총 추천</p>
@@ -924,7 +934,7 @@ function ReferralSection() {
               </div>
               <div className="bg-[#141516] rounded-lg p-3 text-center">
                 <p className="text-[10px] text-gray-500">가입 전환율</p>
-                <p className="text-lg font-bold text-yellow-400">{prog.conversion_rate.toFixed(1)}%</p>
+                <p className="text-lg font-bold text-yellow-400">{fmtPct(prog.conversion_rate)}%</p>
               </div>
             </div>
 
@@ -1018,18 +1028,18 @@ function SettlementSection() {
       <div className="grid md:grid-cols-3 gap-4">
         <div className="bg-[#1a1b1e] rounded-xl p-4 border border-[#2a2d35] text-center">
           <p className="text-xs text-gray-500">총 미정산 금액</p>
-          <p className="text-2xl font-bold text-red-400 mt-1">₩{totalUnpaid.toLocaleString()}</p>
+          <p className="text-2xl font-bold text-red-400 mt-1">₩{fmt(totalUnpaid)}</p>
           <p className="text-[10px] text-gray-600 mt-0.5">{pendingCount}건 대기중</p>
         </div>
         <div className="bg-[#1a1b1e] rounded-xl p-4 border border-[#2a2d35] text-center">
           <p className="text-xs text-gray-500">이번 달 정산 예정</p>
           <p className="text-2xl font-bold text-yellow-400 mt-1">
-            ₩{approvedPartners.reduce((s, p) => s + p.unpaid_commission, 0).toLocaleString()}
+            ₩{fmt(approvedPartners.reduce((s, p) => s + n(p.unpaid_commission), 0))}
           </p>
         </div>
         <div className="bg-[#1a1b1e] rounded-xl p-4 border border-[#2a2d35] text-center">
           <p className="text-xs text-gray-500">누적 정산 완료</p>
-          <p className="text-2xl font-bold text-emerald-400 mt-1">₩{totalPaid.toLocaleString()}</p>
+          <p className="text-2xl font-bold text-emerald-400 mt-1">₩{fmt(totalPaid)}</p>
         </div>
       </div>
 
@@ -1052,9 +1062,9 @@ function SettlementSection() {
                 {approvedPartners.map(p => (
                   <tr key={p.id} className="border-b border-[#2a2d35]/50 text-gray-300">
                     <td className="py-2.5 px-2 font-medium text-white">{p.name}</td>
-                    <td className="py-2.5 px-2 text-right">₩{p.total_sales.toLocaleString()}</td>
-                    <td className="py-2.5 px-2 text-right">₩{p.total_commission.toLocaleString()}</td>
-                    <td className="py-2.5 px-2 text-right text-red-400">₩{p.unpaid_commission.toLocaleString()}</td>
+                    <td className="py-2.5 px-2 text-right">₩{fmt(p.total_sales)}</td>
+                    <td className="py-2.5 px-2 text-right">₩{fmt(p.total_commission)}</td>
+                    <td className="py-2.5 px-2 text-right text-red-400">₩{fmt(p.unpaid_commission)}</td>
                     <td className="py-2.5 px-2 text-center">
                       <button
                         onClick={() => createSettlementMutation.mutate(p.id)}
@@ -1098,7 +1108,7 @@ function SettlementSection() {
                 {settlements.map(s => (
                   <tr key={s.id} className="border-b border-[#2a2d35]/50 text-gray-300">
                     <td className="py-2.5 px-2 font-medium text-white">{s.partner_name}</td>
-                    <td className="py-2.5 px-2 text-right text-emerald-400">₩{s.amount.toLocaleString()}</td>
+                    <td className="py-2.5 px-2 text-right text-emerald-400">₩{fmt(s.amount)}</td>
                     <td className="py-2.5 px-2 text-center">
                       <span className={`text-[10px] px-1.5 py-0.5 rounded ${s.status === 'paid' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
                         {s.status === 'paid' ? '완료' : '대기'}
