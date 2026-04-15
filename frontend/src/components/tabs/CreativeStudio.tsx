@@ -139,9 +139,9 @@ export function CreativeStudio() {
           </CardTitle>
 
           {selectedStyle && (
-            <div className="mb-4 p-3 bg-primary-50 rounded-lg text-sm">
-              <p className="font-medium text-primary-800">참조 스타일 적용됨</p>
-              <p className="text-primary-600">{selectedStyle.visual_style} • {selectedStyle.appeal_type}</p>
+            <div className="mb-4 p-3 bg-[#5E6AD2]/10 rounded-lg text-sm">
+              <p className="font-medium text-[#828FFF]">참조 스타일 적용됨</p>
+              <p className="text-[#7070FF]">{selectedStyle.visual_style} • {selectedStyle.appeal_type}</p>
             </div>
           )}
 
@@ -161,36 +161,36 @@ export function CreativeStudio() {
             />
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">참고 URL</label>
+              <label className="block text-sm font-medium text-[#D0D6E0] mb-1">참고 URL</label>
               <div className="relative">
-                <Link size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <Link size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#62666D]" />
                 <input
                   type="url"
                   placeholder="참고할 이미지/광고 URL"
                   value={imageReferenceUrl}
                   onChange={(e) => setImageReferenceUrl(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
+                  className="w-full pl-9 pr-3 py-2 border border-[#23252A] rounded-lg text-sm focus:border-[#5E6AD2] focus:ring-1 focus:ring-[#5E6AD2] outline-none"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">제품 링크</label>
+              <label className="block text-sm font-medium text-[#D0D6E0] mb-1">제품 링크</label>
               <div className="relative">
-                <ShoppingBag size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <ShoppingBag size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#62666D]" />
                 <input
                   type="url"
                   placeholder="제품 페이지 URL"
                   value={imageProductUrl}
                   onChange={(e) => setImageProductUrl(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
+                  className="w-full pl-9 pr-3 py-2 border border-[#23252A] rounded-lg text-sm focus:border-[#5E6AD2] focus:ring-1 focus:ring-[#5E6AD2] outline-none"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">제품 이미지</label>
-              <div className="border border-dashed border-gray-300 rounded-lg p-3 text-center hover:border-primary-400 transition-colors">
+              <label className="block text-sm font-medium text-[#D0D6E0] mb-1">제품 이미지</label>
+              <div className="border border-dashed border-[#23252A] rounded-lg p-3 text-center hover:border-primary-400 transition-colors">
                 <input
                   type="file"
                   accept="image/*"
@@ -199,16 +199,16 @@ export function CreativeStudio() {
                   id="image-product-upload"
                 />
                 <label htmlFor="image-product-upload" className="cursor-pointer flex items-center justify-center gap-2">
-                  <Upload size={16} className="text-gray-400" />
-                  <span className="text-sm text-gray-600">{imageProductFile ? imageProductFile.name : '제품 이미지 업로드'}</span>
+                  <Upload size={16} className="text-[#62666D]" />
+                  <span className="text-sm text-[#8A8F98]">{imageProductFile ? imageProductFile.name : '제품 이미지 업로드'}</span>
                 </label>
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">설명 (선택)</label>
+              <label className="block text-sm font-medium text-[#D0D6E0] mb-1">설명 (선택)</label>
               <textarea
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none resize-none"
+                className="w-full rounded-lg border border-[#23252A] px-3 py-2 text-sm focus:border-[#5E6AD2] focus:ring-1 focus:ring-[#5E6AD2] outline-none resize-none"
                 rows={2}
                 placeholder="추가 설명이나 요구사항..."
                 value={imageDescription}
@@ -265,9 +265,9 @@ export function CreativeStudio() {
             />
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">스크립트 (나레이션)</label>
+              <label className="block text-sm font-medium text-[#D0D6E0] mb-1">스크립트 (나레이션)</label>
               <textarea
-                className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
+                className="w-full rounded-lg border border-[#23252A] px-4 py-2 text-sm focus:border-[#5E6AD2] focus:ring-1 focus:ring-[#5E6AD2]"
                 rows={3}
                 placeholder="영상에 들어갈 나레이션 스크립트..."
                 value={videoScript}
@@ -276,36 +276,36 @@ export function CreativeStudio() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">참고 URL</label>
+              <label className="block text-sm font-medium text-[#D0D6E0] mb-1">참고 URL</label>
               <div className="relative">
-                <Link size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <Link size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#62666D]" />
                 <input
                   type="url"
                   placeholder="참고할 영상/광고 URL"
                   value={videoReferenceUrl}
                   onChange={(e) => setVideoReferenceUrl(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
+                  className="w-full pl-9 pr-3 py-2 border border-[#23252A] rounded-lg text-sm focus:border-[#5E6AD2] focus:ring-1 focus:ring-[#5E6AD2] outline-none"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">제품 링크</label>
+              <label className="block text-sm font-medium text-[#D0D6E0] mb-1">제품 링크</label>
               <div className="relative">
-                <ShoppingBag size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <ShoppingBag size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#62666D]" />
                 <input
                   type="url"
                   placeholder="제품 페이지 URL"
                   value={videoProductUrl}
                   onChange={(e) => setVideoProductUrl(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
+                  className="w-full pl-9 pr-3 py-2 border border-[#23252A] rounded-lg text-sm focus:border-[#5E6AD2] focus:ring-1 focus:ring-[#5E6AD2] outline-none"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">제품 이미지</label>
-              <div className="border border-dashed border-gray-300 rounded-lg p-3 text-center hover:border-primary-400 transition-colors">
+              <label className="block text-sm font-medium text-[#D0D6E0] mb-1">제품 이미지</label>
+              <div className="border border-dashed border-[#23252A] rounded-lg p-3 text-center hover:border-primary-400 transition-colors">
                 <input
                   type="file"
                   accept="image/*"
@@ -314,16 +314,16 @@ export function CreativeStudio() {
                   id="video-product-upload"
                 />
                 <label htmlFor="video-product-upload" className="cursor-pointer flex items-center justify-center gap-2">
-                  <Upload size={16} className="text-gray-400" />
-                  <span className="text-sm text-gray-600">{videoProductFile ? videoProductFile.name : '제품 이미지 업로드'}</span>
+                  <Upload size={16} className="text-[#62666D]" />
+                  <span className="text-sm text-[#8A8F98]">{videoProductFile ? videoProductFile.name : '제품 이미지 업로드'}</span>
                 </label>
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">설명 (선택)</label>
+              <label className="block text-sm font-medium text-[#D0D6E0] mb-1">설명 (선택)</label>
               <textarea
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none resize-none"
+                className="w-full rounded-lg border border-[#23252A] px-3 py-2 text-sm focus:border-[#5E6AD2] focus:ring-1 focus:ring-[#5E6AD2] outline-none resize-none"
                 rows={2}
                 placeholder="추가 설명이나 요구사항..."
                 value={videoDescription}
@@ -348,7 +348,7 @@ export function CreativeStudio() {
                 type="checkbox"
                 checked={includeSubtitles}
                 onChange={(e) => setIncludeSubtitles(e.target.checked)}
-                className="rounded border-gray-300"
+                className="rounded border-[#23252A]"
               />
               자막 자동 생성
             </label>
@@ -372,7 +372,7 @@ export function CreativeStudio() {
           <div className="flex items-center justify-between mb-4">
             <CardTitle>생성된 콘텐츠</CardTitle>
             {currentJob && jobStatus && (
-              <div className="flex items-center gap-2 text-sm text-gray-600">
+              <div className="flex items-center gap-2 text-sm text-[#8A8F98]">
                 <Loader2 size={16} className="animate-spin" />
                 생성 중... {jobStatus.progress}%
               </div>
@@ -392,7 +392,7 @@ export function CreativeStudio() {
               ))}
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+            <div className="flex flex-col items-center justify-center h-64 text-[#62666D]">
               <Image size={48} className="mb-4" />
               <p>생성된 콘텐츠가 여기에 표시됩니다</p>
             </div>
@@ -409,8 +409,8 @@ export function CreativeStudio() {
                   key={creative.id}
                   className={`relative rounded-lg overflow-hidden aspect-square cursor-pointer border-2 transition-colors ${
                     selectedCreatives.some((c) => c.id === creative.id)
-                      ? 'border-primary-500'
-                      : 'border-transparent hover:border-gray-300'
+                      ? 'border-[#5E6AD2]'
+                      : 'border-transparent hover:border-[#23252A]'
                   }`}
                   onClick={() => addSelectedCreative(creative)}
                 >
@@ -420,7 +420,7 @@ export function CreativeStudio() {
                     className="w-full h-full object-cover"
                   />
                   {selectedCreatives.some((c) => c.id === creative.id) && (
-                    <div className="absolute top-1 right-1 w-5 h-5 bg-primary-500 rounded-full flex items-center justify-center">
+                    <div className="absolute top-1 right-1 w-5 h-5 bg-[#5E6AD2]/100 rounded-full flex items-center justify-center">
                       <Check size={12} className="text-white" />
                     </div>
                   )}
@@ -428,7 +428,7 @@ export function CreativeStudio() {
               ))}
             </div>
             {selectedCreatives.length > 0 && (
-              <p className="mt-3 text-sm text-primary-600">
+              <p className="mt-3 text-sm text-[#7070FF]">
                 {selectedCreatives.length}개 선택됨 - 캠페인에서 사용 가능
               </p>
             )}
@@ -451,8 +451,8 @@ function CreativeCard({
   onExtend: () => void;
 }) {
   return (
-    <div className={`relative rounded-lg overflow-hidden border-2 ${isSelected ? 'border-primary-500' : 'border-gray-200'}`}>
-      <div className="aspect-square bg-gray-100">
+    <div className={`relative rounded-lg overflow-hidden border-2 ${isSelected ? 'border-[#5E6AD2]' : 'border-[#23252A]'}`}>
+      <div className="aspect-square bg-[#141516]">
         <img
           src={creative.file_url || creative.thumbnail_url || '/placeholder.png'}
           alt={creative.name}
@@ -461,7 +461,7 @@ function CreativeCard({
       </div>
       <div className="p-3">
         <p className="text-sm font-medium truncate">{creative.name}</p>
-        <p className="text-xs text-gray-500">{creative.format} • {creative.creative_type}</p>
+        <p className="text-xs text-[#8A8F98]">{creative.format} • {creative.creative_type}</p>
         <div className="flex gap-2 mt-2">
           <Button size="sm" variant={isSelected ? 'primary' : 'outline'} onClick={onSelect} className="flex-1">
             {isSelected ? <Check size={14} className="mr-1" /> : null}

@@ -42,12 +42,12 @@ const BID_STRATEGIES = ['CPC', 'CPM', 'CPA', 'OCPM'];
 const DEVICES_LIST = ['전체', 'PC', '모바일'];
 
 const STATUS_KO: Record<string, { label: string; color: string }> = {
-  ACTIVE: { label: '활성', color: 'bg-green-100 text-green-700' },
-  ELIGIBLE: { label: '활성', color: 'bg-green-100 text-green-700' },
-  ENABLED: { label: '활성', color: 'bg-green-100 text-green-700' },
-  PAUSED: { label: '일시중지', color: 'bg-yellow-100 text-yellow-700' },
-  DELETED: { label: '삭제', color: 'bg-red-100 text-red-700' },
-  COMPLETED: { label: '완료', color: 'bg-gray-100 text-gray-600' },
+  ACTIVE: { label: '활성', color: 'bg-[#27A644]/15 text-[#27A644]' },
+  ELIGIBLE: { label: '활성', color: 'bg-[#27A644]/15 text-[#27A644]' },
+  ENABLED: { label: '활성', color: 'bg-[#27A644]/15 text-[#27A644]' },
+  PAUSED: { label: '일시중지', color: 'bg-[#F0BF00]/15 text-[#F0BF00]' },
+  DELETED: { label: '삭제', color: 'bg-[#EB5757]/15 text-[#EB5757]' },
+  COMPLETED: { label: '완료', color: 'bg-[#141516] text-[#8A8F98]' },
 };
 
 const OBJECTIVE_KO: Record<string, string> = {
@@ -189,17 +189,17 @@ export function NaverGFAManager() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Layers className="text-green-600" size={28} />
+          <h1 className="text-2xl font-bold text-[#F7F8F8] flex items-center gap-2">
+            <Layers className="text-[#27A644]" size={28} />
             GFA 관리
           </h1>
-          <p className="text-sm text-gray-500 mt-1">네이버 성과형 디스플레이 광고 캠페인 관리</p>
+          <p className="text-sm text-[#8A8F98] mt-1">네이버 성과형 디스플레이 광고 캠페인 관리</p>
         </div>
         <div className="flex items-center gap-2">
           {viewMode === 'list' ? (
             <button
               onClick={() => setViewMode('wizard')}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-[#27A644] text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
             >
               <Plus size={16} />
               새 캠페인
@@ -207,7 +207,7 @@ export function NaverGFAManager() {
           ) : (
             <button
               onClick={() => { setViewMode('list'); resetWizard(); }}
-              className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 border border-[#23252A] rounded-lg text-sm font-medium text-[#D0D6E0] hover:bg-[#141516]/5 transition-colors"
             >
               <X size={16} />
               취소
@@ -218,21 +218,21 @@ export function NaverGFAManager() {
 
       {/* Campaign Wizard */}
       {viewMode === 'wizard' && (
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
+        <div className="bg-[#0F1011] rounded-xl border border-[#23252A] p-6">
           {/* Step indicator */}
           <div className="flex items-center justify-center mb-8">
             {stepLabels.map((label, i) => (
               <div key={i} className="flex items-center">
-                <div className={`flex items-center gap-2 ${i <= wizardStep ? 'text-green-600' : 'text-gray-400'}`}>
+                <div className={`flex items-center gap-2 ${i <= wizardStep ? 'text-[#27A644]' : 'text-[#62666D]'}`}>
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
-                    i < wizardStep ? 'bg-green-600 text-white' : i === wizardStep ? 'bg-green-100 text-green-700 border-2 border-green-600' : 'bg-gray-100 text-gray-400'
+                    i < wizardStep ? 'bg-[#27A644] text-white' : i === wizardStep ? 'bg-[#27A644]/15 text-[#27A644] border-2 border-green-600' : 'bg-[#141516] text-[#62666D]'
                   }`}>
                     {i < wizardStep ? <Check size={16} /> : i + 1}
                   </div>
                   <span className="text-sm font-medium hidden sm:inline">{label}</span>
                 </div>
                 {i < stepLabels.length - 1 && (
-                  <div className={`w-12 h-0.5 mx-2 ${i < wizardStep ? 'bg-green-600' : 'bg-gray-200'}`} />
+                  <div className={`w-12 h-0.5 mx-2 ${i < wizardStep ? 'bg-[#27A644]' : 'bg-[#232326]'}`} />
                 )}
               </div>
             ))}
@@ -241,19 +241,19 @@ export function NaverGFAManager() {
           {/* Step 0: Campaign */}
           {wizardStep === 0 && (
             <div className="max-w-lg mx-auto space-y-6">
-              <h2 className="text-lg font-semibold text-gray-900">캠페인 설정</h2>
+              <h2 className="text-lg font-semibold text-[#F7F8F8]">캠페인 설정</h2>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">캠페인명</label>
+                <label className="block text-sm font-medium text-[#D0D6E0] mb-1">캠페인명</label>
                 <input
                   type="text"
                   value={campaignForm.name}
                   onChange={(e) => setCampaignForm({ ...campaignForm, name: e.target.value })}
-                  className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
+                  className="w-full rounded-lg border border-[#23252A] px-4 py-2 text-sm focus:border-[#27A644] focus:ring-1 focus:ring-green-500 focus:outline-none"
                   placeholder="GFA 캠페인 이름"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">광고 목적</label>
+                <label className="block text-sm font-medium text-[#D0D6E0] mb-2">광고 목적</label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {OBJECTIVES.map((obj) => (
                     <button
@@ -261,40 +261,40 @@ export function NaverGFAManager() {
                       onClick={() => setCampaignForm({ ...campaignForm, objective: obj.value })}
                       className={`p-3 rounded-lg border text-left transition-colors ${
                         campaignForm.objective === obj.value
-                          ? 'border-green-500 bg-green-50'
-                          : 'border-gray-200 hover:border-gray-300'
+                          ? 'border-[#27A644] bg-[#27A644]/10'
+                          : 'border-[#23252A] hover:border-[#23252A]'
                       }`}
                     >
-                      <p className="text-sm font-medium text-gray-900">{obj.label}</p>
-                      <p className="text-xs text-gray-500 mt-0.5">{obj.desc}</p>
+                      <p className="text-sm font-medium text-[#F7F8F8]">{obj.label}</p>
+                      <p className="text-xs text-[#8A8F98] mt-0.5">{obj.desc}</p>
                     </button>
                   ))}
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">일 예산</label>
+                  <label className="block text-sm font-medium text-[#D0D6E0] mb-1">일 예산</label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">&#8361;</span>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#62666D] text-sm">&#8361;</span>
                     <input
                       type="number"
                       value={campaignForm.dailyBudget}
                       onChange={(e) => setCampaignForm({ ...campaignForm, dailyBudget: Number(e.target.value) })}
-                      className="w-full rounded-lg border border-gray-300 pl-8 pr-4 py-2 text-sm focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
+                      className="w-full rounded-lg border border-[#23252A] pl-8 pr-4 py-2 text-sm focus:border-[#27A644] focus:ring-1 focus:ring-green-500 focus:outline-none"
                       min={10000}
                       step={10000}
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">총 예산 (선택)</label>
+                  <label className="block text-sm font-medium text-[#D0D6E0] mb-1">총 예산 (선택)</label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">&#8361;</span>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#62666D] text-sm">&#8361;</span>
                     <input
                       type="number"
                       value={campaignForm.totalBudget}
                       onChange={(e) => setCampaignForm({ ...campaignForm, totalBudget: Number(e.target.value) })}
-                      className="w-full rounded-lg border border-gray-300 pl-8 pr-4 py-2 text-sm focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
+                      className="w-full rounded-lg border border-[#23252A] pl-8 pr-4 py-2 text-sm focus:border-[#27A644] focus:ring-1 focus:ring-green-500 focus:outline-none"
                       min={0}
                       step={10000}
                     />
@@ -303,21 +303,21 @@ export function NaverGFAManager() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">시작일 (선택)</label>
+                  <label className="block text-sm font-medium text-[#D0D6E0] mb-1">시작일 (선택)</label>
                   <input
                     type="date"
                     value={campaignForm.startDate}
                     onChange={(e) => setCampaignForm({ ...campaignForm, startDate: e.target.value })}
-                    className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
+                    className="w-full rounded-lg border border-[#23252A] px-4 py-2 text-sm focus:border-[#27A644] focus:ring-1 focus:ring-green-500 focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">종료일 (선택)</label>
+                  <label className="block text-sm font-medium text-[#D0D6E0] mb-1">종료일 (선택)</label>
                   <input
                     type="date"
                     value={campaignForm.endDate}
                     onChange={(e) => setCampaignForm({ ...campaignForm, endDate: e.target.value })}
-                    className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
+                    className="w-full rounded-lg border border-[#23252A] px-4 py-2 text-sm focus:border-[#27A644] focus:ring-1 focus:ring-green-500 focus:outline-none"
                   />
                 </div>
               </div>
@@ -327,37 +327,37 @@ export function NaverGFAManager() {
           {/* Step 1: Ad Group & Targeting */}
           {wizardStep === 1 && (
             <div className="max-w-lg mx-auto space-y-6">
-              <h2 className="text-lg font-semibold text-gray-900">광고그룹 & 타겟팅</h2>
+              <h2 className="text-lg font-semibold text-[#F7F8F8]">광고그룹 & 타겟팅</h2>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">광고그룹명</label>
+                <label className="block text-sm font-medium text-[#D0D6E0] mb-1">광고그룹명</label>
                 <input
                   type="text"
                   value={adgroupForm.name}
                   onChange={(e) => setAdgroupForm({ ...adgroupForm, name: e.target.value })}
-                  className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
+                  className="w-full rounded-lg border border-[#23252A] px-4 py-2 text-sm focus:border-[#27A644] focus:ring-1 focus:ring-green-500 focus:outline-none"
                   placeholder="광고그룹 이름"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">입찰 전략</label>
+                  <label className="block text-sm font-medium text-[#D0D6E0] mb-1">입찰 전략</label>
                   <select
                     value={adgroupForm.bidStrategy}
                     onChange={(e) => setAdgroupForm({ ...adgroupForm, bidStrategy: e.target.value })}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
+                    className="w-full rounded-lg border border-[#23252A] px-3 py-2 text-sm bg-[#0F1011] focus:border-[#27A644] focus:ring-1 focus:ring-green-500 focus:outline-none"
                   >
                     {BID_STRATEGIES.map((s) => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">입찰가</label>
+                  <label className="block text-sm font-medium text-[#D0D6E0] mb-1">입찰가</label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">&#8361;</span>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#62666D] text-sm">&#8361;</span>
                     <input
                       type="number"
                       value={adgroupForm.bidAmount}
                       onChange={(e) => setAdgroupForm({ ...adgroupForm, bidAmount: Number(e.target.value) })}
-                      className="w-full rounded-lg border border-gray-300 pl-8 pr-4 py-2 text-sm focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
+                      className="w-full rounded-lg border border-[#23252A] pl-8 pr-4 py-2 text-sm focus:border-[#27A644] focus:ring-1 focus:ring-green-500 focus:outline-none"
                       min={100}
                     />
                   </div>
@@ -365,28 +365,28 @@ export function NaverGFAManager() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">성별</label>
+                  <label className="block text-sm font-medium text-[#D0D6E0] mb-1">성별</label>
                   <select
                     value={adgroupForm.gender}
                     onChange={(e) => setAdgroupForm({ ...adgroupForm, gender: e.target.value })}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
+                    className="w-full rounded-lg border border-[#23252A] px-3 py-2 text-sm bg-[#0F1011] focus:border-[#27A644] focus:ring-1 focus:ring-green-500 focus:outline-none"
                   >
                     {GENDERS.map((g) => <option key={g} value={g}>{g}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">기기</label>
+                  <label className="block text-sm font-medium text-[#D0D6E0] mb-1">기기</label>
                   <select
                     value={adgroupForm.device}
                     onChange={(e) => setAdgroupForm({ ...adgroupForm, device: e.target.value })}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
+                    className="w-full rounded-lg border border-[#23252A] px-3 py-2 text-sm bg-[#0F1011] focus:border-[#27A644] focus:ring-1 focus:ring-green-500 focus:outline-none"
                   >
                     {DEVICES_LIST.map((d) => <option key={d} value={d}>{d}</option>)}
                   </select>
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">연령대</label>
+                <label className="block text-sm font-medium text-[#D0D6E0] mb-2">연령대</label>
                 <div className="flex flex-wrap gap-2">
                   {AGE_GROUPS.map((age) => (
                     <button
@@ -399,8 +399,8 @@ export function NaverGFAManager() {
                       }}
                       className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
                         adgroupForm.ageGroups.includes(age)
-                          ? 'bg-green-100 text-green-700 border border-green-300'
-                          : 'bg-gray-100 text-gray-600 border border-gray-200 hover:border-gray-300'
+                          ? 'bg-[#27A644]/15 text-[#27A644] border border-green-300'
+                          : 'bg-[#141516] text-[#8A8F98] border border-[#23252A] hover:border-[#23252A]'
                       }`}
                     >
                       {age}
@@ -408,11 +408,11 @@ export function NaverGFAManager() {
                   ))}
                 </div>
                 {adgroupForm.ageGroups.length === 0 && (
-                  <p className="text-xs text-gray-400 mt-1">선택하지 않으면 전체 연령에 노출됩니다.</p>
+                  <p className="text-xs text-[#62666D] mt-1">선택하지 않으면 전체 연령에 노출됩니다.</p>
                 )}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">관심사</label>
+                <label className="block text-sm font-medium text-[#D0D6E0] mb-2">관심사</label>
                 <div className="flex flex-wrap gap-2">
                   {INTERESTS.map((interest) => (
                     <button
@@ -425,8 +425,8 @@ export function NaverGFAManager() {
                       }}
                       className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
                         adgroupForm.interests.includes(interest)
-                          ? 'bg-green-100 text-green-700 border border-green-300'
-                          : 'bg-gray-100 text-gray-600 border border-gray-200 hover:border-gray-300'
+                          ? 'bg-[#27A644]/15 text-[#27A644] border border-green-300'
+                          : 'bg-[#141516] text-[#8A8F98] border border-[#23252A] hover:border-[#23252A]'
                       }`}
                     >
                       {interest}
@@ -440,9 +440,9 @@ export function NaverGFAManager() {
           {/* Step 2: Creative */}
           {wizardStep === 2 && (
             <div className="max-w-lg mx-auto space-y-6">
-              <h2 className="text-lg font-semibold text-gray-900">크리에이티브</h2>
+              <h2 className="text-lg font-semibold text-[#F7F8F8]">크리에이티브</h2>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">소재 유형</label>
+                <label className="block text-sm font-medium text-[#D0D6E0] mb-2">소재 유형</label>
                 <div className="flex gap-3">
                   {['IMAGE', 'VIDEO', 'NATIVE'].map((type) => (
                     <button
@@ -450,11 +450,11 @@ export function NaverGFAManager() {
                       onClick={() => setCreativeForm({ ...creativeForm, type })}
                       className={`flex-1 p-3 rounded-lg border text-center transition-colors ${
                         creativeForm.type === type
-                          ? 'border-green-500 bg-green-50'
-                          : 'border-gray-200 hover:border-gray-300'
+                          ? 'border-[#27A644] bg-[#27A644]/10'
+                          : 'border-[#23252A] hover:border-[#23252A]'
                       }`}
                     >
-                      <p className="text-sm font-medium text-gray-900">
+                      <p className="text-sm font-medium text-[#F7F8F8]">
                         {type === 'IMAGE' ? '이미지' : type === 'VIDEO' ? '동영상' : '네이티브'}
                       </p>
                     </button>
@@ -462,49 +462,49 @@ export function NaverGFAManager() {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">제목</label>
+                <label className="block text-sm font-medium text-[#D0D6E0] mb-1">제목</label>
                 <input
                   type="text"
                   value={creativeForm.title}
                   onChange={(e) => setCreativeForm({ ...creativeForm, title: e.target.value })}
-                  className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
+                  className="w-full rounded-lg border border-[#23252A] px-4 py-2 text-sm focus:border-[#27A644] focus:ring-1 focus:ring-green-500 focus:outline-none"
                   placeholder="크리에이티브 제목"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">설명</label>
+                <label className="block text-sm font-medium text-[#D0D6E0] mb-1">설명</label>
                 <textarea
                   value={creativeForm.description}
                   onChange={(e) => setCreativeForm({ ...creativeForm, description: e.target.value })}
-                  className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none resize-none"
+                  className="w-full rounded-lg border border-[#23252A] px-4 py-2 text-sm focus:border-[#27A644] focus:ring-1 focus:ring-green-500 focus:outline-none resize-none"
                   rows={3}
                   placeholder="크리에이티브 설명"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">랜딩 URL</label>
+                <label className="block text-sm font-medium text-[#D0D6E0] mb-1">랜딩 URL</label>
                 <input
                   type="url"
                   value={creativeForm.landingUrl}
                   onChange={(e) => setCreativeForm({ ...creativeForm, landingUrl: e.target.value })}
-                  className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
+                  className="w-full rounded-lg border border-[#23252A] px-4 py-2 text-sm focus:border-[#27A644] focus:ring-1 focus:ring-green-500 focus:outline-none"
                   placeholder="https://example.com"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">이미지 URL (선택)</label>
+                <label className="block text-sm font-medium text-[#D0D6E0] mb-1">이미지 URL (선택)</label>
                 <input
                   type="url"
                   value={creativeForm.imageUrl}
                   onChange={(e) => setCreativeForm({ ...creativeForm, imageUrl: e.target.value })}
-                  className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
+                  className="w-full rounded-lg border border-[#23252A] px-4 py-2 text-sm focus:border-[#27A644] focus:ring-1 focus:ring-green-500 focus:outline-none"
                   placeholder="https://example.com/image.jpg"
                 />
               </div>
-              <div className="border border-dashed border-gray-300 rounded-lg p-6 text-center">
-                <Upload size={32} className="mx-auto mb-2 text-gray-400" />
-                <p className="text-sm text-gray-500">이미지/동영상 파일 업로드</p>
-                <p className="text-xs text-gray-400 mt-1">또는 위의 URL 필드에 직접 입력</p>
+              <div className="border border-dashed border-[#23252A] rounded-lg p-6 text-center">
+                <Upload size={32} className="mx-auto mb-2 text-[#62666D]" />
+                <p className="text-sm text-[#8A8F98]">이미지/동영상 파일 업로드</p>
+                <p className="text-xs text-[#62666D] mt-1">또는 위의 URL 필드에 직접 입력</p>
               </div>
             </div>
           )}
@@ -512,8 +512,8 @@ export function NaverGFAManager() {
           {/* Step 3: Placements */}
           {wizardStep === 3 && (
             <div className="max-w-lg mx-auto space-y-6">
-              <h2 className="text-lg font-semibold text-gray-900">게재위치 설정</h2>
-              <p className="text-sm text-gray-500">광고가 노출될 네이버 서비스를 선택하세요.</p>
+              <h2 className="text-lg font-semibold text-[#F7F8F8]">게재위치 설정</h2>
+              <p className="text-sm text-[#8A8F98]">광고가 노출될 네이버 서비스를 선택하세요.</p>
               <div className="grid grid-cols-2 gap-3">
                 {PLACEMENTS.map((placement) => (
                   <button
@@ -526,43 +526,43 @@ export function NaverGFAManager() {
                     }}
                     className={`p-4 rounded-lg border text-center transition-colors ${
                       adgroupForm.placements.includes(placement.value)
-                        ? 'border-green-500 bg-green-50'
-                        : 'border-gray-200 hover:border-gray-300'
+                        ? 'border-[#27A644] bg-[#27A644]/10'
+                        : 'border-[#23252A] hover:border-[#23252A]'
                     }`}
                   >
-                    <Monitor size={20} className={`mx-auto mb-1 ${adgroupForm.placements.includes(placement.value) ? 'text-green-600' : 'text-gray-400'}`} />
-                    <p className="text-sm font-medium text-gray-900">{placement.label}</p>
+                    <Monitor size={20} className={`mx-auto mb-1 ${adgroupForm.placements.includes(placement.value) ? 'text-[#27A644]' : 'text-[#62666D]'}`} />
+                    <p className="text-sm font-medium text-[#F7F8F8]">{placement.label}</p>
                   </button>
                 ))}
               </div>
               {adgroupForm.placements.length === 0 && (
-                <p className="text-xs text-gray-400">선택하지 않으면 모든 게재위치에 노출됩니다.</p>
+                <p className="text-xs text-[#62666D]">선택하지 않으면 모든 게재위치에 노출됩니다.</p>
               )}
 
               {/* Summary before creation */}
-              <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-                <h3 className="text-sm font-semibold text-gray-800 mb-3">캠페인 요약</h3>
-                <div className="space-y-1 text-sm text-gray-600">
-                  <p>캠페인: <span className="font-medium text-gray-900">{campaignForm.name}</span></p>
-                  <p>목적: <span className="font-medium text-gray-900">{OBJECTIVES.find((o) => o.value === campaignForm.objective)?.label}</span></p>
-                  <p>일예산: <span className="font-medium text-gray-900">{formatNaverCurrency(campaignForm.dailyBudget)}</span></p>
-                  <p>광고그룹: <span className="font-medium text-gray-900">{adgroupForm.name}</span></p>
-                  <p>입찰전략: <span className="font-medium text-gray-900">{adgroupForm.bidStrategy} / {formatNaverCurrency(adgroupForm.bidAmount)}</span></p>
-                  <p>크리에이티브: <span className="font-medium text-gray-900">{creativeForm.title || '(미입력)'}</span></p>
-                  <p>게재위치: <span className="font-medium text-gray-900">{adgroupForm.placements.length > 0 ? adgroupForm.placements.map((p) => PLACEMENTS.find((pl) => pl.value === p)?.label).join(', ') : '전체'}</span></p>
+              <div className="mt-6 p-4 bg-[#08090A] rounded-lg">
+                <h3 className="text-sm font-semibold text-[#F7F8F8] mb-3">캠페인 요약</h3>
+                <div className="space-y-1 text-sm text-[#8A8F98]">
+                  <p>캠페인: <span className="font-medium text-[#F7F8F8]">{campaignForm.name}</span></p>
+                  <p>목적: <span className="font-medium text-[#F7F8F8]">{OBJECTIVES.find((o) => o.value === campaignForm.objective)?.label}</span></p>
+                  <p>일예산: <span className="font-medium text-[#F7F8F8]">{formatNaverCurrency(campaignForm.dailyBudget)}</span></p>
+                  <p>광고그룹: <span className="font-medium text-[#F7F8F8]">{adgroupForm.name}</span></p>
+                  <p>입찰전략: <span className="font-medium text-[#F7F8F8]">{adgroupForm.bidStrategy} / {formatNaverCurrency(adgroupForm.bidAmount)}</span></p>
+                  <p>크리에이티브: <span className="font-medium text-[#F7F8F8]">{creativeForm.title || '(미입력)'}</span></p>
+                  <p>게재위치: <span className="font-medium text-[#F7F8F8]">{adgroupForm.placements.length > 0 ? adgroupForm.placements.map((p) => PLACEMENTS.find((pl) => pl.value === p)?.label).join(', ') : '전체'}</span></p>
                 </div>
               </div>
             </div>
           )}
 
           {/* Navigation */}
-          <div className="flex items-center justify-between mt-8 pt-4 border-t border-gray-200">
+          <div className="flex items-center justify-between mt-8 pt-4 border-t border-[#23252A]">
             <button
               onClick={() => {
                 if (wizardStep === 0) { setViewMode('list'); resetWizard(); }
                 else setWizardStep((wizardStep - 1) as WizardStep);
               }}
-              className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 border border-[#23252A] rounded-lg text-sm font-medium text-[#D0D6E0] hover:bg-[#141516]/5 transition-colors"
             >
               <ChevronLeft size={16} />
               {wizardStep === 0 ? '취소' : '이전'}
@@ -580,7 +580,7 @@ export function NaverGFAManager() {
                   }
                   setWizardStep((wizardStep + 1) as WizardStep);
                 }}
-                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-[#27A644] text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
               >
                 다음
                 <ChevronRight size={16} />
@@ -589,7 +589,7 @@ export function NaverGFAManager() {
               <button
                 onClick={() => createCampaignMutation.mutate()}
                 disabled={createCampaignMutation.isPending}
-                className="flex items-center gap-2 px-6 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors disabled:opacity-50"
+                className="flex items-center gap-2 px-6 py-2 bg-[#27A644] text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors disabled:opacity-50"
               >
                 {createCampaignMutation.isPending ? (
                   <Loader2 size={16} className="animate-spin" />
@@ -605,22 +605,22 @@ export function NaverGFAManager() {
 
       {/* Campaign List */}
       {viewMode === 'list' && (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-base font-semibold text-gray-900">기존 GFA 캠페인 관리</h2>
+        <div className="bg-[#0F1011] rounded-xl border border-[#23252A] overflow-hidden">
+          <div className="px-6 py-4 border-b border-[#23252A]">
+            <h2 className="text-base font-semibold text-[#F7F8F8]">기존 GFA 캠페인 관리</h2>
           </div>
           {loadingCampaigns ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="animate-spin text-green-600" size={24} />
-              <span className="ml-2 text-gray-500">로딩 중...</span>
+              <Loader2 className="animate-spin text-[#27A644]" size={24} />
+              <span className="ml-2 text-[#8A8F98]">로딩 중...</span>
             </div>
           ) : campaigns.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">
-              <Layers size={48} className="mx-auto mb-3 text-gray-300" />
+            <div className="text-center py-12 text-[#8A8F98]">
+              <Layers size={48} className="mx-auto mb-3 text-[#62666D]" />
               <p>등록된 GFA 캠페인이 없습니다.</p>
               <button
                 onClick={() => setViewMode('wizard')}
-                className="mt-4 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700"
+                className="mt-4 px-4 py-2 bg-[#27A644] text-white rounded-lg text-sm font-medium hover:bg-green-700"
               >
                 첫 GFA 캠페인 만들기
               </button>
@@ -628,39 +628,39 @@ export function NaverGFAManager() {
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-gray-50">
+                <thead className="bg-[#08090A]">
                   <tr>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">캠페인명</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">목적</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">상태</th>
-                    <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">일예산</th>
-                    <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">비용</th>
-                    <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">노출</th>
-                    <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">클릭</th>
-                    <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">액션</th>
+                    <th className="text-left px-4 py-3 text-xs font-medium text-[#8A8F98] uppercase">캠페인명</th>
+                    <th className="text-left px-4 py-3 text-xs font-medium text-[#8A8F98] uppercase">목적</th>
+                    <th className="text-left px-4 py-3 text-xs font-medium text-[#8A8F98] uppercase">상태</th>
+                    <th className="text-right px-4 py-3 text-xs font-medium text-[#8A8F98] uppercase">일예산</th>
+                    <th className="text-right px-4 py-3 text-xs font-medium text-[#8A8F98] uppercase">비용</th>
+                    <th className="text-right px-4 py-3 text-xs font-medium text-[#8A8F98] uppercase">노출</th>
+                    <th className="text-right px-4 py-3 text-xs font-medium text-[#8A8F98] uppercase">클릭</th>
+                    <th className="text-center px-4 py-3 text-xs font-medium text-[#8A8F98] uppercase">액션</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-[#23252A]">
                   {campaigns.map((c: any) => {
                     const cid = c.campaignId || c.id;
-                    const status = STATUS_KO[c.status] || { label: c.status, color: 'bg-gray-100 text-gray-600' };
+                    const status = STATUS_KO[c.status] || { label: c.status, color: 'bg-[#141516] text-[#8A8F98]' };
                     return (
-                      <tr key={cid} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 font-medium text-gray-900">{c.name}</td>
-                        <td className="px-4 py-3 text-xs text-gray-500">{OBJECTIVE_KO[c.objective] || c.objective || '-'}</td>
+                      <tr key={cid} className="hover:bg-[#141516]/5">
+                        <td className="px-4 py-3 font-medium text-[#F7F8F8]">{c.name}</td>
+                        <td className="px-4 py-3 text-xs text-[#8A8F98]">{OBJECTIVE_KO[c.objective] || c.objective || '-'}</td>
                         <td className="px-4 py-3">
                           <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${status.color}`}>{status.label}</span>
                         </td>
-                        <td className="px-4 py-3 text-right text-gray-700">{formatNaverCurrency(c.dailyBudget || 0)}</td>
-                        <td className="px-4 py-3 text-right font-medium text-gray-900">{formatNaverCurrency(c.spend || 0)}</td>
-                        <td className="px-4 py-3 text-right text-gray-700">{formatNaverNumber(c.impressions || 0)}</td>
-                        <td className="px-4 py-3 text-right text-gray-700">{formatNaverNumber(c.clicks || 0)}</td>
+                        <td className="px-4 py-3 text-right text-[#D0D6E0]">{formatNaverCurrency(c.dailyBudget || 0)}</td>
+                        <td className="px-4 py-3 text-right font-medium text-[#F7F8F8]">{formatNaverCurrency(c.spend || 0)}</td>
+                        <td className="px-4 py-3 text-right text-[#D0D6E0]">{formatNaverNumber(c.impressions || 0)}</td>
+                        <td className="px-4 py-3 text-right text-[#D0D6E0]">{formatNaverNumber(c.clicks || 0)}</td>
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-center gap-1">
                             {c.status === 'PAUSED' ? (
                               <button
                                 onClick={() => resumeMutation.mutate(cid)}
-                                className="p-1.5 hover:bg-green-50 rounded text-green-600"
+                                className="p-1.5 hover:bg-[#27A644]/10 rounded text-[#27A644]"
                                 title="재개"
                               >
                                 <Play size={14} />
@@ -668,7 +668,7 @@ export function NaverGFAManager() {
                             ) : (
                               <button
                                 onClick={() => pauseMutation.mutate(cid)}
-                                className="p-1.5 hover:bg-yellow-50 rounded text-yellow-600"
+                                className="p-1.5 hover:bg-[#F0BF00]/10 rounded text-[#F0BF00]"
                                 title="일시중지"
                               >
                                 <Pause size={14} />

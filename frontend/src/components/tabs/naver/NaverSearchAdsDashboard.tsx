@@ -23,12 +23,12 @@ const DATE_PRESETS: { value: DatePreset; label: string }[] = [
 ];
 
 const STATUS_KO: Record<string, { label: string; color: string }> = {
-  ELIGIBLE: { label: '활성', color: 'bg-green-100 text-green-700' },
-  ENABLED: { label: '활성', color: 'bg-green-100 text-green-700' },
-  ACTIVE: { label: '활성', color: 'bg-green-100 text-green-700' },
-  PAUSED: { label: '일시중지', color: 'bg-yellow-100 text-yellow-700' },
-  DELETED: { label: '삭제', color: 'bg-red-100 text-red-700' },
-  NOAD: { label: '소재없음', color: 'bg-gray-100 text-gray-600' },
+  ELIGIBLE: { label: '활성', color: 'bg-[#27A644]/15 text-[#27A644]' },
+  ENABLED: { label: '활성', color: 'bg-[#27A644]/15 text-[#27A644]' },
+  ACTIVE: { label: '활성', color: 'bg-[#27A644]/15 text-[#27A644]' },
+  PAUSED: { label: '일시중지', color: 'bg-[#F0BF00]/15 text-[#F0BF00]' },
+  DELETED: { label: '삭제', color: 'bg-[#EB5757]/15 text-[#EB5757]' },
+  NOAD: { label: '소재없음', color: 'bg-[#141516] text-[#8A8F98]' },
 };
 
 const CAMPAIGN_TYPE_KO: Record<string, string> = {
@@ -45,7 +45,7 @@ function MiniLineChart({ data, color = '#2DB400', height = 40, width = 120 }: {
   height?: number;
   width?: number;
 }) {
-  if (!data || data.length < 2) return <div style={{ width, height }} className="bg-gray-50 rounded" />;
+  if (!data || data.length < 2) return <div style={{ width, height }} className="bg-[#08090A] rounded" />;
   const max = Math.max(...data);
   const min = Math.min(...data);
   const range = max - min || 1;
@@ -175,36 +175,36 @@ export function NaverSearchAdsDashboard() {
       label: '총 비용',
       value: formatNaverCurrency(kpi.spend || kpi.total_spend || 0),
       icon: DollarSign,
-      color: 'text-green-600',
-      bg: 'bg-green-50',
+      color: 'text-[#27A644]',
+      bg: 'bg-[#27A644]/10',
     },
     {
       label: '클릭수',
       value: formatNaverNumber(kpi.clicks || kpi.total_clicks || 0),
       icon: MousePointer,
-      color: 'text-blue-600',
-      bg: 'bg-blue-50',
+      color: 'text-[#7070FF]',
+      bg: 'bg-[#4EA7FC]/10',
     },
     {
       label: '노출수',
       value: formatNaverNumber(kpi.impressions || kpi.total_impressions || 0),
       icon: Eye,
-      color: 'text-purple-600',
-      bg: 'bg-purple-50',
+      color: 'text-[#7070FF]',
+      bg: 'bg-[#5E6AD2]/10',
     },
     {
       label: 'CTR',
       value: formatNaverPercent(kpi.ctr || 0),
       icon: Target,
-      color: 'text-orange-600',
-      bg: 'bg-orange-50',
+      color: 'text-[#FC7840]',
+      bg: 'bg-[#FC7840]/10',
     },
     {
       label: 'ROAS',
       value: kpi.roas ? `${kpi.roas.toFixed(0)}%` : '-',
       icon: TrendingUp,
-      color: 'text-indigo-600',
-      bg: 'bg-indigo-50',
+      color: 'text-[#7070FF]',
+      bg: 'bg-[#5E6AD2]/10',
     },
     {
       label: '전환수',
@@ -224,8 +224,8 @@ export function NaverSearchAdsDashboard() {
       label: '평균 노출순위',
       value: kpi.avg_rank ? `${kpi.avg_rank}위` : '-',
       icon: Activity,
-      color: 'text-amber-600',
-      bg: 'bg-amber-50',
+      color: 'text-[#F0BF00]',
+      bg: 'bg-[#F0BF00]/10',
     },
   ];
 
@@ -234,17 +234,17 @@ export function NaverSearchAdsDashboard() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <BarChart3 className="text-green-600" size={28} />
+          <h1 className="text-2xl font-bold text-[#F7F8F8] flex items-center gap-2">
+            <BarChart3 className="text-[#27A644]" size={28} />
             검색광고 성과 대시보드
           </h1>
-          <p className="text-sm text-gray-500 mt-1">네이버 검색광고 실시간 성과 분석</p>
+          <p className="text-sm text-[#8A8F98] mt-1">네이버 검색광고 실시간 성과 분석</p>
         </div>
         <div className="flex items-center gap-2">
           <select
             value={datePreset}
             onChange={(e) => setDatePreset(e.target.value as DatePreset)}
-            className="rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
+            className="rounded-lg border border-[#23252A] px-3 py-2 text-sm bg-[#0F1011] focus:border-[#27A644] focus:ring-1 focus:ring-green-500 focus:outline-none"
           >
             {DATE_PRESETS.map((p) => (
               <option key={p.value} value={p.value}>{p.label}</option>
@@ -252,42 +252,42 @@ export function NaverSearchAdsDashboard() {
           </select>
           {datePreset === 'custom' && (
             <div className="flex items-center gap-1.5">
-              <Calendar size={14} className="text-gray-400" />
+              <Calendar size={14} className="text-[#62666D]" />
               <input
                 type="date"
                 value={customStartDate}
                 onChange={(e) => setCustomStartDate(e.target.value)}
                 max={customEndDate}
-                className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm bg-white focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
+                className="rounded-lg border border-[#23252A] px-2 py-1.5 text-sm bg-[#0F1011] focus:border-[#27A644] focus:ring-1 focus:ring-green-500 focus:outline-none"
               />
-              <span className="text-gray-400 text-sm">~</span>
+              <span className="text-[#62666D] text-sm">~</span>
               <input
                 type="date"
                 value={customEndDate}
                 onChange={(e) => setCustomEndDate(e.target.value)}
                 min={customStartDate}
-                className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm bg-white focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
+                className="rounded-lg border border-[#23252A] px-2 py-1.5 text-sm bg-[#0F1011] focus:border-[#27A644] focus:ring-1 focus:ring-green-500 focus:outline-none"
               />
             </div>
           )}
           <button
             onClick={() => refetchOverview()}
-            className="p-2 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors"
+            className="p-2 rounded-lg border border-[#23252A] hover:bg-[#141516]/5 transition-colors"
             title="새로고침"
           >
-            <RefreshCw size={16} className="text-gray-500" />
+            <RefreshCw size={16} className="text-[#8A8F98]" />
           </button>
         </div>
       </div>
 
       {/* Overview Error Banner */}
       {(overviewError || campaignsError) && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-4 space-y-3">
+        <div className="bg-[#EB5757]/10 border border-[#EB5757]/30 rounded-xl p-4 mb-4 space-y-3">
           <div className="flex items-center gap-3">
-            <AlertCircle className="text-red-500 shrink-0" size={20} />
+            <AlertCircle className="text-[#EB5757] shrink-0" size={20} />
             <div>
-              <p className="text-red-700 font-medium text-sm">검색광고 API 연결 실패</p>
-              <p className="text-red-500 text-xs mt-0.5">
+              <p className="text-[#EB5757] font-medium text-sm">검색광고 API 연결 실패</p>
+              <p className="text-[#EB5757] text-xs mt-0.5">
                 {(overviewErrorObj as any)?.response?.data?.detail
                   || (campaignsErrorObj as any)?.response?.data?.detail
                   || (overviewErrorObj as any)?.message
@@ -306,18 +306,18 @@ export function NaverSearchAdsDashboard() {
                   setDebugInfo({ error: e?.response?.data?.detail || e?.message || 'env-check 호출 실패' });
                 }
               }}
-              className="text-xs bg-red-100 text-red-700 px-3 py-1.5 rounded-lg hover:bg-red-200 transition-colors"
+              className="text-xs bg-[#EB5757]/15 text-[#EB5757] px-3 py-1.5 rounded-lg hover:bg-red-200 transition-colors"
             >
               환경변수 진단
             </button>
           )}
           {debugInfo && (
-            <div className="bg-white rounded-lg p-3 text-xs font-mono space-y-1 border border-red-100">
-              <p className="font-semibold text-gray-700 mb-2">Railway 환경변수 상태:</p>
+            <div className="bg-[#0F1011] rounded-lg p-3 text-xs font-mono space-y-1 border border-red-100">
+              <p className="font-semibold text-[#D0D6E0] mb-2">Railway 환경변수 상태:</p>
               {Object.entries(debugInfo).map(([k, v]) => (
                 <div key={k} className="flex gap-2">
-                  <span className="text-gray-500">{k}:</span>
-                  <span className={v === true || v === 'OK' ? 'text-green-600' : v === false || v === 'ERROR' ? 'text-red-600' : 'text-gray-800'}>
+                  <span className="text-[#8A8F98]">{k}:</span>
+                  <span className={v === true || v === 'OK' ? 'text-[#27A644]' : v === false || v === 'ERROR' ? 'text-[#EB5757]' : 'text-[#F7F8F8]'}>
                     {String(v)}
                   </span>
                 </div>
@@ -329,37 +329,37 @@ export function NaverSearchAdsDashboard() {
 
       {/* Stat debug info */}
       {overview && !overviewError && overview._debug_stat_error && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 mb-2 flex items-center gap-2">
+        <div className="bg-[#F0BF00]/10 border border-[#F0BF00]/30 rounded-xl p-3 mb-2 flex items-center gap-2">
           <AlertCircle className="text-yellow-500 shrink-0" size={16} />
-          <p className="text-yellow-700 text-xs">통계 조회 오류: {overview._debug_stat_error} (stat_count: {overview._debug_stat_count})</p>
+          <p className="text-[#F0BF00] text-xs">통계 조회 오류: {overview._debug_stat_error} (stat_count: {overview._debug_stat_count})</p>
         </div>
       )}
       {overview && !overviewError && !overview._debug_stat_error && overview._debug_stat_count === 0 && kpi.spend === 0 && (
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-2 flex items-center gap-2">
+        <div className="bg-[#4EA7FC]/10 border border-[#5E6AD2]/30 rounded-xl p-3 mb-2 flex items-center gap-2">
           <AlertCircle className="text-blue-500 shrink-0" size={16} />
-          <p className="text-blue-700 text-xs">선택한 기간에 검색광고 지출 데이터가 없습니다. 캠페인이 일시중지 상태일 수 있습니다.</p>
+          <p className="text-[#828FFF] text-xs">선택한 기간에 검색광고 지출 데이터가 없습니다. 캠페인이 일시중지 상태일 수 있습니다.</p>
         </div>
       )}
 
       {/* KPI Cards */}
       {loadingOverview ? (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="animate-spin text-green-600" size={32} />
-          <span className="ml-3 text-gray-500">데이터 로딩 중...</span>
+          <Loader2 className="animate-spin text-[#27A644]" size={32} />
+          <span className="ml-3 text-[#8A8F98]">데이터 로딩 중...</span>
         </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-4">
           {kpiCards.map((card) => {
             const Icon = card.icon;
             return (
-              <div key={card.label} className="bg-white rounded-xl border border-gray-200 p-4">
+              <div key={card.label} className="bg-[#0F1011] rounded-xl border border-[#23252A] p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-gray-500 font-medium">{card.label}</span>
+                  <span className="text-xs text-[#8A8F98] font-medium">{card.label}</span>
                   <div className={`w-8 h-8 ${card.bg} rounded-lg flex items-center justify-center`}>
                     <Icon size={16} className={card.color} />
                   </div>
                 </div>
-                <p className="text-lg font-bold text-gray-900">{card.value}</p>
+                <p className="text-lg font-bold text-[#F7F8F8]">{card.value}</p>
               </div>
             );
           })}
@@ -368,22 +368,22 @@ export function NaverSearchAdsDashboard() {
 
       {/* Trend Chart */}
       {trendSpend.length > 1 && (
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <h2 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <Activity size={18} className="text-green-600" />
+        <div className="bg-[#0F1011] rounded-xl border border-[#23252A] p-6">
+          <h2 className="text-base font-semibold text-[#F7F8F8] mb-4 flex items-center gap-2">
+            <Activity size={18} className="text-[#27A644]" />
             트렌드 차트
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
-              <p className="text-xs text-gray-500 mb-2">비용 추이</p>
+              <p className="text-xs text-[#8A8F98] mb-2">비용 추이</p>
               <MiniLineChart data={trendSpend} color="#2DB400" width={280} height={60} />
             </div>
             <div>
-              <p className="text-xs text-gray-500 mb-2">클릭수 추이</p>
+              <p className="text-xs text-[#8A8F98] mb-2">클릭수 추이</p>
               <MiniLineChart data={trendClicks} color="#3B82F6" width={280} height={60} />
             </div>
             <div>
-              <p className="text-xs text-gray-500 mb-2">노출수 추이</p>
+              <p className="text-xs text-[#8A8F98] mb-2">노출수 추이</p>
               <MiniLineChart data={trendImpressions} color="#8B5CF6" width={280} height={60} />
             </div>
           </div>
@@ -391,18 +391,18 @@ export function NaverSearchAdsDashboard() {
       )}
 
       {/* Campaign List */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-200 space-y-3">
+      <div className="bg-[#0F1011] rounded-xl border border-[#23252A] overflow-hidden">
+        <div className="px-6 py-4 border-b border-[#23252A] space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
-              <Search size={18} className="text-green-600" />
+            <h2 className="text-base font-semibold text-[#F7F8F8] flex items-center gap-2">
+              <Search size={18} className="text-[#27A644]" />
               캠페인 목록
-              <span className="text-xs text-gray-400 font-normal ml-1">({allCampaigns.length}개)</span>
+              <span className="text-xs text-[#62666D] font-normal ml-1">({allCampaigns.length}개)</span>
             </h2>
           </div>
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
             {/* Status filter tabs */}
-            <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
+            <div className="flex items-center gap-1 bg-[#141516] rounded-lg p-0.5">
               {([
                 { value: 'ALL' as const, label: '전체', count: allCampaigns.length },
                 { value: 'ACTIVE' as const, label: '활성', count: activeCount },
@@ -413,71 +413,71 @@ export function NaverSearchAdsDashboard() {
                   onClick={() => setStatusFilter(tab.value)}
                   className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
                     statusFilter === tab.value
-                      ? 'bg-white text-gray-900 shadow-sm'
-                      : 'text-gray-500 hover:text-gray-700'
+                      ? 'bg-[#0F1011] text-[#F7F8F8] shadow-[0px_1px_3px_rgba(0,0,0,0.2)]'
+                      : 'text-[#8A8F98] hover:text-[#D0D6E0]'
                   }`}
                 >
-                  {tab.label} <span className="text-gray-400">({tab.count})</span>
+                  {tab.label} <span className="text-[#62666D]">({tab.count})</span>
                 </button>
               ))}
             </div>
             {/* Search */}
             <div className="relative flex-1 w-full sm:max-w-xs">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#62666D]" />
               <input
                 type="text"
                 placeholder="캠페인 검색..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-200 focus:border-green-400"
+                className="w-full pl-9 pr-3 py-1.5 text-sm border border-[#23252A] rounded-lg focus:outline-none focus:ring-2 focus:ring-green-200 focus:border-green-400"
               />
             </div>
           </div>
         </div>
         {loadingCampaigns ? (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="animate-spin text-green-600" size={24} />
-            <span className="ml-2 text-gray-500">캠페인 로딩 중...</span>
+            <Loader2 className="animate-spin text-[#27A644]" size={24} />
+            <span className="ml-2 text-[#8A8F98]">캠페인 로딩 중...</span>
           </div>
         ) : campaignsError ? (
           <div className="text-center py-8">
             <AlertCircle size={32} className="text-red-400 mx-auto mb-2" />
-            <p className="text-red-500 text-sm">캠페인 데이터를 불러올 수 없습니다</p>
-            <p className="text-gray-400 text-xs mt-1">
+            <p className="text-[#EB5757] text-sm">캠페인 데이터를 불러올 수 없습니다</p>
+            <p className="text-[#62666D] text-xs mt-1">
               {(campaignsErrorObj as any)?.response?.data?.detail
                 || (campaignsErrorObj as any)?.message
                 || 'API 연결 상태를 확인해주세요'}
             </p>
           </div>
         ) : campaigns.length === 0 ? (
-          <div className="text-center py-12 text-gray-500">
-            <Search size={48} className="mx-auto mb-3 text-gray-300" />
+          <div className="text-center py-12 text-[#8A8F98]">
+            <Search size={48} className="mx-auto mb-3 text-[#62666D]" />
             <p>등록된 검색광고 캠페인이 없습니다.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50">
+              <thead className="bg-[#08090A]">
                 <tr>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">캠페인명</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">유형</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">상태</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">일예산</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">비용</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">클릭</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">CTR</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">CPC</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">전환</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">ROAS</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">노출순위</th>
-                  <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">액션</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-[#8A8F98] uppercase">캠페인명</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-[#8A8F98] uppercase">유형</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-[#8A8F98] uppercase">상태</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-[#8A8F98] uppercase">일예산</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-[#8A8F98] uppercase">비용</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-[#8A8F98] uppercase">클릭</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-[#8A8F98] uppercase">CTR</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-[#8A8F98] uppercase">CPC</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-[#8A8F98] uppercase">전환</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-[#8A8F98] uppercase">ROAS</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-[#8A8F98] uppercase">노출순위</th>
+                  <th className="text-center px-4 py-3 text-xs font-medium text-[#8A8F98] uppercase">액션</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-[#23252A]">
                 {campaigns.map((campaign: any) => {
                   const campaignId = campaign.campaign_id || campaign.nccCampaignId || campaign.id;
                   const isExpanded = expandedCampaign === campaignId;
-                  const status = STATUS_KO[campaign.status] || { label: campaign.status, color: 'bg-gray-100 text-gray-600' };
+                  const status = STATUS_KO[campaign.status] || { label: campaign.status, color: 'bg-[#141516] text-[#8A8F98]' };
 
                   return (
                     <CampaignRow
@@ -502,44 +502,44 @@ export function NaverSearchAdsDashboard() {
 
       {/* Top Keywords */}
       {topKeywords.length > 0 && (
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <h2 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <Award size={18} className="text-green-600" />
+        <div className="bg-[#0F1011] rounded-xl border border-[#23252A] p-6">
+          <h2 className="text-base font-semibold text-[#F7F8F8] mb-4 flex items-center gap-2">
+            <Award size={18} className="text-[#27A644]" />
             키워드 성과 요약
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <h3 className="text-sm font-medium text-gray-700 mb-3">클릭수 Top 키워드</h3>
+              <h3 className="text-sm font-medium text-[#D0D6E0] mb-3">클릭수 Top 키워드</h3>
               <div className="space-y-2">
                 {topKeywords.slice(0, 5).map((kw: any, i: number) => (
-                  <div key={i} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                  <div key={i} className="flex items-center justify-between p-2 bg-[#08090A] rounded-lg">
                     <div className="flex items-center gap-2">
-                      <span className="w-5 h-5 bg-green-100 text-green-700 rounded-full flex items-center justify-center text-xs font-bold">{i + 1}</span>
-                      <span className="text-sm font-medium text-gray-800">{kw.keyword}</span>
+                      <span className="w-5 h-5 bg-[#27A644]/15 text-[#27A644] rounded-full flex items-center justify-center text-xs font-bold">{i + 1}</span>
+                      <span className="text-sm font-medium text-[#F7F8F8]">{kw.keyword}</span>
                     </div>
                     <div className="text-right">
-                      <span className="text-sm font-semibold text-gray-900">{formatNaverNumber(kw.clicks || 0)}</span>
-                      <span className="text-xs text-gray-400 ml-1">클릭</span>
+                      <span className="text-sm font-semibold text-[#F7F8F8]">{formatNaverNumber(kw.clicks || 0)}</span>
+                      <span className="text-xs text-[#62666D] ml-1">클릭</span>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
             <div>
-              <h3 className="text-sm font-medium text-gray-700 mb-3">전환 Top 키워드</h3>
+              <h3 className="text-sm font-medium text-[#D0D6E0] mb-3">전환 Top 키워드</h3>
               <div className="space-y-2">
                 {topKeywords
                   .sort((a: any, b: any) => (b.conversions || 0) - (a.conversions || 0))
                   .slice(0, 5)
                   .map((kw: any, i: number) => (
-                    <div key={i} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                    <div key={i} className="flex items-center justify-between p-2 bg-[#08090A] rounded-lg">
                       <div className="flex items-center gap-2">
                         <span className="w-5 h-5 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center text-xs font-bold">{i + 1}</span>
-                        <span className="text-sm font-medium text-gray-800">{kw.keyword}</span>
+                        <span className="text-sm font-medium text-[#F7F8F8]">{kw.keyword}</span>
                       </div>
                       <div className="text-right">
-                        <span className="text-sm font-semibold text-gray-900">{formatNaverNumber(kw.conversions || 0)}</span>
-                        <span className="text-xs text-gray-400 ml-1">전환</span>
+                        <span className="text-sm font-semibold text-[#F7F8F8]">{formatNaverNumber(kw.conversions || 0)}</span>
+                        <span className="text-xs text-[#62666D] ml-1">전환</span>
                       </div>
                     </div>
                   ))}
@@ -550,16 +550,16 @@ export function NaverSearchAdsDashboard() {
       )}
 
       {/* AI Analysis Section */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
+      <div className="bg-[#0F1011] rounded-xl border border-[#23252A] p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
-            <Sparkles size={18} className="text-green-600" />
+          <h2 className="text-base font-semibold text-[#F7F8F8] flex items-center gap-2">
+            <Sparkles size={18} className="text-[#27A644]" />
             AI 분석
           </h2>
           <button
             onClick={handleAiAnalysis}
             disabled={aiMutation.isPending}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 bg-[#27A644] text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors disabled:opacity-50"
           >
             {aiMutation.isPending ? (
               <Loader2 size={16} className="animate-spin" />
@@ -571,25 +571,25 @@ export function NaverSearchAdsDashboard() {
         </div>
 
         {!aiTriggered ? (
-          <div className="text-center py-8 text-gray-400">
+          <div className="text-center py-8 text-[#62666D]">
             <Sparkles size={40} className="mx-auto mb-3" />
             <p className="text-sm">AI 분석 버튼을 클릭하면 검색광고 성과에 대한 인사이트를 제공합니다.</p>
           </div>
         ) : aiMutation.isPending ? (
           <div className="flex items-center justify-center py-8">
-            <Loader2 className="animate-spin text-green-600" size={24} />
-            <span className="ml-3 text-gray-500">AI가 성과 데이터를 분석하고 있습니다...</span>
+            <Loader2 className="animate-spin text-[#27A644]" size={24} />
+            <span className="ml-3 text-[#8A8F98]">AI가 성과 데이터를 분석하고 있습니다...</span>
           </div>
         ) : aiMutation.data ? (
           <div className="space-y-5">
             {typeof aiMutation.data === 'string' ? (
-              <div className="prose prose-sm max-w-none text-gray-700 whitespace-pre-wrap">{aiMutation.data}</div>
+              <div className="prose prose-sm max-w-none text-[#D0D6E0] whitespace-pre-wrap">{aiMutation.data}</div>
             ) : (
               <>
                 {/* Grade Badge + Summary Card */}
                 <div className="relative rounded-xl bg-gradient-to-r from-blue-600 to-emerald-500 p-5 text-white overflow-hidden">
                   {aiMutation.data.overall_grade && (
-                    <div className="absolute top-3 right-3 w-14 h-14 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-lg">
+                    <div className="absolute top-3 right-3 w-14 h-14 rounded-xl bg-[#0F1011]/20 backdrop-blur-sm flex items-center justify-center shadow-[0px_7px_32px_rgba(0,0,0,0.35)]">
                       <span className="text-3xl font-black text-white drop-shadow">{aiMutation.data.overall_grade}</span>
                     </div>
                   )}
@@ -609,18 +609,18 @@ export function NaverSearchAdsDashboard() {
                 {/* KPI Highlights */}
                 {aiMutation.data.kpi_highlights && Array.isArray(aiMutation.data.kpi_highlights) && aiMutation.data.kpi_highlights.length > 0 && (
                   <div>
-                    <h3 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-1.5">
-                      <BarChart3 size={15} className="text-blue-600" /> KPI 하이라이트
+                    <h3 className="text-sm font-semibold text-[#F7F8F8] mb-3 flex items-center gap-1.5">
+                      <BarChart3 size={15} className="text-[#7070FF]" /> KPI 하이라이트
                     </h3>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                       {aiMutation.data.kpi_highlights.map((kpi: any, i: number) => (
-                        <div key={i} className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow">
-                          <p className="text-xs text-gray-500 mb-1 truncate">{kpi.metric}</p>
-                          <p className="text-lg font-bold text-gray-900">{kpi.value}</p>
+                        <div key={i} className="bg-[#0F1011] border border-[#23252A] rounded-lg p-3 shadow-[0px_1px_3px_rgba(0,0,0,0.2)] hover:shadow-[0px_3px_12px_rgba(0,0,0,0.2)] transition-shadow">
+                          <p className="text-xs text-[#8A8F98] mb-1 truncate">{kpi.metric}</p>
+                          <p className="text-lg font-bold text-[#F7F8F8]">{kpi.value}</p>
                           {(kpi.evaluation || kpi.change) && (
                             <div className={`flex items-center gap-1 text-xs mt-1 ${
-                              (kpi.evaluation === '개선필요' || String(kpi.change || '').startsWith('-')) ? 'text-red-500' :
-                              (kpi.evaluation === '좋음' || (!String(kpi.change || '').startsWith('-') && kpi.change)) ? 'text-emerald-500' : 'text-gray-500'
+                              (kpi.evaluation === '개선필요' || String(kpi.change || '').startsWith('-')) ? 'text-[#EB5757]' :
+                              (kpi.evaluation === '좋음' || (!String(kpi.change || '').startsWith('-') && kpi.change)) ? 'text-emerald-500' : 'text-[#8A8F98]'
                             }`}>
                               {(kpi.evaluation === '개선필요' || String(kpi.change || '').startsWith('-'))
                                 ? <TrendingDown size={12} />
@@ -628,7 +628,7 @@ export function NaverSearchAdsDashboard() {
                               <span>{kpi.evaluation || kpi.change}</span>
                             </div>
                           )}
-                          {(kpi.detail || kpi.insight) && <p className="text-[11px] text-gray-400 mt-1 line-clamp-2">{kpi.detail || kpi.insight}</p>}
+                          {(kpi.detail || kpi.insight) && <p className="text-[11px] text-[#62666D] mt-1 line-clamp-2">{kpi.detail || kpi.insight}</p>}
                         </div>
                       ))}
                     </div>
@@ -638,37 +638,37 @@ export function NaverSearchAdsDashboard() {
                 {/* Key Insights */}
                 {aiMutation.data.insights && Array.isArray(aiMutation.data.insights) && aiMutation.data.insights.length > 0 && (
                   <div>
-                    <h3 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-1.5">
+                    <h3 className="text-sm font-semibold text-[#F7F8F8] mb-3 flex items-center gap-1.5">
                       <Lightbulb size={15} className="text-amber-500" /> 핵심 인사이트
                     </h3>
                     <div className="space-y-2">
                       {aiMutation.data.insights.map((insight: any, i: number) => {
                         const typeColors: Record<string, string> = {
                           positive: 'border-l-emerald-500 bg-emerald-50/50',
-                          negative: 'border-l-red-500 bg-red-50/50',
-                          neutral: 'border-l-blue-500 bg-blue-50/50',
-                          warning: 'border-l-orange-500 bg-orange-50/50',
-                          TREND: 'border-l-blue-500 bg-blue-50/50',
-                          ANOMALY: 'border-l-red-500 bg-red-50/50',
+                          negative: 'border-l-red-500 bg-[#EB5757]/10/50',
+                          neutral: 'border-l-blue-500 bg-[#4EA7FC]/10/50',
+                          warning: 'border-l-orange-500 bg-[#FC7840]/10/50',
+                          TREND: 'border-l-blue-500 bg-[#4EA7FC]/10/50',
+                          ANOMALY: 'border-l-red-500 bg-[#EB5757]/10/50',
                           RECOMMENDATION: 'border-l-emerald-500 bg-emerald-50/50',
-                          ALERT: 'border-l-orange-500 bg-orange-50/50',
+                          ALERT: 'border-l-orange-500 bg-[#FC7840]/10/50',
                         };
                         const typeLabels: Record<string, string> = {
                           positive: '긍정', negative: '부정', neutral: '중립', warning: '주의',
                           TREND: '트렌드', ANOMALY: '이상감지', RECOMMENDATION: '추천', ALERT: '주의',
                         };
                         const priorityColors: Record<string, string> = {
-                          high: 'bg-red-100 text-red-700', medium: 'bg-yellow-100 text-yellow-700', low: 'bg-gray-100 text-gray-600',
+                          high: 'bg-[#EB5757]/15 text-[#EB5757]', medium: 'bg-[#F0BF00]/15 text-[#F0BF00]', low: 'bg-[#141516] text-[#8A8F98]',
                         };
-                        const borderClass = (typeof insight === 'string') ? 'border-l-gray-400 bg-gray-50/50' : (typeColors[insight.type] || 'border-l-gray-400 bg-gray-50/50');
+                        const borderClass = (typeof insight === 'string') ? 'border-l-gray-400 bg-[#08090A]/50' : (typeColors[insight.type] || 'border-l-gray-400 bg-[#08090A]/50');
                         return (
                           <div key={i} className={`border-l-4 rounded-r-lg p-3 ${borderClass}`}>
                             <div className="flex items-center gap-2 mb-1">
                               {typeof insight !== 'string' && insight.title && (
-                                <span className="text-sm font-semibold text-gray-800">{insight.title}</span>
+                                <span className="text-sm font-semibold text-[#F7F8F8]">{insight.title}</span>
                               )}
                               {typeof insight !== 'string' && insight.type && (
-                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/80 text-gray-500 font-medium">
+                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#0F1011]/80 text-[#8A8F98] font-medium">
                                   {typeLabels[insight.type] || insight.type}
                                 </span>
                               )}
@@ -678,7 +678,7 @@ export function NaverSearchAdsDashboard() {
                                 </span>
                               )}
                             </div>
-                            <p className="text-sm text-gray-600">
+                            <p className="text-sm text-[#8A8F98]">
                               {typeof insight === 'string' ? insight : insight.detail || insight.description || insight.title}
                             </p>
                           </div>
@@ -691,30 +691,30 @@ export function NaverSearchAdsDashboard() {
                 {/* Recommendations */}
                 {aiMutation.data.recommendations && Array.isArray(aiMutation.data.recommendations) && aiMutation.data.recommendations.length > 0 && (
                   <div>
-                    <h3 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-1.5">
+                    <h3 className="text-sm font-semibold text-[#F7F8F8] mb-3 flex items-center gap-1.5">
                       <Zap size={15} className="text-purple-500" /> 추천 사항
                     </h3>
                     <div className="space-y-2">
                       {aiMutation.data.recommendations.map((rec: any, i: number) => {
                         const priorityDot: Record<string, string> = {
-                          high: 'bg-red-500', medium: 'bg-yellow-400', low: 'bg-green-400',
+                          high: 'bg-[#EB5757]', medium: 'bg-yellow-400', low: 'bg-green-400',
                         };
                         const isString = typeof rec === 'string';
                         return (
-                          <div key={i} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
+                          <div key={i} className="bg-[#0F1011] border border-[#23252A] rounded-lg p-4 shadow-[0px_1px_3px_rgba(0,0,0,0.2)] hover:shadow-[0px_3px_12px_rgba(0,0,0,0.2)] transition-shadow">
                             <div className="flex items-start gap-3">
                               {!isString && rec.priority && (
-                                <span className={`mt-1.5 w-2.5 h-2.5 rounded-full flex-shrink-0 ${priorityDot[rec.priority] || 'bg-gray-300'}`} />
+                                <span className={`mt-1.5 w-2.5 h-2.5 rounded-full flex-shrink-0 ${priorityDot[rec.priority] || 'bg-[#28282C]'}`} />
                               )}
                               <div className="flex-1 min-w-0">
                                 {!isString && rec.title && (
-                                  <p className="text-sm font-semibold text-gray-800 mb-0.5">{rec.title}</p>
+                                  <p className="text-sm font-semibold text-[#F7F8F8] mb-0.5">{rec.title}</p>
                                 )}
-                                <p className="text-sm text-gray-600">
+                                <p className="text-sm text-[#8A8F98]">
                                   {isString ? rec : rec.detail || rec.description || rec.title}
                                 </p>
                                 {!isString && rec.expected_impact && (
-                                  <p className="text-xs text-purple-600 mt-1.5 flex items-center gap-1">
+                                  <p className="text-xs text-[#7070FF] mt-1.5 flex items-center gap-1">
                                     <Target size={11} /> 예상 효과: {rec.expected_impact}
                                   </p>
                                 )}
@@ -730,16 +730,16 @@ export function NaverSearchAdsDashboard() {
                 {/* Action Items */}
                 {aiMutation.data.action_items && Array.isArray(aiMutation.data.action_items) && aiMutation.data.action_items.length > 0 && (
                   <div>
-                    <h3 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-1.5">
+                    <h3 className="text-sm font-semibold text-[#F7F8F8] mb-3 flex items-center gap-1.5">
                       <CheckCircle size={15} className="text-emerald-500" /> 실행 항목
                     </h3>
-                    <div className="bg-gray-50 rounded-lg p-3 space-y-2">
+                    <div className="bg-[#08090A] rounded-lg p-3 space-y-2">
                       {aiMutation.data.action_items.map((item: string, i: number) => (
                         <div key={i} className="flex items-start gap-2.5">
-                          <div className="mt-0.5 w-5 h-5 rounded border-2 border-gray-300 bg-white flex items-center justify-center flex-shrink-0">
-                            <span className="text-[10px] font-bold text-gray-400">{i + 1}</span>
+                          <div className="mt-0.5 w-5 h-5 rounded border-2 border-[#23252A] bg-[#0F1011] flex items-center justify-center flex-shrink-0">
+                            <span className="text-[10px] font-bold text-[#62666D]">{i + 1}</span>
                           </div>
-                          <p className="text-sm text-gray-700">{item}</p>
+                          <p className="text-sm text-[#D0D6E0]">{item}</p>
                         </div>
                       ))}
                     </div>
@@ -749,29 +749,29 @@ export function NaverSearchAdsDashboard() {
                 {/* Active Campaigns Analysis */}
                 {aiMutation.data.active_campaigns_analysis && Array.isArray(aiMutation.data.active_campaigns_analysis) && aiMutation.data.active_campaigns_analysis.length > 0 && (
                   <div>
-                    <h3 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-1.5">
+                    <h3 className="text-sm font-semibold text-[#F7F8F8] mb-3 flex items-center gap-1.5">
                       <Activity size={15} className="text-indigo-500" /> 캠페인별 분석
                     </h3>
                     <div className="space-y-2">
                       {aiMutation.data.active_campaigns_analysis.map((camp: any, i: number) => {
                         const name = camp.campaign_name || camp.name;
                         const gradeColors: Record<string, string> = {
-                          A: 'bg-emerald-100 text-emerald-700', B: 'bg-blue-100 text-blue-700',
-                          C: 'bg-yellow-100 text-yellow-700', D: 'bg-orange-100 text-orange-700', F: 'bg-red-100 text-red-700',
+                          A: 'bg-emerald-100 text-emerald-700', B: 'bg-[#4EA7FC]/15 text-[#828FFF]',
+                          C: 'bg-[#F0BF00]/15 text-[#F0BF00]', D: 'bg-[#FC7840]/15 text-[#FC7840]', F: 'bg-[#EB5757]/15 text-[#EB5757]',
                         };
                         return (
-                          <div key={i} className="bg-white border border-gray-200 rounded-lg p-3 hover:shadow-sm transition-shadow">
+                          <div key={i} className="bg-[#0F1011] border border-[#23252A] rounded-lg p-3 hover:shadow-[0px_1px_3px_rgba(0,0,0,0.2)] transition-shadow">
                             <div className="flex items-center justify-between mb-1.5">
-                              <span className="text-sm font-semibold text-gray-800 truncate max-w-[200px]">{name}</span>
+                              <span className="text-sm font-semibold text-[#F7F8F8] truncate max-w-[200px]">{name}</span>
                               {camp.grade && (
-                                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${gradeColors[camp.grade] || 'bg-gray-100 text-gray-600'}`}>{camp.grade}</span>
+                                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${gradeColors[camp.grade] || 'bg-[#141516] text-[#8A8F98]'}`}>{camp.grade}</span>
                               )}
                             </div>
                             {camp.kpi_highlight && (
-                              <p className="text-xs text-gray-500 mb-1">{camp.kpi_highlight}</p>
+                              <p className="text-xs text-[#8A8F98] mb-1">{camp.kpi_highlight}</p>
                             )}
                             {camp.summary && (
-                              <p className="text-xs text-gray-600">{camp.summary}</p>
+                              <p className="text-xs text-[#8A8F98]">{camp.summary}</p>
                             )}
                           </div>
                         );
@@ -782,13 +782,13 @@ export function NaverSearchAdsDashboard() {
 
                 {/* Fallback for raw analysis text (only if string) */}
                 {aiMutation.data.analysis && typeof aiMutation.data.analysis === 'string' && (
-                  <div className="prose prose-sm max-w-none text-gray-700 whitespace-pre-wrap">{aiMutation.data.analysis}</div>
+                  <div className="prose prose-sm max-w-none text-[#D0D6E0] whitespace-pre-wrap">{aiMutation.data.analysis}</div>
                 )}
               </>
             )}
           </div>
         ) : aiMutation.isError ? (
-          <div className="text-center py-8 text-red-500">
+          <div className="text-center py-8 text-[#EB5757]">
             <p className="text-sm">분석에 실패했습니다. 다시 시도해주세요.</p>
           </div>
         ) : null}
@@ -824,15 +824,15 @@ function CampaignRow({ campaign, campaignId, isExpanded, status, onToggleExpand,
 
   return (
     <>
-      <tr className="hover:bg-gray-50 cursor-pointer" onClick={onToggleExpand}>
+      <tr className="hover:bg-[#141516]/5 cursor-pointer" onClick={onToggleExpand}>
         <td className="px-4 py-3">
           <div className="flex items-center gap-2">
-            {isExpanded ? <ChevronDown size={14} className="text-gray-400" /> : <ChevronRight size={14} className="text-gray-400" />}
-            <span className="font-medium text-gray-900">{campaign.name}</span>
+            {isExpanded ? <ChevronDown size={14} className="text-[#62666D]" /> : <ChevronRight size={14} className="text-[#62666D]" />}
+            <span className="font-medium text-[#F7F8F8]">{campaign.name}</span>
           </div>
         </td>
         <td className="px-4 py-3">
-          <span className="text-xs text-gray-500">{CAMPAIGN_TYPE_KO[campaign.campaign_tp || campaign.campaignTp] || campaign.campaign_tp || campaign.campaignTp || '-'}</span>
+          <span className="text-xs text-[#8A8F98]">{CAMPAIGN_TYPE_KO[campaign.campaign_tp || campaign.campaignTp] || campaign.campaign_tp || campaign.campaignTp || '-'}</span>
         </td>
         <td className="px-4 py-3">
           <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${status.color}`}>{status.label}</span>
@@ -855,32 +855,32 @@ function CampaignRow({ campaign, campaignId, isExpanded, status, onToggleExpand,
                 }}
               />
               <button onClick={() => { onUpdateBudget(campaignId, parseInt(budgetValue)); setEditingBudget(false); }}
-                className="text-green-600 hover:bg-green-50 p-1 rounded">
+                className="text-[#27A644] hover:bg-[#27A644]/10 p-1 rounded">
                 <ChevronRight size={12} />
               </button>
             </div>
           ) : (
-            <span className="cursor-pointer hover:text-green-600 hover:underline" onClick={() => setEditingBudget(true)}>
+            <span className="cursor-pointer hover:text-[#27A644] hover:underline" onClick={() => setEditingBudget(true)}>
               {formatNaverCurrency(campaign.daily_budget || campaign.dailyBudget || 0)}
             </span>
           )}
         </td>
-        <td className="px-4 py-3 text-right font-medium text-gray-900">{formatNaverCurrency(campaign.spend || 0)}</td>
-        <td className="px-4 py-3 text-right text-gray-700">{formatNaverNumber(campaign.clicks || 0)}</td>
-        <td className="px-4 py-3 text-right text-gray-700">{formatNaverPercent(campaign.ctr || 0)}</td>
-        <td className="px-4 py-3 text-right text-gray-700">{formatNaverCurrency(campaign.cpc || 0)}</td>
-        <td className="px-4 py-3 text-right text-gray-700">{formatNaverNumber(campaign.conversions || 0)}</td>
-        <td className="px-4 py-3 text-right text-gray-700">{campaign.roas ? `${campaign.roas.toFixed(0)}%` : '-'}</td>
-        <td className="px-4 py-3 text-right text-gray-700">{campaign.avg_rank ? `${campaign.avg_rank}위` : '-'}</td>
+        <td className="px-4 py-3 text-right font-medium text-[#F7F8F8]">{formatNaverCurrency(campaign.spend || 0)}</td>
+        <td className="px-4 py-3 text-right text-[#D0D6E0]">{formatNaverNumber(campaign.clicks || 0)}</td>
+        <td className="px-4 py-3 text-right text-[#D0D6E0]">{formatNaverPercent(campaign.ctr || 0)}</td>
+        <td className="px-4 py-3 text-right text-[#D0D6E0]">{formatNaverCurrency(campaign.cpc || 0)}</td>
+        <td className="px-4 py-3 text-right text-[#D0D6E0]">{formatNaverNumber(campaign.conversions || 0)}</td>
+        <td className="px-4 py-3 text-right text-[#D0D6E0]">{campaign.roas ? `${campaign.roas.toFixed(0)}%` : '-'}</td>
+        <td className="px-4 py-3 text-right text-[#D0D6E0]">{campaign.avg_rank ? `${campaign.avg_rank}위` : '-'}</td>
         <td className="px-4 py-3 text-center">
           <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
             {campaign.status === 'PAUSED' ? (
-              <button className="p-1 hover:bg-green-50 rounded text-green-600" title="재개"
+              <button className="p-1 hover:bg-[#27A644]/10 rounded text-[#27A644]" title="재개"
                 onClick={() => onToggleStatus(campaignId, 'resume')}>
                 <Play size={14} />
               </button>
             ) : (
-              <button className="p-1 hover:bg-yellow-50 rounded text-yellow-600" title="일시중지"
+              <button className="p-1 hover:bg-[#F0BF00]/10 rounded text-[#F0BF00]" title="일시중지"
                 onClick={() => onToggleStatus(campaignId, 'pause')}>
                 <Pause size={14} />
               </button>
@@ -891,15 +891,15 @@ function CampaignRow({ campaign, campaignId, isExpanded, status, onToggleExpand,
       {isExpanded && (
         <tr>
           <td colSpan={12} className="px-0 py-0">
-            <div className="bg-gray-50 px-6 py-4">
+            <div className="bg-[#08090A] px-6 py-4">
               {/* Tabs */}
-              <div className="flex items-center gap-1 mb-3 bg-gray-200 rounded-lg p-0.5 w-fit">
+              <div className="flex items-center gap-1 mb-3 bg-[#232326] rounded-lg p-0.5 w-fit">
                 <button onClick={() => setExpandTab('adgroups')}
-                  className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${expandTab === 'adgroups' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                  className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${expandTab === 'adgroups' ? 'bg-[#0F1011] text-[#F7F8F8] shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'text-[#8A8F98] hover:text-[#D0D6E0]'}`}>
                   광고그룹
                 </button>
                 <button onClick={() => setExpandTab('keywords')}
-                  className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${expandTab === 'keywords' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                  className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${expandTab === 'keywords' ? 'bg-[#0F1011] text-[#F7F8F8] shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'text-[#8A8F98] hover:text-[#D0D6E0]'}`}>
                   키워드 · 쇼핑랭킹
                 </button>
               </div>
@@ -913,28 +913,28 @@ function CampaignRow({ campaign, campaignId, isExpanded, status, onToggleExpand,
                 return (
                   <>
                     {loadingAdgroups ? (
-                      <div className="flex items-center gap-2 text-gray-500 text-sm py-4">
+                      <div className="flex items-center gap-2 text-[#8A8F98] text-sm py-4">
                         <Loader2 size={16} className="animate-spin" /> 광고그룹 로딩 중...
                       </div>
                     ) : adgroups.length === 0 ? (
-                      <p className="text-sm text-gray-400 py-2">광고그룹이 없습니다.</p>
+                      <p className="text-sm text-[#62666D] py-2">광고그룹이 없습니다.</p>
                     ) : (
                       <>
-                        <div className="flex items-center gap-1 mb-2 bg-gray-100 rounded-lg p-0.5 w-fit">
+                        <div className="flex items-center gap-1 mb-2 bg-[#141516] rounded-lg p-0.5 w-fit">
                           {([
                             { v: 'ALL' as const, l: '전체', c: adgroups.length },
                             { v: 'ACTIVE' as const, l: '활성', c: activeAgs.length },
                             { v: 'PAUSED' as const, l: '중지', c: pausedAgs.length },
                           ]).map(t => (
                             <button key={t.v} onClick={() => setAgStatusFilter(t.v)}
-                              className={`px-2 py-1 text-xs font-medium rounded transition-colors ${agStatusFilter === t.v ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                              className={`px-2 py-1 text-xs font-medium rounded transition-colors ${agStatusFilter === t.v ? 'bg-[#0F1011] text-[#F7F8F8] shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'text-[#8A8F98] hover:text-[#D0D6E0]'}`}>
                               {t.l} ({t.c})
                             </button>
                           ))}
                         </div>
                         <table className="w-full text-sm">
                           <thead>
-                            <tr className="text-xs text-gray-500 uppercase">
+                            <tr className="text-xs text-[#8A8F98] uppercase">
                               <th className="text-left px-3 py-2">광고그룹명</th>
                               <th className="text-left px-3 py-2">상태</th>
                               <th className="text-right px-3 py-2">입찰가</th>
@@ -946,30 +946,30 @@ function CampaignRow({ campaign, campaignId, isExpanded, status, onToggleExpand,
                               <th className="text-right px-3 py-2">노출순위</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-gray-200">
+                          <tbody className="divide-y divide-[#23252A]">
                             {filteredAgs.map((ag: any) => {
-                              const agStatus = STATUS_KO[ag.status] || { label: ag.status, color: 'bg-gray-100 text-gray-600' };
+                              const agStatus = STATUS_KO[ag.status] || { label: ag.status, color: 'bg-[#141516] text-[#8A8F98]' };
                               return (
-                                <tr key={ag.nccAdgroupId || ag.id} className="hover:bg-white">
-                                  <td className="px-3 py-2 font-medium text-gray-800">{ag.name}</td>
+                                <tr key={ag.nccAdgroupId || ag.id} className="hover:bg-[#141516]">
+                                  <td className="px-3 py-2 font-medium text-[#F7F8F8]">{ag.name}</td>
                                   <td className="px-3 py-2">
                                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${agStatus.color}`}>{agStatus.label}</span>
                                   </td>
-                                  <td className="px-3 py-2 text-right text-gray-700">{formatNaverCurrency(ag.bidAmt || 0)}</td>
-                                  <td className="px-3 py-2 text-right text-gray-700">{formatNaverCurrency(ag.spend || 0)}</td>
-                                  <td className="px-3 py-2 text-right text-gray-700">{formatNaverNumber(ag.clicks || 0)}</td>
-                                  <td className="px-3 py-2 text-right text-gray-700">{formatNaverPercent(ag.ctr || 0)}</td>
-                                  <td className="px-3 py-2 text-right text-gray-700">{formatNaverCurrency(ag.cpc || 0)}</td>
+                                  <td className="px-3 py-2 text-right text-[#D0D6E0]">{formatNaverCurrency(ag.bidAmt || 0)}</td>
+                                  <td className="px-3 py-2 text-right text-[#D0D6E0]">{formatNaverCurrency(ag.spend || 0)}</td>
+                                  <td className="px-3 py-2 text-right text-[#D0D6E0]">{formatNaverNumber(ag.clicks || 0)}</td>
+                                  <td className="px-3 py-2 text-right text-[#D0D6E0]">{formatNaverPercent(ag.ctr || 0)}</td>
+                                  <td className="px-3 py-2 text-right text-[#D0D6E0]">{formatNaverCurrency(ag.cpc || 0)}</td>
                                   <td className="px-3 py-2 text-right">
                                     {ag.roas != null ? (
-                                      <span className={`font-medium ${ag.roas >= 300 ? 'text-green-600' : ag.roas >= 100 ? 'text-blue-600' : 'text-red-500'}`}>
+                                      <span className={`font-medium ${ag.roas >= 300 ? 'text-[#27A644]' : ag.roas >= 100 ? 'text-[#7070FF]' : 'text-[#EB5757]'}`}>
                                         {ag.roas.toFixed(0)}%
                                       </span>
-                                    ) : <span className="text-gray-300">-</span>}
+                                    ) : <span className="text-[#62666D]">-</span>}
                                   </td>
-                                  <td className="px-3 py-2 text-right text-gray-700">
+                                  <td className="px-3 py-2 text-right text-[#D0D6E0]">
                                     {ag.avg_rank ? (
-                                      <span className={`font-medium ${ag.avg_rank <= 3 ? 'text-green-600' : ag.avg_rank <= 7 ? 'text-blue-600' : 'text-gray-600'}`}>
+                                      <span className={`font-medium ${ag.avg_rank <= 3 ? 'text-[#27A644]' : ag.avg_rank <= 7 ? 'text-[#7070FF]' : 'text-[#8A8F98]'}`}>
                                         {ag.avg_rank}위
                                       </span>
                                     ) : '-'}
@@ -989,30 +989,30 @@ function CampaignRow({ campaign, campaignId, isExpanded, status, onToggleExpand,
               {expandTab === 'keywords' && (
                 <>
                   {loadingRankings ? (
-                    <div className="flex items-center gap-2 text-gray-500 text-sm py-4">
+                    <div className="flex items-center gap-2 text-[#8A8F98] text-sm py-4">
                       <Loader2 size={16} className="animate-spin" /> 키워드·품질지수·쇼핑랭킹 조회 중...
                     </div>
                   ) : !rankingData?.rankings?.length ? (
                     <div className="py-3 space-y-2">
-                      <p className="text-sm text-gray-500">이 캠페인에 등록된 키워드가 없습니다.</p>
+                      <p className="text-sm text-[#8A8F98]">이 캠페인에 등록된 키워드가 없습니다.</p>
                       {rankingData?._debug && (
-                        <p className="text-xs text-yellow-600 bg-yellow-50 p-2 rounded">{rankingData._debug}</p>
+                        <p className="text-xs text-[#F0BF00] bg-[#F0BF00]/10 p-2 rounded">{rankingData._debug}</p>
                       )}
                       {rankingData?._adgroup_count !== undefined && (
-                        <p className="text-xs text-gray-400">광고그룹 {rankingData._adgroup_count}개
+                        <p className="text-xs text-[#62666D]">광고그룹 {rankingData._adgroup_count}개
                           {rankingData._adgroup_names?.length > 0 && `: ${rankingData._adgroup_names.join(', ')}`}
                         </p>
                       )}
                       {/* Show ads even if no keywords */}
                       {rankingData?.ads?.length > 0 && (
                         <div className="mt-3">
-                          <p className="text-xs font-medium text-gray-600 mb-1">등록된 소재 ({rankingData.ads.length}개)</p>
+                          <p className="text-xs font-medium text-[#8A8F98] mb-1">등록된 소재 ({rankingData.ads.length}개)</p>
                           <div className="space-y-1">
                             {rankingData.ads.map((ad: any) => (
-                              <div key={ad.nccAdId} className="flex items-center gap-2 bg-white p-2 rounded text-xs">
-                                <span className="text-gray-500">{ad.adgroupName}</span>
-                                <span className="font-medium text-gray-800">{ad.title || '(제목없음)'}</span>
-                                <span className={`px-1.5 py-0.5 rounded text-xs ${ad.status === 'ELIGIBLE' ? 'bg-green-50 text-green-600' : 'bg-gray-50 text-gray-500'}`}>{ad.inspectStatus || ad.status}</span>
+                              <div key={ad.nccAdId} className="flex items-center gap-2 bg-[#0F1011] p-2 rounded text-xs">
+                                <span className="text-[#8A8F98]">{ad.adgroupName}</span>
+                                <span className="font-medium text-[#F7F8F8]">{ad.title || '(제목없음)'}</span>
+                                <span className={`px-1.5 py-0.5 rounded text-xs ${ad.status === 'ELIGIBLE' ? 'bg-[#27A644]/10 text-[#27A644]' : 'bg-[#08090A] text-[#8A8F98]'}`}>{ad.inspectStatus || ad.status}</span>
                               </div>
                             ))}
                           </div>
@@ -1026,31 +1026,31 @@ function CampaignRow({ campaign, campaignId, isExpanded, status, onToggleExpand,
                       kwStatusFilter === 'ACTIVE' ? activeKws : pausedKws;
                     return (
                     <div className="space-y-4">
-                      <p className="text-xs text-gray-400">
+                      <p className="text-xs text-[#62666D]">
                         {rankingData.campaign_type === 'SHOPPING' ? (
                           <>광고그룹에서 추출한 검색어 {rankingData.checked_keywords}개 조회</>
                         ) : (
                           <>전체 {rankingData.total_keywords}개 키워드 중 상위 {rankingData.checked_keywords}개 조회</>
                         )}
-                        {' '}· 브랜드: <strong className="text-green-600">널담</strong>
+                        {' '}· 브랜드: <strong className="text-[#27A644]">널담</strong>
                         {rankingData._adgroup_count !== undefined && ` · 광고그룹 ${rankingData._adgroup_count}개`}
                         {rankingData.ads?.length > 0 && ` · 소재 ${rankingData.ads.length}개`}
                       </p>
                       {rankingData.campaign_type === 'SHOPPING' && (
-                        <p className="text-xs text-blue-500 bg-blue-50 px-2 py-1 rounded">
+                        <p className="text-xs text-blue-500 bg-[#4EA7FC]/10 px-2 py-1 rounded">
                           쇼핑검색 캠페인: 광고그룹 이름에서 검색어를 자동 추출하여 네이버 쇼핑 랭킹을 조회합니다.
                         </p>
                       )}
 
                       {/* Status filter */}
-                      <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5 w-fit">
+                      <div className="flex items-center gap-1 bg-[#141516] rounded-lg p-0.5 w-fit">
                         {([
                           { v: 'ALL' as const, l: '전체', c: rankingData.rankings.length },
                           { v: 'ACTIVE' as const, l: '활성', c: activeKws.length },
                           { v: 'PAUSED' as const, l: '중지', c: pausedKws.length },
                         ]).map(t => (
                           <button key={t.v} onClick={() => setKwStatusFilter(t.v)}
-                            className={`px-2 py-1 text-xs font-medium rounded transition-colors ${kwStatusFilter === t.v ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                            className={`px-2 py-1 text-xs font-medium rounded transition-colors ${kwStatusFilter === t.v ? 'bg-[#0F1011] text-[#F7F8F8] shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'text-[#8A8F98] hover:text-[#D0D6E0]'}`}>
                             {t.l} ({t.c})
                           </button>
                         ))}
@@ -1060,7 +1060,7 @@ function CampaignRow({ campaign, campaignId, isExpanded, status, onToggleExpand,
                       <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                           <thead>
-                            <tr className="text-xs text-gray-500 uppercase bg-white">
+                            <tr className="text-xs text-[#8A8F98] uppercase bg-[#0F1011]">
                               <th className="text-left px-3 py-2">키워드</th>
                               <th className="text-left px-3 py-2">광고그룹</th>
                               <th className="text-left px-3 py-2">상태</th>
@@ -1070,45 +1070,45 @@ function CampaignRow({ campaign, campaignId, isExpanded, status, onToggleExpand,
                               <th className="text-left px-3 py-2">매칭 상품</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-gray-200">
+                          <tbody className="divide-y divide-[#23252A]">
                             {filteredKws.map((r: any) => (
-                              <tr key={r.nccKeywordId || r.keyword} className="hover:bg-white">
-                                <td className="px-3 py-2 font-medium text-gray-900">{r.keyword}</td>
-                                <td className="px-3 py-2 text-xs text-gray-500">{r.adgroupName}</td>
+                              <tr key={r.nccKeywordId || r.keyword} className="hover:bg-[#141516]">
+                                <td className="px-3 py-2 font-medium text-[#F7F8F8]">{r.keyword}</td>
+                                <td className="px-3 py-2 text-xs text-[#8A8F98]">{r.adgroupName}</td>
                                 <td className="px-3 py-2">
-                                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${r.status === '활성' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${r.status === '활성' ? 'bg-[#27A644]/15 text-[#27A644]' : 'bg-[#F0BF00]/15 text-[#F0BF00]'}`}>
                                     {r.status}
                                   </span>
                                 </td>
-                                <td className="px-3 py-2 text-right text-gray-700">{formatNaverCurrency(r.bidAmt || 0)}</td>
+                                <td className="px-3 py-2 text-right text-[#D0D6E0]">{formatNaverCurrency(r.bidAmt || 0)}</td>
                                 <td className="px-3 py-2 text-center">
                                   {r.qualityIndex != null ? (
                                     <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold ${
-                                      r.qualityIndex >= 8 ? 'bg-green-100 text-green-700' :
-                                      r.qualityIndex >= 5 ? 'bg-blue-100 text-blue-700' :
-                                      r.qualityIndex >= 3 ? 'bg-yellow-100 text-yellow-700' :
-                                      'bg-red-100 text-red-700'
+                                      r.qualityIndex >= 8 ? 'bg-[#27A644]/15 text-[#27A644]' :
+                                      r.qualityIndex >= 5 ? 'bg-[#4EA7FC]/15 text-[#828FFF]' :
+                                      r.qualityIndex >= 3 ? 'bg-[#F0BF00]/15 text-[#F0BF00]' :
+                                      'bg-[#EB5757]/15 text-[#EB5757]'
                                     }`}>
                                       {r.qualityIndex}
                                     </span>
                                   ) : r.source === 'adgroup_name' ? (
-                                    <span className="px-1.5 py-0.5 rounded text-xs bg-purple-50 text-purple-600">쇼핑</span>
+                                    <span className="px-1.5 py-0.5 rounded text-xs bg-[#5E6AD2]/10 text-[#7070FF]">쇼핑</span>
                                   ) : (
-                                    <span className="text-xs text-gray-300">-</span>
+                                    <span className="text-xs text-[#62666D]">-</span>
                                   )}
                                 </td>
                                 <td className="px-3 py-2 text-center">
                                   {r.shopping_rank ? (
                                     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold ${
-                                      r.shopping_rank <= 5 ? 'bg-green-100 text-green-700' :
-                                      r.shopping_rank <= 15 ? 'bg-blue-100 text-blue-700' :
-                                      r.shopping_rank <= 30 ? 'bg-yellow-100 text-yellow-700' :
-                                      'bg-gray-100 text-gray-600'
+                                      r.shopping_rank <= 5 ? 'bg-[#27A644]/15 text-[#27A644]' :
+                                      r.shopping_rank <= 15 ? 'bg-[#4EA7FC]/15 text-[#828FFF]' :
+                                      r.shopping_rank <= 30 ? 'bg-[#F0BF00]/15 text-[#F0BF00]' :
+                                      'bg-[#141516] text-[#8A8F98]'
                                     }`}>
                                       <Award size={10} /> {r.shopping_rank_label}
                                     </span>
                                   ) : (
-                                    <span className="text-xs text-gray-400">{r.shopping_error ? `오류` : '미노출'}</span>
+                                    <span className="text-xs text-[#62666D]">{r.shopping_error ? `오류` : '미노출'}</span>
                                   )}
                                 </td>
                                 <td className="px-3 py-2">
@@ -1118,12 +1118,12 @@ function CampaignRow({ campaign, campaignId, isExpanded, status, onToggleExpand,
                                         <img src={r.matched_product.image} alt="" className="w-8 h-8 rounded object-cover" />
                                       )}
                                       <div className="min-w-0">
-                                        <p className="text-xs text-gray-800 truncate max-w-[180px]">{r.matched_product.title}</p>
-                                        <p className="text-xs text-gray-400">{r.matched_product.price ? `₩${Number(r.matched_product.price).toLocaleString()}` : ''}</p>
+                                        <p className="text-xs text-[#F7F8F8] truncate max-w-[180px]">{r.matched_product.title}</p>
+                                        <p className="text-xs text-[#62666D]">{r.matched_product.price ? `₩${Number(r.matched_product.price).toLocaleString()}` : ''}</p>
                                       </div>
                                     </div>
                                   ) : (
-                                    <span className="text-xs text-gray-300">-</span>
+                                    <span className="text-xs text-[#62666D]">-</span>
                                   )}
                                 </td>
                               </tr>
@@ -1135,16 +1135,16 @@ function CampaignRow({ campaign, campaignId, isExpanded, status, onToggleExpand,
                       {/* Registered Ads */}
                       {rankingData.ads?.length > 0 && (
                         <div>
-                          <p className="text-xs font-medium text-gray-600 mb-2">등록된 소재 ({rankingData.ads.length}개)</p>
+                          <p className="text-xs font-medium text-[#8A8F98] mb-2">등록된 소재 ({rankingData.ads.length}개)</p>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                             {rankingData.ads.map((ad: any) => (
-                              <div key={ad.nccAdId} className="flex items-start gap-2 bg-white p-2.5 rounded-lg border border-gray-100">
+                              <div key={ad.nccAdId} className="flex items-start gap-2 bg-[#0F1011] p-2.5 rounded-lg border border-[#23252A]">
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-xs font-medium text-gray-800 truncate">{ad.title || '(제목없음)'}</p>
-                                  {ad.description && <p className="text-xs text-gray-500 truncate">{ad.description}</p>}
+                                  <p className="text-xs font-medium text-[#F7F8F8] truncate">{ad.title || '(제목없음)'}</p>
+                                  {ad.description && <p className="text-xs text-[#8A8F98] truncate">{ad.description}</p>}
                                   <div className="flex items-center gap-1.5 mt-1">
-                                    <span className="text-xs text-gray-400">{ad.adgroupName}</span>
-                                    <span className={`px-1.5 py-0.5 rounded text-xs ${ad.status === 'ELIGIBLE' ? 'bg-green-50 text-green-600' : 'bg-gray-50 text-gray-500'}`}>
+                                    <span className="text-xs text-[#62666D]">{ad.adgroupName}</span>
+                                    <span className={`px-1.5 py-0.5 rounded text-xs ${ad.status === 'ELIGIBLE' ? 'bg-[#27A644]/10 text-[#27A644]' : 'bg-[#08090A] text-[#8A8F98]'}`}>
                                       {ad.inspectStatus || ad.status || '-'}
                                     </span>
                                   </div>

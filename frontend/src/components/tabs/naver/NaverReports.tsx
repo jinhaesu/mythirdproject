@@ -171,17 +171,17 @@ export function NaverReports() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <FileText className="text-green-600" size={28} />
+          <h1 className="text-2xl font-bold text-[#F7F8F8] flex items-center gap-2">
+            <FileText className="text-[#27A644]" size={28} />
             네이버 리포트
           </h1>
-          <p className="text-sm text-gray-500 mt-1">검색광고 / GFA 통합 리포트 생성</p>
+          <p className="text-sm text-[#8A8F98] mt-1">검색광고 / GFA 통합 리포트 생성</p>
         </div>
-        <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
+        <div className="flex items-center bg-[#141516] rounded-lg p-0.5">
           <button
             onClick={() => setActiveSection('generate')}
             className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              activeSection === 'generate' ? 'bg-white shadow-sm text-green-700' : 'text-gray-500 hover:text-gray-700'
+              activeSection === 'generate' ? 'bg-[#0F1011] shadow-[0px_1px_3px_rgba(0,0,0,0.2)] text-[#27A644]' : 'text-[#8A8F98] hover:text-[#D0D6E0]'
             }`}
           >
             리포트 생성
@@ -189,7 +189,7 @@ export function NaverReports() {
           <button
             onClick={() => setActiveSection('schedules')}
             className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              activeSection === 'schedules' ? 'bg-white shadow-sm text-green-700' : 'text-gray-500 hover:text-gray-700'
+              activeSection === 'schedules' ? 'bg-[#0F1011] shadow-[0px_1px_3px_rgba(0,0,0,0.2)] text-[#27A644]' : 'text-[#8A8F98] hover:text-[#D0D6E0]'
             }`}
           >
             스케줄 리포트
@@ -201,8 +201,8 @@ export function NaverReports() {
       {activeSection === 'generate' && (
         <div className="space-y-6">
           {/* Report Type */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h2 className="text-base font-semibold text-gray-900 mb-4">리포트 유형</h2>
+          <div className="bg-[#0F1011] rounded-xl border border-[#23252A] p-6">
+            <h2 className="text-base font-semibold text-[#F7F8F8] mb-4">리포트 유형</h2>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {REPORT_TYPES.map((type) => {
                 const Icon = type.icon;
@@ -212,13 +212,13 @@ export function NaverReports() {
                     onClick={() => setReportForm({ ...reportForm, type: type.value as ReportType })}
                     className={`p-4 rounded-lg border text-left transition-colors ${
                       reportForm.type === type.value
-                        ? 'border-green-500 bg-green-50'
-                        : 'border-gray-200 hover:border-gray-300'
+                        ? 'border-[#27A644] bg-[#27A644]/10'
+                        : 'border-[#23252A] hover:border-[#23252A]'
                     }`}
                   >
-                    <Icon size={24} className={reportForm.type === type.value ? 'text-green-600' : 'text-gray-400'} />
-                    <p className="text-sm font-medium text-gray-900 mt-2">{type.label}</p>
-                    <p className="text-xs text-gray-500 mt-0.5">{type.desc}</p>
+                    <Icon size={24} className={reportForm.type === type.value ? 'text-[#27A644]' : 'text-[#62666D]'} />
+                    <p className="text-sm font-medium text-[#F7F8F8] mt-2">{type.label}</p>
+                    <p className="text-xs text-[#8A8F98] mt-0.5">{type.desc}</p>
                   </button>
                 );
               })}
@@ -226,33 +226,33 @@ export function NaverReports() {
           </div>
 
           {/* Date Range & Format */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h2 className="text-base font-semibold text-gray-900 mb-4">기간 및 형식</h2>
+          <div className="bg-[#0F1011] rounded-xl border border-[#23252A] p-6">
+            <h2 className="text-base font-semibold text-[#F7F8F8] mb-4">기간 및 형식</h2>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">시작일</label>
+                <label className="block text-sm font-medium text-[#D0D6E0] mb-1">시작일</label>
                 <input
                   type="date"
                   value={reportForm.startDate}
                   onChange={(e) => setReportForm({ ...reportForm, startDate: e.target.value })}
-                  className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
+                  className="w-full rounded-lg border border-[#23252A] px-4 py-2 text-sm focus:border-[#27A644] focus:ring-1 focus:ring-green-500 focus:outline-none"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">종료일</label>
+                <label className="block text-sm font-medium text-[#D0D6E0] mb-1">종료일</label>
                 <input
                   type="date"
                   value={reportForm.endDate}
                   onChange={(e) => setReportForm({ ...reportForm, endDate: e.target.value })}
-                  className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
+                  className="w-full rounded-lg border border-[#23252A] px-4 py-2 text-sm focus:border-[#27A644] focus:ring-1 focus:ring-green-500 focus:outline-none"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">분석 수준</label>
+                <label className="block text-sm font-medium text-[#D0D6E0] mb-1">분석 수준</label>
                 <select
                   value={reportForm.level}
                   onChange={(e) => setReportForm({ ...reportForm, level: e.target.value as any })}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
+                  className="w-full rounded-lg border border-[#23252A] px-3 py-2 text-sm bg-[#0F1011] focus:border-[#27A644] focus:ring-1 focus:ring-green-500 focus:outline-none"
                 >
                   <option value="campaign">캠페인별</option>
                   <option value="adgroup">광고그룹별</option>
@@ -264,8 +264,8 @@ export function NaverReports() {
           </div>
 
           {/* Metrics Selection */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h2 className="text-base font-semibold text-gray-900 mb-4">지표 선택</h2>
+          <div className="bg-[#0F1011] rounded-xl border border-[#23252A] p-6">
+            <h2 className="text-base font-semibold text-[#F7F8F8] mb-4">지표 선택</h2>
             <div className="flex flex-wrap gap-2">
               {availableMetrics.map((metric) => (
                 <button
@@ -273,8 +273,8 @@ export function NaverReports() {
                   onClick={() => toggleMetric(metric.value)}
                   className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
                     reportForm.metrics.includes(metric.value)
-                      ? 'bg-green-100 text-green-700 border border-green-300'
-                      : 'bg-gray-100 text-gray-600 border border-gray-200 hover:border-gray-300'
+                      ? 'bg-[#27A644]/15 text-[#27A644] border border-green-300'
+                      : 'bg-[#141516] text-[#8A8F98] border border-[#23252A] hover:border-[#23252A]'
                   }`}
                 >
                   {metric.label}
@@ -284,8 +284,8 @@ export function NaverReports() {
           </div>
 
           {/* Actions */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h2 className="text-base font-semibold text-gray-900 mb-4">리포트 생성</h2>
+          <div className="bg-[#0F1011] rounded-xl border border-[#23252A] p-6">
+            <h2 className="text-base font-semibold text-[#F7F8F8] mb-4">리포트 생성</h2>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {/* PDF Download */}
               <button
@@ -294,12 +294,12 @@ export function NaverReports() {
                   generateMutation.mutate();
                 }}
                 disabled={generateMutation.isPending}
-                className="flex items-center justify-center gap-2 p-4 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+                className="flex items-center justify-center gap-2 p-4 border border-[#23252A] rounded-lg text-sm font-medium text-[#D0D6E0] hover:bg-[#141516]/5 transition-colors disabled:opacity-50"
               >
                 {generateMutation.isPending && reportForm.format === 'pdf' ? (
                   <Loader2 size={18} className="animate-spin" />
                 ) : (
-                  <Download size={18} className="text-red-500" />
+                  <Download size={18} className="text-[#EB5757]" />
                 )}
                 PDF 다운로드
               </button>
@@ -310,12 +310,12 @@ export function NaverReports() {
                   generateMutation.mutate();
                 }}
                 disabled={generateMutation.isPending}
-                className="flex items-center justify-center gap-2 p-4 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+                className="flex items-center justify-center gap-2 p-4 border border-[#23252A] rounded-lg text-sm font-medium text-[#D0D6E0] hover:bg-[#141516]/5 transition-colors disabled:opacity-50"
               >
                 {generateMutation.isPending && reportForm.format === 'excel' ? (
                   <Loader2 size={18} className="animate-spin" />
                 ) : (
-                  <Download size={18} className="text-green-600" />
+                  <Download size={18} className="text-[#27A644]" />
                 )}
                 Excel 다운로드
               </button>
@@ -325,7 +325,7 @@ export function NaverReports() {
                   type="email"
                   value={reportForm.email}
                   onChange={(e) => setReportForm({ ...reportForm, email: e.target.value })}
-                  className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
+                  className="flex-1 rounded-lg border border-[#23252A] px-3 py-2 text-sm focus:border-[#27A644] focus:ring-1 focus:ring-green-500 focus:outline-none"
                   placeholder="email@example.com"
                 />
                 <button
@@ -334,7 +334,7 @@ export function NaverReports() {
                     emailMutation.mutate();
                   }}
                   disabled={emailMutation.isPending}
-                  className="flex items-center gap-1 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50"
+                  className="flex items-center gap-1 px-4 py-2 bg-[#27A644] text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50"
                 >
                   {emailMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />}
                   발송
@@ -352,7 +352,7 @@ export function NaverReports() {
           <div className="flex justify-end">
             <button
               onClick={() => setShowScheduleForm(!showScheduleForm)}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-[#27A644] text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
             >
               <Plus size={16} />
               스케줄 추가
@@ -360,39 +360,39 @@ export function NaverReports() {
           </div>
 
           {showScheduleForm && (
-            <div className="bg-white rounded-xl border border-gray-200 p-6">
-              <h2 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <Calendar size={18} className="text-green-600" />
+            <div className="bg-[#0F1011] rounded-xl border border-[#23252A] p-6">
+              <h2 className="text-base font-semibold text-[#F7F8F8] mb-4 flex items-center gap-2">
+                <Calendar size={18} className="text-[#27A644]" />
                 새 스케줄 리포트
               </h2>
               <div className="max-w-lg space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">스케줄명</label>
+                  <label className="block text-sm font-medium text-[#D0D6E0] mb-1">스케줄명</label>
                   <input
                     type="text"
                     value={scheduleForm.name}
                     onChange={(e) => setScheduleForm({ ...scheduleForm, name: e.target.value })}
-                    className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
+                    className="w-full rounded-lg border border-[#23252A] px-4 py-2 text-sm focus:border-[#27A644] focus:ring-1 focus:ring-green-500 focus:outline-none"
                     placeholder="예: 주간 검색광고 리포트"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">리포트 유형</label>
+                    <label className="block text-sm font-medium text-[#D0D6E0] mb-1">리포트 유형</label>
                     <select
                       value={scheduleForm.type}
                       onChange={(e) => setScheduleForm({ ...scheduleForm, type: e.target.value as ReportType })}
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
+                      className="w-full rounded-lg border border-[#23252A] px-3 py-2 text-sm bg-[#0F1011] focus:border-[#27A644] focus:ring-1 focus:ring-green-500 focus:outline-none"
                     >
                       {REPORT_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">발송 주기</label>
+                    <label className="block text-sm font-medium text-[#D0D6E0] mb-1">발송 주기</label>
                     <select
                       value={scheduleForm.frequency}
                       onChange={(e) => setScheduleForm({ ...scheduleForm, frequency: e.target.value as ScheduleFrequency })}
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
+                      className="w-full rounded-lg border border-[#23252A] px-3 py-2 text-sm bg-[#0F1011] focus:border-[#27A644] focus:ring-1 focus:ring-green-500 focus:outline-none"
                     >
                       <option value="daily">매일</option>
                       <option value="weekly">매주</option>
@@ -402,11 +402,11 @@ export function NaverReports() {
                 </div>
                 {scheduleForm.frequency === 'weekly' && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">요일</label>
+                    <label className="block text-sm font-medium text-[#D0D6E0] mb-1">요일</label>
                     <select
                       value={scheduleForm.dayOfWeek}
                       onChange={(e) => setScheduleForm({ ...scheduleForm, dayOfWeek: Number(e.target.value) })}
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
+                      className="w-full rounded-lg border border-[#23252A] px-3 py-2 text-sm bg-[#0F1011] focus:border-[#27A644] focus:ring-1 focus:ring-green-500 focus:outline-none"
                     >
                       <option value={1}>월요일</option>
                       <option value={2}>화요일</option>
@@ -420,11 +420,11 @@ export function NaverReports() {
                 )}
                 {scheduleForm.frequency === 'monthly' && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">날짜</label>
+                    <label className="block text-sm font-medium text-[#D0D6E0] mb-1">날짜</label>
                     <select
                       value={scheduleForm.dayOfMonth}
                       onChange={(e) => setScheduleForm({ ...scheduleForm, dayOfMonth: Number(e.target.value) })}
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
+                      className="w-full rounded-lg border border-[#23252A] px-3 py-2 text-sm bg-[#0F1011] focus:border-[#27A644] focus:ring-1 focus:ring-green-500 focus:outline-none"
                     >
                       {Array.from({ length: 28 }, (_, i) => i + 1).map((d) => (
                         <option key={d} value={d}>{d}일</option>
@@ -433,17 +433,17 @@ export function NaverReports() {
                   </div>
                 )}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">수신 이메일</label>
+                  <label className="block text-sm font-medium text-[#D0D6E0] mb-1">수신 이메일</label>
                   <input
                     type="email"
                     value={scheduleForm.email}
                     onChange={(e) => setScheduleForm({ ...scheduleForm, email: e.target.value })}
-                    className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
+                    className="w-full rounded-lg border border-[#23252A] px-4 py-2 text-sm focus:border-[#27A644] focus:ring-1 focus:ring-green-500 focus:outline-none"
                     placeholder="report@example.com"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">포함 지표</label>
+                  <label className="block text-sm font-medium text-[#D0D6E0] mb-2">포함 지표</label>
                   <div className="flex flex-wrap gap-2">
                     {(scheduleForm.type === 'gfa' ? METRICS_GFA : METRICS_SEARCH).map((metric) => (
                       <button
@@ -451,8 +451,8 @@ export function NaverReports() {
                         onClick={() => toggleScheduleMetric(metric.value)}
                         className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
                           scheduleForm.metrics.includes(metric.value)
-                            ? 'bg-green-100 text-green-700 border border-green-300'
-                            : 'bg-gray-100 text-gray-600 border border-gray-200 hover:border-gray-300'
+                            ? 'bg-[#27A644]/15 text-[#27A644] border border-green-300'
+                            : 'bg-[#141516] text-[#8A8F98] border border-[#23252A] hover:border-[#23252A]'
                         }`}
                       >
                         {metric.label}
@@ -463,7 +463,7 @@ export function NaverReports() {
                 <div className="flex items-center justify-between pt-2">
                   <button
                     onClick={() => setShowScheduleForm(false)}
-                    className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
+                    className="px-4 py-2 border border-[#23252A] rounded-lg text-sm font-medium text-[#D0D6E0] hover:bg-[#141516]/5"
                   >
                     취소
                   </button>
@@ -474,7 +474,7 @@ export function NaverReports() {
                       createScheduleMutation.mutate();
                     }}
                     disabled={createScheduleMutation.isPending}
-                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50"
+                    className="flex items-center gap-2 px-4 py-2 bg-[#27A644] text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50"
                   >
                     {createScheduleMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
                     스케줄 생성
@@ -485,41 +485,41 @@ export function NaverReports() {
           )}
 
           {/* Schedules List */}
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
-                <Calendar size={18} className="text-green-600" />
+          <div className="bg-[#0F1011] rounded-xl border border-[#23252A] overflow-hidden">
+            <div className="px-6 py-4 border-b border-[#23252A]">
+              <h2 className="text-base font-semibold text-[#F7F8F8] flex items-center gap-2">
+                <Calendar size={18} className="text-[#27A644]" />
                 등록된 스케줄
               </h2>
             </div>
             {loadingSchedules ? (
               <div className="flex items-center justify-center py-12">
-                <Loader2 className="animate-spin text-green-600" size={24} />
-                <span className="ml-2 text-gray-500">로딩 중...</span>
+                <Loader2 className="animate-spin text-[#27A644]" size={24} />
+                <span className="ml-2 text-[#8A8F98]">로딩 중...</span>
               </div>
             ) : schedules.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">
-                <Calendar size={48} className="mx-auto mb-3 text-gray-300" />
+              <div className="text-center py-12 text-[#8A8F98]">
+                <Calendar size={48} className="mx-auto mb-3 text-[#62666D]" />
                 <p>등록된 스케줄이 없습니다.</p>
                 <button
                   onClick={() => setShowScheduleForm(true)}
-                  className="mt-4 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700"
+                  className="mt-4 px-4 py-2 bg-[#27A644] text-white rounded-lg text-sm font-medium hover:bg-green-700"
                 >
                   첫 스케줄 만들기
                 </button>
               </div>
             ) : (
-              <div className="divide-y divide-gray-100">
+              <div className="divide-y divide-[#23252A]">
                 {schedules.map((sched: any) => {
                   const schedId = sched.id || sched.schedule_id;
                   const typeLabel = REPORT_TYPES.find((t) => t.value === sched.type)?.label || sched.type;
                   const freqLabel = sched.frequency === 'daily' ? '매일' : sched.frequency === 'weekly' ? '매주' : '매월';
                   return (
-                    <div key={schedId} className="px-6 py-4 hover:bg-gray-50 flex items-center justify-between">
+                    <div key={schedId} className="px-6 py-4 hover:bg-[#141516]/5 flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-gray-900">{sched.name}</p>
-                        <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
-                          <span className="px-1.5 py-0.5 bg-green-50 text-green-700 rounded">{typeLabel}</span>
+                        <p className="text-sm font-medium text-[#F7F8F8]">{sched.name}</p>
+                        <div className="flex items-center gap-3 mt-1 text-xs text-[#8A8F98]">
+                          <span className="px-1.5 py-0.5 bg-[#27A644]/10 text-[#27A644] rounded">{typeLabel}</span>
                           <span className="flex items-center gap-1">
                             <Clock size={12} />
                             {freqLabel}
@@ -536,7 +536,7 @@ export function NaverReports() {
                             deleteScheduleMutation.mutate(schedId);
                           }
                         }}
-                        className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded"
+                        className="p-1.5 text-red-400 hover:text-[#EB5757] hover:bg-[#EB5757]/10 rounded"
                       >
                         <Trash2 size={14} />
                       </button>

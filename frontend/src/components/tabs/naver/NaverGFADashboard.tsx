@@ -23,12 +23,12 @@ const DATE_PRESETS: { value: DatePreset; label: string }[] = [
 ];
 
 const STATUS_KO: Record<string, { label: string; color: string }> = {
-  ACTIVE: { label: '활성', color: 'bg-green-100 text-green-700' },
-  ELIGIBLE: { label: '활성', color: 'bg-green-100 text-green-700' },
-  ENABLED: { label: '활성', color: 'bg-green-100 text-green-700' },
-  PAUSED: { label: '일시중지', color: 'bg-yellow-100 text-yellow-700' },
-  DELETED: { label: '삭제', color: 'bg-red-100 text-red-700' },
-  COMPLETED: { label: '완료', color: 'bg-gray-100 text-gray-600' },
+  ACTIVE: { label: '활성', color: 'bg-[#27A644]/15 text-[#27A644]' },
+  ELIGIBLE: { label: '활성', color: 'bg-[#27A644]/15 text-[#27A644]' },
+  ENABLED: { label: '활성', color: 'bg-[#27A644]/15 text-[#27A644]' },
+  PAUSED: { label: '일시중지', color: 'bg-[#F0BF00]/15 text-[#F0BF00]' },
+  DELETED: { label: '삭제', color: 'bg-[#EB5757]/15 text-[#EB5757]' },
+  COMPLETED: { label: '완료', color: 'bg-[#141516] text-[#8A8F98]' },
 };
 
 const OBJECTIVE_KO: Record<string, string> = {
@@ -57,7 +57,7 @@ function MiniLineChart({ data, color = '#2DB400', height = 40, width = 120 }: {
   height?: number;
   width?: number;
 }) {
-  if (!data || data.length < 2) return <div style={{ width, height }} className="bg-gray-50 rounded" />;
+  if (!data || data.length < 2) return <div style={{ width, height }} className="bg-[#08090A] rounded" />;
   const max = Math.max(...data);
   const min = Math.min(...data);
   const range = max - min || 1;
@@ -144,36 +144,36 @@ export function NaverGFADashboard() {
       label: '비용',
       value: formatNaverCurrency(kpi.spend || kpi.total_spend || 0),
       icon: DollarSign,
-      color: 'text-green-600',
-      bg: 'bg-green-50',
+      color: 'text-[#27A644]',
+      bg: 'bg-[#27A644]/10',
     },
     {
       label: '노출',
       value: formatNaverNumber(kpi.impressions || kpi.total_impressions || 0),
       icon: Eye,
-      color: 'text-purple-600',
-      bg: 'bg-purple-50',
+      color: 'text-[#7070FF]',
+      bg: 'bg-[#5E6AD2]/10',
     },
     {
       label: '클릭',
       value: formatNaverNumber(kpi.clicks || kpi.total_clicks || 0),
       icon: MousePointer,
-      color: 'text-blue-600',
-      bg: 'bg-blue-50',
+      color: 'text-[#7070FF]',
+      bg: 'bg-[#4EA7FC]/10',
     },
     {
       label: 'CTR',
       value: formatNaverPercent(kpi.ctr || 0),
       icon: Target,
-      color: 'text-orange-600',
-      bg: 'bg-orange-50',
+      color: 'text-[#FC7840]',
+      bg: 'bg-[#FC7840]/10',
     },
     {
       label: 'CPM',
       value: formatNaverCurrency(kpi.cpm || 0),
       icon: Activity,
       color: 'text-cyan-600',
-      bg: 'bg-cyan-50',
+      bg: 'bg-[#00B8CC]/10',
     },
     {
       label: 'ROAS',
@@ -189,17 +189,17 @@ export function NaverGFADashboard() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Monitor className="text-green-600" size={28} />
+          <h1 className="text-2xl font-bold text-[#F7F8F8] flex items-center gap-2">
+            <Monitor className="text-[#27A644]" size={28} />
             GFA 성과 대시보드
           </h1>
-          <p className="text-sm text-gray-500 mt-1">네이버 성과형 디스플레이 광고 분석</p>
+          <p className="text-sm text-[#8A8F98] mt-1">네이버 성과형 디스플레이 광고 분석</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <select
             value={datePreset}
             onChange={(e) => setDatePreset(e.target.value as DatePreset)}
-            className="rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
+            className="rounded-lg border border-[#23252A] px-3 py-2 text-sm bg-[#0F1011] focus:border-[#27A644] focus:ring-1 focus:ring-green-500 focus:outline-none"
           >
             {DATE_PRESETS.map((p) => (
               <option key={p.value} value={p.value}>{p.label}</option>
@@ -207,30 +207,30 @@ export function NaverGFADashboard() {
           </select>
           {datePreset === 'custom' && (
             <div className="flex items-center gap-1.5">
-              <Calendar size={14} className="text-gray-400" />
+              <Calendar size={14} className="text-[#62666D]" />
               <input
                 type="date"
                 value={customStartDate}
                 onChange={(e) => setCustomStartDate(e.target.value)}
                 max={customEndDate}
-                className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm bg-white focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
+                className="rounded-lg border border-[#23252A] px-2 py-1.5 text-sm bg-[#0F1011] focus:border-[#27A644] focus:ring-1 focus:ring-green-500 focus:outline-none"
               />
-              <span className="text-gray-400 text-sm">~</span>
+              <span className="text-[#62666D] text-sm">~</span>
               <input
                 type="date"
                 value={customEndDate}
                 onChange={(e) => setCustomEndDate(e.target.value)}
                 min={customStartDate}
-                className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm bg-white focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
+                className="rounded-lg border border-[#23252A] px-2 py-1.5 text-sm bg-[#0F1011] focus:border-[#27A644] focus:ring-1 focus:ring-green-500 focus:outline-none"
               />
             </div>
           )}
           <button
             onClick={() => refetchOverview()}
-            className="p-2 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors"
+            className="p-2 rounded-lg border border-[#23252A] hover:bg-[#141516]/5 transition-colors"
             title="새로고침"
           >
-            <RefreshCw size={16} className="text-gray-500" />
+            <RefreshCw size={16} className="text-[#8A8F98]" />
           </button>
         </div>
       </div>
@@ -238,22 +238,22 @@ export function NaverGFADashboard() {
       {/* KPI Cards */}
       {loadingOverview ? (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="animate-spin text-green-600" size={32} />
-          <span className="ml-3 text-gray-500">데이터 로딩 중...</span>
+          <Loader2 className="animate-spin text-[#27A644]" size={32} />
+          <span className="ml-3 text-[#8A8F98]">데이터 로딩 중...</span>
         </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
           {kpiCards.map((card) => {
             const Icon = card.icon;
             return (
-              <div key={card.label} className="bg-white rounded-xl border border-gray-200 p-4">
+              <div key={card.label} className="bg-[#0F1011] rounded-xl border border-[#23252A] p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-gray-500 font-medium">{card.label}</span>
+                  <span className="text-xs text-[#8A8F98] font-medium">{card.label}</span>
                   <div className={`w-8 h-8 ${card.bg} rounded-lg flex items-center justify-center`}>
                     <Icon size={16} className={card.color} />
                   </div>
                 </div>
-                <p className="text-lg font-bold text-gray-900">{card.value}</p>
+                <p className="text-lg font-bold text-[#F7F8F8]">{card.value}</p>
               </div>
             );
           })}
@@ -262,22 +262,22 @@ export function NaverGFADashboard() {
 
       {/* Trend Chart */}
       {trendSpend.length > 1 && (
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <h2 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <Activity size={18} className="text-green-600" />
+        <div className="bg-[#0F1011] rounded-xl border border-[#23252A] p-6">
+          <h2 className="text-base font-semibold text-[#F7F8F8] mb-4 flex items-center gap-2">
+            <Activity size={18} className="text-[#27A644]" />
             트렌드 차트
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
-              <p className="text-xs text-gray-500 mb-2">비용 추이</p>
+              <p className="text-xs text-[#8A8F98] mb-2">비용 추이</p>
               <MiniLineChart data={trendSpend} color="#2DB400" width={280} height={60} />
             </div>
             <div>
-              <p className="text-xs text-gray-500 mb-2">노출수 추이</p>
+              <p className="text-xs text-[#8A8F98] mb-2">노출수 추이</p>
               <MiniLineChart data={trendImpressions} color="#8B5CF6" width={280} height={60} />
             </div>
             <div>
-              <p className="text-xs text-gray-500 mb-2">클릭수 추이</p>
+              <p className="text-xs text-[#8A8F98] mb-2">클릭수 추이</p>
               <MiniLineChart data={trendClicks} color="#3B82F6" width={280} height={60} />
             </div>
           </div>
@@ -285,46 +285,46 @@ export function NaverGFADashboard() {
       )}
 
       {/* Campaign List */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
-            <Monitor size={18} className="text-green-600" />
+      <div className="bg-[#0F1011] rounded-xl border border-[#23252A] overflow-hidden">
+        <div className="px-6 py-4 border-b border-[#23252A]">
+          <h2 className="text-base font-semibold text-[#F7F8F8] flex items-center gap-2">
+            <Monitor size={18} className="text-[#27A644]" />
             GFA 캠페인 목록
           </h2>
         </div>
         {loadingCampaigns ? (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="animate-spin text-green-600" size={24} />
-            <span className="ml-2 text-gray-500">캠페인 로딩 중...</span>
+            <Loader2 className="animate-spin text-[#27A644]" size={24} />
+            <span className="ml-2 text-[#8A8F98]">캠페인 로딩 중...</span>
           </div>
         ) : campaigns.length === 0 ? (
-          <div className="text-center py-12 text-gray-500">
-            <Monitor size={48} className="mx-auto mb-3 text-gray-300" />
+          <div className="text-center py-12 text-[#8A8F98]">
+            <Monitor size={48} className="mx-auto mb-3 text-[#62666D]" />
             <p>등록된 GFA 캠페인이 없습니다.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50">
+              <thead className="bg-[#08090A]">
                 <tr>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">캠페인명</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">목적</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">상태</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">일예산</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">비용</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">노출</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">클릭</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">CTR</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">CPM</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">ROAS</th>
-                  <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">액션</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-[#8A8F98] uppercase">캠페인명</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-[#8A8F98] uppercase">목적</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-[#8A8F98] uppercase">상태</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-[#8A8F98] uppercase">일예산</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-[#8A8F98] uppercase">비용</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-[#8A8F98] uppercase">노출</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-[#8A8F98] uppercase">클릭</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-[#8A8F98] uppercase">CTR</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-[#8A8F98] uppercase">CPM</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-[#8A8F98] uppercase">ROAS</th>
+                  <th className="text-center px-4 py-3 text-xs font-medium text-[#8A8F98] uppercase">액션</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-[#23252A]">
                 {campaigns.map((campaign: any) => {
                   const cid = campaign.campaignId || campaign.id;
                   const isExpanded = expandedCampaign === cid;
-                  const status = STATUS_KO[campaign.status] || { label: campaign.status, color: 'bg-gray-100 text-gray-600' };
+                  const status = STATUS_KO[campaign.status] || { label: campaign.status, color: 'bg-[#141516] text-[#8A8F98]' };
 
                   return (
                     <GFACampaignRow
@@ -347,32 +347,32 @@ export function NaverGFADashboard() {
 
       {/* Top Creatives */}
       {topCreatives.length > 0 && (
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <h2 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <Award size={18} className="text-green-600" />
+        <div className="bg-[#0F1011] rounded-xl border border-[#23252A] p-6">
+          <h2 className="text-base font-semibold text-[#F7F8F8] mb-4 flex items-center gap-2">
+            <Award size={18} className="text-[#27A644]" />
             크리에이티브 성과
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {topCreatives.slice(0, 6).map((creative: any, i: number) => (
-              <div key={i} className="border border-gray-200 rounded-lg p-4">
+              <div key={i} className="border border-[#23252A] rounded-lg p-4">
                 <div className="flex items-start gap-3">
                   {creative.imageUrl ? (
-                    <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
+                    <div className="w-16 h-16 bg-[#141516] rounded-lg overflow-hidden flex-shrink-0">
                       <img src={creative.imageUrl} alt={creative.title || ''} className="w-full h-full object-cover" />
                     </div>
                   ) : (
-                    <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <Image size={20} className="text-gray-400" />
+                    <div className="w-16 h-16 bg-[#141516] rounded-lg flex items-center justify-center flex-shrink-0">
+                      <Image size={20} className="text-[#62666D]" />
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">{creative.title || creative.name || `크리에이티브 ${i + 1}`}</p>
-                    <p className="text-xs text-gray-500 mt-1">{creative.type || 'IMAGE'}</p>
-                    <div className="flex items-center gap-3 mt-2 text-xs text-gray-600">
+                    <p className="text-sm font-medium text-[#F7F8F8] truncate">{creative.title || creative.name || `크리에이티브 ${i + 1}`}</p>
+                    <p className="text-xs text-[#8A8F98] mt-1">{creative.type || 'IMAGE'}</p>
+                    <div className="flex items-center gap-3 mt-2 text-xs text-[#8A8F98]">
                       <span>클릭 {formatNaverNumber(creative.clicks || 0)}</span>
                       <span>CTR {formatNaverPercent(creative.ctr || 0)}</span>
                     </div>
-                    <p className="text-xs text-gray-500 mt-1">비용 {formatNaverCurrency(creative.spend || 0)}</p>
+                    <p className="text-xs text-[#8A8F98] mt-1">비용 {formatNaverCurrency(creative.spend || 0)}</p>
                   </div>
                 </div>
               </div>
@@ -382,16 +382,16 @@ export function NaverGFADashboard() {
       )}
 
       {/* AI Analysis */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
+      <div className="bg-[#0F1011] rounded-xl border border-[#23252A] p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
-            <Sparkles size={18} className="text-green-600" />
+          <h2 className="text-base font-semibold text-[#F7F8F8] flex items-center gap-2">
+            <Sparkles size={18} className="text-[#27A644]" />
             AI 분석
           </h2>
           <button
             onClick={handleAiAnalysis}
             disabled={aiMutation.isPending}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 bg-[#27A644] text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors disabled:opacity-50"
           >
             {aiMutation.isPending ? (
               <Loader2 size={16} className="animate-spin" />
@@ -403,42 +403,42 @@ export function NaverGFADashboard() {
         </div>
 
         {!aiTriggered ? (
-          <div className="text-center py-8 text-gray-400">
+          <div className="text-center py-8 text-[#62666D]">
             <Sparkles size={40} className="mx-auto mb-3" />
             <p className="text-sm">AI 분석 버튼을 클릭하면 GFA 성과에 대한 인사이트를 제공합니다.</p>
           </div>
         ) : aiMutation.isPending ? (
           <div className="flex items-center justify-center py-8">
-            <Loader2 className="animate-spin text-green-600" size={24} />
-            <span className="ml-3 text-gray-500">AI가 GFA 성과를 분석하고 있습니다...</span>
+            <Loader2 className="animate-spin text-[#27A644]" size={24} />
+            <span className="ml-3 text-[#8A8F98]">AI가 GFA 성과를 분석하고 있습니다...</span>
           </div>
         ) : aiMutation.data ? (
           <div className="space-y-4">
             {typeof aiMutation.data === 'string' ? (
-              <div className="prose prose-sm max-w-none text-gray-700 whitespace-pre-wrap">{aiMutation.data}</div>
+              <div className="prose prose-sm max-w-none text-[#D0D6E0] whitespace-pre-wrap">{aiMutation.data}</div>
             ) : (
               <>
                 {aiMutation.data.summary && (
-                  <div className="p-4 bg-green-50 rounded-lg border border-green-200">
-                    <h3 className="text-sm font-semibold text-green-800 mb-2">요약</h3>
-                    <p className="text-sm text-green-700 whitespace-pre-wrap">{aiMutation.data.summary}</p>
+                  <div className="p-4 bg-[#27A644]/10 rounded-lg border border-[#27A644]/30">
+                    <h3 className="text-sm font-semibold text-[#27A644] mb-2">요약</h3>
+                    <p className="text-sm text-[#27A644] whitespace-pre-wrap">{aiMutation.data.summary}</p>
                   </div>
                 )}
                 {aiMutation.data.insights && Array.isArray(aiMutation.data.insights) && (
                   <div className="space-y-2">
                     {aiMutation.data.insights.map((insight: any, i: number) => (
-                      <div key={i} className="p-3 bg-gray-50 rounded-lg">
-                        <p className="text-sm text-gray-700">{typeof insight === 'string' ? insight : insight.description || insight.title}</p>
+                      <div key={i} className="p-3 bg-[#08090A] rounded-lg">
+                        <p className="text-sm text-[#D0D6E0]">{typeof insight === 'string' ? insight : insight.description || insight.title}</p>
                       </div>
                     ))}
                   </div>
                 )}
                 {aiMutation.data.recommendations && Array.isArray(aiMutation.data.recommendations) && (
                   <div>
-                    <h3 className="text-sm font-semibold text-gray-800 mb-2">추천 사항</h3>
+                    <h3 className="text-sm font-semibold text-[#F7F8F8] mb-2">추천 사항</h3>
                     <ul className="space-y-1">
                       {aiMutation.data.recommendations.map((rec: any, i: number) => (
-                        <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
+                        <li key={i} className="flex items-start gap-2 text-sm text-[#D0D6E0]">
                           <span className="text-green-500 mt-0.5">&#9679;</span>
                           {typeof rec === 'string' ? rec : rec.description || rec.title}
                         </li>
@@ -447,13 +447,13 @@ export function NaverGFADashboard() {
                   </div>
                 )}
                 {aiMutation.data.analysis && (
-                  <div className="prose prose-sm max-w-none text-gray-700 whitespace-pre-wrap">{aiMutation.data.analysis}</div>
+                  <div className="prose prose-sm max-w-none text-[#D0D6E0] whitespace-pre-wrap">{aiMutation.data.analysis}</div>
                 )}
               </>
             )}
           </div>
         ) : aiMutation.isError ? (
-          <div className="text-center py-8 text-red-500">
+          <div className="text-center py-8 text-[#EB5757]">
             <p className="text-sm">분석에 실패했습니다. 다시 시도해주세요.</p>
           </div>
         ) : null}
@@ -473,34 +473,34 @@ function GFACampaignRow({ campaign, campaignId, isExpanded, status, onToggleExpa
 }) {
   return (
     <>
-      <tr className="hover:bg-gray-50 cursor-pointer" onClick={onToggleExpand}>
+      <tr className="hover:bg-[#141516]/5 cursor-pointer" onClick={onToggleExpand}>
         <td className="px-4 py-3">
           <div className="flex items-center gap-2">
-            {isExpanded ? <ChevronDown size={14} className="text-gray-400" /> : <ChevronRight size={14} className="text-gray-400" />}
-            <span className="font-medium text-gray-900">{campaign.name}</span>
+            {isExpanded ? <ChevronDown size={14} className="text-[#62666D]" /> : <ChevronRight size={14} className="text-[#62666D]" />}
+            <span className="font-medium text-[#F7F8F8]">{campaign.name}</span>
           </div>
         </td>
         <td className="px-4 py-3">
-          <span className="text-xs text-gray-500">{OBJECTIVE_KO[campaign.objective] || campaign.objective || '-'}</span>
+          <span className="text-xs text-[#8A8F98]">{OBJECTIVE_KO[campaign.objective] || campaign.objective || '-'}</span>
         </td>
         <td className="px-4 py-3">
           <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${status.color}`}>{status.label}</span>
         </td>
-        <td className="px-4 py-3 text-right text-gray-700">{formatNaverCurrency(campaign.dailyBudget || 0)}</td>
-        <td className="px-4 py-3 text-right font-medium text-gray-900">{formatNaverCurrency(campaign.spend || 0)}</td>
-        <td className="px-4 py-3 text-right text-gray-700">{formatNaverNumber(campaign.impressions || 0)}</td>
-        <td className="px-4 py-3 text-right text-gray-700">{formatNaverNumber(campaign.clicks || 0)}</td>
-        <td className="px-4 py-3 text-right text-gray-700">{formatNaverPercent(campaign.ctr || 0)}</td>
-        <td className="px-4 py-3 text-right text-gray-700">{formatNaverCurrency(campaign.cpm || 0)}</td>
-        <td className="px-4 py-3 text-right text-gray-700">{campaign.roas ? `${(campaign.roas * 100).toFixed(0)}%` : '-'}</td>
+        <td className="px-4 py-3 text-right text-[#D0D6E0]">{formatNaverCurrency(campaign.dailyBudget || 0)}</td>
+        <td className="px-4 py-3 text-right font-medium text-[#F7F8F8]">{formatNaverCurrency(campaign.spend || 0)}</td>
+        <td className="px-4 py-3 text-right text-[#D0D6E0]">{formatNaverNumber(campaign.impressions || 0)}</td>
+        <td className="px-4 py-3 text-right text-[#D0D6E0]">{formatNaverNumber(campaign.clicks || 0)}</td>
+        <td className="px-4 py-3 text-right text-[#D0D6E0]">{formatNaverPercent(campaign.ctr || 0)}</td>
+        <td className="px-4 py-3 text-right text-[#D0D6E0]">{formatNaverCurrency(campaign.cpm || 0)}</td>
+        <td className="px-4 py-3 text-right text-[#D0D6E0]">{campaign.roas ? `${(campaign.roas * 100).toFixed(0)}%` : '-'}</td>
         <td className="px-4 py-3 text-center">
           <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
             {campaign.status === 'PAUSED' ? (
-              <button className="p-1 hover:bg-green-50 rounded text-green-600" title="재개">
+              <button className="p-1 hover:bg-[#27A644]/10 rounded text-[#27A644]" title="재개">
                 <Play size={14} />
               </button>
             ) : (
-              <button className="p-1 hover:bg-yellow-50 rounded text-yellow-600" title="일시중지">
+              <button className="p-1 hover:bg-[#F0BF00]/10 rounded text-[#F0BF00]" title="일시중지">
                 <Pause size={14} />
               </button>
             )}
@@ -510,18 +510,18 @@ function GFACampaignRow({ campaign, campaignId, isExpanded, status, onToggleExpa
       {isExpanded && (
         <tr>
           <td colSpan={11} className="px-0 py-0">
-            <div className="bg-gray-50 px-8 py-4">
+            <div className="bg-[#08090A] px-8 py-4">
               {loadingAdgroups ? (
-                <div className="flex items-center gap-2 text-gray-500 text-sm py-4">
+                <div className="flex items-center gap-2 text-[#8A8F98] text-sm py-4">
                   <Loader2 size={16} className="animate-spin" />
                   광고그룹 로딩 중...
                 </div>
               ) : adgroups.length === 0 ? (
-                <p className="text-sm text-gray-400 py-2">광고그룹이 없습니다.</p>
+                <p className="text-sm text-[#62666D] py-2">광고그룹이 없습니다.</p>
               ) : (
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-xs text-gray-500 uppercase">
+                    <tr className="text-xs text-[#8A8F98] uppercase">
                       <th className="text-left px-3 py-2">광고그룹명</th>
                       <th className="text-left px-3 py-2">상태</th>
                       <th className="text-left px-3 py-2">입찰전략</th>
@@ -531,27 +531,27 @@ function GFACampaignRow({ campaign, campaignId, isExpanded, status, onToggleExpa
                       <th className="text-right px-3 py-2">클릭</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-200">
+                  <tbody className="divide-y divide-[#23252A]">
                     {adgroups.map((ag: any) => {
-                      const agStatus = STATUS_KO[ag.status] || { label: ag.status, color: 'bg-gray-100 text-gray-600' };
+                      const agStatus = STATUS_KO[ag.status] || { label: ag.status, color: 'bg-[#141516] text-[#8A8F98]' };
                       const placements = ag.targeting?.placements || [];
                       return (
-                        <tr key={ag.adGroupId || ag.id} className="hover:bg-white">
-                          <td className="px-3 py-2 font-medium text-gray-800">{ag.name}</td>
+                        <tr key={ag.adGroupId || ag.id} className="hover:bg-[#141516]">
+                          <td className="px-3 py-2 font-medium text-[#F7F8F8]">{ag.name}</td>
                           <td className="px-3 py-2">
                             <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${agStatus.color}`}>{agStatus.label}</span>
                           </td>
-                          <td className="px-3 py-2 text-xs text-gray-600">{ag.bidStrategy || '-'}</td>
+                          <td className="px-3 py-2 text-xs text-[#8A8F98]">{ag.bidStrategy || '-'}</td>
                           <td className="px-3 py-2">
                             <div className="flex flex-wrap gap-1">
                               {placements.length > 0 ? placements.map((p: string, i: number) => (
-                                <span key={i} className="px-1.5 py-0.5 bg-green-50 text-green-700 rounded text-xs">{PLACEMENT_KO[p] || p}</span>
-                              )) : <span className="text-xs text-gray-400">-</span>}
+                                <span key={i} className="px-1.5 py-0.5 bg-[#27A644]/10 text-[#27A644] rounded text-xs">{PLACEMENT_KO[p] || p}</span>
+                              )) : <span className="text-xs text-[#62666D]">-</span>}
                             </div>
                           </td>
-                          <td className="px-3 py-2 text-right text-gray-700">{formatNaverCurrency(ag.spend || 0)}</td>
-                          <td className="px-3 py-2 text-right text-gray-700">{formatNaverNumber(ag.impressions || 0)}</td>
-                          <td className="px-3 py-2 text-right text-gray-700">{formatNaverNumber(ag.clicks || 0)}</td>
+                          <td className="px-3 py-2 text-right text-[#D0D6E0]">{formatNaverCurrency(ag.spend || 0)}</td>
+                          <td className="px-3 py-2 text-right text-[#D0D6E0]">{formatNaverNumber(ag.impressions || 0)}</td>
+                          <td className="px-3 py-2 text-right text-[#D0D6E0]">{formatNaverNumber(ag.clicks || 0)}</td>
                         </tr>
                       );
                     })}
