@@ -204,6 +204,26 @@ async def init_db():
         except Exception:
             pass
 
+    # Create affiliate tables individually if create_all did not catch them
+    affiliate_tables = [
+        "affiliate_campaigns",
+        "affiliate_partners",
+        "referral_clicks",
+        "referral_conversions",
+        "affiliate_settlements",
+        "referral_programs",
+    ]
+    for tbl_name in affiliate_tables:
+        if tbl_name in Base.metadata.tables:
+            try:
+                async with engine.begin() as conn:
+                    await conn.run_sync(
+                        Base.metadata.tables[tbl_name].create, checkfirst=True
+                    )
+                logger.info(f"Ensured affiliate table: {tbl_name}")
+            except Exception as te:
+                logger.warning(f"Affiliate table {tbl_name} create skipped: {te}")
+
     # Add Naver advertising columns to users if missing
     naver_cols = [
         ("naver_search_ads_connected", "BOOLEAN DEFAULT FALSE"),

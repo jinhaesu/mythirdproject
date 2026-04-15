@@ -706,6 +706,25 @@ export const marketApi = {
   },
 };
 
+// Affiliate API (TAB: 어필리에이트 관리)
+export const affiliateApi = {
+  getDashboard: async () => { const { data } = await api.get('/affiliate/dashboard'); return data; },
+  getCampaigns: async () => { const { data } = await api.get('/affiliate/campaigns'); return data; },
+  createCampaign: async (d: any) => { const { data } = await api.post('/affiliate/campaigns', d); return data; },
+  updateCampaign: async (id: number, d: any) => { const { data } = await api.put(`/affiliate/campaigns/${id}`, d); return data; },
+  deleteCampaign: async (id: number) => { const { data } = await api.delete(`/affiliate/campaigns/${id}`); return data; },
+  getPartners: async () => { const { data } = await api.get('/affiliate/partners'); return data; },
+  createPartner: async (d: any) => { const { data } = await api.post('/affiliate/partners', d); return data; },
+  approvePartner: async (id: number) => { const { data } = await api.post(`/affiliate/partners/${id}/approve`); return data; },
+  rejectPartner: async (id: number) => { const { data } = await api.post(`/affiliate/partners/${id}/reject`); return data; },
+  getSettlements: async () => { const { data } = await api.get('/affiliate/settlements'); return data; },
+  createSettlement: async (d: any) => { const { data } = await api.post('/affiliate/settlements', d); return data; },
+  paySettlement: async (id: number) => { const { data } = await api.post(`/affiliate/settlements/${id}/pay`); return data; },
+  getReferralPrograms: async () => { const { data } = await api.get('/affiliate/referral-programs'); return data; },
+  createReferralProgram: async (d: any) => { const { data } = await api.post('/affiliate/referral-programs', d); return data; },
+  updateReferralProgram: async (id: number, d: any) => { const { data } = await api.put(`/affiliate/referral-programs/${id}`, d); return data; },
+};
+
 // AI Chat API
 export const chatApi = {
   send: async (message: string, history: { role: string; content: string }[] = []) => {

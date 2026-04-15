@@ -9,6 +9,14 @@ from app.models.scheduled_report import ScheduledReport
 from app.models.market_keyword import MarketKeyword
 from app.models.keyword_rank_schedule import KeywordRankSchedule
 from app.models.review_monitor import MonitoredProduct, ReviewReportSchedule
+from app.models.affiliate import (
+    AffiliateCampaign,
+    AffiliatePartner,
+    ReferralClick,
+    ReferralConversion,
+    AffiliateSettlement,
+    ReferralProgram,
+)
 
 __all__ = [
     "User",
@@ -35,4 +43,10 @@ __all__ = [
     "KeywordRankSchedule",
     "MonitoredProduct",
     "ReviewReportSchedule",
+    "AffiliateCampaign",
+    "AffiliatePartner",
+    "ReferralClick",
+    "ReferralConversion",
+    "AffiliateSettlement",
+    "ReferralProgram",
 ]

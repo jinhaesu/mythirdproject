@@ -3,7 +3,7 @@ from fastapi import APIRouter
 
 from app.api.v1.endpoints import (
     auth, benchmark, creative, campaign, analytics, dashboard, campaign_planner, chat, market_keywords,
-    naver_analytics, naver_campaign,
+    naver_analytics, naver_campaign, affiliate,
 )
 
 api_router = APIRouter()
@@ -83,4 +83,11 @@ api_router.include_router(
     naver_campaign.router,
     prefix="/naver",
     tags=["Naver Campaign Management"]
+)
+
+# Affiliate Managing
+api_router.include_router(
+    affiliate.router,
+    prefix="/affiliate",
+    tags=["Affiliate Managing"]
 )
