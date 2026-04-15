@@ -169,15 +169,15 @@ function DashboardSection() {
     retry: 1,
   });
 
-  const d = data ?? {
-    total_sales: 0,
-    total_commission: 0,
-    active_partners: 0,
-    total_clicks: 0,
-    total_conversions: 0,
-    conversion_rate: 0,
-    active_campaigns: [],
-    top_partners: [],
+  const d = {
+    total_sales: Number(data?.total_sales) || 0,
+    total_commission: Number(data?.total_commission) || 0,
+    active_partners: Number(data?.active_partners) || 0,
+    total_clicks: Number(data?.total_clicks) || 0,
+    total_conversions: Number(data?.total_conversions) || 0,
+    conversion_rate: Number(data?.conversion_rate) || 0,
+    active_campaigns: Array.isArray(data?.active_campaigns) ? data.active_campaigns : [],
+    top_partners: Array.isArray(data?.top_partners) ? data.top_partners : [],
   };
 
   const kpis = [
@@ -1247,6 +1247,26 @@ const NAV_ITEMS: { key: SectionKey; label: string; icon: React.ReactNode }[] = [
   { key: 'settings', label: '설정', icon: <Settings size={14} /> },
 ];
 
+// Error boundary wrapper
+function SafeSection({ children }: { children: React.ReactNode }) {
+  const [hasError, setHasError] = useState(false);
+  if (hasError) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <AlertCircle size={32} className="text-red-400 mb-3" />
+        <p className="text-sm text-gray-400">이 섹션을 로드하는 중 오류가 발생했습니다.</p>
+        <button onClick={() => setHasError(false)} className="mt-2 text-xs text-emerald-400 hover:underline">다시 시도</button>
+      </div>
+    );
+  }
+  try {
+    return <>{children}</>;
+  } catch {
+    setHasError(true);
+    return null;
+  }
+}
+
 export function AffiliateManaging() {
   const [activeSection, setActiveSection] = useState<SectionKey>('dashboard');
 
@@ -1269,12 +1289,14 @@ export function AffiliateManaging() {
         ))}
       </div>
 
-      {activeSection === 'dashboard' && <DashboardSection />}
-      {activeSection === 'campaigns' && <CampaignsSection />}
-      {activeSection === 'partners' && <PartnersSection />}
-      {activeSection === 'referral' && <ReferralSection />}
-      {activeSection === 'settlement' && <SettlementSection />}
-      {activeSection === 'settings' && <SettingsSection />}
+      <SafeSection>
+        {activeSection === 'dashboard' && <DashboardSection />}
+        {activeSection === 'campaigns' && <CampaignsSection />}
+        {activeSection === 'partners' && <PartnersSection />}
+        {activeSection === 'referral' && <ReferralSection />}
+        {activeSection === 'settlement' && <SettlementSection />}
+        {activeSection === 'settings' && <SettingsSection />}
+      </SafeSection>
     </div>
   );
 }
