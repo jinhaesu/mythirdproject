@@ -13,6 +13,7 @@ import {
   AdsController,
   PerformanceDashboard,
   AutoManagement,
+  AffiliateManaging,
 } from '@/components/tabs';
 import {
   NaverSearchAdsDashboard,
@@ -84,7 +85,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-[#08090A]">
       <Header />
-      {activePlatform === 'meta' ? <TabNav /> : <NaverTabNav />}
+      {activePlatform === 'meta' ? <TabNav /> : activePlatform === 'naver' ? <NaverTabNav /> : null}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {activePlatform === 'meta' && (
           <>
@@ -108,6 +109,7 @@ export default function Home() {
             {naverActiveTab === 6 && <NaverReports />}
           </>
         )}
+        {activePlatform === 'affiliate' && <AffiliateManaging />}
       </main>
       <AICommandCenter />
     </div>

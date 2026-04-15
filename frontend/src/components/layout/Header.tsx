@@ -79,13 +79,17 @@ export function Header() {
                 <div className="w-7 h-7 bg-gradient-to-r from-meta-blue to-meta-instagram rounded-md flex items-center justify-center">
                   <span className="text-white font-bold text-xs">M</span>
                 </div>
-              ) : (
+              ) : activePlatform === 'naver' ? (
                 <div className="w-7 h-7 rounded-md flex items-center justify-center" style={{ backgroundColor: '#2DB400' }}>
                   <span className="text-white font-bold text-xs">N</span>
                 </div>
+              ) : (
+                <div className="w-7 h-7 rounded-md flex items-center justify-center" style={{ backgroundColor: '#059669' }}>
+                  <span className="text-white font-bold text-xs">A</span>
+                </div>
               )}
               <span className="font-semibold text-base" style={{ color: '#5E6AD2', letterSpacing: '-0.022em' }}>
-                {activePlatform === 'meta' ? 'Meta-Commander' : '네이버 커맨더'}
+                {activePlatform === 'meta' ? 'Meta-Commander' : activePlatform === 'naver' ? '네이버 커맨더' : '어필리에이트 매니징'}
               </span>
             </div>
             <span
@@ -152,6 +156,30 @@ export function Header() {
                 >
                   <span className="w-4 h-4 flex items-center justify-center text-[10px] font-bold">N</span>
                   <span className="hidden sm:inline">Naver</span>
+                </button>
+                <button
+                  onClick={() => setActivePlatform('affiliate')}
+                  className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all"
+                  style={
+                    activePlatform === 'affiliate'
+                      ? { backgroundColor: '#059669', color: '#F7F8F8' }
+                      : { color: '#8A8F98' }
+                  }
+                  onMouseEnter={e => {
+                    if (activePlatform !== 'affiliate') {
+                      (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'rgba(255,255,255,0.07)';
+                      (e.currentTarget as HTMLButtonElement).style.color = '#F7F8F8';
+                    }
+                  }}
+                  onMouseLeave={e => {
+                    if (activePlatform !== 'affiliate') {
+                      (e.currentTarget as HTMLButtonElement).style.backgroundColor = '';
+                      (e.currentTarget as HTMLButtonElement).style.color = '#8A8F98';
+                    }
+                  }}
+                >
+                  <span className="w-4 h-4 flex items-center justify-center text-[10px] font-bold">A</span>
+                  <span className="hidden sm:inline">어필리에이트</span>
                 </button>
               </div>
             )}
