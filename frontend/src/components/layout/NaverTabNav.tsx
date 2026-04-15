@@ -19,7 +19,7 @@ export function NaverTabNav() {
   const { naverActiveTab, setNaverActiveTab } = useAppStore();
 
   return (
-    <div className="bg-white border-b border-gray-200">
+    <div style={{ backgroundColor: '#0F1011', borderBottom: '1px solid #23252A' }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <nav className="flex space-x-1 overflow-x-auto" aria-label="Naver Tabs">
           {naverTabs.map((tab) => {
@@ -31,16 +31,35 @@ export function NaverTabNav() {
                 key={tab.id}
                 onClick={() => setNaverActiveTab(tab.id)}
                 className={clsx(
-                  'group flex items-center gap-2 px-4 py-3 border-b-2 font-medium text-sm transition-colors whitespace-nowrap',
-                  isActive
-                    ? 'border-green-600 text-green-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  'group flex items-center gap-2 px-4 py-3 border-b-2 font-medium text-sm transition-colors whitespace-nowrap'
                 )}
+                style={{
+                  borderBottomColor: isActive ? '#2DB400' : 'transparent',
+                  color: isActive ? '#F7F8F8' : '#8A8F98',
+                }}
+                onMouseEnter={e => {
+                  if (!isActive) {
+                    (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'rgba(255,255,255,0.05)';
+                    (e.currentTarget as HTMLButtonElement).style.color = '#D0D6E0';
+                  }
+                }}
+                onMouseLeave={e => {
+                  if (!isActive) {
+                    (e.currentTarget as HTMLButtonElement).style.backgroundColor = '';
+                    (e.currentTarget as HTMLButtonElement).style.color = '#8A8F98';
+                  }
+                }}
               >
-                <Icon size={18} />
+                <Icon
+                  size={16}
+                  style={{ color: isActive ? '#2DB400' : '#8A8F98' }}
+                />
                 <div className="hidden sm:block text-left">
                   <span>{tab.name}</span>
-                  <p className={clsx('text-xs font-normal', isActive ? 'text-green-400' : 'text-gray-400')}>
+                  <p
+                    className="text-xs font-normal"
+                    style={{ color: isActive ? '#45C41A' : '#62666D' }}
+                  >
                     {tab.description}
                   </p>
                 </div>

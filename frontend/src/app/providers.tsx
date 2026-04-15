@@ -26,17 +26,33 @@ export function Providers({ children }: { children: ReactNode }) {
         toastOptions={{
           duration: 3000,
           style: {
-            background: '#363636',
-            color: '#fff',
+            background: '#1C1C1F',
+            color: '#F7F8F8',
+            border: '1px solid #34343A',
+            borderRadius: '8px',
+            fontSize: '14px',
+            boxShadow: '0px 7px 32px rgba(0, 0, 0, 0.35)',
           },
           success: {
             style: {
-              background: '#10b981',
+              background: '#1C1C1F',
+              color: '#F7F8F8',
+              border: '1px solid #27A644',
+            },
+            iconTheme: {
+              primary: '#27A644',
+              secondary: '#1C1C1F',
             },
           },
           error: {
             style: {
-              background: '#ef4444',
+              background: '#1C1C1F',
+              color: '#F7F8F8',
+              border: '1px solid #EB5757',
+            },
+            iconTheme: {
+              primary: '#EB5757',
+              secondary: '#1C1C1F',
             },
           },
         }}
