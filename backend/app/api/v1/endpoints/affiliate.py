@@ -117,9 +117,14 @@ async def create_campaign(
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new affiliate campaign."""
+    data = payload.model_dump()
+    # timezone-aware → naive 변환 (PostgreSQL TIMESTAMP WITHOUT TIME ZONE 호환)
+    for key in ('start_date', 'end_date'):
+        if data.get(key) and hasattr(data[key], 'replace'):
+            data[key] = data[key].replace(tzinfo=None)
     campaign = AffiliateCampaign(
         user_id=current_user.id,
-        **payload.model_dump(),
+        **data,
     )
     db.add(campaign)
     await db.commit()
@@ -220,7 +225,7 @@ async def create_partner(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Register a new affiliate partner."""
+    """Register a new affiliate partner and generate referral link."""
     # Ensure referral_code is unique
     code = _generate_referral_code()
     while True:
@@ -231,14 +236,58 @@ async def create_partner(
             break
         code = _generate_referral_code()
 
+    # 캠페인의 landing_url 기반으로 레퍼럴 링크 생성
+    landing_url = "https://nuldam.com"
+    if payload.campaign_id:
+        campaign_result = await db.execute(
+            select(AffiliateCampaign).where(AffiliateCampaign.id == payload.campaign_id)
+        )
+        campaign = campaign_result.scalar_one_or_none()
+        if campaign and campaign.landing_url:
+            landing_url = campaign.landing_url
+
+    separator = "&" if "?" in landing_url else "?"
+    referral_link = f"{landing_url}{separator}ref={code}"
+
     partner = AffiliatePartner(
         user_id=current_user.id,
         referral_code=code,
+        referral_link=referral_link,
         **payload.model_dump(),
     )
     db.add(partner)
     await db.commit()
     await db.refresh(partner)
+
+    # 이메일 발송 (Resend)
+    if partner.email:
+        try:
+            from app.core.config import get_settings
+            settings = get_settings()
+            if settings.RESEND_API_KEY:
+                import httpx
+                await httpx.AsyncClient().post(
+                    "https://api.resend.com/emails",
+                    headers={"Authorization": f"Bearer {settings.RESEND_API_KEY}"},
+                    json={
+                        "from": settings.RESEND_FROM_EMAIL or "noreply@joinandjoin.com",
+                        "to": [partner.email],
+                        "subject": f"[널담] 어필리에이트 파트너 초대",
+                        "html": (
+                            f"<h2>안녕하세요, {partner.name}님!</h2>"
+                            f"<p>널담 어필리에이트 파트너로 초대되었습니다.</p>"
+                            f"<p>아래 전용 링크를 통해 상품을 홍보하고 커미션을 받으세요:</p>"
+                            f"<p><a href='{referral_link}' style='font-size:18px;font-weight:bold;'>{referral_link}</a></p>"
+                            f"<p>레퍼럴 코드: <b>{code}</b></p>"
+                            f"<br><p>감사합니다,<br>널담은디저트</p>"
+                        ),
+                    },
+                    timeout=10.0,
+                )
+                logger.info(f"[Affiliate] Invite email sent to {partner.email}")
+        except Exception as e:
+            logger.warning(f"[Affiliate] Email send failed: {e}")
+
     return partner
 
 
@@ -404,16 +453,53 @@ async def get_dashboard(
     )
     pending_settlement_amount = float(pending_settlement_result.scalar() or 0)
 
+    # Active campaigns
+    active_campaigns_result = await db.execute(
+        select(AffiliateCampaign).where(
+            AffiliateCampaign.user_id == current_user.id,
+            AffiliateCampaign.status == "active",
+        ).limit(5)
+    )
+    active_campaigns = [
+        {"id": c.id, "name": c.name, "product": c.product, "commission_rate": c.commission_rate}
+        for c in active_campaigns_result.scalars().all()
+    ]
+
+    # Top partners by conversion count
+    top_partners = []
+    if partner_ids:
+        top_result = await db.execute(
+            select(
+                AffiliatePartner.id, AffiliatePartner.name, AffiliatePartner.channel,
+                AffiliatePartner.followers,
+                func.count(ReferralConversion.id).label("conversions"),
+                func.coalesce(func.sum(ReferralConversion.order_amount), 0).label("sales"),
+            )
+            .outerjoin(ReferralConversion, ReferralConversion.partner_id == AffiliatePartner.id)
+            .where(AffiliatePartner.user_id == current_user.id, AffiliatePartner.status == "approved")
+            .group_by(AffiliatePartner.id)
+            .order_by(func.coalesce(func.sum(ReferralConversion.order_amount), 0).desc())
+            .limit(5)
+        )
+        for row in top_result.all():
+            top_partners.append({
+                "id": row[0], "name": row[1], "channel": row[2], "followers": row[3],
+                "conversion_count": row[4], "total_sales": float(row[5]),
+            })
+
     return {
         "total_campaigns": total_campaigns,
+        "total_sales": total_revenue,
+        "total_commission": total_commission,
+        "active_partners": partners_by_status.get("approved", 0),
         "total_partners": sum(partners_by_status.values()),
         "partners_by_status": partners_by_status,
         "total_clicks": total_clicks,
         "total_conversions": total_conversions,
         "conversion_rate": round(conversion_rate, 2),
-        "total_revenue": total_revenue,
-        "total_commission": total_commission,
         "pending_settlement_amount": pending_settlement_amount,
+        "active_campaigns": active_campaigns,
+        "top_partners": top_partners,
     }
 
 
