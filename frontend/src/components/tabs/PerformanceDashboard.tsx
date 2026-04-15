@@ -13,6 +13,13 @@ import {
 import { analyticsApi, clearAnalysisCache } from '@/lib/api';
 import toast from 'react-hot-toast';
 import type { PerformanceFeedback, CampaignStatusFilter } from '@/types';
+import {
+  LineChart, Line, BarChart, Bar, AreaChart, Area,
+  XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
+  Legend, ResponsiveContainer, PieChart, Pie, Cell,
+  ComposedChart, Scatter, RadarChart, Radar, PolarGrid,
+  PolarAngleAxis, PolarRadiusAxis, Treemap,
+} from 'recharts';
 
 type DatePreset = 'today' | 'yesterday' | 'last_3d' | 'last_7d' | 'last_14d' | 'last_30d' | 'this_month' | 'last_month' | 'custom';
 
@@ -1207,16 +1214,62 @@ export default function PerformanceDashboard() {
                           <div className="mt-4 bg-[#0F1011] rounded-lg border border-[#5E6AD2]/30 p-4">
                             <h4 className="text-sm font-semibold text-blue-900 mb-3">심층 분석</h4>
                             {deepData.demographics?.length > 0 && (
-                              <div className="mb-3">
-                                <p className="text-xs font-semibold text-[#8A8F98] mb-2">연령/성별 분포</p>
-                                <div className="grid grid-cols-3 gap-1">
-                                  {deepData.demographics.slice(0, 12).map((d: any, i: number) => (
-                                    <div key={i} className="bg-[#4EA7FC]/10 rounded p-1.5 text-xs">
-                                      <span className="font-medium">{d.age} {d.gender === 'male' ? '남' : d.gender === 'female' ? '여' : ''}</span>
-                                      <span className="ml-1 text-[#8A8F98]">CTR {parseFloat(d.ctr || '0').toFixed(2)}%</span>
+                              <div className="mb-4">
+                                <p className="text-xs font-semibold text-[#8A8F98] mb-2">연령 x 성별 ROAS 히트맵</p>
+                                {(() => {
+                                  const ageGroups = Array.from(new Set(deepData.demographics.map((d: any) => d.age))).sort() as string[];
+                                  const getVal = (age: string, gender: string) => {
+                                    const row = deepData.demographics.find((d: any) => d.age === age && d.gender === gender);
+                                    return row ? parseFloat(row.roas || row.ctr || '0') : 0;
+                                  };
+                                  const allVals = ageGroups.flatMap((age: string) => [getVal(age, 'female'), getVal(age, 'male')]).filter(v => v > 0);
+                                  const maxVal = allVals.length > 0 ? Math.max(...allVals) : 1;
+                                  const heatColor = (val: number) => {
+                                    if (val === 0) return '#1a1b1e';
+                                    const intensity = Math.min(val / maxVal, 1);
+                                    if (intensity > 0.7) return '#1d4ed8';
+                                    if (intensity > 0.4) return '#3b82f6';
+                                    if (intensity > 0.2) return '#93c5fd';
+                                    return '#dbeafe';
+                                  };
+                                  return (
+                                    <div className="overflow-x-auto">
+                                      <table className="text-[10px] w-full">
+                                        <thead>
+                                          <tr>
+                                            <th className="text-left py-1 px-2 text-[#62666D] font-medium">연령대</th>
+                                            <th className="text-center py-1 px-2 text-[#62666D] font-medium">여성</th>
+                                            <th className="text-center py-1 px-2 text-[#62666D] font-medium">남성</th>
+                                            <th className="text-center py-1 px-2 text-[#62666D] font-medium">전체</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {ageGroups.map((age: string) => {
+                                            const female = getVal(age, 'female');
+                                            const male = getVal(age, 'male');
+                                            const total = (female + male) / (female > 0 && male > 0 ? 2 : 1);
+                                            return (
+                                              <tr key={age} className="border-t border-[#23252A]">
+                                                <td className="py-1.5 px-2 font-medium text-[#D0D6E0]">{age}</td>
+                                                {[female, male, total].map((val, ci) => (
+                                                  <td key={ci} className="py-1.5 px-2 text-center">
+                                                    <span
+                                                      className="inline-block px-2 py-0.5 rounded font-semibold"
+                                                      style={{ backgroundColor: heatColor(val), color: val > maxVal * 0.4 ? '#fff' : '#374151' }}
+                                                    >
+                                                      {val > 0 ? val.toFixed(2) : '-'}
+                                                    </span>
+                                                  </td>
+                                                ))}
+                                              </tr>
+                                            );
+                                          })}
+                                        </tbody>
+                                      </table>
+                                      <p className="text-[9px] text-[#62666D] mt-1">값: ROAS (없으면 CTR%). 색상 진할수록 고성과.</p>
                                     </div>
-                                  ))}
-                                </div>
+                                  );
+                                })()}
                               </div>
                             )}
                             {deepData.placements?.length > 0 && (
@@ -1251,6 +1304,83 @@ export default function PerformanceDashboard() {
             </div>
           </div>
 
+          {/* ═══ 캠페인별 ROAS 비교 차트 ═══ */}
+          {(() => {
+            const campaignChartData = campaigns
+              .filter((c: any) => c.insights?.roas != null && parseFloat(c.insights.roas) > 0)
+              .map((c: any) => ({
+                name: c.name.length > 20 ? c.name.slice(0, 20) + '…' : c.name,
+                roas: parseFloat(c.insights.roas),
+              }))
+              .sort((a: any, b: any) => b.roas - a.roas)
+              .slice(0, 10);
+            if (campaignChartData.length === 0) return null;
+            return (
+              <div className="bg-[#0F1011] border border-[#23252A] rounded-xl p-4">
+                <h3 className="text-sm font-semibold text-[#D0D6E0] mb-3 flex items-center gap-1.5">
+                  <BarChart3 size={14} className="text-purple-500" />
+                  캠페인별 ROAS 비교
+                </h3>
+                <ResponsiveContainer width="100%" height={Math.max(200, campaignChartData.length * 40)}>
+                  <BarChart data={campaignChartData} layout="vertical" margin={{ left: 10, right: 20, top: 4, bottom: 4 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#2a2d35" horizontal={false} />
+                    <XAxis type="number" tick={{ fontSize: 10, fill: '#9ca3af' }} stroke="#2a2d35" tickLine={false} />
+                    <YAxis type="category" dataKey="name" tick={{ fontSize: 10, fill: '#d1d5db' }} width={130} stroke="#2a2d35" tickLine={false} />
+                    <RechartsTooltip
+                      contentStyle={{ fontSize: '11px', borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', background: '#1f2937', color: '#f9fafb' }}
+                      formatter={(v: number) => [`${v.toFixed(2)}x`, 'ROAS']}
+                    />
+                    <Bar dataKey="roas" fill="#8b5cf6" radius={[0, 4, 4, 0]} barSize={20} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            );
+          })()}
+
+          {/* ═══ 전환 퍼널 ═══ */}
+          {(() => {
+            const totalImpressions = parseFloat(accountInsights.impressions || '0');
+            const totalClicks = parseFloat(accountInsights.clicks || '0');
+            const totalAddToCart = parseFloat(
+              accountInsights.actions?.find((a: any) => a.action_type === 'add_to_cart' || a.action_type === 'omni_add_to_cart')?.value || '0'
+            );
+            const totalPurchases = parseFloat(
+              accountInsights.actions?.find((a: any) => a.action_type === 'purchase' || a.action_type === 'omni_purchase')?.value || '0'
+            );
+            if (totalImpressions === 0) return null;
+            return (
+              <div className="bg-[#0F1011] border border-[#23252A] rounded-xl p-4">
+                <h3 className="text-sm font-semibold text-[#D0D6E0] mb-3 flex items-center gap-1.5">
+                  <Activity size={14} className="text-blue-500" />
+                  전환 퍼널
+                </h3>
+                <div className="space-y-2">
+                  {[
+                    { stage: '노출', value: totalImpressions, color: '#93c5fd' },
+                    { stage: '클릭', value: totalClicks, color: '#60a5fa' },
+                    { stage: '장바구니', value: totalAddToCart, color: '#3b82f6' },
+                    { stage: '구매', value: totalPurchases, color: '#1d4ed8' },
+                  ].map((item, idx) => (
+                    <div key={idx} className="flex items-center gap-3">
+                      <span className="text-xs text-[#8A8F98] w-16 flex-shrink-0">{item.stage}</span>
+                      <div className="flex-1 h-8 bg-[#141516] rounded-lg overflow-hidden relative">
+                        <div
+                          className="h-full rounded-lg transition-all duration-500"
+                          style={{ width: `${Math.max((item.value / totalImpressions) * 100, item.value > 0 ? 1 : 0)}%`, backgroundColor: item.color }}
+                        />
+                        <span className="absolute inset-0 flex items-center justify-center text-[10px] font-medium text-white drop-shadow">
+                          {item.value > 0
+                            ? `${item.value.toLocaleString()} (${((item.value / totalImpressions) * 100).toFixed(2)}%)`
+                            : '데이터 없음'}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
           {/* ═══ 크리에이티브 성과 대시보드 ═══ */}
           <CreativePerformanceDashboard
             campaigns={allCampaigns}
@@ -1278,128 +1408,76 @@ function KPICard({ icon, label, value, sub, color }: { icon: React.ReactNode; la
   );
 }
 
+const MINI_CHART_COLOR_MAP: Record<string, { stroke: string; gradientId: string }> = {
+  blue:   { stroke: '#3b82f6', gradientId: 'grad-blue' },
+  purple: { stroke: '#8b5cf6', gradientId: 'grad-purple' },
+  green:  { stroke: '#10b981', gradientId: 'grad-green' },
+  orange: { stroke: '#f97316', gradientId: 'grad-orange' },
+};
+
 function MiniLineChart({ data, color, formatValue }: {
   data: { label: string; value: number }[];
   color: string;
   formatValue: (v: number) => string;
 }) {
-  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
-
   if (data.length === 0) return null;
 
-  const width = 600;
-  const height = 120;
-  const paddingTop = 20;
-  const paddingBottom = 16;
-  const paddingLeft = 44;
-  const paddingRight = 10;
-
-  const chartWidth = width - paddingLeft - paddingRight;
-  const chartHeight = height - paddingTop - paddingBottom;
-
-  const maxVal = Math.max(...data.map(d => d.value), 0.01);
-  const minVal = Math.min(...data.map(d => d.value), 0);
-  const range = maxVal - minVal || 1;
-
-  const points = data.map((d, i) => ({
-    x: paddingLeft + (data.length > 1 ? (i / (data.length - 1)) * chartWidth : chartWidth / 2),
-    y: paddingTop + chartHeight - ((d.value - minVal) / range) * chartHeight,
-    value: d.value,
-    label: d.label,
-  }));
-
-  let pathD = '';
-  if (points.length === 1) {
-    pathD = `M ${points[0].x} ${points[0].y}`;
-  } else {
-    pathD = `M ${points[0].x} ${points[0].y}`;
-    for (let i = 0; i < points.length - 1; i++) {
-      const p0 = points[Math.max(i - 1, 0)];
-      const p1 = points[i];
-      const p2 = points[i + 1];
-      const p3 = points[Math.min(i + 2, points.length - 1)];
-      const tension = 0.3;
-      const cp1x = p1.x + (p2.x - p0.x) * tension;
-      const cp1y = p1.y + (p2.y - p0.y) * tension;
-      const cp2x = p2.x - (p3.x - p1.x) * tension;
-      const cp2y = p2.y - (p3.y - p1.y) * tension;
-      pathD += ` C ${cp1x},${cp1y} ${cp2x},${cp2y} ${p2.x},${p2.y}`;
-    }
-  }
-
-  const areaD = pathD + ` L ${points[points.length - 1].x},${paddingTop + chartHeight} L ${points[0].x},${paddingTop + chartHeight} Z`;
-
-  const colorMap: Record<string, { stroke: string; fill: string; areaFill: string }> = {
-    blue: { stroke: '#3b82f6', fill: '#3b82f6', areaFill: 'rgba(59,130,246,0.08)' },
-    purple: { stroke: '#8b5cf6', fill: '#8b5cf6', areaFill: 'rgba(139,92,246,0.08)' },
-    green: { stroke: '#10b981', fill: '#10b981', areaFill: 'rgba(16,185,129,0.08)' },
-    orange: { stroke: '#f97316', fill: '#f97316', areaFill: 'rgba(249,115,22,0.08)' },
-  };
-  const c = colorMap[color] || colorMap.blue;
-
-  const labelStep = Math.max(1, Math.ceil(data.length / 8));
-
-  const yTickCount = 4;
-  const fmtShort = (n: number) => {
-    if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
-    if (n >= 1_000) return (n / 1_000).toFixed(0) + 'K';
-    if (Number.isInteger(n)) return n.toString();
-    return n.toFixed(1);
-  };
+  const c = MINI_CHART_COLOR_MAP[color] || MINI_CHART_COLOR_MAP.blue;
+  const chartData = data.map(d => ({ label: d.label, value: d.value }));
 
   return (
-    <div className="relative w-full">
-      <svg
-        viewBox={`0 0 ${width} ${height}`}
-        className="w-full"
-        preserveAspectRatio="xMidYMid meet"
-        onMouseLeave={() => setHoveredIndex(null)}
-      >
-        {/* Y-axis grid + labels */}
-        {Array.from({ length: yTickCount }, (_, i) => {
-          const val = minVal + (range * i) / (yTickCount - 1);
-          const y = paddingTop + chartHeight - ((val - minVal) / range) * chartHeight;
-          return (
-            <g key={`y-${i}`}>
-              <line x1={paddingLeft} y1={y} x2={width - paddingRight} y2={y} stroke="#f0f0f0" strokeWidth={0.5} />
-              <text x={paddingLeft - 4} y={y + 2.5} textAnchor="end" fill="#b0b0b0" fontSize={5.5} fontFamily="system-ui">{fmtShort(val)}</text>
-            </g>
-          );
-        })}
-
-        <path d={areaD} fill={c.areaFill} />
-        <path d={pathD} fill="none" stroke={c.stroke} strokeWidth={1.2} strokeLinecap="round" strokeLinejoin="round" />
-
-        {points.map((p, i) => {
-          const isHovered = hoveredIndex === i;
-          const rectWidth = data.length > 1 ? chartWidth / (data.length - 1) : chartWidth;
-          const rectX = p.x - rectWidth / 2;
-
-          // Tooltip positioned above chart if point is near top
-          const tooltipY = p.y < paddingTop + 18 ? p.y + 14 : p.y - 18;
-          const tooltipTextY = p.y < paddingTop + 18 ? p.y + 22 : p.y - 10.5;
-
-          return (
-            <g key={i}>
-              <rect x={rectX} y={0} width={rectWidth} height={height} fill="transparent" onMouseEnter={() => setHoveredIndex(i)} />
-              <circle cx={p.x} cy={p.y} r={isHovered ? 3 : 1.5} fill={isHovered ? c.fill : '#fff'} stroke={c.stroke} strokeWidth={isHovered ? 1.5 : 1} style={{ transition: 'r 0.12s ease' }} />
-
-              {isHovered && (
-                <g>
-                  <line x1={p.x} y1={paddingTop} x2={p.x} y2={paddingTop + chartHeight} stroke={c.stroke} strokeWidth={0.4} strokeDasharray="2,2" opacity={0.25} />
-                  <rect x={p.x - 28} y={tooltipY} width={56} height={13} rx={2.5} fill="#1f2937" opacity={0.92} />
-                  <text x={p.x} y={tooltipTextY} textAnchor="middle" fill="white" fontSize={6} fontWeight={600} fontFamily="system-ui">{formatValue(p.value)}</text>
-                </g>
-              )}
-
-              {i % labelStep === 0 && (
-                <text x={p.x} y={height - 3} textAnchor="middle" fill="#c0c0c0" fontSize={5} fontFamily="system-ui">{p.label}</text>
-              )}
-            </g>
-          );
-        })}
-      </svg>
-    </div>
+    <ResponsiveContainer width="100%" height={120}>
+      <AreaChart data={chartData} margin={{ top: 8, right: 8, bottom: 16, left: 44 }}>
+        <defs>
+          <linearGradient id={c.gradientId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={c.stroke} stopOpacity={0.25} />
+            <stop offset="100%" stopColor={c.stroke} stopOpacity={0.03} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid strokeDasharray="3 3" stroke="#2a2d35" vertical={false} />
+        <XAxis
+          dataKey="label"
+          tick={{ fontSize: 9, fill: '#9ca3af' }}
+          stroke="#2a2d35"
+          tickLine={false}
+          interval="preserveStartEnd"
+        />
+        <YAxis
+          tick={{ fontSize: 9, fill: '#9ca3af' }}
+          stroke="#2a2d35"
+          tickLine={false}
+          axisLine={false}
+          tickFormatter={(v: number) => {
+            if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
+            if (v >= 1_000) return `${(v / 1_000).toFixed(0)}K`;
+            return Number.isInteger(v) ? String(v) : v.toFixed(1);
+          }}
+          width={40}
+        />
+        <RechartsTooltip
+          contentStyle={{
+            fontSize: '11px',
+            padding: '4px 8px',
+            borderRadius: '6px',
+            border: 'none',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+            background: '#1f2937',
+            color: '#f9fafb',
+          }}
+          formatter={(v: number) => [formatValue(v), '']}
+          labelFormatter={(l) => String(l)}
+        />
+        <Area
+          type="monotone"
+          dataKey="value"
+          stroke={c.stroke}
+          strokeWidth={1.5}
+          fill={`url(#${c.gradientId})`}
+          dot={false}
+          activeDot={{ r: 4, fill: c.stroke, strokeWidth: 0 }}
+        />
+      </AreaChart>
+    </ResponsiveContainer>
   );
 }
 
@@ -1968,29 +2046,26 @@ function CreativePerformanceDashboard({
   const topByROAS = [...allAds].filter(a => a.roas > 0).sort((a, b) => b.roas - a.roas).slice(0, 3);
   const topByCTR = [...allAds].sort((a, b) => b.ctr - a.ctr).slice(0, 3);
 
-  // Mini SVG bar chart for per-creative trend
+  // Recharts bar chart for per-creative trend
   const renderMiniTrend = (data: any[]) => {
     if (!data || data.length === 0) return <p className="text-xs text-[#62666D]">데이터 없음</p>;
-    const maxSpend = Math.max(...data.map((d: any) => parseFloat(d.spend || 0)), 1);
-    const w = 280;
-    const h = 80;
-    const barW = Math.max(4, (w - data.length * 2) / data.length);
+    const chartData = data.map((d: any) => ({
+      date: (d.date || '').slice(5),
+      spend: parseFloat(d.spend || 0),
+    }));
     return (
-      <svg width={w} height={h + 20} className="overflow-visible">
-        {data.map((d: any, i: number) => {
-          const spend = parseFloat(d.spend || 0);
-          const barH = (spend / maxSpend) * h;
-          const x = i * (barW + 2);
-          return (
-            <g key={i}>
-              <rect x={x} y={h - barH} width={barW} height={barH} rx={2} fill="#8b5cf6" opacity={0.7} />
-              {i % 3 === 0 && (
-                <text x={x} y={h + 14} fontSize={8} fill="#9ca3af">{(d.date || '').slice(5)}</text>
-              )}
-            </g>
-          );
-        })}
-      </svg>
+      <ResponsiveContainer width="100%" height={100}>
+        <BarChart data={chartData} margin={{ top: 4, right: 4, bottom: 16, left: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#2a2d35" vertical={false} />
+          <XAxis dataKey="date" tick={{ fontSize: 8, fill: '#9ca3af' }} stroke="#2a2d35" tickLine={false} interval={2} />
+          <YAxis hide />
+          <RechartsTooltip
+            contentStyle={{ fontSize: '11px', padding: '4px 8px', borderRadius: '6px', border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.3)', background: '#1f2937', color: '#f9fafb' }}
+            formatter={(v: number) => [formatSpend(v), '지출']}
+          />
+          <Bar dataKey="spend" fill="#8b5cf6" opacity={0.85} radius={[3, 3, 0, 0]} maxBarSize={20} />
+        </BarChart>
+      </ResponsiveContainer>
     );
   };
 
