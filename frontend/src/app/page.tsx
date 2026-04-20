@@ -44,10 +44,22 @@ export default function Home() {
       if (cafe24Status === 'connected') {
         toast.success('Cafe24 스토어가 연결되었습니다.');
       } else if (cafe24Status === 'error') {
-        toast.error('Cafe24 연결에 실패했습니다. 다시 시도해주세요.');
+        const reason = params.get('reason') || 'unknown';
+        const reasonMap: Record<string, string> = {
+          invalid_scope: 'Cafe24 개발자센터에서 앱 권한(Scope)을 확인하세요.',
+          access_denied: '사용자가 승인을 거부했습니다.',
+          no_code: 'Cafe24에서 인증 코드를 받지 못했습니다. Redirect URI 등록을 확인하세요.',
+          missing_mall_id: '쇼핑몰 ID를 복원하지 못했습니다.',
+          invalid_state: '인증 state가 올바르지 않습니다.',
+          token_exchange_failed: '토큰 교환 중 오류가 발생했습니다. Client Secret을 확인하세요.',
+          user_not_found: '사용자를 찾을 수 없습니다.',
+        };
+        const msg = reasonMap[reason] || `Cafe24 연결 실패 (${reason})`;
+        toast.error(msg, { duration: 8000 });
       }
       const clean = new URL(window.location.href);
       clean.searchParams.delete('cafe24');
+      clean.searchParams.delete('reason');
       window.history.replaceState({}, '', clean.pathname + (clean.search || ''));
     }
 
