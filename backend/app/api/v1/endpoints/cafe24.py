@@ -80,7 +80,11 @@ async def cafe24_auth_callback(
     user.cafe24_mall_id = data.get("mall_id") or mall_id
     user.cafe24_access_token = data.get("access_token")
     user.cafe24_refresh_token = data.get("refresh_token")
-    user.cafe24_scopes = data.get("scopes") or data.get("scope", "")
+    # Cafe24는 scopes를 list로 돌려줌 → comma-separated string으로 변환
+    scopes_raw = data.get("scopes") or data.get("scope") or ""
+    if isinstance(scopes_raw, list):
+        scopes_raw = ",".join(str(s) for s in scopes_raw)
+    user.cafe24_scopes = scopes_raw
 
     expires_at_raw = data.get("expires_at")
     if expires_at_raw:
