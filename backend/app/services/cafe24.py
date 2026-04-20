@@ -183,6 +183,26 @@ async def get_product(user, db, product_no: int) -> dict:
     return product or {}
 
 
+async def verify_storefront_url(url: str) -> bool:
+    """
+    스토어프론트 URL이 실제 상품 페이지로 연결되는지 확인.
+    302로 /index.html로 리다이렉트되면 False, 상품 페이지 유지되면 True.
+    """
+    try:
+        async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
+            resp = await client.head(url)
+            final_url = str(resp.url)
+            # index.html로 redirect되면 접근 불가
+            if "/index.html" in final_url or final_url.rstrip("/").endswith(".com"):
+                return False
+            # 원본 URL의 product_no가 최종 URL에도 남아있어야 함
+            return "product_no=" in final_url or "/product/" in final_url
+    except Exception as e:
+        logger.warning(f"[Cafe24] verify_storefront_url failed for {url}: {e}")
+        # 검증 실패 시 통과 (false negative 방지)
+        return True
+
+
 async def create_coupon(
     user,
     db,

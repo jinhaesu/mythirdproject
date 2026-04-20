@@ -180,6 +180,17 @@ async def create_campaign(
         base_url = f"https://{domain}/product/detail.html?product_no={cafe24_product_no}"
         data["base_product_url"] = base_url
 
+        # 실제 스토어프론트에 접근 가능한지 검증 (index로 302되는 상품 차단)
+        accessible = await cafe24_svc.verify_storefront_url(base_url)
+        if not accessible:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"선택한 상품(상품번호 {cafe24_product_no})이 스토어프론트에 공개되어 있지 않습니다. "
+                    "Cafe24 관리자에서 진열/판매 상태, 카테고리 할당, 진열 사이트(PC/모바일)를 확인해주세요."
+                ),
+            )
+
         if not data.get("landing_url"):
             data["landing_url"] = base_url
 
