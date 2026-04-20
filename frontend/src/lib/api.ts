@@ -69,8 +69,8 @@ export const authApi = {
     return data;
   },
 
-  verifyMagicLink: async (token: string) => {
-    const { data } = await api.post<{ access_token: string; token_type: string }>('/auth/verify-magic-link', { token });
+  verifyMagicLink: async (token: string, ref?: string) => {
+    const { data } = await api.post<{ access_token: string; token_type: string }>('/auth/verify-magic-link', { token, ref });
     return data;
   },
 
@@ -723,6 +723,20 @@ export const affiliateApi = {
   getReferralPrograms: async () => { const { data } = await api.get('/affiliate/referral-programs'); return data; },
   createReferralProgram: async (d: any) => { const { data } = await api.post('/affiliate/referral-programs', d); return data; },
   updateReferralProgram: async (id: number, d: any) => { const { data } = await api.put(`/affiliate/referral-programs/${id}`, d); return data; },
+  getMyPoints: async () => { const { data } = await api.get('/affiliate/my-points'); return data; },
+  getMyReferralCode: async () => { const { data } = await api.get('/affiliate/my-referral-code'); return data; },
+  createPartnerMulti: async (d: { name: string; email?: string; channel: string; followers: number; campaign_ids: number[]; memo?: string }) => { const { data } = await api.post('/affiliate/partners', d); return data; },
+  addPartnerCampaign: async (partnerId: number, campaignId: number) => { const { data } = await api.post(`/affiliate/partners/${partnerId}/campaigns`, { campaign_id: campaignId }); return data; },
+  removePartnerCampaign: async (partnerId: number, pcId: number) => { await api.delete(`/affiliate/partners/${partnerId}/campaigns/${pcId}`); },
+  getPartnerPerformance: async (partnerId: number) => { const { data } = await api.get(`/affiliate/partners/${partnerId}/performance`); return data; },
+};
+
+// Cafe24 API
+export const cafe24Api = {
+  getStatus: async () => { const { data } = await api.get('/cafe24/status'); return data; },
+  startAuth: async (mallId: string) => { const { data } = await api.get('/cafe24/auth/start', { params: { mall_id: mallId } }); return data; },
+  disconnect: async () => { const { data } = await api.post('/cafe24/disconnect'); return data; },
+  listProducts: async (q?: string, limit = 50) => { const { data } = await api.get('/cafe24/products', { params: { q, limit } }); return data; },
 };
 
 // AI Chat API

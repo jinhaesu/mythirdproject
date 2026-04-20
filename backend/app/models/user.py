@@ -2,7 +2,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import String, Boolean, DateTime, Text
+from sqlalchemy import String, Boolean, DateTime, Text, Integer, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.database import Base
@@ -42,6 +42,17 @@ class User(Base):
 
     # Brand settings (JSON stored as text for simplicity)
     brand_settings: Mapped[Optional[str]] = mapped_column(Text)  # JSON: logo, colors, etc.
+
+    # Cafe24 OAuth 연동
+    cafe24_mall_id: Mapped[Optional[str]] = mapped_column(String(100))
+    cafe24_access_token: Mapped[Optional[str]] = mapped_column(Text)
+    cafe24_refresh_token: Mapped[Optional[str]] = mapped_column(Text)
+    cafe24_token_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    cafe24_scopes: Mapped[Optional[str]] = mapped_column(Text)  # comma-separated
+
+    # 친구 추천 (referral)
+    referral_code: Mapped[Optional[str]] = mapped_column(String(20), unique=True, index=True)
+    referred_by_user_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
 
     # Relationships
     campaigns = relationship("Campaign", back_populates="user")

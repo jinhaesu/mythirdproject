@@ -240,3 +240,120 @@ async def init_db():
                 )
         except Exception:
             pass
+
+    # Phase 1 — Cafe24 OAuth + referral columns on users
+    cafe24_user_cols = [
+        ("cafe24_mall_id", "VARCHAR(100)"),
+        ("cafe24_access_token", "TEXT"),
+        ("cafe24_refresh_token", "TEXT"),
+        ("cafe24_token_expires_at", "TIMESTAMP"),
+        ("cafe24_scopes", "TEXT"),
+        ("referral_code", "VARCHAR(20)"),
+        ("referred_by_user_id", "INTEGER"),
+    ]
+    for col, col_type in cafe24_user_cols:
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(
+                    __import__('sqlalchemy').text(
+                        f"ALTER TABLE users ADD COLUMN {col} {col_type}"
+                    )
+                )
+        except Exception:
+            pass
+
+    # referral_code unique index on users
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(
+                __import__('sqlalchemy').text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_referral_code ON users(referral_code)"
+                )
+            )
+    except Exception:
+        pass
+
+    # Phase 2 — AffiliateCampaign Cafe24 product/coupon columns
+    campaign_cafe24_cols = [
+        ("cafe24_product_no", "INTEGER"),
+        ("cafe24_product_name", "VARCHAR(255)"),
+        ("cafe24_product_image", "VARCHAR(500)"),
+        ("cafe24_coupon_code", "VARCHAR(100)"),
+        ("cafe24_coupon_no", "VARCHAR(100)"),
+        ("discount_type", "VARCHAR(20)"),
+        ("discount_value", "DOUBLE PRECISION"),
+        ("base_product_url", "VARCHAR(500)"),
+    ]
+    for col, col_type in campaign_cafe24_cols:
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(
+                    __import__('sqlalchemy').text(
+                        f"ALTER TABLE affiliate_campaigns ADD COLUMN {col} {col_type}"
+                    )
+                )
+        except Exception:
+            pass
+
+    # cafe24_coupon_code index
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(
+                __import__('sqlalchemy').text(
+                    "CREATE INDEX IF NOT EXISTS ix_affiliate_campaigns_cafe24_coupon_code "
+                    "ON affiliate_campaigns(cafe24_coupon_code)"
+                )
+            )
+    except Exception:
+        pass
+
+    # Phase 3 — ReferralConversion cafe24_order_id
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(
+                __import__('sqlalchemy').text(
+                    "ALTER TABLE referral_conversions ADD COLUMN cafe24_order_id VARCHAR(100)"
+                )
+            )
+    except Exception:
+        pass
+
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(
+                __import__('sqlalchemy').text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS ix_referral_conversions_cafe24_order_id "
+                    "ON referral_conversions(cafe24_order_id)"
+                )
+            )
+    except Exception:
+        pass
+
+    # Phase 4 — point_transactions table
+    for tbl_name in ["point_transactions", "partner_campaigns"]:
+        if tbl_name in Base.metadata.tables:
+            try:
+                async with engine.begin() as conn:
+                    await conn.run_sync(
+                        Base.metadata.tables[tbl_name].create, checkfirst=True
+                    )
+                logger.info(f"Ensured table: {tbl_name}")
+            except Exception as te:
+                logger.warning(f"{tbl_name} create skipped: {te}")
+
+    # Backfill: affiliate_partners → partner_campaigns
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(
+                __import__('sqlalchemy').text(
+                    """
+                    INSERT INTO partner_campaigns (partner_id, campaign_id, referral_code, referral_link)
+                    SELECT id, campaign_id, referral_code, referral_link
+                    FROM affiliate_partners
+                    WHERE campaign_id IS NOT NULL
+                    ON CONFLICT DO NOTHING
+                    """
+                )
+            )
+    except Exception as be:
+        logger.warning(f"partner_campaigns backfill skipped: {be}")

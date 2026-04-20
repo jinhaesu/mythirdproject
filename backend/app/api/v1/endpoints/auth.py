@@ -7,7 +7,7 @@ import resend
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.core.config import get_settings
 from app.core.security import create_access_token, create_magic_link_token, decode_token
@@ -147,15 +147,95 @@ async def verify_magic_link(
     result = await db.execute(select(User).where(User.email == email))
     user = result.scalar_one_or_none()
 
+    is_new_user = False
     if not user:
+        import uuid as _uuid
+        # referral_code 자동 생성 (충돌 3회 재시도)
+        referral_code = None
+        for _ in range(3):
+            candidate = _uuid.uuid4().hex[:8].upper()
+            dup = await db.execute(select(User).where(User.referral_code == candidate))
+            if not dup.scalar_one_or_none():
+                referral_code = candidate
+                break
+
         user = User(
             email=email,
             hashed_password="",
             is_active=True,
+            referral_code=referral_code,
         )
         db.add(user)
         await db.commit()
         await db.refresh(user)
+        is_new_user = True
+
+    # 신규 가입이고 ref 코드가 있으면 추천인 포인트 처리
+    if is_new_user and request.ref:
+        try:
+            from app.models.affiliate import ReferralProgram
+            from app.models.points import PointTransaction
+
+            ref_result = await db.execute(
+                select(User).where(User.referral_code == request.ref)
+            )
+            referrer = ref_result.scalar_one_or_none()
+
+            if referrer:
+                user.referred_by_user_id = referrer.id
+
+                # 활성 ReferralProgram 조회 (추천인 전용 우선, 없으면 전역)
+                prog_result = await db.execute(
+                    select(ReferralProgram).where(
+                        ReferralProgram.user_id == referrer.id,
+                        ReferralProgram.status == "active",
+                    ).limit(1)
+                )
+                program = prog_result.scalar_one_or_none()
+
+                if program:
+                    # 추천인 max_rewards 체크
+                    if program.max_rewards_per_user:
+                        used_count_result = await db.execute(
+                            select(func.count(PointTransaction.id)).where(
+                                PointTransaction.user_id == referrer.id,
+                                PointTransaction.reason == "referral_bonus_referrer",
+                                PointTransaction.program_id == program.id,
+                            )
+                        )
+                        used_count = used_count_result.scalar() or 0
+                    else:
+                        used_count = 0
+
+                    skip_referrer_bonus = (
+                        program.max_rewards_per_user is not None
+                        and used_count >= program.max_rewards_per_user
+                    )
+
+                    if not skip_referrer_bonus and program.referrer_reward > 0:
+                        db.add(PointTransaction(
+                            user_id=referrer.id,
+                            amount=program.referrer_reward,
+                            reason="referral_bonus_referrer",
+                            related_user_id=user.id,
+                            program_id=program.id,
+                            memo=f"추천인 보상 — {user.email}",
+                        ))
+
+                    if program.referee_reward > 0:
+                        db.add(PointTransaction(
+                            user_id=user.id,
+                            amount=program.referee_reward,
+                            reason="referral_bonus_referee",
+                            related_user_id=referrer.id,
+                            program_id=program.id,
+                            memo=f"피추천인 보상 — {referrer.email}",
+                        ))
+
+                await db.commit()
+                await db.refresh(user)
+        except Exception as e:
+            logger.warning(f"[Auth] Referral processing failed: {e}")
 
     if not user.is_active:
         raise HTTPException(

@@ -57,6 +57,12 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = "http://localhost:3000"
     BACKEND_URL: str = ""  # Public backend URL for external access (e.g., https://xxx.up.railway.app)
 
+    # Cafe24 OAuth 2.0
+    CAFE24_CLIENT_ID: str = ""
+    CAFE24_CLIENT_SECRET: str = ""
+    CAFE24_REDIRECT_URI: str = ""  # e.g. https://backend.railway.app/api/v1/cafe24/auth/callback
+    CAFE24_WEBHOOK_SECRET: str = ""
+
     # Allowed emails (comma-separated, empty = allow all)
     ALLOWED_EMAILS: str = ""
 

@@ -11,6 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.endpoints.auth import get_current_user
+from app.core.config import get_settings
 from app.db.database import get_db
 from app.models.affiliate import (
     AffiliateCampaign,
@@ -20,7 +21,11 @@ from app.models.affiliate import (
     ReferralConversion,
     ReferralProgram,
 )
+from app.models.partner_campaign import PartnerCampaign
+from app.models.points import PointTransaction
 from app.models.user import User
+
+_settings = get_settings()
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +46,10 @@ class CampaignCreate(BaseModel):
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
     landing_url: Optional[str] = None
+    # Cafe24 상품/쿠폰 연결 (Phase 2)
+    cafe24_product_no: Optional[int] = None
+    discount_type: Optional[str] = None   # percentage | fixed | shipping
+    discount_value: Optional[float] = None
 
 
 class CampaignUpdate(BaseModel):
@@ -57,6 +66,7 @@ class CampaignUpdate(BaseModel):
 
 class PartnerCreate(BaseModel):
     campaign_id: Optional[int] = None
+    campaign_ids: List[int] = []  # Phase 5 M:N
     name: str
     email: Optional[str] = None
     channel: str = "instagram"
@@ -106,6 +116,17 @@ class ConversionCreate(BaseModel):
     cookie_id: Optional[str] = None
 
 
+class PartnerCampaignAdd(BaseModel):
+    campaign_id: int
+
+
+class PointAwardRequest(BaseModel):
+    user_id: int
+    amount: float
+    reason: str = "manual"
+    memo: Optional[str] = None
+
+
 # ---------------------------------------------------------------------------
 # Campaign CRUD
 # ---------------------------------------------------------------------------
@@ -116,20 +137,76 @@ async def create_campaign(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Create a new affiliate campaign."""
+    """Create a new affiliate campaign. Cafe24 상품 연결 시 쿠폰 자동 발급."""
+    import app.services.cafe24 as cafe24_svc
+
     data = payload.model_dump()
-    # timezone-aware → naive 변환 (PostgreSQL TIMESTAMP WITHOUT TIME ZONE 호환)
+    cafe24_product_no = data.pop("cafe24_product_no", None)
+    discount_type = data.pop("discount_type", None)
+    discount_value = data.pop("discount_value", None)
+
+    # timezone-aware → naive 변환
     for key in ('start_date', 'end_date'):
         if data.get(key) and hasattr(data[key], 'replace'):
             data[key] = data[key].replace(tzinfo=None)
-    campaign = AffiliateCampaign(
-        user_id=current_user.id,
-        **data,
-    )
+
+    coupon_warning: Optional[str] = None
+
+    if cafe24_product_no:
+        # Cafe24 연결 확인
+        if not current_user.cafe24_access_token:
+            raise HTTPException(status_code=400, detail="Cafe24 스토어 연결이 필요합니다.")
+
+        mall_id = current_user.cafe24_mall_id
+
+        # 상품 정보 조회
+        try:
+            product = await cafe24_svc.get_product(current_user, db, cafe24_product_no)
+        except Exception as e:
+            logger.warning(f"[Campaign] 상품 조회 실패: {e}")
+            product = {}
+
+        data["cafe24_product_no"] = cafe24_product_no
+        data["cafe24_product_name"] = product.get("product_name", "")
+        data["cafe24_product_image"] = product.get("list_image", "")
+        data["discount_type"] = discount_type
+        data["discount_value"] = discount_value
+
+        base_url = f"https://{mall_id}.cafe24.com/product/detail.html?product_no={cafe24_product_no}"
+        data["base_product_url"] = base_url
+
+        if not data.get("landing_url"):
+            data["landing_url"] = base_url
+
+        # 쿠폰 발급
+        try:
+            benefit_type_map = {"percentage": "A", "fixed": "B", "shipping": "D"}
+            benefit_type = benefit_type_map.get(discount_type or "percentage", "A")
+            coupon_result = await cafe24_svc.create_coupon(
+                current_user, db,
+                coupon_name=f"[{payload.name}] 할인쿠폰",
+                benefit_type=benefit_type,
+                benefit_percentage=discount_value if discount_type == "percentage" else None,
+                benefit_price=discount_value if discount_type == "fixed" else None,
+                product_no=cafe24_product_no,
+            )
+            data["cafe24_coupon_code"] = coupon_result.get("coupon_code")
+            data["cafe24_coupon_no"] = coupon_result.get("coupon_no")
+        except Exception as e:
+            logger.warning(f"[Campaign] 쿠폰 발급 실패: {e}")
+            data["cafe24_coupon_code"] = None
+            data["cafe24_coupon_no"] = None
+            coupon_warning = f"쿠폰 발급 실패: {str(e)}"
+
+    campaign = AffiliateCampaign(user_id=current_user.id, **data)
     db.add(campaign)
     await db.commit()
     await db.refresh(campaign)
-    return campaign
+
+    resp = {k: getattr(campaign, k) for k in campaign.__table__.columns.keys()}
+    if coupon_warning:
+        resp["warning"] = coupon_warning
+    return resp
 
 
 @router.get("/campaigns")
@@ -219,6 +296,44 @@ def _generate_referral_code() -> str:
     return uuid.uuid4().hex[:10].upper()
 
 
+async def _unique_partner_code(db: AsyncSession) -> str:
+    """충돌 없는 AffiliatePartner 레퍼럴 코드 생성."""
+    for _ in range(10):
+        code = _generate_referral_code()
+        existing = await db.execute(
+            select(AffiliatePartner).where(AffiliatePartner.referral_code == code)
+        )
+        if not existing.scalar_one_or_none():
+            return code
+    return _generate_referral_code()
+
+
+async def _unique_pc_code(db: AsyncSession) -> str:
+    """충돌 없는 PartnerCampaign 레퍼럴 코드 생성."""
+    for _ in range(10):
+        code = _generate_referral_code()
+        existing = await db.execute(
+            select(PartnerCampaign).where(PartnerCampaign.referral_code == code)
+        )
+        if not existing.scalar_one_or_none():
+            return code
+    return _generate_referral_code()
+
+
+def _build_referral_link(campaign: Optional[AffiliateCampaign], code: str) -> str:
+    """캠페인 상황에 맞는 레퍼럴 링크 생성."""
+    if campaign and campaign.cafe24_coupon_code and campaign.base_product_url:
+        base = campaign.base_product_url
+        sep = "&" if "?" in base else "?"
+        return f"{base}{sep}coupon={campaign.cafe24_coupon_code}&ref={code}"
+
+    landing_url = "https://nuldam.com"
+    if campaign and campaign.landing_url:
+        landing_url = campaign.landing_url
+    sep = "&" if "?" in landing_url else "?"
+    return f"{landing_url}{sep}ref={code}"
+
+
 @router.post("/partners", status_code=status.HTTP_201_CREATED)
 async def create_partner(
     payload: PartnerCreate,
@@ -226,64 +341,82 @@ async def create_partner(
     db: AsyncSession = Depends(get_db),
 ):
     """Register a new affiliate partner and generate referral link."""
-    # Ensure referral_code is unique
-    code = _generate_referral_code()
-    while True:
-        existing = await db.execute(
-            select(AffiliatePartner).where(AffiliatePartner.referral_code == code)
-        )
-        if not existing.scalar_one_or_none():
-            break
-        code = _generate_referral_code()
+    code = await _unique_partner_code(db)
 
-    # 캠페인의 landing_url 기반으로 레퍼럴 링크 생성
-    landing_url = "https://nuldam.com"
-    if payload.campaign_id:
-        campaign_result = await db.execute(
-            select(AffiliateCampaign).where(AffiliateCampaign.id == payload.campaign_id)
-        )
-        campaign = campaign_result.scalar_one_or_none()
-        if campaign and campaign.landing_url:
-            landing_url = campaign.landing_url
+    # 첫 번째 캠페인 결정 (campaign_ids 우선)
+    primary_campaign_id = payload.campaign_id
+    if payload.campaign_ids:
+        primary_campaign_id = payload.campaign_ids[0]
 
-    separator = "&" if "?" in landing_url else "?"
-    referral_link = f"{landing_url}{separator}ref={code}"
+    # 기본 캠페인 조회
+    campaign = None
+    if primary_campaign_id:
+        camp_result = await db.execute(
+            select(AffiliateCampaign).where(AffiliateCampaign.id == primary_campaign_id)
+        )
+        campaign = camp_result.scalar_one_or_none()
+
+    referral_link = _build_referral_link(campaign, code)
+
+    partner_data = payload.model_dump(exclude={"campaign_ids"})
+    partner_data["campaign_id"] = primary_campaign_id
 
     partner = AffiliatePartner(
         user_id=current_user.id,
         referral_code=code,
         referral_link=referral_link,
-        **payload.model_dump(),
+        **partner_data,
     )
     db.add(partner)
+    await db.flush()  # partner.id 확보
+
+    # Phase 5: campaign_ids 각각에 대해 PartnerCampaign 생성
+    all_campaign_ids = list(dict.fromkeys(
+        ([primary_campaign_id] if primary_campaign_id else []) + payload.campaign_ids
+    ))
+    for cid in all_campaign_ids:
+        camp_result = await db.execute(
+            select(AffiliateCampaign).where(AffiliateCampaign.id == cid)
+        )
+        c = camp_result.scalar_one_or_none()
+        if not c:
+            continue
+        pc_code = await _unique_pc_code(db)
+        pc_link = _build_referral_link(c, pc_code)
+        pc = PartnerCampaign(
+            partner_id=partner.id,
+            campaign_id=cid,
+            referral_code=pc_code,
+            referral_link=pc_link,
+        )
+        db.add(pc)
+
     await db.commit()
     await db.refresh(partner)
 
     # 이메일 발송 (Resend)
     if partner.email:
         try:
-            from app.core.config import get_settings
-            settings = get_settings()
-            if settings.RESEND_API_KEY:
+            if _settings.RESEND_API_KEY:
                 import httpx
-                await httpx.AsyncClient().post(
-                    "https://api.resend.com/emails",
-                    headers={"Authorization": f"Bearer {settings.RESEND_API_KEY}"},
-                    json={
-                        "from": settings.RESEND_FROM_EMAIL or "noreply@joinandjoin.com",
-                        "to": [partner.email],
-                        "subject": f"[널담] 어필리에이트 파트너 초대",
-                        "html": (
-                            f"<h2>안녕하세요, {partner.name}님!</h2>"
-                            f"<p>널담 어필리에이트 파트너로 초대되었습니다.</p>"
-                            f"<p>아래 전용 링크를 통해 상품을 홍보하고 커미션을 받으세요:</p>"
-                            f"<p><a href='{referral_link}' style='font-size:18px;font-weight:bold;'>{referral_link}</a></p>"
-                            f"<p>레퍼럴 코드: <b>{code}</b></p>"
-                            f"<br><p>감사합니다,<br>널담은디저트</p>"
-                        ),
-                    },
-                    timeout=10.0,
-                )
+                async with httpx.AsyncClient(timeout=10) as hclient:
+                    await hclient.post(
+                        "https://api.resend.com/emails",
+                        headers={"Authorization": f"Bearer {_settings.RESEND_API_KEY}"},
+                        json={
+                            "from": _settings.RESEND_FROM_EMAIL or "noreply@joinandjoin.com",
+                            "to": [partner.email],
+                            "subject": "[널담] 어필리에이트 파트너 초대",
+                            "html": (
+                                f"<h2>안녕하세요, {partner.name}님!</h2>"
+                                f"<p>널담 어필리에이트 파트너로 초대되었습니다.</p>"
+                                f"<p>아래 전용 링크를 통해 상품을 홍보하고 커미션을 받으세요:</p>"
+                                f"<p><a href='{referral_link}' style='font-size:18px;font-weight:bold;'>{referral_link}</a></p>"
+                                f"<p>레퍼럴 코드: <b>{code}</b></p>"
+                                f"<br><p>감사합니다,<br>널담은디저트</p>"
+                            ),
+                        },
+                    )
                 logger.info(f"[Affiliate] Invite email sent to {partner.email}")
         except Exception as e:
             logger.warning(f"[Affiliate] Email send failed: {e}")
@@ -654,36 +787,48 @@ async def track_referral_click(
     """
     Record a referral click and redirect to the campaign landing URL.
 
-    Sets a cookie (ref_id) so the conversion can be attributed later.
+    PartnerCampaign 코드 우선 조회, 없으면 AffiliatePartner 코드로 fallback.
     """
-    result = await db.execute(
-        select(AffiliatePartner).where(AffiliatePartner.referral_code == referral_code)
-    )
-    partner = result.scalar_one_or_none()
-    if not partner:
-        raise HTTPException(status_code=404, detail="Invalid referral code")
-
-    # Determine redirect target
+    # Phase 5: PartnerCampaign 우선
+    partner_id: int
+    campaign_id: Optional[int] = None
     redirect_url = "/"
-    if partner.referral_link:
-        redirect_url = partner.referral_link
-    elif partner.campaign_id:
-        camp_result = await db.execute(
-            select(AffiliateCampaign).where(AffiliateCampaign.id == partner.campaign_id)
+
+    pc_result = await db.execute(
+        select(PartnerCampaign).where(PartnerCampaign.referral_code == referral_code)
+    )
+    pc = pc_result.scalar_one_or_none()
+
+    if pc:
+        partner_id = pc.partner_id
+        campaign_id = pc.campaign_id
+        redirect_url = pc.referral_link or "/"
+    else:
+        result = await db.execute(
+            select(AffiliatePartner).where(AffiliatePartner.referral_code == referral_code)
         )
-        campaign = camp_result.scalar_one_or_none()
-        if campaign and campaign.landing_url:
-            redirect_url = campaign.landing_url
+        partner = result.scalar_one_or_none()
+        if not partner:
+            raise HTTPException(status_code=404, detail="Invalid referral code")
+        partner_id = partner.id
+        campaign_id = partner.campaign_id
+        if partner.referral_link:
+            redirect_url = partner.referral_link
+        elif partner.campaign_id:
+            camp_result = await db.execute(
+                select(AffiliateCampaign).where(AffiliateCampaign.id == partner.campaign_id)
+            )
+            campaign_obj = camp_result.scalar_one_or_none()
+            if campaign_obj and campaign_obj.landing_url:
+                redirect_url = campaign_obj.landing_url
 
-    # Generate cookie id for conversion attribution
     cookie_id = request.cookies.get("ref_id") or uuid.uuid4().hex
-
     ip_address = request.client.host if request.client else None
     user_agent = request.headers.get("user-agent")
 
     click = ReferralClick(
-        partner_id=partner.id,
-        campaign_id=partner.campaign_id,
+        partner_id=partner_id,
+        campaign_id=campaign_id,
         ip_address=ip_address,
         user_agent=user_agent,
         cookie_id=cookie_id,
@@ -695,7 +840,7 @@ async def track_referral_click(
     response.set_cookie(
         key="ref_id",
         value=cookie_id,
-        max_age=60 * 60 * 24 * 30,  # 30 days
+        max_age=60 * 60 * 24 * 30,
         httponly=True,
         samesite="lax",
     )
@@ -769,3 +914,239 @@ async def record_conversion(
         "conversion_id": conversion.id,
         "commission_amount": conversion.commission_amount,
     }
+
+
+# ---------------------------------------------------------------------------
+# Phase 4 — 포인트 원장 & 내 추천 코드
+# ---------------------------------------------------------------------------
+
+@router.get("/my-points")
+async def get_my_points(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """현재 유저의 포인트 잔액 + 최근 거래 50건."""
+    balance_result = await db.execute(
+        select(func.coalesce(func.sum(PointTransaction.amount), 0.0)).where(
+            PointTransaction.user_id == current_user.id
+        )
+    )
+    balance = float(balance_result.scalar())
+
+    txn_result = await db.execute(
+        select(PointTransaction)
+        .where(PointTransaction.user_id == current_user.id)
+        .order_by(PointTransaction.created_at.desc())
+        .limit(50)
+    )
+    transactions = txn_result.scalars().all()
+    return {
+        "balance": balance,
+        "transactions": [
+            {
+                "id": t.id,
+                "amount": t.amount,
+                "reason": t.reason,
+                "memo": t.memo,
+                "created_at": t.created_at,
+            }
+            for t in transactions
+        ],
+    }
+
+
+@router.get("/my-referral-code")
+async def get_my_referral_code(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """내 추천 코드 조회. 없으면 자동 생성."""
+    if not current_user.referral_code:
+        for _ in range(3):
+            code = uuid.uuid4().hex[:8].upper()
+            dup = await db.execute(select(User).where(User.referral_code == code))
+            if not dup.scalar_one_or_none():
+                current_user.referral_code = code
+                await db.commit()
+                break
+
+    return {
+        "referral_code": current_user.referral_code,
+        "referral_link": f"{_settings.FRONTEND_URL}?ref={current_user.referral_code}",
+    }
+
+
+@router.post("/my-points/award", status_code=status.HTTP_201_CREATED)
+async def award_points(
+    payload: PointAwardRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """(관리자) 수동 포인트 지급."""
+    if not current_user.is_superuser:
+        raise HTTPException(status_code=403, detail="관리자 권한이 필요합니다.")
+
+    txn = PointTransaction(
+        user_id=payload.user_id,
+        amount=payload.amount,
+        reason=payload.reason,
+        memo=payload.memo,
+    )
+    db.add(txn)
+    await db.commit()
+    await db.refresh(txn)
+    return {"success": True, "transaction_id": txn.id}
+
+
+# ---------------------------------------------------------------------------
+# Phase 5 — 파트너 다캠페인 M:N 엔드포인트
+# ---------------------------------------------------------------------------
+
+@router.post("/partners/{partner_id}/campaigns", status_code=status.HTTP_201_CREATED)
+async def add_partner_campaign(
+    partner_id: int,
+    payload: PartnerCampaignAdd,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """파트너에 캠페인 연결 추가."""
+    p_result = await db.execute(
+        select(AffiliatePartner).where(
+            AffiliatePartner.id == partner_id,
+            AffiliatePartner.user_id == current_user.id,
+        )
+    )
+    partner = p_result.scalar_one_or_none()
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner not found")
+
+    c_result = await db.execute(
+        select(AffiliateCampaign).where(AffiliateCampaign.id == payload.campaign_id)
+    )
+    campaign = c_result.scalar_one_or_none()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    # 중복 체크
+    dup = await db.execute(
+        select(PartnerCampaign).where(
+            PartnerCampaign.partner_id == partner_id,
+            PartnerCampaign.campaign_id == payload.campaign_id,
+        )
+    )
+    if dup.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="이미 연결된 캠페인입니다.")
+
+    pc_code = await _unique_pc_code(db)
+    pc_link = _build_referral_link(campaign, pc_code)
+    pc = PartnerCampaign(
+        partner_id=partner_id,
+        campaign_id=payload.campaign_id,
+        referral_code=pc_code,
+        referral_link=pc_link,
+    )
+    db.add(pc)
+    await db.commit()
+    await db.refresh(pc)
+    return {
+        "id": pc.id,
+        "partner_id": pc.partner_id,
+        "campaign_id": pc.campaign_id,
+        "referral_code": pc.referral_code,
+        "referral_link": pc.referral_link,
+        "created_at": pc.created_at,
+    }
+
+
+@router.delete("/partners/{partner_id}/campaigns/{pc_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_partner_campaign(
+    partner_id: int,
+    pc_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """파트너-캠페인 연결 해제."""
+    p_result = await db.execute(
+        select(AffiliatePartner).where(
+            AffiliatePartner.id == partner_id,
+            AffiliatePartner.user_id == current_user.id,
+        )
+    )
+    if not p_result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Partner not found")
+
+    pc_result = await db.execute(
+        select(PartnerCampaign).where(
+            PartnerCampaign.id == pc_id,
+            PartnerCampaign.partner_id == partner_id,
+        )
+    )
+    pc = pc_result.scalar_one_or_none()
+    if not pc:
+        raise HTTPException(status_code=404, detail="PartnerCampaign not found")
+
+    await db.delete(pc)
+    await db.commit()
+
+
+@router.get("/partners/{partner_id}/performance")
+async def get_partner_performance(
+    partner_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """파트너별 캠페인 성과 집계."""
+    p_result = await db.execute(
+        select(AffiliatePartner).where(
+            AffiliatePartner.id == partner_id,
+            AffiliatePartner.user_id == current_user.id,
+        )
+    )
+    if not p_result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Partner not found")
+
+    # PartnerCampaign 목록
+    pc_result = await db.execute(
+        select(PartnerCampaign).where(PartnerCampaign.partner_id == partner_id)
+    )
+    pcs = pc_result.scalars().all()
+
+    result_rows = []
+    for pc in pcs:
+        camp_result = await db.execute(
+            select(AffiliateCampaign).where(AffiliateCampaign.id == pc.campaign_id)
+        )
+        campaign = camp_result.scalar_one_or_none()
+
+        clicks_result = await db.execute(
+            select(func.count(ReferralClick.id)).where(
+                ReferralClick.partner_id == partner_id,
+                ReferralClick.campaign_id == pc.campaign_id,
+            )
+        )
+        clicks = clicks_result.scalar() or 0
+
+        conv_result = await db.execute(
+            select(
+                func.count(ReferralConversion.id),
+                func.coalesce(func.sum(ReferralConversion.order_amount), 0),
+                func.coalesce(func.sum(ReferralConversion.commission_amount), 0),
+            ).where(
+                ReferralConversion.partner_id == partner_id,
+                ReferralConversion.campaign_id == pc.campaign_id,
+            )
+        )
+        conv_row = conv_result.one()
+
+        result_rows.append({
+            "campaign_id": pc.campaign_id,
+            "campaign_name": campaign.name if campaign else "",
+            "referral_code": pc.referral_code,
+            "referral_link": pc.referral_link,
+            "clicks": clicks,
+            "conversions": conv_row[0] or 0,
+            "sales": float(conv_row[1]),
+            "commission": float(conv_row[2]),
+        })
+
+    return result_rows

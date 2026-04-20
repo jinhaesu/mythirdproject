@@ -5,6 +5,7 @@ from app.api.v1.endpoints import (
     auth, benchmark, creative, campaign, analytics, dashboard, campaign_planner, chat, market_keywords,
     naver_analytics, naver_campaign, affiliate,
 )
+from app.api.v1.endpoints import cafe24, webhooks
 
 api_router = APIRouter()
 
@@ -90,4 +91,18 @@ api_router.include_router(
     affiliate.router,
     prefix="/affiliate",
     tags=["Affiliate Managing"]
+)
+
+# Cafe24 OAuth & Integration
+api_router.include_router(
+    cafe24.router,
+    prefix="/cafe24",
+    tags=["Cafe24"]
+)
+
+# Webhooks (HMAC protected, no auth)
+api_router.include_router(
+    webhooks.router,
+    prefix="/webhooks",
+    tags=["Webhooks"]
 )

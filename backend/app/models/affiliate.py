@@ -41,6 +41,15 @@ class AffiliateCampaign(Base):
     start_date: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     end_date: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     landing_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    # Cafe24 상품/쿠폰 연결 (Phase 2)
+    cafe24_product_no: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    cafe24_product_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    cafe24_product_image: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    cafe24_coupon_code: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, index=True)
+    cafe24_coupon_no: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    discount_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # percentage | fixed | shipping
+    discount_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    base_product_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -82,6 +91,7 @@ class ReferralConversion(Base):
     partner_id: Mapped[int] = mapped_column(Integer, ForeignKey("affiliate_partners.id"))
     campaign_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("affiliate_campaigns.id"), nullable=True)
     order_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    cafe24_order_id: Mapped[Optional[str]] = mapped_column(String(100), unique=True, nullable=True, index=True)
     order_amount: Mapped[float] = mapped_column(Float, default=0)
     commission_amount: Mapped[float] = mapped_column(Float, default=0)
     converted_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

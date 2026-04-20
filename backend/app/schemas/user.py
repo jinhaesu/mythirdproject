@@ -61,6 +61,7 @@ class MagicLinkRequest(BaseModel):
 class MagicLinkVerifyRequest(BaseModel):
     """Request to verify magic link token."""
     token: str
+    ref: Optional[str] = None  # 친구 추천 코드 (가입 시 포인트 적립)
 
 
 class Token(BaseModel):

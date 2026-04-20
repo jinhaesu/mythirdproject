@@ -33,15 +33,31 @@ export default function Home() {
   const { activeTab, activePlatform, naverActiveTab } = useAppStore();
   const [verifying, setVerifying] = useState(false);
 
-  // Handle magic link token from URL
+  // Handle magic link token from URL + cafe24 callback query
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const token = params.get('token');
+    const cafe24Status = params.get('cafe24');
+
+    // Cafe24 OAuth callback result
+    if (cafe24Status) {
+      if (cafe24Status === 'connected') {
+        toast.success('Cafe24 스토어가 연결되었습니다.');
+      } else if (cafe24Status === 'error') {
+        toast.error('Cafe24 연결에 실패했습니다. 다시 시도해주세요.');
+      }
+      const clean = new URL(window.location.href);
+      clean.searchParams.delete('cafe24');
+      window.history.replaceState({}, '', clean.pathname + (clean.search || ''));
+    }
+
     if (token && !isAuthenticated) {
       setVerifying(true);
-      authApi.verifyMagicLink(token)
+      const pendingRef = localStorage.getItem('pending_ref') ?? undefined;
+      authApi.verifyMagicLink(token, pendingRef)
         .then(async (data) => {
           localStorage.setItem('token', data.access_token);
+          localStorage.removeItem('pending_ref');
           const user = await authApi.getMe();
           setAuth(user, data.access_token);
           window.history.replaceState({}, '', '/');
@@ -119,6 +135,18 @@ export default function Home() {
 function LoginPage() {
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
+  const [refCode, setRefCode] = useState<string | null>(null);
+  const [showRefBanner, setShowRefBanner] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get('ref');
+    if (ref) {
+      setRefCode(ref);
+      setShowRefBanner(true);
+      localStorage.setItem('pending_ref', ref);
+    }
+  }, []);
 
   const sendMagicLinkMutation = useMutation({
     mutationFn: () => authApi.sendMagicLink(email),
@@ -142,6 +170,22 @@ function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#08090A] p-4">
       <div className="w-full max-w-md">
+        {showRefBanner && refCode && (
+          <div className="mb-4 flex items-start gap-3 px-4 py-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl">
+            <span className="text-emerald-400 text-base leading-none mt-0.5">&#127881;</span>
+            <div className="flex-1">
+              <p className="text-sm font-medium text-emerald-300">친구 추천 링크로 접속하셨습니다</p>
+              <p className="text-xs text-emerald-400/70 mt-0.5">가입 완료 시 포인트가 지급됩니다.</p>
+            </div>
+            <button
+              onClick={() => setShowRefBanner(false)}
+              className="text-emerald-400/50 hover:text-emerald-300 transition-colors"
+              aria-label="닫기"
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1 1l12 12M13 1L1 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+            </button>
+          </div>
+        )}
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-3 mb-4">
             <div className="w-12 h-12 bg-[#5E6AD2] rounded-xl flex items-center justify-center shadow-[0px_4px_24px_rgba(0,0,0,0.4)]">
