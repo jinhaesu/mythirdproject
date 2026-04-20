@@ -143,14 +143,14 @@ async def api_request(
 
 
 async def list_products(user, db, q: Optional[str] = None, limit: int = 50) -> list:
-    """Cafe24 상품 목록 조회."""
-    # fields 파라미터 없이 전체 필드 요청 (Cafe24가 일부 필드에 대해 400 반환)
-    params: dict = {"limit": limit, "display": "T", "selling": "T"}
+    """Cafe24 상품 목록 조회. display/selling 필터는 적용하지 않음 (너무 많이 거름)."""
+    params: dict = {"limit": limit}
     if q:
         params["product_name"] = q
 
     data = await api_request(user, db, "GET", "/api/v2/admin/products", params=params)
     products = data.get("products", [])
+    logger.info(f"[Cafe24] list_products q={q!r} -> {len(products)} items")
     # 프론트엔드에서 쓰는 필드만 추림
     return [
         {
