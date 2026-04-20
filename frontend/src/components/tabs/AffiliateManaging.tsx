@@ -140,12 +140,22 @@ interface Cafe24Status {
   scopes?: string;
 }
 
+function priceToNumber(v: unknown): number {
+  if (typeof v === 'number') return v;
+  if (typeof v === 'string') {
+    const n = parseFloat(v);
+    return isNaN(n) ? 0 : n;
+  }
+  return 0;
+}
+
 interface Cafe24Product {
   product_no: number;
   product_name: string;
-  price: number;
+  price: number | string;
   list_image: string;
-  sellers_price: number;
+  sellers_price?: number | string;
+  retail_price?: number | string;
 }
 
 interface PointTransaction {
@@ -466,7 +476,7 @@ function Cafe24ProductSelector({ selectedNo, selectedName, onSelect, onClear, di
                   key={p.product_no}
                   type="button"
                   onClick={() => {
-                    onSelect(p.product_no, p.product_name, p.sellers_price || p.price);
+                    onSelect(p.product_no, p.product_name, priceToNumber(p.sellers_price ?? p.price));
                     setOpen(false);
                     setQuery('');
                   }}
@@ -482,7 +492,7 @@ function Cafe24ProductSelector({ selectedNo, selectedName, onSelect, onClear, di
                   )}
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-medium text-white truncate">{p.product_name}</p>
-                    <p className="text-[10px] text-gray-500">₩{(p.sellers_price || p.price).toLocaleString()}</p>
+                    <p className="text-[10px] text-gray-500">₩{priceToNumber(p.sellers_price ?? p.price).toLocaleString()}</p>
                   </div>
                 </button>
               ))}
@@ -581,7 +591,7 @@ function Cafe24ProductBrowserModal({ onClose, onPick }: Cafe24ProductBrowserModa
                 <button
                   key={p.product_no}
                   type="button"
-                  onClick={() => onPick(p.product_no, p.product_name, p.sellers_price || p.price)}
+                  onClick={() => onPick(p.product_no, p.product_name, priceToNumber(p.sellers_price ?? p.price))}
                   className="group text-left bg-[#141516] border border-[#2a2d35] rounded-xl p-3 hover:border-[#3B82F6] hover:bg-[#3B82F6]/5 transition-all"
                 >
                   {p.list_image ? (
@@ -593,7 +603,7 @@ function Cafe24ProductBrowserModal({ onClose, onPick }: Cafe24ProductBrowserModa
                     </div>
                   )}
                   <p className="text-xs font-medium text-white truncate">{p.product_name}</p>
-                  <p className="text-[11px] text-gray-500 mt-0.5">₩{(p.sellers_price || p.price).toLocaleString()}</p>
+                  <p className="text-[11px] text-gray-500 mt-0.5">₩{priceToNumber(p.sellers_price ?? p.price).toLocaleString()}</p>
                   <p className="text-[10px] text-gray-600 mt-0.5">상품번호 {p.product_no}</p>
                 </button>
               ))}
