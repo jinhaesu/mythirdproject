@@ -300,7 +300,9 @@ async def delete_campaign(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Delete a campaign."""
+    """캠페인 삭제. 의존 레코드(partner_campaigns/clicks/conversions)도 함께 정리."""
+    from sqlalchemy import update as sa_update
+
     result = await db.execute(
         select(AffiliateCampaign).where(
             AffiliateCampaign.id == campaign_id,
@@ -311,8 +313,29 @@ async def delete_campaign(
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
 
+    # FK 정리
+    # 1) partner_campaigns 조인 테이블 행 삭제
+    await db.execute(delete(PartnerCampaign).where(PartnerCampaign.campaign_id == campaign_id))
+    # 2) affiliate_partners.campaign_id (레거시 단일 FK) NULL 처리
+    await db.execute(
+        sa_update(AffiliatePartner)
+        .where(AffiliatePartner.campaign_id == campaign_id)
+        .values(campaign_id=None)
+    )
+    # 3) referral_clicks / referral_conversions 의 campaign_id 는 nullable → NULL 처리 (히스토리 유지)
+    await db.execute(
+        sa_update(ReferralClick)
+        .where(ReferralClick.campaign_id == campaign_id)
+        .values(campaign_id=None)
+    )
+    await db.execute(
+        sa_update(ReferralConversion)
+        .where(ReferralConversion.campaign_id == campaign_id)
+        .values(campaign_id=None)
+    )
     await db.delete(campaign)
     await db.commit()
+    logger.info(f"[Affiliate] Campaign {campaign_id} deleted by user {current_user.id}")
 
 
 # ---------------------------------------------------------------------------
