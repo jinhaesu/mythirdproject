@@ -187,6 +187,8 @@ interface PartnerPerformanceRow {
   sales: number;
   commission: number;
   pc_id: number;
+  referral_code?: string | null;
+  referral_link?: string | null;
 }
 
 type SectionKey = 'dashboard' | 'campaigns' | 'partners' | 'referral' | 'points' | 'settlement' | 'settings';
@@ -1620,6 +1622,7 @@ function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalP
                   <thead>
                     <tr className="bg-[#141516] text-gray-500 border-b border-[#2a2d35]">
                       <th className="text-left py-2.5 px-3">캠페인명</th>
+                      <th className="text-left py-2.5 px-3">전용 링크</th>
                       <th className="text-right py-2.5 px-3">클릭</th>
                       <th className="text-right py-2.5 px-3">전환</th>
                       <th className="text-right py-2.5 px-3">매출</th>
@@ -1631,6 +1634,26 @@ function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalP
                     {performance.map(row => (
                       <tr key={row.pc_id} className="border-b border-[#2a2d35]/50 text-gray-300 hover:bg-white/[0.02]">
                         <td className="py-2.5 px-3 font-medium text-white">{row.campaign_name}</td>
+                        <td className="py-2.5 px-3">
+                          {row.referral_link ? (
+                            <div className="flex items-center gap-1.5 max-w-[280px]">
+                              <input
+                                readOnly
+                                value={row.referral_link}
+                                className="flex-1 bg-[#141516] border border-[#2a2d35] px-2 py-1 rounded text-[10px] text-gray-300 truncate focus:outline-none"
+                              />
+                              <button
+                                onClick={() => { navigator.clipboard.writeText(row.referral_link!); toast.success('링크 복사됨'); }}
+                                className="shrink-0 p-1 bg-[#3B82F6] hover:bg-[#2563EB] rounded text-white"
+                                title="복사"
+                              >
+                                <Copy size={10} />
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-gray-600">(미생성)</span>
+                          )}
+                        </td>
                         <td className="py-2.5 px-3 text-right">{fmt(row.clicks)}</td>
                         <td className="py-2.5 px-3 text-right text-cyan-400">{fmt(row.conversions)}</td>
                         <td className="py-2.5 px-3 text-right text-emerald-400">₩{fmt(row.sales)}</td>
@@ -1654,6 +1677,7 @@ function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalP
                     {/* 합계 행 */}
                     <tr className="bg-[#141516] font-semibold text-white text-xs">
                       <td className="py-2.5 px-3">합계</td>
+                      <td />
                       <td className="py-2.5 px-3 text-right">{fmt(totals.clicks)}</td>
                       <td className="py-2.5 px-3 text-right text-cyan-400">{fmt(totals.conversions)}</td>
                       <td className="py-2.5 px-3 text-right text-emerald-400">₩{fmt(totals.sales)}</td>

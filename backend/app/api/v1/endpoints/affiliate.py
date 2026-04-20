@@ -1422,11 +1422,15 @@ async def get_partner_performance(
         )
         conv_row = conv_result.one()
 
+        # 링크는 항상 현재 캠페인 상태로 새로 계산 (DB에 저장된 stale 링크 무시)
+        fresh_link = _build_referral_link(campaign, pc.referral_code, current_user) if campaign else pc.referral_link
+
         result_rows.append({
+            "pc_id": pc.id,
             "campaign_id": pc.campaign_id,
             "campaign_name": campaign.name if campaign else "",
             "referral_code": pc.referral_code,
-            "referral_link": pc.referral_link,
+            "referral_link": fresh_link,
             "clicks": clicks,
             "conversions": conv_row[0] or 0,
             "sales": float(conv_row[1]),
