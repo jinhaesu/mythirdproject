@@ -1,10 +1,11 @@
 """Affiliate managing endpoints."""
+import json
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Annotated, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy import func, select
@@ -70,6 +71,7 @@ class PartnerCreate(BaseModel):
     name: str
     email: Optional[str] = None
     channel: str = "instagram"
+    channels: Optional[List[str]] = None  # multi-channel support
     followers: int = 0
     memo: Optional[str] = None
 
@@ -79,6 +81,7 @@ class PartnerUpdate(BaseModel):
     name: Optional[str] = None
     email: Optional[str] = None
     channel: Optional[str] = None
+    channels: Optional[List[str]] = None  # multi-channel support
     followers: Optional[int] = None
     memo: Optional[str] = None
     referral_link: Optional[str] = None
@@ -292,6 +295,27 @@ async def delete_campaign(
 # Partner CRUD
 # ---------------------------------------------------------------------------
 
+def _parse_channels(channels_str: Optional[str]) -> Optional[List[str]]:
+    """JSON 문자열로 저장된 channels 컬럼을 list로 파싱."""
+    if not channels_str:
+        return None
+    try:
+        parsed = json.loads(channels_str)
+        if isinstance(parsed, list):
+            return parsed
+    except (json.JSONDecodeError, ValueError):
+        pass
+    # comma-separated fallback
+    return [c.strip() for c in channels_str.split(",") if c.strip()]
+
+
+def _partner_to_dict(partner) -> dict:
+    """AffiliatePartner ORM 객체를 dict로 변환하며 channels list 포함."""
+    data = {k: getattr(partner, k) for k in partner.__table__.columns.keys()}
+    data["channels"] = _parse_channels(partner.channels)
+    return data
+
+
 def _generate_referral_code() -> str:
     return uuid.uuid4().hex[:10].upper()
 
@@ -358,8 +382,15 @@ async def create_partner(
 
     referral_link = _build_referral_link(campaign, code)
 
-    partner_data = payload.model_dump(exclude={"campaign_ids"})
+    partner_data = payload.model_dump(exclude={"campaign_ids", "channels"})
     partner_data["campaign_id"] = primary_campaign_id
+
+    # channels 다중 선택 처리
+    if payload.channels:
+        partner_data["channels"] = json.dumps(payload.channels)
+        # 기존 channel 컬럼은 channels[0] 으로 채움 (하위 호환)
+        partner_data["channel"] = payload.channels[0]
+    # channel은 payload에서 이미 설정됨 (default "instagram")
 
     partner = AffiliatePartner(
         user_id=current_user.id,
@@ -421,7 +452,7 @@ async def create_partner(
         except Exception as e:
             logger.warning(f"[Affiliate] Email send failed: {e}")
 
-    return partner
+    return _partner_to_dict(partner)
 
 
 @router.get("/partners")
@@ -439,7 +470,7 @@ async def list_partners(
         query = query.where(AffiliatePartner.status == status)
 
     result = await db.execute(query)
-    return result.scalars().all()
+    return [_partner_to_dict(p) for p in result.scalars().all()]
 
 
 @router.put("/partners/{partner_id}")
@@ -460,12 +491,19 @@ async def update_partner(
     if not partner:
         raise HTTPException(status_code=404, detail="Partner not found")
 
-    for field, value in payload.model_dump(exclude_none=True).items():
+    update_data = payload.model_dump(exclude_none=True, exclude={"channels"})
+    for field, value in update_data.items():
         setattr(partner, field, value)
+
+    # channels 다중 선택 처리
+    if payload.channels is not None:
+        partner.channels = json.dumps(payload.channels)
+        # 기존 channel 컬럼도 갱신 (하위 호환)
+        partner.channel = payload.channels[0] if payload.channels else partner.channel
 
     await db.commit()
     await db.refresh(partner)
-    return partner
+    return _partner_to_dict(partner)
 
 
 @router.post("/partners/{partner_id}/approve")
@@ -634,6 +672,174 @@ async def get_dashboard(
         "active_campaigns": active_campaigns,
         "top_partners": top_partners,
     }
+
+
+@router.get("/dashboard/timeseries")
+async def get_dashboard_timeseries(
+    days: int = Query(default=30, ge=1, le=365),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    현재 유저의 최근 N일간 일별 매출/커미션/클릭/전환 시계열 데이터.
+
+    데이터가 있는 날짜만 반환하며 날짜 gap은 프론트엔드에서 채웁니다.
+    """
+    import sqlalchemy as sa
+
+    # 현재 유저의 파트너 ID 목록
+    pid_result = await db.execute(
+        select(AffiliatePartner.id).where(AffiliatePartner.user_id == current_user.id)
+    )
+    partner_ids = [row[0] for row in pid_result.all()]
+
+    since = datetime.utcnow() - timedelta(days=days)
+
+    # 일별 클릭 집계
+    clicks_by_date: dict = {}
+    if partner_ids:
+        click_rows = await db.execute(
+            sa.text(
+                """
+                SELECT DATE(clicked_at) AS day, COUNT(*) AS cnt
+                FROM referral_clicks
+                WHERE partner_id = ANY(:pids)
+                  AND clicked_at >= :since
+                GROUP BY day
+                ORDER BY day
+                """
+            ).bindparams(
+                sa.bindparam("pids", value=partner_ids, expanding=True),
+                since=since,
+            )
+        )
+        for row in click_rows.all():
+            clicks_by_date[str(row[0])] = int(row[1])
+
+    # 일별 전환/매출/커미션 집계
+    conv_by_date: dict = {}
+    if partner_ids:
+        conv_rows = await db.execute(
+            sa.text(
+                """
+                SELECT DATE(converted_at) AS day,
+                       COUNT(*) AS cnt,
+                       COALESCE(SUM(order_amount), 0) AS revenue,
+                       COALESCE(SUM(commission_amount), 0) AS commission
+                FROM referral_conversions
+                WHERE partner_id = ANY(:pids)
+                  AND converted_at >= :since
+                GROUP BY day
+                ORDER BY day
+                """
+            ).bindparams(
+                sa.bindparam("pids", value=partner_ids, expanding=True),
+                since=since,
+            )
+        )
+        for row in conv_rows.all():
+            conv_by_date[str(row[0])] = {
+                "conversions": int(row[1]),
+                "revenue": float(row[2]),
+                "commission": float(row[3]),
+            }
+
+    # 날짜 합치기
+    all_dates = sorted(set(list(clicks_by_date.keys()) + list(conv_by_date.keys())))
+    result_list = []
+    for date_str in all_dates:
+        conv = conv_by_date.get(date_str, {"conversions": 0, "revenue": 0.0, "commission": 0.0})
+        result_list.append({
+            "date": date_str,
+            "revenue": conv["revenue"],
+            "commission": conv["commission"],
+            "clicks": clicks_by_date.get(date_str, 0),
+            "conversions": conv["conversions"],
+        })
+
+    return result_list
+
+
+@router.get("/dashboard/by-campaign")
+async def get_dashboard_by_campaign(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    캠페인별 성과 집계: 매출/커미션/클릭/전환/파트너 수.
+    """
+    # 현재 유저의 파트너 ID 목록
+    pid_result = await db.execute(
+        select(AffiliatePartner.id).where(AffiliatePartner.user_id == current_user.id)
+    )
+    partner_ids = [row[0] for row in pid_result.all()]
+
+    # 현재 유저의 캠페인 목록
+    camp_result = await db.execute(
+        select(AffiliateCampaign).where(AffiliateCampaign.user_id == current_user.id)
+    )
+    campaigns = camp_result.scalars().all()
+
+    result_list = []
+    for campaign in campaigns:
+        # 이 캠페인에 연결된 파트너 수 (현재 유저 파트너 중)
+        if partner_ids:
+            pcount_result = await db.execute(
+                select(func.count(AffiliatePartner.id)).where(
+                    AffiliatePartner.campaign_id == campaign.id,
+                    AffiliatePartner.id.in_(partner_ids),
+                )
+            )
+        else:
+            pcount_result = await db.execute(
+                select(func.count(AffiliatePartner.id)).where(
+                    AffiliatePartner.campaign_id == campaign.id
+                )
+            )
+        partner_count = pcount_result.scalar() or 0
+
+        # 클릭 수
+        clicks = 0
+        if partner_ids:
+            click_result = await db.execute(
+                select(func.count(ReferralClick.id)).where(
+                    ReferralClick.campaign_id == campaign.id,
+                    ReferralClick.partner_id.in_(partner_ids),
+                )
+            )
+            clicks = click_result.scalar() or 0
+
+        # 전환/매출/커미션
+        conversions = 0
+        revenue = 0.0
+        commission = 0.0
+        if partner_ids:
+            conv_result = await db.execute(
+                select(
+                    func.count(ReferralConversion.id),
+                    func.coalesce(func.sum(ReferralConversion.order_amount), 0),
+                    func.coalesce(func.sum(ReferralConversion.commission_amount), 0),
+                ).where(
+                    ReferralConversion.campaign_id == campaign.id,
+                    ReferralConversion.partner_id.in_(partner_ids),
+                )
+            )
+            conv_row = conv_result.one()
+            conversions = conv_row[0] or 0
+            revenue = float(conv_row[1])
+            commission = float(conv_row[2])
+
+        result_list.append({
+            "campaign_id": campaign.id,
+            "campaign_name": campaign.name,
+            "revenue": revenue,
+            "commission": commission,
+            "clicks": clicks,
+            "conversions": conversions,
+            "partners": partner_count,
+        })
+
+    return result_list
 
 
 # ---------------------------------------------------------------------------

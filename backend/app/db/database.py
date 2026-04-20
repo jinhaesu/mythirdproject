@@ -307,6 +307,17 @@ async def init_db():
     except Exception:
         pass
 
+    # affiliate_partners channels column (multi-channel support)
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(
+                __import__('sqlalchemy').text(
+                    "ALTER TABLE affiliate_partners ADD COLUMN channels TEXT"
+                )
+            )
+    except Exception:
+        pass  # Column already exists
+
     # Phase 3 — ReferralConversion cafe24_order_id
     try:
         async with engine.begin() as conn:

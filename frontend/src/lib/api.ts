@@ -706,6 +706,56 @@ export const marketApi = {
   },
 };
 
+// ─── Affiliate types ──────────────────────────────────────────────────────────
+
+export type AffiliateChannelKey =
+  | 'instagram'
+  | 'youtube'
+  | 'tiktok'
+  | 'blog'
+  | 'facebook'
+  | 'x'
+  | 'kakao'
+  | 'other';
+
+export interface AffiliatePartner {
+  id: number;
+  name: string;
+  email: string;
+  /** @deprecated prefer channels[] */
+  channel: string;
+  /** 다중 채널 (백엔드 JSON 파싱 후 반환) */
+  channels?: string[];
+  followers: number;
+  status: 'pending' | 'approved' | 'rejected';
+  total_sales: number;
+  total_commission: number;
+  unpaid_commission: number;
+  referral_link: string;
+  click_count: number;
+  conversion_count: number;
+  joined_date: string;
+  campaign_ids?: number[];
+}
+
+export interface AffiliateTimeseriesPoint {
+  date: string;
+  revenue: number;
+  commission: number;
+  clicks: number;
+  conversions: number;
+}
+
+export interface AffiliateByCampaign {
+  campaign_id: number;
+  campaign_name: string;
+  revenue: number;
+  commission: number;
+  clicks: number;
+  conversions: number;
+  partners: number;
+}
+
 // Affiliate API (TAB: 어필리에이트 관리)
 export const affiliateApi = {
   getDashboard: async () => { const { data } = await api.get('/affiliate/dashboard'); return data; },
@@ -713,7 +763,7 @@ export const affiliateApi = {
   createCampaign: async (d: any) => { const { data } = await api.post('/affiliate/campaigns', d); return data; },
   updateCampaign: async (id: number, d: any) => { const { data } = await api.put(`/affiliate/campaigns/${id}`, d); return data; },
   deleteCampaign: async (id: number) => { const { data } = await api.delete(`/affiliate/campaigns/${id}`); return data; },
-  getPartners: async () => { const { data } = await api.get('/affiliate/partners'); return data; },
+  getPartners: async (): Promise<AffiliatePartner[]> => { const { data } = await api.get('/affiliate/partners'); return data; },
   createPartner: async (d: any) => { const { data } = await api.post('/affiliate/partners', d); return data; },
   approvePartner: async (id: number) => { const { data } = await api.post(`/affiliate/partners/${id}/approve`); return data; },
   rejectPartner: async (id: number) => { const { data } = await api.post(`/affiliate/partners/${id}/reject`); return data; },
@@ -725,10 +775,26 @@ export const affiliateApi = {
   updateReferralProgram: async (id: number, d: any) => { const { data } = await api.put(`/affiliate/referral-programs/${id}`, d); return data; },
   getMyPoints: async () => { const { data } = await api.get('/affiliate/my-points'); return data; },
   getMyReferralCode: async () => { const { data } = await api.get('/affiliate/my-referral-code'); return data; },
-  createPartnerMulti: async (d: { name: string; email?: string; channel: string; followers: number; campaign_ids: number[]; memo?: string }) => { const { data } = await api.post('/affiliate/partners', d); return data; },
+  createPartnerMulti: async (d: {
+    name: string;
+    email?: string;
+    channel: string;
+    channels: string[];
+    followers: number;
+    campaign_ids: number[];
+    memo?: string;
+  }) => { const { data } = await api.post('/affiliate/partners', d); return data; },
   addPartnerCampaign: async (partnerId: number, campaignId: number) => { const { data } = await api.post(`/affiliate/partners/${partnerId}/campaigns`, { campaign_id: campaignId }); return data; },
   removePartnerCampaign: async (partnerId: number, pcId: number) => { await api.delete(`/affiliate/partners/${partnerId}/campaigns/${pcId}`); },
   getPartnerPerformance: async (partnerId: number) => { const { data } = await api.get(`/affiliate/partners/${partnerId}/performance`); return data; },
+  getDashboardTimeseries: async (days = 30): Promise<AffiliateTimeseriesPoint[]> => {
+    const { data } = await api.get('/affiliate/dashboard/timeseries', { params: { days } });
+    return data;
+  },
+  getDashboardByCampaign: async (): Promise<AffiliateByCampaign[]> => {
+    const { data } = await api.get('/affiliate/dashboard/by-campaign');
+    return data;
+  },
 };
 
 // Cafe24 API

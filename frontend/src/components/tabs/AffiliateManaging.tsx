@@ -9,7 +9,25 @@ import {
   AlertCircle, Coins, Tag, Store, ChevronDown, Trash2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { affiliateApi, cafe24Api } from '@/lib/api';
+import {
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  LineChart,
+  Line,
+} from 'recharts';
+import { affiliateApi, cafe24Api, formatCurrency } from '@/lib/api';
+import type { AffiliatePartner, AffiliateTimeseriesPoint, AffiliateByCampaign, AffiliateChannelKey } from '@/lib/api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -38,22 +56,7 @@ interface AffiliateCampaign {
   discount_value?: number;
 }
 
-interface AffiliatePartner {
-  id: number;
-  name: string;
-  email: string;
-  channel: string;
-  followers: number;
-  status: 'pending' | 'approved' | 'rejected';
-  total_sales: number;
-  total_commission: number;
-  unpaid_commission: number;
-  referral_link: string;
-  click_count: number;
-  conversion_count: number;
-  joined_date: string;
-  campaign_ids?: number[];
-}
+// AffiliatePartner is imported from @/lib/api
 
 interface ReferralProgram {
   id: number;
@@ -104,7 +107,10 @@ interface NewCampaignForm {
 interface NewPartnerForm {
   name: string;
   email: string;
+  /** 대표 채널 (하위 호환용, channels[0] 로 채워짐) */
   channel: string;
+  /** 다중 채널 선택 */
+  channels: string[];
   followers: number;
   campaign_ids: number[];
   memo: string;
@@ -179,6 +185,49 @@ function n(val: unknown): number { return Number(val) || 0; }
 function fmt(val: unknown): string { return n(val).toLocaleString(); }
 function fmtPct(val: unknown, decimals = 1): string { return n(val).toFixed(decimals); }
 function fmtMan(val: unknown): string { return n(val) > 0 ? `₩${(n(val) / 10000).toFixed(0)}만` : '₩0'; }
+
+// ─── Channel helpers ──────────────────────────────────────────────────────────
+
+interface ChannelOption {
+  key: AffiliateChannelKey;
+  label: string;
+  badge: string;
+  color: string;
+}
+
+const CHANNEL_OPTIONS: ChannelOption[] = [
+  { key: 'instagram', label: 'Instagram', badge: 'IG',   color: 'bg-pink-500/20 text-pink-400 border-pink-500/30' },
+  { key: 'youtube',   label: 'YouTube',   badge: 'YT',   color: 'bg-red-500/20 text-red-400 border-red-500/30' },
+  { key: 'tiktok',    label: 'TikTok',    badge: 'TK',   color: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30' },
+  { key: 'blog',      label: '블로그',    badge: 'BLOG', color: 'bg-green-500/20 text-green-400 border-green-500/30' },
+  { key: 'facebook',  label: 'Facebook',  badge: 'FB',   color: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
+  { key: 'x',         label: 'X(Twitter)', badge: 'X',  color: 'bg-gray-500/20 text-gray-300 border-gray-500/30' },
+  { key: 'kakao',     label: 'KakaoTalk', badge: 'KT',  color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' },
+  { key: 'other',     label: '기타',      badge: 'ETC', color: 'bg-purple-500/20 text-purple-400 border-purple-500/30' },
+];
+
+const CHANNEL_MAP = Object.fromEntries(CHANNEL_OPTIONS.map(c => [c.key, c])) as Record<string, ChannelOption>;
+
+/** 채널 키(또는 임의 문자열)를 배지 배열로 변환 */
+function ChannelBadges({ channels, channel }: { channels?: string[]; channel?: string }) {
+  const list: string[] = channels && channels.length > 0 ? channels : channel ? [channel] : [];
+  if (list.length === 0) return null;
+  return (
+    <span className="flex flex-wrap gap-1">
+      {list.map(ch => {
+        const opt = CHANNEL_MAP[ch];
+        return (
+          <span
+            key={ch}
+            className={`text-[10px] px-1.5 py-0.5 rounded border font-medium ${opt?.color ?? 'bg-gray-500/20 text-gray-400 border-gray-500/30'}`}
+          >
+            {opt?.badge ?? ch.toUpperCase()}
+          </span>
+        );
+      })}
+    </span>
+  );
+}
 
 const REASON_LABEL: Record<string, string> = {
   referral_bonus_referrer: '추천 보상',
@@ -440,12 +489,62 @@ function Cafe24ProductSelector({ selectedNo, selectedName, onSelect, onClear, di
   );
 }
 
+// ─── Dashboard chart helpers ──────────────────────────────────────────────────
+
+const DARK_TOOLTIP_STYLE = {
+  backgroundColor: '#1E1F22',
+  border: '1px solid rgba(255,255,255,0.1)',
+  borderRadius: 8,
+  fontSize: 12,
+  color: '#e5e7eb',
+};
+
+const PIE_PALETTE = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
+
+function ChartLoader() {
+  return (
+    <div className="flex items-center justify-center h-48 gap-2">
+      <Loader2 size={18} className="text-blue-400 animate-spin" />
+      <span className="text-xs text-gray-500">데이터 불러오는 중...</span>
+    </div>
+  );
+}
+
+function ChartEmpty({ message = '데이터가 없습니다' }: { message?: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center h-48 gap-2">
+      <BarChart2 size={24} className="text-gray-600" />
+      <p className="text-xs text-gray-500">{message}</p>
+    </div>
+  );
+}
+
 // ─── Dashboard section ────────────────────────────────────────────────────────
 
 function DashboardSection() {
+  const [days, setDays] = useState<7 | 30 | 90>(30);
+
   const { data, isLoading, isError } = useQuery<DashboardData>({
     queryKey: ['affiliate', 'dashboard'],
     queryFn: affiliateApi.getDashboard,
+    retry: 1,
+  });
+
+  const {
+    data: timeseries = [],
+    isLoading: tsLoading,
+  } = useQuery<AffiliateTimeseriesPoint[]>({
+    queryKey: ['affiliate-timeseries', days],
+    queryFn: () => affiliateApi.getDashboardTimeseries(days),
+    retry: 1,
+  });
+
+  const {
+    data: byCampaign = [],
+    isLoading: bcLoading,
+  } = useQuery<AffiliateByCampaign[]>({
+    queryKey: ['affiliate-by-campaign'],
+    queryFn: affiliateApi.getDashboardByCampaign,
     retry: 1,
   });
 
@@ -475,6 +574,11 @@ function DashboardSection() {
     'bg-orange-500/20 text-orange-400',
   ];
 
+  // 상위 5개 캠페인 (매출 기준)
+  const top5Campaigns = [...byCampaign]
+    .sort((a, b) => b.revenue - a.revenue)
+    .slice(0, 5);
+
   if (isLoading) return <SectionLoader />;
 
   return (
@@ -497,6 +601,253 @@ function DashboardSection() {
             <p className="text-lg font-bold text-white">{kpi.value}</p>
           </div>
         ))}
+      </div>
+
+      {/* 기간 선택 */}
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-gray-500">기간:</span>
+        {([7, 30, 90] as const).map(d => (
+          <button
+            key={d}
+            onClick={() => setDays(d)}
+            className={`px-3 py-1 text-xs rounded-lg font-medium transition-colors ${
+              days === d
+                ? 'bg-blue-600 text-white'
+                : 'bg-[#1a1b1e] text-gray-400 border border-[#2a2d35] hover:text-white hover:border-gray-500'
+            }`}
+          >
+            {d}일
+          </button>
+        ))}
+      </div>
+
+      {/* 차트 1: 매출/커미션 시계열 Area */}
+      <div className="bg-[#1a1b1e] rounded-xl p-4 border border-[#2a2d35]">
+        <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+          <TrendingUp size={14} className="text-blue-400" /> 매출 · 커미션 추이
+        </h3>
+        {tsLoading ? <ChartLoader /> : timeseries.length === 0 ? <ChartEmpty /> : (
+          <ResponsiveContainer width="100%" height={220}>
+            <AreaChart data={timeseries} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+              <defs>
+                <linearGradient id="gradRevenue" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#3B82F6" stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="gradCommission" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#10B981" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+              <XAxis
+                dataKey="date"
+                tick={{ fill: '#8A8F98', fontSize: 10 }}
+                stroke="#8A8F98"
+                tickFormatter={(v: string) => v.slice(5)}
+              />
+              <YAxis
+                yAxisId="left"
+                tick={{ fill: '#8A8F98', fontSize: 10 }}
+                stroke="#8A8F98"
+                tickFormatter={(v: number) => `₩${(v / 10000).toFixed(0)}만`}
+                width={56}
+              />
+              <YAxis
+                yAxisId="right"
+                orientation="right"
+                tick={{ fill: '#8A8F98', fontSize: 10 }}
+                stroke="#8A8F98"
+                tickFormatter={(v: number) => `₩${(v / 10000).toFixed(0)}만`}
+                width={56}
+              />
+              <Tooltip
+                contentStyle={DARK_TOOLTIP_STYLE}
+                formatter={(value: number, name: string) => [
+                  formatCurrency(value),
+                  name === 'revenue' ? '매출' : '커미션',
+                ]}
+                labelFormatter={(label: string) => `날짜: ${label}`}
+              />
+              <Legend
+                formatter={(value: string) => (value === 'revenue' ? '매출' : '커미션')}
+                wrapperStyle={{ fontSize: 11, color: '#9ca3af' }}
+              />
+              <Area
+                yAxisId="left"
+                type="monotone"
+                dataKey="revenue"
+                stroke="#3B82F6"
+                strokeWidth={2}
+                fill="url(#gradRevenue)"
+                dot={false}
+              />
+              <Area
+                yAxisId="right"
+                type="monotone"
+                dataKey="commission"
+                stroke="#10B981"
+                strokeWidth={2}
+                fill="url(#gradCommission)"
+                dot={false}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+
+      {/* 차트 2: 클릭 vs 전환 BarChart + 전환율 Line */}
+      <div className="bg-[#1a1b1e] rounded-xl p-4 border border-[#2a2d35]">
+        <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+          <Eye size={14} className="text-cyan-400" /> 클릭 · 전환 추이
+        </h3>
+        {tsLoading ? <ChartLoader /> : timeseries.length === 0 ? <ChartEmpty /> : (
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart
+              data={timeseries.map(row => ({
+                ...row,
+                cvr: row.clicks > 0 ? parseFloat(((row.conversions / row.clicks) * 100).toFixed(1)) : 0,
+              }))}
+              margin={{ top: 4, right: 4, left: 0, bottom: 0 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+              <XAxis
+                dataKey="date"
+                tick={{ fill: '#8A8F98', fontSize: 10 }}
+                stroke="#8A8F98"
+                tickFormatter={(v: string) => v.slice(5)}
+              />
+              <YAxis
+                yAxisId="left"
+                tick={{ fill: '#8A8F98', fontSize: 10 }}
+                stroke="#8A8F98"
+                width={40}
+              />
+              <YAxis
+                yAxisId="right"
+                orientation="right"
+                tick={{ fill: '#8A8F98', fontSize: 10 }}
+                stroke="#8A8F98"
+                tickFormatter={(v: number) => `${v}%`}
+                width={44}
+              />
+              <Tooltip
+                contentStyle={DARK_TOOLTIP_STYLE}
+                formatter={(value: number, name: string) => {
+                  if (name === 'cvr') return [`${value}%`, '전환율'];
+                  if (name === 'clicks') return [value.toLocaleString(), '클릭'];
+                  if (name === 'conversions') return [value.toLocaleString(), '전환'];
+                  return [value, name];
+                }}
+                labelFormatter={(label: string) => `날짜: ${label}`}
+              />
+              <Legend
+                formatter={(value: string) => ({ clicks: '클릭', conversions: '전환', cvr: '전환율(%)' }[value] ?? value)}
+                wrapperStyle={{ fontSize: 11, color: '#9ca3af' }}
+              />
+              <Bar yAxisId="left" dataKey="clicks" fill="#22D3EE" opacity={0.8} radius={[2, 2, 0, 0]} />
+              <Bar yAxisId="left" dataKey="conversions" fill="#34D399" opacity={0.9} radius={[2, 2, 0, 0]} />
+              <Line
+                yAxisId="right"
+                type="monotone"
+                dataKey="cvr"
+                stroke="#F59E0B"
+                strokeWidth={2}
+                dot={false}
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+
+      <div className="grid lg:grid-cols-2 gap-4">
+        {/* 차트 3: 캠페인별 매출 기여도 PieChart */}
+        <div className="bg-[#1a1b1e] rounded-xl p-4 border border-[#2a2d35]">
+          <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+            <Percent size={14} className="text-yellow-400" /> 캠페인별 매출 기여도 (Top 5)
+          </h3>
+          {bcLoading ? <ChartLoader /> : top5Campaigns.length === 0 ? <ChartEmpty /> : (
+            <ResponsiveContainer width="100%" height={220}>
+              <PieChart>
+                <Pie
+                  data={top5Campaigns}
+                  dataKey="revenue"
+                  nameKey="campaign_name"
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={80}
+                  innerRadius={44}
+                  paddingAngle={3}
+                  label={({ name, percent }: { name: string; percent: number }) =>
+                    `${name.length > 8 ? name.slice(0, 8) + '…' : name} ${(percent * 100).toFixed(0)}%`
+                  }
+                  labelLine={{ stroke: '#8A8F98', strokeWidth: 1 }}
+                >
+                  {top5Campaigns.map((_, idx) => (
+                    <Cell key={idx} fill={PIE_PALETTE[idx % PIE_PALETTE.length]} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  contentStyle={DARK_TOOLTIP_STYLE}
+                  formatter={(value: number) => [formatCurrency(value), '매출']}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        {/* 차트 4: 캠페인별 전환 + 커미션 더블 BarChart */}
+        <div className="bg-[#1a1b1e] rounded-xl p-4 border border-[#2a2d35]">
+          <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+            <BarChart2 size={14} className="text-blue-400" /> 캠페인별 전환 · 커미션
+          </h3>
+          {bcLoading ? <ChartLoader /> : byCampaign.length === 0 ? <ChartEmpty /> : (
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart
+                data={byCampaign.slice(0, 8).map(c => ({
+                  ...c,
+                  name: c.campaign_name.length > 7 ? c.campaign_name.slice(0, 7) + '…' : c.campaign_name,
+                }))}
+                margin={{ top: 4, right: 4, left: 0, bottom: 0 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                <XAxis
+                  dataKey="name"
+                  tick={{ fill: '#8A8F98', fontSize: 10 }}
+                  stroke="#8A8F98"
+                />
+                <YAxis
+                  yAxisId="left"
+                  tick={{ fill: '#8A8F98', fontSize: 10 }}
+                  stroke="#8A8F98"
+                  width={36}
+                />
+                <YAxis
+                  yAxisId="right"
+                  orientation="right"
+                  tick={{ fill: '#8A8F98', fontSize: 10 }}
+                  stroke="#8A8F98"
+                  tickFormatter={(v: number) => `₩${(v / 10000).toFixed(0)}만`}
+                  width={52}
+                />
+                <Tooltip
+                  contentStyle={DARK_TOOLTIP_STYLE}
+                  formatter={(value: number, name: string) => {
+                    if (name === 'conversions') return [value.toLocaleString() + '건', '전환'];
+                    if (name === 'commission') return [formatCurrency(value), '커미션'];
+                    return [value, name];
+                  }}
+                />
+                <Legend
+                  formatter={(value: string) => ({ conversions: '전환', commission: '커미션' }[value] ?? value)}
+                  wrapperStyle={{ fontSize: 11, color: '#9ca3af' }}
+                />
+                <Bar yAxisId="left" dataKey="conversions" fill="#3B82F6" radius={[2, 2, 0, 0]} />
+                <Bar yAxisId="right" dataKey="commission" fill="#F97316" radius={[2, 2, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
       </div>
 
       <div className="grid lg:grid-cols-2 gap-4">
@@ -560,7 +911,10 @@ function DashboardSection() {
                   </span>
                   <div className="flex-1">
                     <p className="text-sm text-white font-medium">{p.name}</p>
-                    <p className="text-[10px] text-gray-500">{p.channel} · {fmt(p.followers)} followers</p>
+                    <div className="flex items-center gap-1 flex-wrap">
+                      <ChannelBadges channels={p.channels} channel={p.channel} />
+                      <span className="text-[10px] text-gray-500">{fmt(p.followers)} followers</span>
+                    </div>
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-medium text-emerald-400">₩{fmt(p.total_sales)}</p>
@@ -953,7 +1307,10 @@ function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalP
             </div>
             <div>
               <h2 className="text-base font-semibold text-white">{partner.name}</h2>
-              <p className="text-xs text-gray-500">{partner.channel} · {partner.email}</p>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <ChannelBadges channels={partner.channels} channel={partner.channel} />
+                <span className="text-xs text-gray-500">{partner.email}</span>
+              </div>
             </div>
           </div>
           <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-white transition-colors">
@@ -1063,6 +1420,7 @@ function PartnersSection() {
     name: '',
     email: '',
     channel: 'instagram',
+    channels: [],
     followers: 0,
     campaign_ids: [],
     memo: '',
@@ -1090,7 +1448,7 @@ function PartnersSection() {
       qc.invalidateQueries({ queryKey: ['affiliate', 'dashboard'] });
       toast.success('파트너 초대가 완료되었습니다');
       setShowInviteForm(false);
-      setInviteForm({ name: '', email: '', channel: 'instagram', followers: 0, campaign_ids: [], memo: '' });
+      setInviteForm({ name: '', email: '', channel: 'instagram', channels: [], followers: 0, campaign_ids: [], memo: '' });
     },
     onError: () => toast.error('파트너 초대에 실패했습니다'),
   });
@@ -1122,7 +1480,9 @@ function PartnersSection() {
   const handleInvite = () => {
     if (!inviteForm.name.trim()) { toast.error('파트너명을 입력하세요'); return; }
     if (!inviteForm.email.trim()) { toast.error('이메일을 입력하세요'); return; }
-    createMutation.mutate(inviteForm);
+    if (inviteForm.channels.length === 0) { toast.error('채널을 최소 1개 선택하세요'); return; }
+    // 하위 호환: channel 필드에 첫 번째 선택값 세팅
+    createMutation.mutate({ ...inviteForm, channel: inviteForm.channels[0] });
   };
 
   const toggleCampaign = (id: number) => {
@@ -1131,6 +1491,15 @@ function PartnersSection() {
       campaign_ids: prev.campaign_ids.includes(id)
         ? prev.campaign_ids.filter(c => c !== id)
         : [...prev.campaign_ids, id],
+    }));
+  };
+
+  const toggleChannel = (key: string) => {
+    setInviteForm(prev => ({
+      ...prev,
+      channels: prev.channels.includes(key)
+        ? prev.channels.filter(c => c !== key)
+        : [...prev.channels, key],
     }));
   };
 
@@ -1187,19 +1556,39 @@ function PartnersSection() {
                   className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-emerald-500/50"
                 />
               </div>
-              <div>
-                <label className="text-xs text-gray-400">채널</label>
-                <select
-                  value={inviteForm.channel}
-                  onChange={e => setInviteForm({ ...inviteForm, channel: e.target.value })}
-                  className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50"
-                >
-                  <option value="instagram">Instagram</option>
-                  <option value="youtube">YouTube</option>
-                  <option value="blog">블로그</option>
-                  <option value="tiktok">TikTok</option>
-                  <option value="other">기타</option>
-                </select>
+              <div className="md:col-span-2">
+                <label className="text-xs text-gray-400 flex items-center gap-1.5">
+                  채널 *
+                  {inviteForm.channels.length > 0 && (
+                    <span className="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 rounded text-[10px]">
+                      {inviteForm.channels.length}개 선택됨
+                    </span>
+                  )}
+                </label>
+                <div className="mt-2 grid grid-cols-4 gap-1.5">
+                  {CHANNEL_OPTIONS.map(opt => {
+                    const checked = inviteForm.channels.includes(opt.key);
+                    return (
+                      <label
+                        key={opt.key}
+                        className={`flex items-center gap-1.5 px-2.5 py-2 rounded-lg border cursor-pointer transition-all text-xs select-none ${
+                          checked
+                            ? `${opt.color} border-opacity-60`
+                            : 'border-[#2a2d35] text-gray-500 hover:border-gray-500 hover:text-gray-300'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          className="sr-only"
+                          checked={checked}
+                          onChange={() => toggleChannel(opt.key)}
+                        />
+                        <span className="font-semibold">{opt.badge}</span>
+                        <span className="truncate hidden sm:inline">{opt.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
               <div>
                 <label className="text-xs text-gray-400">팔로워 수</label>
@@ -1303,7 +1692,10 @@ function PartnersSection() {
                           </span>
                         )}
                       </div>
-                      <p className="text-[10px] text-gray-500">{p.channel} · {fmt(p.followers)} followers · {p.email}</p>
+                      <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                        <ChannelBadges channels={p.channels} channel={p.channel} />
+                        <span className="text-[10px] text-gray-500">{fmt(p.followers)} followers · {p.email}</span>
+                      </div>
                     </div>
                   </div>
                   {p.status === 'pending' && (

@@ -63,6 +63,7 @@ class AffiliatePartner(Base):
     name: Mapped[str] = mapped_column(String(100))
     email: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     channel: Mapped[str] = mapped_column(String(50), default="instagram")
+    channels: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON array string
     followers: Mapped[int] = mapped_column(Integer, default=0)
     status: Mapped[str] = mapped_column(String(20), default="pending")
     referral_code: Mapped[str] = mapped_column(String(50), unique=True)
