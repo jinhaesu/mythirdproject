@@ -6,7 +6,7 @@ import {
   Users, Link2, Share2, TrendingUp, DollarSign, Award, Plus, Search,
   Eye, Copy, CheckCircle, Clock, X, BarChart2, Gift, UserPlus, ExternalLink,
   Percent, ShoppingBag, Megaphone, Settings, Filter, Download, Loader2,
-  AlertCircle, Coins, Tag, Store, ChevronDown, Trash2,
+  AlertCircle, Coins, Tag, Store, ChevronDown, Trash2, Pencil,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
@@ -54,6 +54,8 @@ interface AffiliateCampaign {
   base_product_url?: string;
   discount_type?: 'percentage' | 'fixed' | 'shipping';
   discount_value?: number;
+  // 캠페인 추적 링크
+  referral_link?: string | null;
 }
 
 // AffiliatePartner is imported from @/lib/api
@@ -1108,6 +1110,7 @@ function DashboardSection() {
 function CampaignsSection() {
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
+  const [editingCampaignId, setEditingCampaignId] = useState<number | null>(null);
   const [form, setForm] = useState<NewCampaignForm>({
     name: '',
     product: '',
@@ -1170,6 +1173,19 @@ function CampaignsSection() {
     onError: () => toast.error('캠페인 업데이트에 실패했습니다'),
   });
 
+  const editSaveMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: Record<string, unknown> }) => affiliateApi.updateCampaign(id, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['affiliate', 'campaigns'] });
+      qc.invalidateQueries({ queryKey: ['affiliate', 'dashboard'] });
+      toast.success('캠페인이 수정되었습니다');
+      setEditingCampaignId(null);
+      setShowForm(false);
+      setForm({ name: '', product: '', commission_type: 'percentage', commission_rate: 10, start_date: '', end_date: '', cafe24_product_no: undefined, cafe24_product_name: undefined, discount_type: 'percentage', discount_value: 0 });
+    },
+    onError: () => toast.error('캠페인 수정에 실패했습니다'),
+  });
+
   const handleCreate = () => {
     if (!form.name.trim()) { toast.error('캠페인명을 입력하세요'); return; }
     if (!form.start_date) { toast.error('시작일을 입력하세요'); return; }
@@ -1178,6 +1194,48 @@ function CampaignsSection() {
       start_date: form.start_date || null,
       end_date: form.end_date || null,
     });
+  };
+
+  const handleStartEdit = (c: AffiliateCampaign) => {
+    setEditingCampaignId(c.id);
+    setForm({
+      name: c.name,
+      product: c.cafe24_product_name ?? c.product,
+      commission_type: c.commission_type,
+      commission_rate: c.commission_rate,
+      start_date: c.start_date ?? '',
+      end_date: c.end_date ?? '',
+      cafe24_product_no: c.cafe24_product_no,
+      cafe24_product_name: c.cafe24_product_name,
+      discount_type: c.discount_type ?? 'percentage',
+      discount_value: c.discount_value ?? 0,
+    });
+    setShowForm(true);
+  };
+
+  const handleSaveEdit = () => {
+    if (!form.name.trim()) { toast.error('캠페인명을 입력하세요'); return; }
+    if (!form.start_date) { toast.error('시작일을 입력하세요'); return; }
+    if (editingCampaignId === null) return;
+    editSaveMutation.mutate({
+      id: editingCampaignId,
+      data: {
+        name: form.name,
+        description: form.product,
+        commission_type: form.commission_type,
+        commission_rate: form.commission_rate,
+        start_date: form.start_date || null,
+        end_date: form.end_date || null,
+        discount_type: form.discount_type,
+        discount_value: form.discount_value,
+      },
+    });
+  };
+
+  const handleCancelForm = () => {
+    setShowForm(false);
+    setEditingCampaignId(null);
+    setForm({ name: '', product: '', commission_type: 'percentage', commission_rate: 10, start_date: '', end_date: '', cafe24_product_no: undefined, cafe24_product_name: undefined, discount_type: 'percentage', discount_value: 0 });
   };
 
   const handleToggleStatus = (c: AffiliateCampaign) => {
@@ -1210,7 +1268,9 @@ function CampaignsSection() {
 
       {showForm && (
         <div className="bg-[#1a1b1e] rounded-xl p-4 border border-emerald-500/30 space-y-4">
-          <h3 className="text-sm font-semibold text-white">새 캠페인 만들기</h3>
+          <h3 className="text-sm font-semibold text-white">
+            {editingCampaignId !== null ? '캠페인 수정' : '새 캠페인 만들기'}
+          </h3>
           <div className="grid md:grid-cols-2 gap-3">
             <div>
               <label className="text-xs text-gray-400">캠페인명 *</label>
@@ -1232,32 +1292,47 @@ function CampaignsSection() {
             </div>
           </div>
 
-          {/* Cafe24 상품 셀렉터 */}
+          {/* Cafe24 상품 셀렉터 — 편집 모드에서는 쿠폰이 이미 발급됐으므로 수정 불가 */}
           <div className="border border-[#2a2d35] rounded-xl p-3 space-y-2">
             <div className="flex items-center gap-2">
               <Store size={13} className={isCafe24Connected ? 'text-emerald-400' : 'text-gray-600'} />
               <span className="text-xs font-medium text-gray-300">Cafe24 상품 연결</span>
               {!isCafe24Connected && <span className="text-[10px] text-amber-400/70">(연결 필요)</span>}
+              {editingCampaignId !== null && (
+                <span className="text-[10px] px-1.5 py-0.5 bg-gray-500/20 text-gray-400 rounded ml-auto">수정 불가 (쿠폰 발급 완료)</span>
+              )}
             </div>
-            <Cafe24ProductSelector
-              selectedNo={form.cafe24_product_no}
-              selectedName={form.cafe24_product_name}
-              disabled={!isCafe24Connected}
-              onSelect={(no, name) => setForm({ ...form, cafe24_product_no: no, cafe24_product_name: name, product: name })}
-              onClear={() => setForm({ ...form, cafe24_product_no: undefined, cafe24_product_name: undefined })}
-            />
+            {editingCampaignId !== null ? (
+              <div className="px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-xs text-gray-500">
+                {form.cafe24_product_name ? `연결됨: ${form.cafe24_product_name}` : '연결된 Cafe24 상품 없음'}
+              </div>
+            ) : (
+              <Cafe24ProductSelector
+                selectedNo={form.cafe24_product_no}
+                selectedName={form.cafe24_product_name}
+                disabled={!isCafe24Connected}
+                onSelect={(no, name) => setForm({ ...form, cafe24_product_no: no, cafe24_product_name: name, product: name })}
+                onClear={() => setForm({ ...form, cafe24_product_no: undefined, cafe24_product_name: undefined })}
+              />
+            )}
           </div>
 
           {/* 할인 설정 */}
           <div className="border border-[#2a2d35] rounded-xl p-3 space-y-2">
-            <span className="text-xs font-medium text-gray-300 flex items-center gap-1.5"><Tag size={12} /> 쿠폰 할인 설정</span>
+            <span className="text-xs font-medium text-gray-300 flex items-center gap-1.5">
+              <Tag size={12} /> 쿠폰 할인 설정
+              {editingCampaignId !== null && (
+                <span className="text-[10px] px-1.5 py-0.5 bg-gray-500/20 text-gray-400 rounded ml-auto">수정 불가 (쿠폰 발급 완료)</span>
+              )}
+            </span>
             <div className="grid md:grid-cols-2 gap-3">
               <div>
                 <label className="text-xs text-gray-400">할인 유형</label>
                 <select
                   value={form.discount_type ?? 'percentage'}
                   onChange={e => setForm({ ...form, discount_type: e.target.value as 'percentage' | 'fixed' | 'shipping' })}
-                  className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50"
+                  disabled={editingCampaignId !== null}
+                  className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <option value="percentage">비율 할인 (%)</option>
                   <option value="fixed">금액 할인 (₩)</option>
@@ -1272,7 +1347,8 @@ function CampaignsSection() {
                   type="number"
                   value={form.discount_value ?? 0}
                   onChange={e => setForm({ ...form, discount_value: Number(e.target.value) })}
-                  className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50"
+                  readOnly={editingCampaignId !== null}
+                  className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50 read-only:opacity-50 read-only:cursor-not-allowed"
                 />
               </div>
             </div>
@@ -1322,19 +1398,30 @@ function CampaignsSection() {
           </div>
           <div className="flex gap-2 justify-end">
             <button
-              onClick={() => setShowForm(false)}
+              onClick={handleCancelForm}
               className="px-3 py-1.5 text-xs text-gray-400 border border-[#2a2d35] rounded-lg hover:text-white hover:border-gray-500 transition-colors"
             >
               취소
             </button>
-            <button
-              onClick={handleCreate}
-              disabled={createMutation.isPending}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-medium rounded-lg transition-colors"
-            >
-              {createMutation.isPending && <Loader2 size={12} className="animate-spin" />}
-              캠페인 생성
-            </button>
+            {editingCampaignId !== null ? (
+              <button
+                onClick={handleSaveEdit}
+                disabled={editSaveMutation.isPending}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium rounded-lg transition-colors"
+              >
+                {editSaveMutation.isPending && <Loader2 size={12} className="animate-spin" />}
+                변경사항 저장
+              </button>
+            ) : (
+              <button
+                onClick={handleCreate}
+                disabled={createMutation.isPending}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-medium rounded-lg transition-colors"
+              >
+                {createMutation.isPending && <Loader2 size={12} className="animate-spin" />}
+                캠페인 생성
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -1391,6 +1478,13 @@ function CampaignsSection() {
                     {c.status === 'active' ? '일시정지' : '재개'}
                   </button>
                   <button
+                    onClick={() => handleStartEdit(c)}
+                    className="p-1 text-gray-500 hover:text-blue-400 transition-colors"
+                    title="캠페인 수정"
+                  >
+                    <Pencil size={12} />
+                  </button>
+                  <button
                     onClick={() => deleteMutation.mutate(c.id)}
                     disabled={deleteMutation.isPending}
                     className="p-1 text-gray-500 hover:text-red-400 transition-colors"
@@ -1406,6 +1500,23 @@ function CampaignsSection() {
                 <div><p className="text-[10px] text-gray-500">매출</p><p className="text-sm font-bold text-emerald-400">₩{fmt(c.total_sales)}</p></div>
                 <div><p className="text-[10px] text-gray-500">커미션</p><p className="text-sm font-bold text-yellow-400">₩{fmt(c.total_commission)}</p></div>
               </div>
+              {c.referral_link && (
+                <div className="mt-2 flex items-center gap-2 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg">
+                  <Link2 size={12} className="text-blue-400 shrink-0" />
+                  <input
+                    readOnly
+                    value={c.referral_link}
+                    className="flex-1 bg-transparent text-xs text-gray-300 truncate focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => { navigator.clipboard.writeText(c.referral_link!); toast.success('링크가 복사되었습니다'); }}
+                    className="shrink-0 px-2 py-1 bg-[#3B82F6] hover:bg-[#2563EB] rounded text-[10px] text-white transition-colors flex items-center gap-1"
+                  >
+                    <Copy size={10} /> 복사
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -1586,6 +1697,176 @@ function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalP
 
 // ─── Partners section ─────────────────────────────────────────────────────────
 
+interface PartnerEditForm {
+  name: string;
+  email: string;
+  channels: string[];
+  followers: number;
+  memo: string;
+  status: AffiliatePartner['status'];
+}
+
+interface PartnerEditModalProps {
+  partner: AffiliatePartner;
+  onClose: () => void;
+  onSave: (id: number, data: Record<string, unknown>) => void;
+  isSaving: boolean;
+}
+
+function PartnerEditModal({ partner, onClose, onSave, isSaving }: PartnerEditModalProps) {
+  const [editForm, setEditForm] = useState<PartnerEditForm>({
+    name: partner.name,
+    email: partner.email,
+    channels: partner.channels && partner.channels.length > 0 ? partner.channels : partner.channel ? [partner.channel] : [],
+    followers: partner.followers,
+    memo: partner.memo ?? '',
+    status: partner.status,
+  });
+
+  const toggleChannel = (key: string) => {
+    setEditForm(prev => ({
+      ...prev,
+      channels: prev.channels.includes(key)
+        ? prev.channels.filter(c => c !== key)
+        : [...prev.channels, key],
+    }));
+  };
+
+  const handleSubmit = () => {
+    if (!editForm.name.trim()) { toast.error('파트너명을 입력하세요'); return; }
+    if (!editForm.email.trim()) { toast.error('이메일을 입력하세요'); return; }
+    if (editForm.channels.length === 0) { toast.error('채널을 최소 1개 선택하세요'); return; }
+    onSave(partner.id, {
+      name: editForm.name,
+      email: editForm.email,
+      channels: editForm.channels,
+      channel: editForm.channels[0],
+      followers: editForm.followers,
+      memo: editForm.memo,
+      status: editForm.status,
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
+      <div
+        className="w-full max-w-lg bg-[#1a1b1e] rounded-2xl border border-[#2a2d35] shadow-2xl max-h-[90vh] overflow-y-auto"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between p-5 border-b border-[#2a2d35]">
+          <div className="flex items-center gap-2">
+            <Pencil size={15} className="text-blue-400" />
+            <h2 className="text-sm font-semibold text-white">파트너 수정</h2>
+          </div>
+          <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-white transition-colors">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          <div className="grid md:grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-gray-400">파트너명 *</label>
+              <input
+                value={editForm.name}
+                onChange={e => setEditForm({ ...editForm, name: e.target.value })}
+                className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-blue-500/50"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-gray-400">이메일 *</label>
+              <input
+                type="email"
+                value={editForm.email}
+                onChange={e => setEditForm({ ...editForm, email: e.target.value })}
+                className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-blue-500/50"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-gray-400">팔로워 수</label>
+              <input
+                type="number"
+                value={editForm.followers}
+                onChange={e => setEditForm({ ...editForm, followers: Number(e.target.value) })}
+                className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-gray-400">상태</label>
+              <select
+                value={editForm.status}
+                onChange={e => setEditForm({ ...editForm, status: e.target.value as AffiliatePartner['status'] })}
+                className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50"
+              >
+                <option value="pending">대기</option>
+                <option value="approved">승인</option>
+                <option value="rejected">거절</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs text-gray-400 flex items-center gap-1.5">
+              채널 *
+              {editForm.channels.length > 0 && (
+                <span className="px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded text-[10px]">
+                  {editForm.channels.length}개 선택됨
+                </span>
+              )}
+            </label>
+            <div className="mt-2 grid grid-cols-4 gap-1.5">
+              {CHANNEL_OPTIONS.map(opt => {
+                const checked = editForm.channels.includes(opt.key);
+                return (
+                  <label
+                    key={opt.key}
+                    className={`flex items-center gap-1.5 px-2.5 py-2 rounded-lg border cursor-pointer transition-all text-xs select-none ${
+                      checked
+                        ? `${opt.color} border-opacity-60`
+                        : 'border-[#2a2d35] text-gray-500 hover:border-gray-500 hover:text-gray-300'
+                    }`}
+                  >
+                    <input type="checkbox" className="sr-only" checked={checked} onChange={() => toggleChannel(opt.key)} />
+                    <span className="font-semibold">{opt.badge}</span>
+                    <span className="truncate hidden sm:inline">{opt.label}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs text-gray-400">메모</label>
+            <input
+              value={editForm.memo}
+              onChange={e => setEditForm({ ...editForm, memo: e.target.value })}
+              placeholder="내부 메모 (선택)"
+              className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-blue-500/50"
+            />
+          </div>
+
+          <div className="flex gap-2 justify-end pt-2">
+            <button
+              onClick={onClose}
+              className="px-3 py-1.5 text-xs text-gray-400 border border-[#2a2d35] rounded-lg hover:text-white hover:border-gray-500 transition-colors"
+            >
+              취소
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={isSaving}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium rounded-lg transition-colors"
+            >
+              {isSaving && <Loader2 size={12} className="animate-spin" />}
+              변경사항 저장
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PartnersSection() {
   const qc = useQueryClient();
   const [showInviteForm, setShowInviteForm] = useState(false);
@@ -1599,6 +1880,7 @@ function PartnersSection() {
     memo: '',
   });
   const [selectedPartner, setSelectedPartner] = useState<AffiliatePartner | null>(null);
+  const [editingPartner, setEditingPartner] = useState<AffiliatePartner | null>(null);
 
   const { data: partners = [], isLoading, isError } = useQuery<AffiliatePartner[]>({
     queryKey: ['affiliate', 'partners'],
@@ -1645,6 +1927,18 @@ function PartnersSection() {
     onError: () => toast.error('거절 처리에 실패했습니다'),
   });
 
+  const updatePartnerMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: Record<string, unknown> }) =>
+      affiliateApi.updatePartner(id, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['affiliate', 'partners'] });
+      qc.invalidateQueries({ queryKey: ['affiliate', 'dashboard'] });
+      toast.success('파트너 정보가 수정되었습니다');
+      setEditingPartner(null);
+    },
+    onError: () => toast.error('파트너 수정에 실패했습니다'),
+  });
+
   const copyLink = (link: string) => {
     navigator.clipboard.writeText(link);
     toast.success('링크가 복사되었습니다');
@@ -1685,6 +1979,14 @@ function PartnersSection() {
           partner={selectedPartner}
           campaigns={campaigns}
           onClose={() => setSelectedPartner(null)}
+        />
+      )}
+      {editingPartner && (
+        <PartnerEditModal
+          partner={editingPartner}
+          onClose={() => setEditingPartner(null)}
+          onSave={(id, data) => updatePartnerMutation.mutate({ id, data })}
+          isSaving={updatePartnerMutation.isPending}
         />
       )}
 
@@ -1871,25 +2173,34 @@ function PartnersSection() {
                       </div>
                     </div>
                   </div>
-                  {p.status === 'pending' && (
-                    <div className="flex gap-1" onClick={e => e.stopPropagation()}>
-                      <button
-                        onClick={() => approveMutation.mutate(p.id)}
-                        disabled={approveMutation.isPending}
-                        className="flex items-center gap-1 px-2 py-1 text-[10px] bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-medium rounded transition-colors"
-                      >
-                        {approveMutation.isPending && <Loader2 size={10} className="animate-spin" />}
-                        승인
-                      </button>
-                      <button
-                        onClick={() => rejectMutation.mutate(p.id)}
-                        disabled={rejectMutation.isPending}
-                        className="px-2 py-1 text-[10px] border border-red-400/30 text-red-400 hover:bg-red-400/10 disabled:opacity-50 rounded transition-colors"
-                      >
-                        거절
-                      </button>
-                    </div>
-                  )}
+                  <div className="flex gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+                    {p.status === 'pending' && (
+                      <>
+                        <button
+                          onClick={() => approveMutation.mutate(p.id)}
+                          disabled={approveMutation.isPending}
+                          className="flex items-center gap-1 px-2 py-1 text-[10px] bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-medium rounded transition-colors"
+                        >
+                          {approveMutation.isPending && <Loader2 size={10} className="animate-spin" />}
+                          승인
+                        </button>
+                        <button
+                          onClick={() => rejectMutation.mutate(p.id)}
+                          disabled={rejectMutation.isPending}
+                          className="px-2 py-1 text-[10px] border border-red-400/30 text-red-400 hover:bg-red-400/10 disabled:opacity-50 rounded transition-colors"
+                        >
+                          거절
+                        </button>
+                      </>
+                    )}
+                    <button
+                      onClick={() => setEditingPartner(p)}
+                      className="p-1 text-gray-500 hover:text-blue-400 transition-colors"
+                      title="파트너 수정"
+                    >
+                      <Pencil size={12} />
+                    </button>
+                  </div>
                 </div>
 
                 {p.status === 'approved' && (

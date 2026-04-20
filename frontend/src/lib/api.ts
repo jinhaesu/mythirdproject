@@ -736,6 +736,7 @@ export interface AffiliatePartner {
   conversion_count: number;
   joined_date: string;
   campaign_ids?: number[];
+  memo?: string;
 }
 
 export interface AffiliateTimeseriesPoint {
@@ -784,6 +785,7 @@ export const affiliateApi = {
     campaign_ids: number[];
     memo?: string;
   }) => { const { data } = await api.post('/affiliate/partners', d); return data; },
+  updatePartner: async (id: number, d: Record<string, unknown>) => { const { data } = await api.put(`/affiliate/partners/${id}`, d); return data; },
   addPartnerCampaign: async (partnerId: number, campaignId: number) => { const { data } = await api.post(`/affiliate/partners/${partnerId}/campaigns`, { campaign_id: campaignId }); return data; },
   removePartnerCampaign: async (partnerId: number, pcId: number) => { await api.delete(`/affiliate/partners/${partnerId}/campaigns/${pcId}`); },
   getPartnerPerformance: async (partnerId: number) => { const { data } = await api.get(`/affiliate/partners/${partnerId}/performance`); return data; },
