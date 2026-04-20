@@ -28,37 +28,52 @@ async def cafe24_auth_start(
     if not settings.CAFE24_CLIENT_ID:
         raise HTTPException(status_code=400, detail="CAFE24_CLIENT_ID가 설정되지 않았습니다.")
 
-    # state = user_id:random
-    state = f"{current_user.id}:{secrets.token_urlsafe(16)}"
+    # state = user_id:mall_id:random  (mall_id는 Cafe24 콜백이 돌려주지 않아 state에 보존)
+    state = f"{current_user.id}:{mall_id}:{secrets.token_urlsafe(16)}"
     auth_url = cafe24_svc.build_auth_url(mall_id, state)
     return {"auth_url": auth_url}
 
 
 @router.get("/auth/callback")
 async def cafe24_auth_callback(
-    code: str,
-    state: str,
-    mall_id: str,
+    state: str = Query(...),
+    code: str | None = Query(None),
+    mall_id: str | None = Query(None),
+    error: str | None = Query(None),
+    error_description: str | None = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
     """Cafe24 OAuth 콜백 — code 교환 후 토큰 저장. 인증 없음(state로 user_id 복원)."""
-    # state에서 user_id 추출
+    # state = "{user_id}:{mall_id}:{token}" — mall_id를 여기서 복원
+    parts = state.split(":")
+    if len(parts) < 2:
+        return RedirectResponse(f"{settings.FRONTEND_URL}/?cafe24=error&reason=invalid_state")
     try:
-        user_id_str = state.split(":")[0]
-        user_id = int(user_id_str)
-    except (ValueError, IndexError):
-        raise HTTPException(status_code=400, detail="유효하지 않은 state 파라미터입니다.")
+        user_id = int(parts[0])
+    except ValueError:
+        return RedirectResponse(f"{settings.FRONTEND_URL}/?cafe24=error&reason=invalid_state")
+    mall_id_from_state = parts[1] if len(parts) >= 3 else None
+    mall_id = mall_id or mall_id_from_state
+    if not mall_id:
+        return RedirectResponse(f"{settings.FRONTEND_URL}/?cafe24=error&reason=missing_mall_id")
+
+    # Cafe24에서 사용자가 취소하거나 거부한 경우 code 없이 돌아옴
+    if error or not code:
+        logger.warning(f"[Cafe24] callback without code: error={error} desc={error_description}")
+        return RedirectResponse(
+            f"{settings.FRONTEND_URL}/?cafe24=error&reason={error or 'no_code'}"
+        )
 
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if not user:
-        raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
+        return RedirectResponse(f"{settings.FRONTEND_URL}/?cafe24=error&reason=user_not_found")
 
     try:
         data = await cafe24_svc.exchange_code(mall_id, code)
     except Exception as e:
         logger.error(f"[Cafe24] Token exchange failed: {e}")
-        raise HTTPException(status_code=400, detail=f"Cafe24 토큰 교환 실패: {str(e)}")
+        return RedirectResponse(f"{settings.FRONTEND_URL}/?cafe24=error&reason=token_exchange_failed")
 
     from datetime import datetime
 
