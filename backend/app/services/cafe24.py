@@ -3,6 +3,7 @@ import base64
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
+from urllib.parse import quote
 
 import httpx
 
@@ -29,10 +30,10 @@ def build_auth_url(mall_id: str, state: str) -> str:
     return (
         f"https://{mall_id}.cafe24api.com/api/v2/oauth/authorize"
         f"?response_type=code"
-        f"&client_id={settings.CAFE24_CLIENT_ID}"
-        f"&state={state}"
-        f"&redirect_uri={settings.CAFE24_REDIRECT_URI}"
-        f"&scope={_SCOPE}"
+        f"&client_id={quote(settings.CAFE24_CLIENT_ID, safe='')}"
+        f"&state={quote(state, safe='')}"
+        f"&redirect_uri={quote(settings.CAFE24_REDIRECT_URI, safe='')}"
+        f"&scope={quote(_SCOPE, safe=',')}"
     )
 
 
