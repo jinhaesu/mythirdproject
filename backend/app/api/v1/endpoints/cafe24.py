@@ -134,15 +134,18 @@ async def cafe24_disconnect(
 async def cafe24_list_products(
     q: str = Query(None, description="상품명 검색"),
     limit: int = Query(50, ge=1, le=200),
+    include_hidden: bool = Query(False, description="숨김/판매중지 상품도 포함"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Cafe24 상품 목록 조회."""
+    """Cafe24 상품 목록 조회 (기본: 공개+판매중)."""
     if not current_user.cafe24_access_token:
         raise HTTPException(status_code=400, detail="Cafe24 스토어 연결이 필요합니다.")
 
     try:
-        products = await cafe24_svc.list_products(current_user, db, q=q, limit=limit)
+        products = await cafe24_svc.list_products(
+            current_user, db, q=q, limit=limit, include_hidden=include_hidden
+        )
     except Exception as e:
         logger.error(f"[Cafe24] list_products failed: {e}")
         raise HTTPException(status_code=502, detail=f"Cafe24 API 오류: {str(e)}")

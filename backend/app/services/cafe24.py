@@ -142,15 +142,22 @@ async def api_request(
         return resp.json()
 
 
-async def list_products(user, db, q: Optional[str] = None, limit: int = 50) -> list:
-    """Cafe24 상품 목록 조회. display/selling 필터는 적용하지 않음 (너무 많이 거름)."""
+async def list_products(
+    user, db, q: Optional[str] = None, limit: int = 50, include_hidden: bool = False
+) -> list:
+    """Cafe24 상품 목록 조회. 기본적으로 display=T/selling=T 상품만 (공개+판매중)."""
     params: dict = {"limit": limit}
+    if not include_hidden:
+        params["display"] = "T"
+        params["selling"] = "T"
     if q:
         params["product_name"] = q
 
     data = await api_request(user, db, "GET", "/api/v2/admin/products", params=params)
     products = data.get("products", [])
-    logger.info(f"[Cafe24] list_products q={q!r} -> {len(products)} items")
+    logger.info(
+        f"[Cafe24] list_products q={q!r} hidden={include_hidden} -> {len(products)} items"
+    )
     # 프론트엔드에서 쓰는 필드만 추림
     return [
         {
