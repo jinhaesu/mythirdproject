@@ -12,8 +12,11 @@ from app.core.config import get_settings
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-_SCOPE = "mall.read_product,mall.write_promotion,mall.read_order,mall.read_customer"
 _API_VERSION = "2023-09-01"
+
+
+def _scopes() -> str:
+    return (settings.CAFE24_SCOPES or "mall.read_product").strip()
 
 
 def _base_url(mall_id: str) -> str:
@@ -33,7 +36,7 @@ def build_auth_url(mall_id: str, state: str) -> str:
         f"&client_id={quote(settings.CAFE24_CLIENT_ID, safe='')}"
         f"&state={quote(state, safe='')}"
         f"&redirect_uri={quote(settings.CAFE24_REDIRECT_URI, safe='')}"
-        f"&scope={quote(_SCOPE, safe=',')}"
+        f"&scope={quote(_scopes(), safe=',')}"
     )
 
 

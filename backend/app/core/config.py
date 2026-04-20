@@ -62,6 +62,8 @@ class Settings(BaseSettings):
     CAFE24_CLIENT_SECRET: str = ""
     CAFE24_REDIRECT_URI: str = ""  # e.g. https://backend.railway.app/api/v1/cafe24/auth/callback
     CAFE24_WEBHOOK_SECRET: str = ""
+    # 콤마 구분 scope 목록. 개발자센터에 등록된 권한과 일치해야 함.
+    CAFE24_SCOPES: str = "mall.read_product,mall.write_promotion,mall.read_order,mall.read_customer"
 
     # Allowed emails (comma-separated, empty = allow all)
     ALLOWED_EMAILS: str = ""
