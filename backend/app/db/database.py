@@ -283,17 +283,19 @@ async def init_db():
         ("discount_type", "VARCHAR(20)"),
         ("discount_value", "DOUBLE PRECISION"),
         ("base_product_url", "VARCHAR(500)"),
+        ("referral_code", "VARCHAR(50)"),
     ]
     for col, col_type in campaign_cafe24_cols:
         try:
             async with engine.begin() as conn:
                 await conn.execute(
                     __import__('sqlalchemy').text(
-                        f"ALTER TABLE affiliate_campaigns ADD COLUMN {col} {col_type}"
+                        f"ALTER TABLE affiliate_campaigns ADD COLUMN IF NOT EXISTS {col} {col_type}"
                     )
                 )
-        except Exception:
-            pass
+            logger.info(f"[init_db] affiliate_campaigns.{col} ensured")
+        except Exception as e:
+            logger.warning(f"[init_db] affiliate_campaigns.{col} skipped: {e}")
 
     # cafe24_coupon_code index
     try:
