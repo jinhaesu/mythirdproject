@@ -112,7 +112,7 @@ async def api_request(
     params=None,
     json=None,
 ) -> dict:
-    """Cafe24 API 요청. 401이면 토큰 갱신 후 1회 재시도."""
+    """Cafe24 API 요청. 401이면 토큰 갱신 후 1회 재시도. 에러 시 응답 본문 로깅."""
     token = await ensure_valid_token(user, db)
     headers = {
         "Authorization": f"Bearer {token}",
@@ -133,31 +133,49 @@ async def api_request(
                 headers["Authorization"] = f"Bearer {user.cafe24_access_token}"
                 resp = await client.request(method, url, headers=headers, params=params, json=json)
 
-        resp.raise_for_status()
+        if resp.status_code >= 400:
+            body = resp.text[:500]
+            logger.error(f"[Cafe24] {method} {path} -> {resp.status_code}: {body}")
+            raise httpx.HTTPStatusError(
+                f"Cafe24 API {resp.status_code}: {body}",
+                request=resp.request,
+                response=resp,
+            )
         return resp.json()
 
 
 async def list_products(user, db, q: Optional[str] = None, limit: int = 50) -> list:
     """Cafe24 상품 목록 조회."""
-    params = {
-        "limit": limit,
-        "fields": "product_no,product_name,price,list_image,sellers_price",
-    }
+    # fields 파라미터 없이 전체 필드 요청 (Cafe24가 일부 필드에 대해 400 반환)
+    params: dict = {"limit": limit, "display": "T", "selling": "T"}
     if q:
         params["product_name"] = q
 
     data = await api_request(user, db, "GET", "/api/v2/admin/products", params=params)
-    return data.get("products", [])
+    products = data.get("products", [])
+    # 프론트엔드에서 쓰는 필드만 추림
+    return [
+        {
+            "product_no": p.get("product_no"),
+            "product_name": p.get("product_name"),
+            "price": p.get("price"),
+            "retail_price": p.get("retail_price"),
+            "list_image": p.get("list_image"),
+            "detail_image": p.get("detail_image"),
+            "display": p.get("display"),
+            "selling": p.get("selling"),
+        }
+        for p in products
+    ]
 
 
 async def get_product(user, db, product_no: int) -> dict:
     """단일 상품 상세 조회."""
     data = await api_request(
         user, db, "GET", f"/api/v2/admin/products/{product_no}",
-        params={"fields": "product_no,product_name,price,list_image,sellers_price"},
     )
-    products = data.get("products", [])
-    return products[0] if products else {}
+    product = data.get("product") or (data.get("products") or [{}])[0]
+    return product or {}
 
 
 async def create_coupon(
