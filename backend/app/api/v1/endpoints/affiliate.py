@@ -685,8 +685,6 @@ async def get_dashboard_timeseries(
 
     데이터가 있는 날짜만 반환하며 날짜 gap은 프론트엔드에서 채웁니다.
     """
-    import sqlalchemy as sa
-
     # 현재 유저의 파트너 ID 목록
     pid_result = await db.execute(
         select(AffiliatePartner.id).where(AffiliatePartner.user_id == current_user.id)
@@ -695,23 +693,18 @@ async def get_dashboard_timeseries(
 
     since = datetime.utcnow() - timedelta(days=days)
 
-    # 일별 클릭 집계
+    # 일별 클릭 집계 — ORM으로 작성 (asyncpg의 ANY 바인딩 이슈 회피)
     clicks_by_date: dict = {}
     if partner_ids:
+        day_col = func.date(ReferralClick.clicked_at).label("day")
         click_rows = await db.execute(
-            sa.text(
-                """
-                SELECT DATE(clicked_at) AS day, COUNT(*) AS cnt
-                FROM referral_clicks
-                WHERE partner_id = ANY(:pids)
-                  AND clicked_at >= :since
-                GROUP BY day
-                ORDER BY day
-                """
-            ).bindparams(
-                sa.bindparam("pids", value=partner_ids, expanding=True),
-                since=since,
+            select(day_col, func.count(ReferralClick.id))
+            .where(
+                ReferralClick.partner_id.in_(partner_ids),
+                ReferralClick.clicked_at >= since,
             )
+            .group_by(day_col)
+            .order_by(day_col)
         )
         for row in click_rows.all():
             clicks_by_date[str(row[0])] = int(row[1])
@@ -719,23 +712,20 @@ async def get_dashboard_timeseries(
     # 일별 전환/매출/커미션 집계
     conv_by_date: dict = {}
     if partner_ids:
+        day_col2 = func.date(ReferralConversion.converted_at).label("day")
         conv_rows = await db.execute(
-            sa.text(
-                """
-                SELECT DATE(converted_at) AS day,
-                       COUNT(*) AS cnt,
-                       COALESCE(SUM(order_amount), 0) AS revenue,
-                       COALESCE(SUM(commission_amount), 0) AS commission
-                FROM referral_conversions
-                WHERE partner_id = ANY(:pids)
-                  AND converted_at >= :since
-                GROUP BY day
-                ORDER BY day
-                """
-            ).bindparams(
-                sa.bindparam("pids", value=partner_ids, expanding=True),
-                since=since,
+            select(
+                day_col2,
+                func.count(ReferralConversion.id),
+                func.coalesce(func.sum(ReferralConversion.order_amount), 0),
+                func.coalesce(func.sum(ReferralConversion.commission_amount), 0),
             )
+            .where(
+                ReferralConversion.partner_id.in_(partner_ids),
+                ReferralConversion.converted_at >= since,
+            )
+            .group_by(day_col2)
+            .order_by(day_col2)
         )
         for row in conv_rows.all():
             conv_by_date[str(row[0])] = {
