@@ -12,9 +12,6 @@ from app.core.config import get_settings
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-_API_VERSION = "2023-09-01"
-
-
 def _scopes() -> str:
     return (settings.CAFE24_SCOPES or "mall.read_product").strip()
 
@@ -114,9 +111,10 @@ async def api_request(
 ) -> dict:
     """Cafe24 API 요청. 401이면 토큰 갱신 후 1회 재시도. 에러 시 응답 본문 로깅."""
     token = await ensure_valid_token(user, db)
+    # X-Cafe24-Api-Version 헤더는 생략 — 앱 기본 버전 사용
+    # (하드코딩 버전이 앱의 default와 불일치하면 400 반환)
     headers = {
         "Authorization": f"Bearer {token}",
-        "X-Cafe24-Api-Version": _API_VERSION,
         "Content-Type": "application/json",
     }
     url = f"{_base_url(user.cafe24_mall_id)}{path}"

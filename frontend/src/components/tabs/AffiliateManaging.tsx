@@ -395,6 +395,7 @@ function Cafe24ProductSelector({ selectedNo, selectedName, onSelect, onClear, di
   const [query, setQuery] = useState('');
   const [debouncedQ, setDebouncedQ] = useState('');
   const [open, setOpen] = useState(false);
+  const [browserOpen, setBrowserOpen] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -436,18 +437,27 @@ function Cafe24ProductSelector({ selectedNo, selectedName, onSelect, onClear, di
         </div>
       ) : (
         <div>
-          <div className="relative">
-            <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-            <input
-              value={query}
-              onChange={e => { setQuery(e.target.value); setOpen(true); }}
-              onFocus={() => setOpen(true)}
-              placeholder="상품명 검색..."
-              className="w-full pl-8 pr-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-emerald-500/50"
-            />
-            {isFetching && (
-              <Loader2 size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 animate-spin" />
-            )}
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+              <input
+                value={query}
+                onChange={e => { setQuery(e.target.value); setOpen(true); }}
+                onFocus={() => setOpen(true)}
+                placeholder="상품명 검색..."
+                className="w-full pl-8 pr-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-emerald-500/50"
+              />
+              {isFetching && (
+                <Loader2 size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 animate-spin" />
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setBrowserOpen(true)}
+              className="shrink-0 px-3 py-2 bg-[#3B82F6] hover:bg-[#2563EB] rounded-lg text-xs font-medium text-white transition-colors flex items-center gap-1.5"
+            >
+              <ShoppingBag size={12} /> 상품 조회
+            </button>
           </div>
           {open && displayProducts.length > 0 && (
             <div className="absolute z-20 top-full mt-1 w-full bg-[#1a1b1e] border border-[#2a2d35] rounded-xl shadow-xl max-h-64 overflow-y-auto">
@@ -485,6 +495,112 @@ function Cafe24ProductSelector({ selectedNo, selectedName, onSelect, onClear, di
           )}
         </div>
       )}
+      {browserOpen && (
+        <Cafe24ProductBrowserModal
+          onClose={() => setBrowserOpen(false)}
+          onPick={(no, name, price) => {
+            onSelect(no, name, price);
+            setBrowserOpen(false);
+            setQuery('');
+            setOpen(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Cafe24 전체 상품 조회 모달 ─────────────────────────────────────────────
+
+interface Cafe24ProductBrowserModalProps {
+  onClose: () => void;
+  onPick: (no: number, name: string, price: number) => void;
+}
+
+function Cafe24ProductBrowserModal({ onClose, onPick }: Cafe24ProductBrowserModalProps) {
+  const [query, setQuery] = useState('');
+  const [debouncedQ, setDebouncedQ] = useState('');
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setDebouncedQ(query), 300);
+    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+  }, [query]);
+
+  const { data: products = [], isFetching } = useQuery<Cafe24Product[]>({
+    queryKey: ['cafe24', 'products', 'browser', debouncedQ],
+    queryFn: () => cafe24Api.listProducts(debouncedQ || undefined, 100),
+    staleTime: 60_000,
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={onClose}>
+      <div
+        onClick={e => e.stopPropagation()}
+        className="bg-[#1a1b1e] border border-[#2a2d35] rounded-2xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col"
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
+          <div className="flex items-center gap-2">
+            <ShoppingBag size={16} className="text-[#3B82F6]" />
+            <h3 className="text-sm font-semibold text-white">Cafe24 상품 조회</h3>
+            <span className="text-xs text-gray-500">({products.length}개)</span>
+          </div>
+          <button type="button" onClick={onClose} className="text-gray-400 hover:text-white">
+            <X size={18} />
+          </button>
+        </div>
+        <div className="px-5 py-3 border-b border-white/10">
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+            <input
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="상품명으로 검색... (비워두면 전체 목록)"
+              autoFocus
+              className="w-full pl-9 pr-10 py-2.5 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-[#3B82F6]"
+            />
+            {isFetching && (
+              <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 animate-spin" />
+            )}
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4">
+          {isFetching && products.length === 0 ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 size={24} className="text-gray-500 animate-spin" />
+            </div>
+          ) : products.length === 0 ? (
+            <div className="text-center py-12">
+              <ShoppingBag size={28} className="mx-auto text-gray-700 mb-2" />
+              <p className="text-sm text-gray-500">조회된 상품이 없습니다</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              {products.map(p => (
+                <button
+                  key={p.product_no}
+                  type="button"
+                  onClick={() => onPick(p.product_no, p.product_name, p.sellers_price || p.price)}
+                  className="group text-left bg-[#141516] border border-[#2a2d35] rounded-xl p-3 hover:border-[#3B82F6] hover:bg-[#3B82F6]/5 transition-all"
+                >
+                  {p.list_image ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={p.list_image} alt={p.product_name} className="w-full aspect-square rounded-lg object-cover bg-[#0f1011] mb-2" />
+                  ) : (
+                    <div className="w-full aspect-square rounded-lg bg-[#0f1011] mb-2 flex items-center justify-center">
+                      <ShoppingBag size={24} className="text-gray-700" />
+                    </div>
+                  )}
+                  <p className="text-xs font-medium text-white truncate">{p.product_name}</p>
+                  <p className="text-[11px] text-gray-500 mt-0.5">₩{(p.sellers_price || p.price).toLocaleString()}</p>
+                  <p className="text-[10px] text-gray-600 mt-0.5">상품번호 {p.product_no}</p>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
