@@ -414,14 +414,32 @@ function Cafe24ProductSelector({ selectedNo, selectedName, onSelect, onClear, di
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
   }, [query]);
 
-  const { data: products = [], isFetching } = useQuery<Cafe24Product[]>({
+  const { data: rawProducts = [], isFetching } = useQuery<unknown[]>({
     queryKey: ['cafe24', 'products', debouncedQ],
     queryFn: () => cafe24Api.listProducts(debouncedQ || undefined),
     enabled: open && !disabled,
     staleTime: 60_000,
+    retry: 0,
   });
 
-  const displayProducts = products.slice(0, 10);
+  // 방어적 정규화
+  const normalized = (Array.isArray(rawProducts) ? rawProducts : []).map((raw, idx) => {
+    const p = (raw && typeof raw === 'object') ? (raw as Record<string, unknown>) : {};
+    const s = (v: unknown): string => typeof v === 'string' ? v : typeof v === 'number' ? String(v) : '';
+    const num = (v: unknown): number => {
+      if (typeof v === 'number') return v;
+      if (typeof v === 'string') { const n = parseFloat(v); return isNaN(n) ? 0 : n; }
+      return 0;
+    };
+    return {
+      _idx: idx,
+      product_no: num(p.product_no),
+      product_name: s(p.product_name) || `(상품번호 ${p.product_no ?? ''})`,
+      price: num(p.price ?? p.sellers_price ?? p.retail_price),
+      list_image: s(p.list_image),
+    };
+  });
+  const displayProducts = normalized.slice(0, 10);
 
   if (disabled) {
     return (
@@ -473,10 +491,10 @@ function Cafe24ProductSelector({ selectedNo, selectedName, onSelect, onClear, di
             <div className="absolute z-20 top-full mt-1 w-full bg-[#1a1b1e] border border-[#2a2d35] rounded-xl shadow-xl max-h-64 overflow-y-auto">
               {displayProducts.map(p => (
                 <button
-                  key={p.product_no}
+                  key={`${p.product_no}-${p._idx}`}
                   type="button"
                   onClick={() => {
-                    onSelect(p.product_no, p.product_name, priceToNumber(p.sellers_price ?? p.price));
+                    onSelect(p.product_no, p.product_name, p.price);
                     setOpen(false);
                     setQuery('');
                   }}
@@ -492,7 +510,7 @@ function Cafe24ProductSelector({ selectedNo, selectedName, onSelect, onClear, di
                   )}
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-medium text-white truncate">{p.product_name}</p>
-                    <p className="text-[10px] text-gray-500">₩{priceToNumber(p.sellers_price ?? p.price).toLocaleString()}</p>
+                    <p className="text-[10px] text-gray-500">₩{p.price.toLocaleString()}</p>
                   </div>
                 </button>
               ))}
@@ -538,10 +556,33 @@ function Cafe24ProductBrowserModal({ onClose, onPick }: Cafe24ProductBrowserModa
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
   }, [query]);
 
-  const { data: products = [], isFetching } = useQuery<Cafe24Product[]>({
+  const { data: rawProducts = [], isFetching, error } = useQuery<unknown[]>({
     queryKey: ['cafe24', 'products', 'browser', debouncedQ],
     queryFn: () => cafe24Api.listProducts(debouncedQ || undefined, 100),
     staleTime: 60_000,
+    retry: 0,
+  });
+
+  // 방어적 정규화 — Cafe24 필드가 누락/타입 달라도 crash 안 나게
+  const products = (Array.isArray(rawProducts) ? rawProducts : []).map((raw, idx) => {
+    const p = (raw && typeof raw === 'object') ? (raw as Record<string, unknown>) : {};
+    const pickStr = (v: unknown): string => {
+      if (typeof v === 'string') return v;
+      if (typeof v === 'number') return String(v);
+      return '';
+    };
+    const pickNum = (v: unknown): number => {
+      if (typeof v === 'number') return v;
+      if (typeof v === 'string') { const n = parseFloat(v); return isNaN(n) ? 0 : n; }
+      return 0;
+    };
+    return {
+      _idx: idx,
+      product_no: pickNum(p.product_no),
+      product_name: pickStr(p.product_name) || `(상품번호 ${p.product_no ?? ''})`,
+      price: pickNum(p.price ?? p.sellers_price ?? p.retail_price),
+      list_image: pickStr(p.list_image),
+    };
   });
 
   return (
@@ -576,7 +617,13 @@ function Cafe24ProductBrowserModal({ onClose, onPick }: Cafe24ProductBrowserModa
           </div>
         </div>
         <div className="flex-1 overflow-y-auto p-4">
-          {isFetching && products.length === 0 ? (
+          {error ? (
+            <div className="text-center py-12">
+              <AlertCircle size={28} className="mx-auto text-red-500 mb-2" />
+              <p className="text-sm text-red-400">상품 목록을 불러오지 못했습니다</p>
+              <p className="text-xs text-gray-500 mt-1">{String((error as Error)?.message || error)}</p>
+            </div>
+          ) : isFetching && products.length === 0 ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 size={24} className="text-gray-500 animate-spin" />
             </div>
@@ -589,9 +636,9 @@ function Cafe24ProductBrowserModal({ onClose, onPick }: Cafe24ProductBrowserModa
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
               {products.map(p => (
                 <button
-                  key={p.product_no}
+                  key={`${p.product_no}-${p._idx}`}
                   type="button"
-                  onClick={() => onPick(p.product_no, p.product_name, priceToNumber(p.sellers_price ?? p.price))}
+                  onClick={() => onPick(p.product_no, p.product_name, p.price)}
                   className="group text-left bg-[#141516] border border-[#2a2d35] rounded-xl p-3 hover:border-[#3B82F6] hover:bg-[#3B82F6]/5 transition-all"
                 >
                   {p.list_image ? (
@@ -603,7 +650,7 @@ function Cafe24ProductBrowserModal({ onClose, onPick }: Cafe24ProductBrowserModa
                     </div>
                   )}
                   <p className="text-xs font-medium text-white truncate">{p.product_name}</p>
-                  <p className="text-[11px] text-gray-500 mt-0.5">₩{priceToNumber(p.sellers_price ?? p.price).toLocaleString()}</p>
+                  <p className="text-[11px] text-gray-500 mt-0.5">₩{p.price.toLocaleString()}</p>
                   <p className="text-[10px] text-gray-600 mt-0.5">상품번호 {p.product_no}</p>
                 </button>
               ))}
