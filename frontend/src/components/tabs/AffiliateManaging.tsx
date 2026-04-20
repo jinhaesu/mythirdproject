@@ -1905,11 +1905,40 @@ function PartnersSection() {
   });
   const [selectedPartner, setSelectedPartner] = useState<AffiliatePartner | null>(null);
   const [editingPartner, setEditingPartner] = useState<AffiliatePartner | null>(null);
+  const [showTrash, setShowTrash] = useState(false);
 
   const { data: partners = [], isLoading, isError } = useQuery<AffiliatePartner[]>({
     queryKey: ['affiliate', 'partners'],
     queryFn: affiliateApi.getPartners,
     retry: 1,
+  });
+
+  const { data: trashedPartners = [] } = useQuery<AffiliatePartner[]>({
+    queryKey: ['affiliate', 'partners-trash'],
+    queryFn: affiliateApi.listTrashedPartners,
+    enabled: showTrash,
+    retry: 1,
+  });
+
+  const restorePartnerMutation = useMutation({
+    mutationFn: (id: number) => affiliateApi.restorePartner(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['affiliate', 'partners'] });
+      qc.invalidateQueries({ queryKey: ['affiliate', 'partners-trash'] });
+      qc.invalidateQueries({ queryKey: ['affiliate', 'dashboard'] });
+      toast.success('파트너를 복원했습니다');
+    },
+    onError: () => toast.error('복원에 실패했습니다'),
+  });
+
+  const permanentDeleteMutation = useMutation({
+    mutationFn: (id: number) => affiliateApi.permanentDeletePartner(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['affiliate', 'partners-trash'] });
+      qc.invalidateQueries({ queryKey: ['affiliate', 'dashboard'] });
+      toast.success('영구 삭제되었습니다');
+    },
+    onError: () => toast.error('영구 삭제에 실패했습니다'),
   });
 
   const { data: campaigns = [] } = useQuery<AffiliateCampaign[]>({
@@ -1967,8 +1996,9 @@ function PartnersSection() {
     mutationFn: (id: number) => affiliateApi.deletePartner(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['affiliate', 'partners'] });
+      qc.invalidateQueries({ queryKey: ['affiliate', 'partners-trash'] });
       qc.invalidateQueries({ queryKey: ['affiliate', 'dashboard'] });
-      toast.success('파트너가 삭제되었습니다');
+      toast.success('파트너를 휴지통으로 이동했습니다');
     },
     onError: () => toast.error('파트너 삭제에 실패했습니다'),
   });
@@ -2027,13 +2057,74 @@ function PartnersSection() {
       <div className="space-y-4">
         <div className="flex justify-between items-center">
           <h2 className="text-lg font-bold text-white">파트너 관리</h2>
-          <button
-            onClick={() => setShowInviteForm(!showInviteForm)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium rounded-lg transition-colors"
-          >
-            <UserPlus size={14} /> 파트너 초대
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowTrash(!showTrash)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors border ${
+                showTrash
+                  ? 'bg-red-500/10 border-red-500/30 text-red-400'
+                  : 'border-[#2a2d35] text-gray-400 hover:text-white hover:border-gray-500'
+              }`}
+            >
+              <Trash2 size={13} /> {showTrash ? '활성 파트너' : `휴지통${trashedPartners.length > 0 ? ` (${trashedPartners.length})` : ''}`}
+            </button>
+            {!showTrash && (
+              <button
+                onClick={() => setShowInviteForm(!showInviteForm)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium rounded-lg transition-colors"
+              >
+                <UserPlus size={14} /> 파트너 초대
+              </button>
+            )}
+          </div>
         </div>
+
+        {showTrash && (
+          <div className="bg-[#1a1b1e] rounded-xl border border-red-500/20 p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <Trash2 size={14} className="text-red-400" />
+              <h3 className="text-sm font-semibold text-white">휴지통</h3>
+              <span className="text-xs text-gray-500">({trashedPartners.length}명)</span>
+            </div>
+            {trashedPartners.length === 0 ? (
+              <p className="text-xs text-gray-500 py-4 text-center">휴지통이 비어있습니다.</p>
+            ) : (
+              <div className="space-y-2">
+                {trashedPartners.map(p => (
+                  <div key={p.id} className="flex items-center justify-between bg-[#141516] border border-[#2a2d35] rounded-lg px-3 py-2.5">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-white truncate">{p.name}</p>
+                        <p className="text-[10px] text-gray-500">{p.email || '이메일 없음'} · 원상태: {partnerStatusLabel(p.status)}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => restorePartnerMutation.mutate(p.id)}
+                        disabled={restorePartnerMutation.isPending}
+                        className="flex items-center gap-1 px-2.5 py-1 text-[11px] bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded transition-colors"
+                      >
+                        <Loader2 size={10} className={restorePartnerMutation.isPending ? 'animate-spin' : 'hidden'} />
+                        복원
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (window.confirm(`"${p.name}" 파트너를 영구 삭제할까요?\n\n이 작업은 되돌릴 수 없으며, 관련된 모든 기록(캠페인 연결/클릭/전환/정산)이 함께 삭제됩니다.`)) {
+                            permanentDeleteMutation.mutate(p.id);
+                          }
+                        }}
+                        disabled={permanentDeleteMutation.isPending}
+                        className="px-2.5 py-1 text-[11px] border border-red-400/40 text-red-400 hover:bg-red-400/10 disabled:opacity-50 rounded transition-colors"
+                      >
+                        영구 삭제
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {isError && (
           <div className="flex items-center gap-2 px-4 py-2 bg-red-500/10 border border-red-500/20 rounded-lg">
@@ -2236,13 +2327,13 @@ function PartnersSection() {
                     </button>
                     <button
                       onClick={() => {
-                        if (window.confirm(`"${p.name}" 파트너를 삭제할까요?\n\n파트너와 관련된 모든 기록(캠페인 연결, 클릭, 전환, 정산)이 함께 삭제됩니다.`)) {
+                        if (window.confirm(`"${p.name}" 파트너를 휴지통으로 보낼까요?\n\n관련 기록(캠페인 연결/클릭/전환/정산)은 그대로 보존되며 휴지통에서 복원 가능합니다.\n영구 삭제는 휴지통에서 따로 진행할 수 있습니다.`)) {
                           deletePartnerMutation.mutate(p.id);
                         }
                       }}
                       disabled={deletePartnerMutation.isPending}
                       className="p-1 text-gray-500 hover:text-red-400 transition-colors disabled:opacity-50"
-                      title="파트너 삭제"
+                      title="파트너 삭제 (휴지통으로 이동)"
                     >
                       <Trash2 size={12} />
                     </button>

@@ -534,8 +534,11 @@ async def list_partners(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """List partners, optionally filtered by campaign or status."""
-    query = select(AffiliatePartner).where(AffiliatePartner.user_id == current_user.id)
+    """List partners (excludes trashed), optionally filtered by campaign or status."""
+    query = select(AffiliatePartner).where(
+        AffiliatePartner.user_id == current_user.id,
+        AffiliatePartner.deleted_at.is_(None),
+    )
     if campaign_id is not None:
         query = query.where(AffiliatePartner.campaign_id == campaign_id)
     if status is not None:
@@ -624,13 +627,13 @@ async def reject_partner(
     return {"success": True, "partner_id": partner_id, "status": partner.status}
 
 
-@router.delete("/partners/{partner_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/partners/{partner_id}", status_code=status.HTTP_200_OK)
 async def delete_partner(
     partner_id: int,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """파트너 삭제. 관련 PartnerCampaign/Click/Conversion/Settlement 전부 제거."""
+    """파트너 소프트 삭제 — 휴지통으로 이동 (deleted_at 타임스탬프 설정)."""
     result = await db.execute(
         select(AffiliatePartner).where(
             AffiliatePartner.id == partner_id,
@@ -641,14 +644,75 @@ async def delete_partner(
     if not partner:
         raise HTTPException(status_code=404, detail="Partner not found")
 
-    # FK cascade 미설정 → 자식 레코드 수동 제거
+    partner.deleted_at = datetime.utcnow()
+    await db.commit()
+    logger.info(f"[Affiliate] Partner {partner_id} moved to trash by user {current_user.id}")
+    return {"success": True, "partner_id": partner_id, "trashed_at": partner.deleted_at}
+
+
+@router.get("/partners/trash")
+async def list_deleted_partners(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """휴지통에 있는 파트너 목록."""
+    result = await db.execute(
+        select(AffiliatePartner).where(
+            AffiliatePartner.user_id == current_user.id,
+            AffiliatePartner.deleted_at.isnot(None),
+        ).order_by(AffiliatePartner.deleted_at.desc())
+    )
+    return [_partner_to_dict(p) for p in result.scalars().all()]
+
+
+@router.post("/partners/{partner_id}/restore")
+async def restore_partner(
+    partner_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """휴지통에서 파트너 복원 (deleted_at을 NULL로)."""
+    result = await db.execute(
+        select(AffiliatePartner).where(
+            AffiliatePartner.id == partner_id,
+            AffiliatePartner.user_id == current_user.id,
+        )
+    )
+    partner = result.scalar_one_or_none()
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner not found")
+    if partner.deleted_at is None:
+        raise HTTPException(status_code=400, detail="이미 활성 상태인 파트너입니다.")
+
+    partner.deleted_at = None
+    await db.commit()
+    return {"success": True, "partner_id": partner_id, "status": partner.status}
+
+
+@router.delete("/partners/{partner_id}/permanent", status_code=status.HTTP_204_NO_CONTENT)
+async def permanent_delete_partner(
+    partner_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """영구 삭제 — PartnerCampaign/Click/Conversion/Settlement 전부 삭제 후 파트너 제거."""
+    result = await db.execute(
+        select(AffiliatePartner).where(
+            AffiliatePartner.id == partner_id,
+            AffiliatePartner.user_id == current_user.id,
+        )
+    )
+    partner = result.scalar_one_or_none()
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner not found")
+
     await db.execute(delete(PartnerCampaign).where(PartnerCampaign.partner_id == partner_id))
     await db.execute(delete(ReferralClick).where(ReferralClick.partner_id == partner_id))
     await db.execute(delete(ReferralConversion).where(ReferralConversion.partner_id == partner_id))
     await db.execute(delete(AffiliateSettlement).where(AffiliateSettlement.partner_id == partner_id))
     await db.delete(partner)
     await db.commit()
-    logger.info(f"[Affiliate] Partner {partner_id} deleted by user {current_user.id}")
+    logger.info(f"[Affiliate] Partner {partner_id} permanently deleted by user {current_user.id}")
 
 
 # ---------------------------------------------------------------------------

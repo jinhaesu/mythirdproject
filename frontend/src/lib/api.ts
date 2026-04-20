@@ -769,6 +769,17 @@ export const affiliateApi = {
   approvePartner: async (id: number) => { const { data } = await api.post(`/affiliate/partners/${id}/approve`); return data; },
   rejectPartner: async (id: number) => { const { data } = await api.post(`/affiliate/partners/${id}/reject`); return data; },
   deletePartner: async (id: number) => { await api.delete(`/affiliate/partners/${id}`); },
+  listTrashedPartners: async (): Promise<AffiliatePartner[]> => {
+    const { data } = await api.get('/affiliate/partners/trash');
+    return Array.isArray(data) ? data : [];
+  },
+  restorePartner: async (id: number) => {
+    const { data } = await api.post(`/affiliate/partners/${id}/restore`);
+    return data;
+  },
+  permanentDeletePartner: async (id: number) => {
+    await api.delete(`/affiliate/partners/${id}/permanent`);
+  },
   getSettlements: async () => { const { data } = await api.get('/affiliate/settlements'); return data; },
   createSettlement: async (d: any) => { const { data } = await api.post('/affiliate/settlements', d); return data; },
   paySettlement: async (id: number) => { const { data } = await api.post(`/affiliate/settlements/${id}/pay`); return data; },

@@ -309,6 +309,27 @@ async def init_db():
     except Exception:
         pass
 
+    # affiliate_partners deleted_at (soft delete)
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(
+                __import__('sqlalchemy').text(
+                    "ALTER TABLE affiliate_partners ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP"
+                )
+            )
+    except Exception:
+        pass
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(
+                __import__('sqlalchemy').text(
+                    "CREATE INDEX IF NOT EXISTS ix_affiliate_partners_deleted_at "
+                    "ON affiliate_partners(deleted_at)"
+                )
+            )
+    except Exception:
+        pass
+
     # affiliate_partners channels column (multi-channel support)
     try:
         async with engine.begin() as conn:
