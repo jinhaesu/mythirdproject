@@ -212,17 +212,16 @@ async def create_campaign(
     await db.refresh(campaign)
 
     resp = {k: getattr(campaign, k) for k in campaign.__table__.columns.keys()}
-    # 캠페인 자체 공유 링크 (파트너 없이 운영 가능)
-    resp["referral_link"] = _build_public_link(campaign.referral_code) if campaign.referral_code else None
+    resp["referral_link"] = _build_referral_link(campaign, campaign.referral_code, current_user) if campaign.referral_code else None
     if coupon_warning:
         resp["warning"] = coupon_warning
     return resp
 
 
-def _campaign_to_dict(c: AffiliateCampaign) -> dict:
+def _campaign_to_dict(c: AffiliateCampaign, user: Optional[User] = None) -> dict:
     """캠페인 ORM 객체 + 공유 링크 포함 dict."""
     d = {k: getattr(c, k) for k in c.__table__.columns.keys()}
-    d["referral_link"] = _build_public_link(c.referral_code) if c.referral_code else None
+    d["referral_link"] = _build_referral_link(c, c.referral_code, user) if c.referral_code else None
     return d
 
 
@@ -235,7 +234,7 @@ async def list_campaigns(
     result = await db.execute(
         select(AffiliateCampaign).where(AffiliateCampaign.user_id == current_user.id)
     )
-    return [_campaign_to_dict(c) for c in result.scalars().all()]
+    return [_campaign_to_dict(c, current_user) for c in result.scalars().all()]
 
 
 @router.get("/campaigns/{campaign_id}")
@@ -382,20 +381,30 @@ def _build_destination_url(campaign: Optional[AffiliateCampaign], user: Optional
     return campaign.landing_url or (f"https://{domain}" if domain else None)
 
 
-def _build_public_link(code: str) -> str:
-    """사용자에게 공유할 추적용 레퍼럴 URL. backend /track/{code}로 먼저 보낸 뒤 Cafe24로 리다이렉트."""
+def _build_referral_link(campaign: Optional[AffiliateCampaign], code: str, user: Optional[User] = None) -> str:
+    """Cafe24 스토어 직접 URL (?coupon=X&ref=CODE). 파트너/캠페인 동일 구조."""
+    # 캠페인에 상품 연결됐으면 상품 페이지 + 쿠폰 적용
+    if campaign and campaign.cafe24_product_no:
+        domain = _cafe24_store_domain(user or (_resolve_campaign_user_sync(campaign)))
+        if domain:
+            url = f"https://{domain}/product/detail.html?product_no={campaign.cafe24_product_no}"
+            if campaign.cafe24_coupon_code:
+                url += f"&coupon={campaign.cafe24_coupon_code}"
+            url += f"&ref={code}"
+            return url
+    # 상품 연결 없거나 쿠폰 미발급 → landing_url 또는 공개 도메인
+    if campaign and campaign.landing_url:
+        sep = "&" if "?" in campaign.landing_url else "?"
+        return f"{campaign.landing_url}{sep}ref={code}"
     from app.core.config import get_settings as _gs
     _settings = _gs()
-    backend_base = (_settings.BACKEND_URL or "").rstrip("/")
-    if not backend_base:
-        # fallback: backend가 프론트와 같은 호스트인 경우
-        backend_base = ""
-    return f"{backend_base}/api/v1/affiliate/track/{code}"
+    fallback = f"https://{_settings.CAFE24_PUBLIC_DOMAIN}" if _settings.CAFE24_PUBLIC_DOMAIN else "https://nuldam.com"
+    return f"{fallback}?ref={code}"
 
 
-def _build_referral_link(campaign: Optional[AffiliateCampaign], code: str) -> str:
-    """사용자에게 공유될 추적 링크 (클릭 후 Cafe24 스토어로 리다이렉트)."""
-    return _build_public_link(code)
+def _resolve_campaign_user_sync(campaign: AffiliateCampaign) -> Optional[User]:
+    """캠페인 ORM 객체에서 user 조회 (동기 context에서는 None 반환 — 호출자가 user 전달 권장)."""
+    return None
 
 
 async def _unique_campaign_code(db: AsyncSession) -> str:
@@ -432,7 +441,7 @@ async def create_partner(
         )
         campaign = camp_result.scalar_one_or_none()
 
-    referral_link = _build_referral_link(campaign, code)
+    referral_link = _build_referral_link(campaign, code, current_user)
 
     partner_data = payload.model_dump(exclude={"campaign_ids", "channels"})
     partner_data["campaign_id"] = primary_campaign_id
@@ -465,7 +474,7 @@ async def create_partner(
         if not c:
             continue
         pc_code = await _unique_pc_code(db)
-        pc_link = _build_referral_link(c, pc_code)
+        pc_link = _build_referral_link(c, pc_code, current_user)
         pc = PartnerCampaign(
             partner_id=partner.id,
             campaign_id=cid,
@@ -1313,7 +1322,7 @@ async def add_partner_campaign(
         raise HTTPException(status_code=409, detail="이미 연결된 캠페인입니다.")
 
     pc_code = await _unique_pc_code(db)
-    pc_link = _build_referral_link(campaign, pc_code)
+    pc_link = _build_referral_link(campaign, pc_code, current_user)
     pc = PartnerCampaign(
         partner_id=partner_id,
         campaign_id=payload.campaign_id,
