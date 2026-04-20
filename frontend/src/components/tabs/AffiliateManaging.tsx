@@ -1963,6 +1963,16 @@ function PartnersSection() {
     onError: () => toast.error('파트너 수정에 실패했습니다'),
   });
 
+  const deletePartnerMutation = useMutation({
+    mutationFn: (id: number) => affiliateApi.deletePartner(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['affiliate', 'partners'] });
+      qc.invalidateQueries({ queryKey: ['affiliate', 'dashboard'] });
+      toast.success('파트너가 삭제되었습니다');
+    },
+    onError: () => toast.error('파트너 삭제에 실패했습니다'),
+  });
+
   const copyLink = (link: string) => {
     navigator.clipboard.writeText(link);
     toast.success('링크가 복사되었습니다');
@@ -2223,6 +2233,18 @@ function PartnersSection() {
                       title="파트너 수정"
                     >
                       <Pencil size={12} />
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (window.confirm(`"${p.name}" 파트너를 삭제할까요?\n\n파트너와 관련된 모든 기록(캠페인 연결, 클릭, 전환, 정산)이 함께 삭제됩니다.`)) {
+                          deletePartnerMutation.mutate(p.id);
+                        }
+                      }}
+                      disabled={deletePartnerMutation.isPending}
+                      className="p-1 text-gray-500 hover:text-red-400 transition-colors disabled:opacity-50"
+                      title="파트너 삭제"
+                    >
+                      <Trash2 size={12} />
                     </button>
                   </div>
                 </div>

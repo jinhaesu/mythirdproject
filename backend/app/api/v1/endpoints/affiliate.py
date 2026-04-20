@@ -8,7 +8,7 @@ from typing import Annotated, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.endpoints.auth import get_current_user
@@ -622,6 +622,33 @@ async def reject_partner(
     await db.commit()
     await db.refresh(partner)
     return {"success": True, "partner_id": partner_id, "status": partner.status}
+
+
+@router.delete("/partners/{partner_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_partner(
+    partner_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """파트너 삭제. 관련 PartnerCampaign/Click/Conversion/Settlement 전부 제거."""
+    result = await db.execute(
+        select(AffiliatePartner).where(
+            AffiliatePartner.id == partner_id,
+            AffiliatePartner.user_id == current_user.id,
+        )
+    )
+    partner = result.scalar_one_or_none()
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner not found")
+
+    # FK cascade 미설정 → 자식 레코드 수동 제거
+    await db.execute(delete(PartnerCampaign).where(PartnerCampaign.partner_id == partner_id))
+    await db.execute(delete(ReferralClick).where(ReferralClick.partner_id == partner_id))
+    await db.execute(delete(ReferralConversion).where(ReferralConversion.partner_id == partner_id))
+    await db.execute(delete(AffiliateSettlement).where(AffiliateSettlement.partner_id == partner_id))
+    await db.delete(partner)
+    await db.commit()
+    logger.info(f"[Affiliate] Partner {partner_id} deleted by user {current_user.id}")
 
 
 # ---------------------------------------------------------------------------
