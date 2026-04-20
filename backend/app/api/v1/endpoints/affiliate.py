@@ -175,7 +175,9 @@ async def create_campaign(
         data["discount_type"] = discount_type
         data["discount_value"] = discount_value
 
-        base_url = f"https://{mall_id}.cafe24.com/product/detail.html?product_no={cafe24_product_no}"
+        # 외부 공개 도메인 사용 (nuldam.com 등)
+        domain = _cafe24_store_domain(current_user)
+        base_url = f"https://{domain}/product/detail.html?product_no={cafe24_product_no}"
         data["base_product_url"] = base_url
 
         if not data.get("landing_url"):
@@ -201,15 +203,27 @@ async def create_campaign(
             data["cafe24_coupon_no"] = None
             coupon_warning = f"쿠폰 발급 실패: {str(e)}"
 
+    # 캠페인 자체 레퍼럴 코드 발급 (파트너 없이도 공유 가능)
+    data["referral_code"] = await _unique_campaign_code(db)
+
     campaign = AffiliateCampaign(user_id=current_user.id, **data)
     db.add(campaign)
     await db.commit()
     await db.refresh(campaign)
 
     resp = {k: getattr(campaign, k) for k in campaign.__table__.columns.keys()}
+    # 캠페인 자체 공유 링크 (파트너 없이 운영 가능)
+    resp["referral_link"] = _build_public_link(campaign.referral_code) if campaign.referral_code else None
     if coupon_warning:
         resp["warning"] = coupon_warning
     return resp
+
+
+def _campaign_to_dict(c: AffiliateCampaign) -> dict:
+    """캠페인 ORM 객체 + 공유 링크 포함 dict."""
+    d = {k: getattr(c, k) for k in c.__table__.columns.keys()}
+    d["referral_link"] = _build_public_link(c.referral_code) if c.referral_code else None
+    return d
 
 
 @router.get("/campaigns")
@@ -221,7 +235,7 @@ async def list_campaigns(
     result = await db.execute(
         select(AffiliateCampaign).where(AffiliateCampaign.user_id == current_user.id)
     )
-    return result.scalars().all()
+    return [_campaign_to_dict(c) for c in result.scalars().all()]
 
 
 @router.get("/campaigns/{campaign_id}")
@@ -344,18 +358,56 @@ async def _unique_pc_code(db: AsyncSession) -> str:
     return _generate_referral_code()
 
 
-def _build_referral_link(campaign: Optional[AffiliateCampaign], code: str) -> str:
-    """캠페인 상황에 맞는 레퍼럴 링크 생성."""
-    if campaign and campaign.cafe24_coupon_code and campaign.base_product_url:
-        base = campaign.base_product_url
-        sep = "&" if "?" in base else "?"
-        return f"{base}{sep}coupon={campaign.cafe24_coupon_code}&ref={code}"
+def _cafe24_store_domain(user: Optional[User]) -> str:
+    """외부 노출용 Cafe24 스토어 도메인. CAFE24_PUBLIC_DOMAIN 우선, 없으면 mall_id.cafe24.com."""
+    from app.core.config import get_settings as _gs
+    _settings = _gs()
+    if _settings.CAFE24_PUBLIC_DOMAIN:
+        return _settings.CAFE24_PUBLIC_DOMAIN.replace("https://", "").replace("http://", "").rstrip("/")
+    if user and user.cafe24_mall_id:
+        return f"{user.cafe24_mall_id}.cafe24.com"
+    return ""
 
-    landing_url = "https://nuldam.com"
-    if campaign and campaign.landing_url:
-        landing_url = campaign.landing_url
-    sep = "&" if "?" in landing_url else "?"
-    return f"{landing_url}{sep}ref={code}"
+
+def _build_destination_url(campaign: Optional[AffiliateCampaign], user: Optional[User]) -> Optional[str]:
+    """Cafe24 실제 스토어프론트 도착 URL (쿠폰 포함)."""
+    if not campaign:
+        return None
+    domain = _cafe24_store_domain(user)
+    if campaign.cafe24_product_no and domain:
+        url = f"https://{domain}/product/detail.html?product_no={campaign.cafe24_product_no}"
+        if campaign.cafe24_coupon_code:
+            url += f"&coupon={campaign.cafe24_coupon_code}"
+        return url
+    return campaign.landing_url or (f"https://{domain}" if domain else None)
+
+
+def _build_public_link(code: str) -> str:
+    """사용자에게 공유할 추적용 레퍼럴 URL. backend /track/{code}로 먼저 보낸 뒤 Cafe24로 리다이렉트."""
+    from app.core.config import get_settings as _gs
+    _settings = _gs()
+    backend_base = (_settings.BACKEND_URL or "").rstrip("/")
+    if not backend_base:
+        # fallback: backend가 프론트와 같은 호스트인 경우
+        backend_base = ""
+    return f"{backend_base}/api/v1/affiliate/track/{code}"
+
+
+def _build_referral_link(campaign: Optional[AffiliateCampaign], code: str) -> str:
+    """사용자에게 공유될 추적 링크 (클릭 후 Cafe24 스토어로 리다이렉트)."""
+    return _build_public_link(code)
+
+
+async def _unique_campaign_code(db: AsyncSession) -> str:
+    """충돌 없는 AffiliateCampaign 레퍼럴 코드 생성."""
+    for _ in range(10):
+        code = _generate_referral_code()
+        existing = await db.execute(
+            select(AffiliateCampaign).where(AffiliateCampaign.referral_code == code)
+        )
+        if not existing.scalar_one_or_none():
+            return code
+    return _generate_referral_code()
 
 
 @router.post("/partners", status_code=status.HTTP_201_CREATED)
@@ -981,56 +1033,83 @@ async def track_referral_click(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Record a referral click and redirect to the campaign landing URL.
+    클릭 추적 후 실제 Cafe24 스토어 상품 페이지로 리다이렉트.
 
-    PartnerCampaign 코드 우선 조회, 없으면 AffiliatePartner 코드로 fallback.
+    코드 우선순위:
+    1. PartnerCampaign (파트너-캠페인별 코드)
+    2. AffiliatePartner (파트너 기본 코드)
+    3. AffiliateCampaign (캠페인 자체 코드, 파트너 없이 운영 가능)
     """
-    # Phase 5: PartnerCampaign 우선
-    partner_id: int
+    partner_id: Optional[int] = None
     campaign_id: Optional[int] = None
-    redirect_url = "/"
+    campaign: Optional[AffiliateCampaign] = None
+    campaign_user: Optional[User] = None
 
+    # 1) PartnerCampaign
     pc_result = await db.execute(
         select(PartnerCampaign).where(PartnerCampaign.referral_code == referral_code)
     )
     pc = pc_result.scalar_one_or_none()
-
     if pc:
         partner_id = pc.partner_id
         campaign_id = pc.campaign_id
-        redirect_url = pc.referral_link or "/"
+        camp_result = await db.execute(
+            select(AffiliateCampaign).where(AffiliateCampaign.id == pc.campaign_id)
+        )
+        campaign = camp_result.scalar_one_or_none()
     else:
+        # 2) AffiliatePartner
         result = await db.execute(
             select(AffiliatePartner).where(AffiliatePartner.referral_code == referral_code)
         )
         partner = result.scalar_one_or_none()
-        if not partner:
-            raise HTTPException(status_code=404, detail="Invalid referral code")
-        partner_id = partner.id
-        campaign_id = partner.campaign_id
-        if partner.referral_link:
-            redirect_url = partner.referral_link
-        elif partner.campaign_id:
+        if partner:
+            partner_id = partner.id
+            campaign_id = partner.campaign_id
+            if partner.campaign_id:
+                camp_result = await db.execute(
+                    select(AffiliateCampaign).where(AffiliateCampaign.id == partner.campaign_id)
+                )
+                campaign = camp_result.scalar_one_or_none()
+        else:
+            # 3) AffiliateCampaign 자체 코드
             camp_result = await db.execute(
-                select(AffiliateCampaign).where(AffiliateCampaign.id == partner.campaign_id)
+                select(AffiliateCampaign).where(AffiliateCampaign.referral_code == referral_code)
             )
-            campaign_obj = camp_result.scalar_one_or_none()
-            if campaign_obj and campaign_obj.landing_url:
-                redirect_url = campaign_obj.landing_url
+            campaign = camp_result.scalar_one_or_none()
+            if campaign:
+                campaign_id = campaign.id
+
+    if not campaign and partner_id is None:
+        raise HTTPException(status_code=404, detail="Invalid referral code")
+
+    # 캠페인 소유자 조회 → public 도메인 결정
+    if campaign:
+        user_result = await db.execute(select(User).where(User.id == campaign.user_id))
+        campaign_user = user_result.scalar_one_or_none()
+
+    # 목적지 URL 동적 빌드 (저장된 값 대신 항상 최신 Cafe24 연결/쿠폰으로 생성)
+    redirect_url = _build_destination_url(campaign, campaign_user) or "/"
 
     cookie_id = request.cookies.get("ref_id") or uuid.uuid4().hex
     ip_address = request.client.host if request.client else None
     user_agent = request.headers.get("user-agent")
 
-    click = ReferralClick(
-        partner_id=partner_id,
-        campaign_id=campaign_id,
-        ip_address=ip_address,
-        user_agent=user_agent,
-        cookie_id=cookie_id,
-    )
-    db.add(click)
-    await db.commit()
+    # partner_id가 None이면(캠페인 자체 클릭) 0 또는 skip
+    if partner_id is not None:
+        click = ReferralClick(
+            partner_id=partner_id,
+            campaign_id=campaign_id,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            cookie_id=cookie_id,
+        )
+        db.add(click)
+        await db.commit()
+        logger.info(f"[Track] click recorded: code={referral_code} partner={partner_id} campaign={campaign_id}")
+    else:
+        # 캠페인 자체 클릭 — partner_id NULL 허용하도록 로그만
+        logger.info(f"[Track] campaign-only click: code={referral_code} campaign={campaign_id}")
 
     response = RedirectResponse(url=redirect_url, status_code=302)
     response.set_cookie(

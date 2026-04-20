@@ -64,6 +64,8 @@ class Settings(BaseSettings):
     CAFE24_WEBHOOK_SECRET: str = ""
     # 콤마 구분 scope 목록. 개발자센터에 등록된 권한과 일치해야 함.
     CAFE24_SCOPES: str = "mall.read_product,mall.write_promotion,mall.read_order,mall.read_customer"
+    # 외부 노출 도메인 (nuldam.com 등 실제 스토어프론트 도메인). 없으면 mall_id.cafe24.com 사용.
+    CAFE24_PUBLIC_DOMAIN: str = ""
 
     # Allowed emails (comma-separated, empty = allow all)
     ALLOWED_EMAILS: str = ""

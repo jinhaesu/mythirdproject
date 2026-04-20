@@ -50,6 +50,8 @@ class AffiliateCampaign(Base):
     discount_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # percentage | fixed | shipping
     discount_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     base_product_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    # 캠페인 자체 레퍼럴 코드 (파트너 없이도 공유 가능)
+    referral_code: Mapped[Optional[str]] = mapped_column(String(50), unique=True, nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
