@@ -217,8 +217,10 @@ async def create_coupon(
     """Cafe24 쿠폰 발급. coupon_no, coupon_code 반환."""
     from datetime import timezone as tz
 
-    begin = "2024-01-01T00:00:00+09:00"
-    end_dt = datetime.now(tz.utc) + timedelta(days=period_days)
+    # 쿠폰 유효기간: 지금부터 period_days 일 동안
+    now = datetime.now(tz.utc)
+    begin = now.strftime("%Y-%m-%dT%H:%M:%S+09:00")
+    end_dt = now + timedelta(days=period_days)
     end = end_dt.strftime("%Y-%m-%dT%H:%M:%S+09:00")
 
     request_body: dict = {

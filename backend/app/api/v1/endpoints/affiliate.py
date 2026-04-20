@@ -63,6 +63,8 @@ class CampaignUpdate(BaseModel):
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
     landing_url: Optional[str] = None
+    discount_type: Optional[str] = None
+    discount_value: Optional[float] = None
 
 
 class PartnerCreate(BaseModel):
@@ -749,15 +751,18 @@ async def get_dashboard(
 ):
     """Return aggregated affiliate KPIs for the current user."""
 
-    # Total partners by status
+    # Total partners by status (휴지통 제외)
     partners_result = await db.execute(
         select(AffiliatePartner.status, func.count(AffiliatePartner.id))
-        .where(AffiliatePartner.user_id == current_user.id)
+        .where(
+            AffiliatePartner.user_id == current_user.id,
+            AffiliatePartner.deleted_at.is_(None),
+        )
         .group_by(AffiliatePartner.status)
     )
     partners_by_status = {row[0]: row[1] for row in partners_result.all()}
 
-    # Partner IDs for this user
+    # Partner IDs for this user (모든 파트너 포함 — 과거 클릭/전환 히스토리는 집계에 포함)
     partner_ids_result = await db.execute(
         select(AffiliatePartner.id).where(AffiliatePartner.user_id == current_user.id)
     )
@@ -810,38 +815,84 @@ async def get_dashboard(
     )
     pending_settlement_amount = float(pending_settlement_result.scalar() or 0)
 
-    # Active campaigns
+    # Active campaigns (각 캠페인별 집계 포함)
     active_campaigns_result = await db.execute(
         select(AffiliateCampaign).where(
             AffiliateCampaign.user_id == current_user.id,
             AffiliateCampaign.status == "active",
         ).limit(5)
     )
-    active_campaigns = [
-        {"id": c.id, "name": c.name, "product": c.product, "commission_rate": c.commission_rate}
-        for c in active_campaigns_result.scalars().all()
-    ]
+    active_campaigns = []
+    for c in active_campaigns_result.scalars().all():
+        # 캠페인별 파트너 수 (PartnerCampaign join + legacy campaign_id)
+        pc_pcount = await db.execute(
+            select(func.count(func.distinct(PartnerCampaign.partner_id))).where(
+                PartnerCampaign.campaign_id == c.id
+            )
+        )
+        pc_count = pc_pcount.scalar() or 0
+        legacy_pcount = await db.execute(
+            select(func.count(AffiliatePartner.id)).where(
+                AffiliatePartner.campaign_id == c.id,
+                AffiliatePartner.deleted_at.is_(None),
+            )
+        )
+        partner_count = (pc_count or 0) + (legacy_pcount.scalar() or 0)
 
-    # Top partners by conversion count
+        # 클릭/전환/매출
+        click_count_r = await db.execute(
+            select(func.count(ReferralClick.id)).where(ReferralClick.campaign_id == c.id)
+        )
+        conv_r = await db.execute(
+            select(
+                func.count(ReferralConversion.id),
+                func.coalesce(func.sum(ReferralConversion.order_amount), 0),
+                func.coalesce(func.sum(ReferralConversion.commission_amount), 0),
+            ).where(ReferralConversion.campaign_id == c.id)
+        )
+        conv_row = conv_r.one()
+
+        active_campaigns.append({
+            "id": c.id,
+            "name": c.name,
+            "product": c.product,
+            "commission_type": c.commission_type,
+            "commission_rate": c.commission_rate,
+            "status": c.status,
+            "partner_count": partner_count,
+            "click_count": click_count_r.scalar() or 0,
+            "conversion_count": conv_row[0] or 0,
+            "total_sales": float(conv_row[1]),
+            "total_commission": float(conv_row[2]),
+        })
+
+    # Top partners by conversion count (휴지통 제외)
     top_partners = []
     if partner_ids:
         top_result = await db.execute(
             select(
                 AffiliatePartner.id, AffiliatePartner.name, AffiliatePartner.channel,
+                AffiliatePartner.channels,
                 AffiliatePartner.followers,
                 func.count(ReferralConversion.id).label("conversions"),
                 func.coalesce(func.sum(ReferralConversion.order_amount), 0).label("sales"),
             )
             .outerjoin(ReferralConversion, ReferralConversion.partner_id == AffiliatePartner.id)
-            .where(AffiliatePartner.user_id == current_user.id, AffiliatePartner.status == "approved")
+            .where(
+                AffiliatePartner.user_id == current_user.id,
+                AffiliatePartner.status == "approved",
+                AffiliatePartner.deleted_at.is_(None),
+            )
             .group_by(AffiliatePartner.id)
             .order_by(func.coalesce(func.sum(ReferralConversion.order_amount), 0).desc())
             .limit(5)
         )
         for row in top_result.all():
             top_partners.append({
-                "id": row[0], "name": row[1], "channel": row[2], "followers": row[3],
-                "conversion_count": row[4], "total_sales": float(row[5]),
+                "id": row[0], "name": row[1], "channel": row[2],
+                "channels": _parse_channels(row[3]),
+                "followers": row[4],
+                "conversion_count": row[5], "total_sales": float(row[6]),
             })
 
     return {
@@ -1192,9 +1243,12 @@ async def track_referral_click(
         )
         campaign = camp_result.scalar_one_or_none()
     else:
-        # 2) AffiliatePartner
+        # 2) AffiliatePartner (휴지통 제외)
         result = await db.execute(
-            select(AffiliatePartner).where(AffiliatePartner.referral_code == referral_code)
+            select(AffiliatePartner).where(
+                AffiliatePartner.referral_code == referral_code,
+                AffiliatePartner.deleted_at.is_(None),
+            )
         )
         partner = result.scalar_one_or_none()
         if partner:
@@ -1504,21 +1558,34 @@ async def get_partner_performance(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """파트너별 캠페인 성과 집계."""
+    """파트너별 캠페인 성과 집계. PartnerCampaign + legacy campaign_id 둘 다 포함."""
     p_result = await db.execute(
         select(AffiliatePartner).where(
             AffiliatePartner.id == partner_id,
             AffiliatePartner.user_id == current_user.id,
         )
     )
-    if not p_result.scalar_one_or_none():
+    partner_obj = p_result.scalar_one_or_none()
+    if not partner_obj:
         raise HTTPException(status_code=404, detail="Partner not found")
 
     # PartnerCampaign 목록
     pc_result = await db.execute(
         select(PartnerCampaign).where(PartnerCampaign.partner_id == partner_id)
     )
-    pcs = pc_result.scalars().all()
+    pcs = list(pc_result.scalars().all())
+
+    # legacy: PartnerCampaign에 없는 partner.campaign_id 도 추가
+    pc_campaign_ids = {pc.campaign_id for pc in pcs}
+    if partner_obj.campaign_id and partner_obj.campaign_id not in pc_campaign_ids:
+        # 가상 PartnerCampaign row 생성 (DB에는 없지만 응답용)
+        class _VirtualPC:
+            id = -1
+            partner_id = partner_obj.id
+            campaign_id = partner_obj.campaign_id
+            referral_code = partner_obj.referral_code
+            referral_link = partner_obj.referral_link
+        pcs.append(_VirtualPC())
 
     result_rows = []
     for pc in pcs:

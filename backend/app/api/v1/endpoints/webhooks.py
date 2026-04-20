@@ -27,11 +27,14 @@ router = APIRouter()
 
 
 def _verify_hmac(raw: bytes, signature: str) -> bool:
-    """Cafe24 웹훅 HMAC-SHA256 서명 검증."""
+    """Cafe24 웹훅 HMAC-SHA256 서명 검증. 시크릿 미설정이면 거부."""
     secret = settings.CAFE24_WEBHOOK_SECRET
     if not secret:
-        logger.warning("[Webhook] CAFE24_WEBHOOK_SECRET 미설정 — 서명 검증 생략")
-        return True
+        # 보안상 시크릿 없이 통과시키지 않음 — 위조된 전환 방지
+        logger.error("[Webhook] CAFE24_WEBHOOK_SECRET 미설정 — 웹훅 거부")
+        return False
+    if not signature:
+        return False
     computed = base64.b64encode(
         hmac.new(secret.encode(), raw, hashlib.sha256).digest()
     ).decode()
@@ -90,40 +93,73 @@ async def cafe24_order_webhook(request: Request):
         if dup.scalar_one_or_none():
             return {"status": "duplicate"}
 
-        # 쿠폰 코드로 캠페인 매칭
+        # ── Attribution 우선순위 ─────────────────────────────
+        # 1) ref= 파라미터 먼저 (PartnerCampaign → AffiliatePartner → AffiliateCampaign)
+        # 2) 쿠폰 코드로 캠페인 매칭
+        # 3) 양쪽 다 없으면 스킵
+        # ─────────────────────────────────────────────────────
+        from app.models.partner_campaign import PartnerCampaign as PC
+
         campaign = None
-        coupon_codes = []
-        for c in used_coupons:
-            code = c.get("coupon_code") or c.get("code")
-            if code:
-                coupon_codes.append(code)
-
-        for coupon_code in coupon_codes:
-            camp_result = await db.execute(
-                select(AffiliateCampaign).where(
-                    AffiliateCampaign.cafe24_coupon_code == coupon_code
-                )
-            )
-            campaign = camp_result.scalar_one_or_none()
-            if campaign:
-                break
-
-        if not campaign:
-            logger.info(f"[Webhook] order={order_id} — 매칭 캠페인 없음 (coupons={coupon_codes})")
-            return {"status": "no_campaign_match"}
-
-        # Attribution: ref= 파라미터 우선, 없으면 최근 클릭
         partner = None
         click_id = None
 
         ref_code = _extract_ref_code(order_memo) or _extract_ref_code(landing_url_in_payload)
-        if ref_code:
-            p_result = await db.execute(
-                select(AffiliatePartner).where(AffiliatePartner.referral_code == ref_code)
-            )
-            partner = p_result.scalar_one_or_none()
 
-        if not partner:
+        if ref_code:
+            # PartnerCampaign 우선
+            pc_result = await db.execute(
+                select(PC).where(PC.referral_code == ref_code)
+            )
+            pc = pc_result.scalar_one_or_none()
+            if pc:
+                partner_id_ref = pc.partner_id
+                p_result = await db.execute(
+                    select(AffiliatePartner).where(AffiliatePartner.id == partner_id_ref)
+                )
+                partner = p_result.scalar_one_or_none()
+                camp_result = await db.execute(
+                    select(AffiliateCampaign).where(AffiliateCampaign.id == pc.campaign_id)
+                )
+                campaign = camp_result.scalar_one_or_none()
+            else:
+                # AffiliatePartner 코드
+                p_result = await db.execute(
+                    select(AffiliatePartner).where(AffiliatePartner.referral_code == ref_code)
+                )
+                partner = p_result.scalar_one_or_none()
+                # 캠페인은 쿠폰으로 보완 매칭
+                if partner and partner.campaign_id:
+                    camp_result = await db.execute(
+                        select(AffiliateCampaign).where(AffiliateCampaign.id == partner.campaign_id)
+                    )
+                    campaign = camp_result.scalar_one_or_none()
+                else:
+                    # AffiliateCampaign 자체 코드
+                    camp_result = await db.execute(
+                        select(AffiliateCampaign).where(AffiliateCampaign.referral_code == ref_code)
+                    )
+                    campaign = camp_result.scalar_one_or_none()
+
+        # 쿠폰 코드로 캠페인 보완/덮어쓰기
+        coupon_codes = [c.get("coupon_code") or c.get("code") for c in used_coupons if c.get("coupon_code") or c.get("code")]
+        if not campaign:
+            for coupon_code in coupon_codes:
+                camp_result = await db.execute(
+                    select(AffiliateCampaign).where(AffiliateCampaign.cafe24_coupon_code == coupon_code)
+                )
+                campaign = camp_result.scalar_one_or_none()
+                if campaign:
+                    break
+
+        if not campaign and not partner:
+            logger.info(
+                f"[Webhook] order={order_id} — 매칭 없음 (coupons={coupon_codes}, ref={ref_code})"
+            )
+            return {"status": "no_match"}
+
+        # 파트너 미확정 시 최근 클릭으로 보완
+        if not partner and campaign:
             since = datetime.utcnow() - timedelta(days=7)
             click_result = await db.execute(
                 select(ReferralClick)
