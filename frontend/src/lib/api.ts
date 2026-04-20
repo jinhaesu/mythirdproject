@@ -802,7 +802,10 @@ export const cafe24Api = {
   getStatus: async () => { const { data } = await api.get('/cafe24/status'); return data; },
   startAuth: async (mallId: string) => { const { data } = await api.get('/cafe24/auth/start', { params: { mall_id: mallId } }); return data; },
   disconnect: async () => { const { data } = await api.post('/cafe24/disconnect'); return data; },
-  listProducts: async (q?: string, limit = 50) => { const { data } = await api.get('/cafe24/products', { params: { q, limit } }); return data; },
+  listProducts: async (q?: string, limit = 50) => {
+    const { data } = await api.get('/cafe24/products', { params: { q, limit } });
+    return Array.isArray(data) ? data : (data?.products ?? []);
+  },
 };
 
 // AI Chat API
