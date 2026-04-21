@@ -420,24 +420,15 @@ def _build_destination_url(campaign: Optional[AffiliateCampaign], user: Optional
 
 
 def _build_referral_link(campaign: Optional[AffiliateCampaign], code: str, user: Optional[User] = None) -> str:
-    """Cafe24 스토어 직접 URL (?coupon=X&ref=CODE). 파트너/캠페인 동일 구조."""
-    # 캠페인에 상품 연결됐으면 상품 페이지 + 쿠폰 적용
-    if campaign and campaign.cafe24_product_no:
-        domain = _cafe24_store_domain(user or (_resolve_campaign_user_sync(campaign)))
-        if domain:
-            url = f"https://{domain}/product/detail.html?product_no={campaign.cafe24_product_no}"
-            if campaign.cafe24_coupon_code:
-                url += f"&coupon={campaign.cafe24_coupon_code}"
-            url += f"&ref={code}"
-            return url
-    # 상품 연결 없거나 쿠폰 미발급 → landing_url 또는 공개 도메인
-    if campaign and campaign.landing_url:
-        sep = "&" if "?" in campaign.landing_url else "?"
-        return f"{campaign.landing_url}{sep}ref={code}"
+    """
+    백엔드 추적기를 경유하는 레퍼럴 링크.
+    `{BACKEND_URL}/r/{code}` — 클릭 시 ReferralClick 기록 후 Cafe24 상품 페이지로 302.
+    Cafe24 직접 URL 대비 1 hop 느리지만 클릭/전환 추적이 가능.
+    """
     from app.core.config import get_settings as _gs
     _settings = _gs()
-    fallback = f"https://{_settings.CAFE24_PUBLIC_DOMAIN}" if _settings.CAFE24_PUBLIC_DOMAIN else "https://nuldam.com"
-    return f"{fallback}?ref={code}"
+    backend = (_settings.BACKEND_URL or "").rstrip("/")
+    return f"{backend}/r/{code}" if backend else f"/r/{code}"
 
 
 def _resolve_campaign_user_sync(campaign: AffiliateCampaign) -> Optional[User]:

@@ -5,7 +5,7 @@ import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -236,6 +236,16 @@ async def root():
 async def health_check():
     """Health check endpoint."""
     return {"status": "healthy"}
+
+
+@app.get("/r/{code}")
+async def short_track(code: str, request: "Request"):
+    """Shortcut — /r/{code} 는 /api/v1/affiliate/track/{code}와 동일하게 동작."""
+    from fastapi import Request as _Req  # noqa: F401
+    from app.api.v1.endpoints.affiliate import track_referral_click
+    from app.db.database import AsyncSessionLocal
+    async with AsyncSessionLocal() as db:
+        return await track_referral_click(code, request, db)
 
 
 @app.get("/scheduler/status")
