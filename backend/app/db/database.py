@@ -393,8 +393,8 @@ async def init_db():
             await conn.execute(
                 __import__('sqlalchemy').text(
                     """
-                    INSERT INTO partner_campaigns (partner_id, campaign_id, referral_code, referral_link)
-                    SELECT id, campaign_id, referral_code, referral_link
+                    INSERT INTO partner_campaigns (partner_id, campaign_id, referral_code, referral_link, created_at)
+                    SELECT id, campaign_id, referral_code, referral_link, COALESCE(created_at, NOW())
                     FROM affiliate_partners
                     WHERE campaign_id IS NOT NULL
                     ON CONFLICT DO NOTHING
