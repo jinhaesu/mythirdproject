@@ -788,22 +788,53 @@ async def get_dashboard(
         )
         total_clicks = clicks_result.scalar() or 0
 
-    # Total conversions + revenue + commission
+    # Total conversions + revenue + commission (status='paid' 순매출만 집계)
     total_conversions = 0
     total_revenue = 0.0
     total_commission = 0.0
+    refunded_count = 0
+    cancelled_count = 0
+    gross_sales = 0.0
     if partner_ids:
+        # 순매출 (paid only)
         conv_result = await db.execute(
             select(
                 func.count(ReferralConversion.id),
                 func.coalesce(func.sum(ReferralConversion.order_amount), 0),
                 func.coalesce(func.sum(ReferralConversion.commission_amount), 0),
-            ).where(ReferralConversion.partner_id.in_(partner_ids))
+            ).where(
+                ReferralConversion.partner_id.in_(partner_ids),
+                ReferralConversion.status == "paid",
+            )
         )
         row = conv_result.one()
         total_conversions = row[0] or 0
         total_revenue = float(row[1])
         total_commission = float(row[2])
+
+        # 환불/취소 건수
+        status_result = await db.execute(
+            select(
+                ReferralConversion.status,
+                func.count(ReferralConversion.id),
+            ).where(
+                ReferralConversion.partner_id.in_(partner_ids),
+                ReferralConversion.status.in_(["refunded", "cancelled"]),
+            ).group_by(ReferralConversion.status)
+        )
+        for srow in status_result.all():
+            if srow[0] == "refunded":
+                refunded_count = srow[1]
+            elif srow[0] == "cancelled":
+                cancelled_count = srow[1]
+
+        # 총 gross (모든 상태 합, 참고용)
+        gross_result = await db.execute(
+            select(func.coalesce(func.sum(ReferralConversion.order_amount), 0)).where(
+                ReferralConversion.partner_id.in_(partner_ids)
+            )
+        )
+        gross_sales = float(gross_result.scalar() or 0)
 
     # Conversion rate
     conversion_rate = (total_conversions / total_clicks * 100) if total_clicks > 0 else 0.0
@@ -849,7 +880,7 @@ async def get_dashboard(
         )
         partner_count = (pc_count or 0) + (legacy_pcount.scalar() or 0)
 
-        # 클릭/전환/매출
+        # 클릭/전환/매출 (전환은 paid만)
         click_count_r = await db.execute(
             select(func.count(ReferralClick.id)).where(ReferralClick.campaign_id == c.id)
         )
@@ -858,7 +889,10 @@ async def get_dashboard(
                 func.count(ReferralConversion.id),
                 func.coalesce(func.sum(ReferralConversion.order_amount), 0),
                 func.coalesce(func.sum(ReferralConversion.commission_amount), 0),
-            ).where(ReferralConversion.campaign_id == c.id)
+            ).where(
+                ReferralConversion.campaign_id == c.id,
+                ReferralConversion.status == "paid",
+            )
         )
         conv_row = conv_r.one()
 
@@ -887,7 +921,11 @@ async def get_dashboard(
                 func.count(ReferralConversion.id).label("conversions"),
                 func.coalesce(func.sum(ReferralConversion.order_amount), 0).label("sales"),
             )
-            .outerjoin(ReferralConversion, ReferralConversion.partner_id == AffiliatePartner.id)
+            .outerjoin(
+                ReferralConversion,
+                (ReferralConversion.partner_id == AffiliatePartner.id)
+                & (ReferralConversion.status == "paid"),
+            )
             .where(
                 AffiliatePartner.user_id == current_user.id,
                 AffiliatePartner.status == "approved",
@@ -907,13 +945,17 @@ async def get_dashboard(
 
     return {
         "total_campaigns": total_campaigns,
-        "total_sales": total_revenue,
+        "total_sales": total_revenue,       # status='paid' 순매출
+        "net_sales": total_revenue,         # 명시적 순매출 alias
+        "gross_sales": gross_sales,         # 모든 상태 합 (참고용)
         "total_commission": total_commission,
         "active_partners": partners_by_status.get("approved", 0),
         "total_partners": sum(partners_by_status.values()),
         "partners_by_status": partners_by_status,
         "total_clicks": total_clicks,
         "total_conversions": total_conversions,
+        "refunded_count": refunded_count,
+        "cancelled_count": cancelled_count,
         "conversion_rate": round(conversion_rate, 2),
         "pending_settlement_amount": pending_settlement_amount,
         "active_campaigns": active_campaigns,
@@ -956,7 +998,7 @@ async def get_dashboard_timeseries(
         for row in click_rows.all():
             clicks_by_date[str(row[0])] = int(row[1])
 
-    # 일별 전환/매출/커미션 집계
+    # 일별 전환/매출/커미션 집계 (status='paid' 순매출만)
     conv_by_date: dict = {}
     if partner_ids:
         day_col2 = func.date(ReferralConversion.converted_at).label("day")
@@ -970,6 +1012,7 @@ async def get_dashboard_timeseries(
             .where(
                 ReferralConversion.partner_id.in_(partner_ids),
                 ReferralConversion.converted_at >= since,
+                ReferralConversion.status == "paid",
             )
             .group_by(day_col2)
             .order_by(day_col2)
@@ -1046,7 +1089,7 @@ async def get_dashboard_by_campaign(
             )
             clicks = click_result.scalar() or 0
 
-        # 전환/매출/커미션
+        # 전환/매출/커미션 (status='paid' 순매출만)
         conversions = 0
         revenue = 0.0
         commission = 0.0
@@ -1059,6 +1102,7 @@ async def get_dashboard_by_campaign(
                 ).where(
                     ReferralConversion.campaign_id == campaign.id,
                     ReferralConversion.partner_id.in_(partner_ids),
+                    ReferralConversion.status == "paid",
                 )
             )
             conv_row = conv_result.one()
@@ -1076,6 +1120,158 @@ async def get_dashboard_by_campaign(
             "partners": partner_count,
         })
 
+    return result_list
+
+
+# ---------------------------------------------------------------------------
+# Hourly heatmap — 시간대 x 요일별 전환 매트릭스
+# ---------------------------------------------------------------------------
+
+@router.get("/dashboard/hourly")
+async def get_dashboard_hourly(
+    days: int = Query(default=30, ge=1, le=365),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    최근 N일 내 status='paid' 전환을 시간대(0-23) x 요일(0=월, 6=일) 매트릭스로 집계.
+
+    응답: 168 rows (7일 * 24시간). 데이터 없는 셀은 0으로 채워 반환.
+    PostgreSQL EXTRACT(ISODOW): 1=월 ~ 7=일 → 0-based로 변환 (ISODOW - 1).
+    """
+    from sqlalchemy import text as sa_text
+
+    pid_result = await db.execute(
+        select(AffiliatePartner.id).where(AffiliatePartner.user_id == current_user.id)
+    )
+    partner_ids = [row[0] for row in pid_result.all()]
+
+    # 빈 매트릭스 초기화 (0=월 ~ 6=일, 0~23시)
+    matrix: dict[tuple[int, int], dict] = {}
+    for dow in range(7):
+        for hour in range(24):
+            matrix[(hour, dow)] = {"conversions": 0, "revenue": 0.0}
+
+    if not partner_ids:
+        result_list = [
+            {"hour": h, "day_of_week": d, "conversions": 0, "revenue": 0.0}
+            for d in range(7) for h in range(24)
+        ]
+        return result_list
+
+    since = datetime.utcnow() - timedelta(days=days)
+
+    # EXTRACT(ISODOW) - 1 → 0=월, 6=일
+    hour_col = func.extract("hour", ReferralConversion.converted_at).label("hour")
+    dow_col = (func.extract("isodow", ReferralConversion.converted_at) - 1).label("dow")
+
+    rows = await db.execute(
+        select(
+            hour_col,
+            dow_col,
+            func.count(ReferralConversion.id),
+            func.coalesce(func.sum(ReferralConversion.order_amount), 0),
+        )
+        .where(
+            ReferralConversion.partner_id.in_(partner_ids),
+            ReferralConversion.converted_at >= since,
+            ReferralConversion.status == "paid",
+        )
+        .group_by(hour_col, dow_col)
+    )
+
+    for row in rows.all():
+        h = int(row[0])
+        d = int(row[1])
+        matrix[(h, d)] = {
+            "conversions": int(row[2]),
+            "revenue": float(row[3]),
+        }
+
+    result_list = [
+        {
+            "hour": h,
+            "day_of_week": d,
+            "conversions": matrix[(h, d)]["conversions"],
+            "revenue": matrix[(h, d)]["revenue"],
+        }
+        for d in range(7) for h in range(24)
+    ]
+    logger.info(
+        f"[Dashboard] hourly matrix: user={current_user.id} days={days} "
+        f"partner_ids_count={len(partner_ids)}"
+    )
+    return result_list
+
+
+# ---------------------------------------------------------------------------
+# Top-products — 상품별 성과 TOP N
+# ---------------------------------------------------------------------------
+
+@router.get("/dashboard/top-products")
+async def get_dashboard_top_products(
+    limit: int = Query(default=10, ge=1, le=100),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    캠페인의 cafe24_product_no 기준으로 그룹핑한 상품별 성과.
+
+    status='paid' 전환만 포함. revenue 내림차순 정렬.
+    """
+    pid_result = await db.execute(
+        select(AffiliatePartner.id).where(AffiliatePartner.user_id == current_user.id)
+    )
+    partner_ids = [row[0] for row in pid_result.all()]
+
+    if not partner_ids:
+        return []
+
+    # 현재 유저의 캠페인 중 cafe24_product_no가 있는 것만
+    # GROUP BY product_no + name + image
+    rows = await db.execute(
+        select(
+            AffiliateCampaign.cafe24_product_no,
+            AffiliateCampaign.cafe24_product_name,
+            AffiliateCampaign.cafe24_product_image,
+            func.count(func.distinct(AffiliateCampaign.id)).label("campaign_count"),
+            func.count(ReferralConversion.id).label("conversions"),
+            func.coalesce(func.sum(ReferralConversion.order_amount), 0).label("revenue"),
+            func.coalesce(func.sum(ReferralConversion.commission_amount), 0).label("commission"),
+        )
+        .outerjoin(
+            ReferralConversion,
+            (ReferralConversion.campaign_id == AffiliateCampaign.id)
+            & (ReferralConversion.status == "paid"),
+        )
+        .where(
+            AffiliateCampaign.user_id == current_user.id,
+            AffiliateCampaign.cafe24_product_no.isnot(None),
+        )
+        .group_by(
+            AffiliateCampaign.cafe24_product_no,
+            AffiliateCampaign.cafe24_product_name,
+            AffiliateCampaign.cafe24_product_image,
+        )
+        .order_by(func.coalesce(func.sum(ReferralConversion.order_amount), 0).desc())
+        .limit(limit)
+    )
+
+    result_list = []
+    for row in rows.all():
+        result_list.append({
+            "product_no": row[0],
+            "product_name": row[1] or "",
+            "product_image": row[2],
+            "campaign_count": int(row[3]),
+            "conversions": int(row[4]),
+            "revenue": float(row[5]),
+            "commission": float(row[6]),
+        })
+
+    logger.info(
+        f"[Dashboard] top-products: user={current_user.id} limit={limit} results={len(result_list)}"
+    )
     return result_list
 
 
@@ -1620,6 +1816,7 @@ async def get_partner_performance(
             ).where(
                 ReferralConversion.partner_id == partner_id,
                 ReferralConversion.campaign_id == pc.campaign_id,
+                ReferralConversion.status == "paid",
             )
         )
         conv_row = conv_result.one()

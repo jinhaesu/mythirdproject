@@ -79,6 +79,29 @@ async def cafe24_order_webhook(request: Request):
     order_memo = resource.get("order_memo") or ""
     landing_url_in_payload = resource.get("landing_url") or ""
 
+    # ── 이벤트 타입 판별 (환불/취소 vs 신규 주문) ────────────────────────────
+    event_code = str(data.get("event_no") or resource.get("event_no") or "").lower()
+    resource_name = str(data.get("resource_name") or resource.get("resource_name") or "").lower()
+    topic = str(data.get("topic") or "").lower()
+
+    is_refund = any(x in f"{event_code} {resource_name} {topic}" for x in ["refund"])
+    is_cancel = any(x in f"{event_code} {resource_name} {topic}" for x in ["cancel"])
+
+    # payload 내부 상태값 추가 heuristic
+    refund_status = str(resource.get("refund_status") or "").lower()
+    order_status = str(resource.get("order_status") or resource.get("status") or "").lower()
+    if refund_status in ("refunded", "refund_complete", "approved"):
+        is_refund = True
+    if order_status in ("cancelled", "canceled", "cancel_complete"):
+        is_cancel = True
+
+    logger.info(
+        f"[Webhook] event={event_code}/{resource_name}/{topic} "
+        f"order={order_id} refund_status={refund_status} order_status={order_status} "
+        f"is_refund={is_refund} is_cancel={is_cancel}"
+    )
+    # ─────────────────────────────────────────────────────────────────────────
+
     if not order_id:
         return {"status": "skipped", "reason": "order_id 없음"}
 
@@ -86,7 +109,31 @@ async def cafe24_order_webhook(request: Request):
     from app.db.database import AsyncSessionLocal
 
     async with AsyncSessionLocal() as db:
-        # 중복 체크
+        # ── 환불 이벤트 처리 ──────────────────────────────────────────────────
+        if is_refund or is_cancel:
+            existing = await db.execute(
+                select(ReferralConversion).where(ReferralConversion.cafe24_order_id == order_id)
+            )
+            conv = existing.scalar_one_or_none()
+            if conv:
+                new_status = "refunded" if is_refund else "cancelled"
+                refunded_amt = float(resource.get("refund_amount") or conv.order_amount)
+                conv.status = new_status
+                conv.refunded_amount = refunded_amt
+                conv.refunded_at = datetime.utcnow()
+                await db.commit()
+                logger.info(
+                    f"[Webhook] order={order_id} action={new_status} "
+                    f"refunded_amount={refunded_amt} conversion_id={conv.id}"
+                )
+                return {"status": f"{new_status}_recorded", "conversion_id": conv.id}
+            else:
+                logger.info(
+                    f"[Webhook] order={order_id} action={'refund' if is_refund else 'cancel'}_no_conversion"
+                )
+                return {"status": "no_conversion_found", "order_id": order_id}
+
+        # ── 중복 체크 (신규 주문 흐름) ───────────────────────────────────────
         dup = await db.execute(
             select(ReferralConversion).where(ReferralConversion.cafe24_order_id == order_id)
         )
@@ -197,6 +244,7 @@ async def cafe24_order_webhook(request: Request):
             cafe24_order_id=order_id,
             order_amount=total_price,
             commission_amount=round(commission_amount, 2),
+            status="paid",
         )
         db.add(conversion)
         await db.commit()
@@ -204,6 +252,6 @@ async def cafe24_order_webhook(request: Request):
 
         logger.info(
             f"[Webhook] Conversion recorded: order={order_id} "
-            f"partner={partner.id} campaign={campaign.id} commission={commission_amount}"
+            f"partner={partner.id} campaign={campaign.id} commission={commission_amount} action=paid"
         )
         return {"status": "recorded", "conversion_id": conversion.id}

@@ -27,7 +27,7 @@ import {
   Line,
 } from 'recharts';
 import { affiliateApi, cafe24Api, formatCurrency } from '@/lib/api';
-import type { AffiliatePartner, AffiliateTimeseriesPoint, AffiliateByCampaign, AffiliateChannelKey } from '@/lib/api';
+import type { AffiliatePartner, AffiliateTimeseriesPoint, AffiliateByCampaign, AffiliateChannelKey, HourlyConversion, TopProduct } from '@/lib/api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -91,6 +91,11 @@ interface DashboardData {
   conversion_rate: number;
   active_campaigns: AffiliateCampaign[];
   top_partners: AffiliatePartner[];
+  // 환불/취소 필드 (백엔드 확장)
+  refunded_count?: number;
+  cancelled_count?: number;
+  gross_sales?: number;
+  net_sales?: number;
 }
 
 interface NewCampaignForm {
@@ -697,10 +702,27 @@ function ChartEmpty({ message = '데이터가 없습니다' }: { message?: strin
   );
 }
 
+// ─── Dashboard chart helpers (heatmap) ──────────────────────────────────────
+
+const HEATMAP_DAYS = ['월', '화', '수', '목', '금', '토', '일'];
+
+/** 0~1 사이 비율을 emerald 팔레트 색상으로 변환 */
+function heatColor(ratio: number): string {
+  if (ratio <= 0) return 'rgba(255,255,255,0.04)';
+  // emerald-900 → emerald-400 스펙트럼
+  const r = Math.round(6 + ratio * (52 - 6));
+  const g = Math.round(78 + ratio * (211 - 78));
+  const b = Math.round(59 + ratio * (153 - 59));
+  return `rgba(${r},${g},${b},${0.25 + ratio * 0.75})`;
+}
+
 // ─── Dashboard section ────────────────────────────────────────────────────────
 
 function DashboardSection() {
   const [days, setDays] = useState<7 | 30 | 90>(30);
+  const [heatmapDays, setHeatmapDays] = useState<7 | 30 | 90>(30);
+  /** 히트맵 hover cell: "dow_hour" 키 */
+  const [hoveredCell, setHoveredCell] = useState<string | null>(null);
 
   const { data, isLoading, isError } = useQuery<DashboardData>({
     queryKey: ['affiliate', 'dashboard'],
@@ -726,6 +748,24 @@ function DashboardSection() {
     retry: 1,
   });
 
+  const {
+    data: hourlyRaw = [],
+    isLoading: hourlyLoading,
+  } = useQuery<HourlyConversion[]>({
+    queryKey: ['affiliate-hourly', heatmapDays],
+    queryFn: () => affiliateApi.getDashboardHourly(heatmapDays),
+    retry: 1,
+  });
+
+  const {
+    data: topProducts = [],
+    isLoading: topProductsLoading,
+  } = useQuery<TopProduct[]>({
+    queryKey: ['affiliate-top-products'],
+    queryFn: () => affiliateApi.getTopProducts(10),
+    retry: 1,
+  });
+
   const d = {
     total_sales: n(data?.total_sales),
     total_commission: n(data?.total_commission),
@@ -735,15 +775,23 @@ function DashboardSection() {
     conversion_rate: n(data?.conversion_rate),
     active_campaigns: Array.isArray(data?.active_campaigns) ? data!.active_campaigns : [],
     top_partners: Array.isArray(data?.top_partners) ? data!.top_partners : [],
+    refunded_count: n(data?.refunded_count),
+    cancelled_count: n(data?.cancelled_count),
+    gross_sales: n(data?.gross_sales ?? data?.total_sales),
+    net_sales: n(data?.net_sales ?? data?.total_sales),
   };
 
+  // 환불 차이 금액
+  const refundDiff = d.gross_sales - d.net_sales;
+  const hasRefunds = d.refunded_count > 0;
+
   const kpis = [
-    { label: '총 매출', value: fmtMan(d.total_sales), icon: <ShoppingBag size={16} />, color: 'text-blue-400', bg: 'bg-blue-500/10' },
-    { label: '총 커미션', value: fmtMan(d.total_commission), icon: <DollarSign size={16} />, color: 'text-green-400', bg: 'bg-green-500/10' },
-    { label: '활성 파트너', value: `${d.active_partners}명`, icon: <Users size={16} />, color: 'text-purple-400', bg: 'bg-purple-500/10' },
-    { label: '총 클릭', value: fmt(d.total_clicks), icon: <Eye size={16} />, color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
-    { label: '전환', value: fmt(d.total_conversions), icon: <CheckCircle size={16} />, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-    { label: '전환율', value: `${fmtPct(d.conversion_rate)}%`, icon: <Percent size={16} />, color: 'text-orange-400', bg: 'bg-orange-500/10' },
+    { label: '총 매출', value: fmtMan(d.total_sales), icon: <ShoppingBag size={16} />, color: 'text-blue-400', bg: 'bg-blue-500/10', showRefund: true },
+    { label: '총 커미션', value: fmtMan(d.total_commission), icon: <DollarSign size={16} />, color: 'text-green-400', bg: 'bg-green-500/10', showRefund: false },
+    { label: '활성 파트너', value: `${d.active_partners}명`, icon: <Users size={16} />, color: 'text-purple-400', bg: 'bg-purple-500/10', showRefund: false },
+    { label: '총 클릭', value: fmt(d.total_clicks), icon: <Eye size={16} />, color: 'text-cyan-400', bg: 'bg-cyan-500/10', showRefund: false },
+    { label: '전환', value: fmt(d.total_conversions), icon: <CheckCircle size={16} />, color: 'text-emerald-400', bg: 'bg-emerald-500/10', showRefund: false },
+    { label: '전환율', value: `${fmtPct(d.conversion_rate)}%`, icon: <Percent size={16} />, color: 'text-orange-400', bg: 'bg-orange-500/10', showRefund: false },
   ];
 
   const rankColors = [
@@ -756,6 +804,21 @@ function DashboardSection() {
   const top5Campaigns = [...byCampaign]
     .sort((a, b) => b.revenue - a.revenue)
     .slice(0, 5);
+
+  // ── 히트맵 데이터 처리 ──
+  const heatmap: HourlyConversion[] = Array.isArray(hourlyRaw) ? hourlyRaw : [];
+  const heatmapMax = Math.max(1, ...heatmap.map(c => c.conversions));
+  const byCell = new Map(heatmap.map(c => [`${c.day_of_week}_${c.hour}`, c]));
+
+  // TOP 3 시간대
+  const top3Hours = [...heatmap]
+    .sort((a, b) => b.conversions - a.conversions)
+    .slice(0, 3)
+    .filter(c => c.conversions > 0);
+
+  // ── TOP 상품 데이터 처리 ──
+  const products: TopProduct[] = Array.isArray(topProducts) ? topProducts : [];
+  const maxProductRevenue = Math.max(1, ...products.map(p => p.revenue));
 
   if (isLoading) return <SectionLoader />;
 
@@ -777,6 +840,19 @@ function DashboardSection() {
             </div>
             <p className="text-[10px] text-gray-500">{kpi.label}</p>
             <p className="text-lg font-bold text-white">{kpi.value}</p>
+            {/* 환불/취소 배지 — 총 매출 카드에만 표시 */}
+            {kpi.showRefund && hasRefunds && (
+              <div className="mt-1.5 flex flex-col gap-0.5">
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-yellow-500/15 border border-yellow-500/30 rounded text-[9px] text-yellow-400 leading-tight">
+                  환불 {d.refunded_count}건 / ₩{fmt(refundDiff)} 제외
+                </span>
+                {d.cancelled_count > 0 && (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-orange-500/10 border border-orange-500/20 rounded text-[9px] text-orange-400 leading-tight">
+                    취소 {d.cancelled_count}건
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -1103,6 +1179,206 @@ function DashboardSection() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* ── 시간대별 전환 히트맵 ── */}
+      <div className="bg-[#1a1b1e] border border-[#2a2d35] rounded-xl p-4">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+          <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+            <BarChart2 size={14} className="text-emerald-400" /> 시간대별 전환 히트맵
+          </h3>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] text-gray-500">기간:</span>
+            {([7, 30, 90] as const).map(hd => (
+              <button
+                key={hd}
+                onClick={() => setHeatmapDays(hd)}
+                className={`px-2.5 py-1 text-[10px] rounded font-medium transition-colors ${
+                  heatmapDays === hd
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-[#141516] text-gray-400 border border-[#2a2d35] hover:text-white hover:border-gray-500'
+                }`}
+              >
+                {hd}일
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {hourlyLoading ? (
+          <ChartLoader />
+        ) : heatmap.length === 0 ? (
+          <ChartEmpty message="시간대별 데이터가 없습니다" />
+        ) : (
+          <>
+            {/* 축 레이블 + 그리드 */}
+            <div className="overflow-x-auto">
+              <div className="min-w-[600px]">
+                {/* 시간 축 (상단) */}
+                <div className="flex items-center mb-1 pl-8">
+                  {Array.from({ length: 24 }, (_, h) => (
+                    <div key={h} className="w-5 text-center text-[8px] text-gray-600 shrink-0">
+                      {h % 6 === 0 ? `${h}시` : ''}
+                    </div>
+                  ))}
+                </div>
+
+                {/* 히트맵 행 */}
+                {HEATMAP_DAYS.map((dayLabel, dow) => (
+                  <div key={dow} className="flex items-center mb-0.5">
+                    <span className="w-7 text-[10px] text-gray-500 shrink-0 text-right pr-1">{dayLabel}</span>
+                    {Array.from({ length: 24 }, (_, h) => {
+                      const cellKey = `${dow}_${h}`;
+                      const cell = byCell.get(cellKey);
+                      const conv = cell?.conversions ?? 0;
+                      const ratio = conv / heatmapMax;
+                      const isHovered = hoveredCell === cellKey;
+                      return (
+                        <div
+                          key={h}
+                          className="w-5 h-5 rounded-sm shrink-0 cursor-pointer relative transition-transform"
+                          style={{
+                            backgroundColor: heatColor(ratio),
+                            transform: isHovered ? 'scale(1.3)' : undefined,
+                            zIndex: isHovered ? 10 : undefined,
+                          }}
+                          onMouseEnter={() => setHoveredCell(cellKey)}
+                          onMouseLeave={() => setHoveredCell(null)}
+                        >
+                          {isHovered && (
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 z-20 pointer-events-none whitespace-nowrap bg-[#1E1F22] border border-[rgba(255,255,255,0.1)] rounded-lg px-2 py-1.5 text-[10px] text-white shadow-xl">
+                              <p className="font-semibold text-emerald-400">{dayLabel} {h}시</p>
+                              <p>전환 <span className="text-white font-medium">{conv}건</span></p>
+                              {cell && cell.revenue > 0 && (
+                                <p>매출 <span className="text-blue-300 font-medium">₩{fmt(cell.revenue)}</span></p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+
+                {/* 컬러 범례 */}
+                <div className="flex items-center gap-2 mt-3 pl-8">
+                  <span className="text-[9px] text-gray-600">낮음</span>
+                  <div className="flex gap-0.5">
+                    {[0, 0.2, 0.4, 0.6, 0.8, 1].map(r => (
+                      <div
+                        key={r}
+                        className="w-4 h-3 rounded-sm"
+                        style={{ backgroundColor: heatColor(r) }}
+                      />
+                    ))}
+                  </div>
+                  <span className="text-[9px] text-gray-600">높음</span>
+                </div>
+              </div>
+            </div>
+
+            {/* TOP 3 시간대 요약 */}
+            {top3Hours.length > 0 && (
+              <div className="mt-4 pt-3 border-t border-[#2a2d35]">
+                <p className="text-[10px] text-gray-500 mb-1.5">전환 많은 시간대 TOP {top3Hours.length}</p>
+                <div className="flex flex-wrap gap-2">
+                  {top3Hours.map((c, i) => (
+                    <div
+                      key={`${c.day_of_week}_${c.hour}_${i}`}
+                      className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-lg"
+                    >
+                      <span className="text-[9px] font-bold text-emerald-300">#{i + 1}</span>
+                      <span className="text-[10px] text-white">
+                        {HEATMAP_DAYS[c.day_of_week]} {c.hour}시
+                      </span>
+                      <span className="text-[10px] text-emerald-400 font-medium">({c.conversions}건)</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* ── 상품별 TOP 10 ── */}
+      <div className="bg-[#1a1b1e] border border-[#2a2d35] rounded-xl p-4">
+        <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+          <TrendingUp size={14} className="text-blue-400" /> 상품별 TOP 10
+        </h3>
+
+        {topProductsLoading ? (
+          <ChartLoader />
+        ) : products.length === 0 ? (
+          <ChartEmpty message="상품 데이터가 없습니다" />
+        ) : (
+          <div className="space-y-2">
+            {products.map((p, idx) => {
+              const barWidth = maxProductRevenue > 0 ? (p.revenue / maxProductRevenue) * 100 : 0;
+              return (
+                <div
+                  key={p.product_no}
+                  className="relative flex items-center gap-3 px-3 py-2.5 bg-[#141516] rounded-lg overflow-hidden"
+                >
+                  {/* 배경 진행 막대 */}
+                  <div
+                    className="absolute inset-y-0 left-0 bg-blue-500/8 rounded-lg pointer-events-none"
+                    style={{ width: `${barWidth}%` }}
+                  />
+
+                  {/* 순위 배지 */}
+                  <span
+                    className={`relative z-10 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
+                      idx === 0 ? 'bg-yellow-500/20 text-yellow-400' :
+                      idx === 1 ? 'bg-gray-300/20 text-gray-300' :
+                      idx === 2 ? 'bg-orange-500/20 text-orange-400' :
+                      'bg-[#2a2d35] text-gray-500'
+                    }`}
+                  >
+                    {idx + 1}
+                  </span>
+
+                  {/* 상품 이미지 */}
+                  <div className="relative z-10 w-9 h-9 shrink-0 rounded overflow-hidden bg-[#2a2d35] flex items-center justify-center">
+                    {p.product_image ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={p.product_image}
+                        alt={p.product_name}
+                        className="w-full h-full object-cover"
+                        onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                      />
+                    ) : (
+                      <ShoppingBag size={14} className="text-gray-600" />
+                    )}
+                  </div>
+
+                  {/* 상품명 + 캠페인 수 */}
+                  <div className="relative z-10 flex-1 min-w-0">
+                    <p className="text-sm text-white font-medium truncate">{p.product_name}</p>
+                    <p className="text-[10px] text-gray-500">캠페인 {p.campaign_count}개 연결</p>
+                  </div>
+
+                  {/* 수치 (우측 정렬) */}
+                  <div className="relative z-10 flex items-center gap-4 shrink-0 text-right">
+                    <div>
+                      <p className="text-[10px] text-gray-500">전환</p>
+                      <p className="text-xs font-medium text-white">{fmt(p.conversions)}건</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-gray-500">매출</p>
+                      <p className="text-xs font-medium text-blue-400">{fmtMan(p.revenue)}</p>
+                    </div>
+                    <div className="hidden sm:block">
+                      <p className="text-[10px] text-gray-500">커미션</p>
+                      <p className="text-xs font-medium text-emerald-400">{fmtMan(p.commission)}</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

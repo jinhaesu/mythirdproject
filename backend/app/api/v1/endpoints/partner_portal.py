@@ -128,13 +128,16 @@ async def get_partner_dashboard(
     )
     total_clicks = clicks_result.scalar() or 0
 
-    # 전환 / 매출 / 커미션
+    # 전환 / 매출 / 커미션 (status='paid' 순매출만)
     conv_result = await db.execute(
         select(
             func.count(ReferralConversion.id),
             func.coalesce(func.sum(ReferralConversion.order_amount), 0),
             func.coalesce(func.sum(ReferralConversion.commission_amount), 0),
-        ).where(ReferralConversion.partner_id == partner_id)
+        ).where(
+            ReferralConversion.partner_id == partner_id,
+            ReferralConversion.status == "paid",
+        )
     )
     conv_row = conv_result.one()
     total_conversions = conv_row[0] or 0
@@ -215,7 +218,7 @@ async def get_partner_campaigns(
         )
         clicks = clicks_result.scalar() or 0
 
-        # 전환 / 매출 / 커미션
+        # 전환 / 매출 / 커미션 (status='paid' 순매출만)
         conv_result = await db.execute(
             select(
                 func.count(ReferralConversion.id),
@@ -224,6 +227,7 @@ async def get_partner_campaigns(
             ).where(
                 ReferralConversion.partner_id == partner_id,
                 ReferralConversion.campaign_id == pc.campaign_id,
+                ReferralConversion.status == "paid",
             )
         )
         conv_row = conv_result.one()

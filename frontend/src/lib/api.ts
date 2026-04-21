@@ -758,6 +758,23 @@ export interface AffiliateByCampaign {
   partners: number;
 }
 
+export interface HourlyConversion {
+  hour: number;
+  day_of_week: number;
+  conversions: number;
+  revenue: number;
+}
+
+export interface TopProduct {
+  product_no: number;
+  product_name: string;
+  product_image?: string | null;
+  campaign_count: number;
+  conversions: number;
+  revenue: number;
+  commission: number;
+}
+
 // Affiliate API (TAB: 어필리에이트 관리)
 export const affiliateApi = {
   getDashboard: async () => { const { data } = await api.get('/affiliate/dashboard'); return data; },
@@ -809,6 +826,14 @@ export const affiliateApi = {
   },
   getDashboardByCampaign: async (): Promise<AffiliateByCampaign[]> => {
     const { data } = await api.get('/affiliate/dashboard/by-campaign');
+    return data;
+  },
+  getDashboardHourly: async (days = 30): Promise<HourlyConversion[]> => {
+    const { data } = await api.get('/affiliate/dashboard/hourly', { params: { days } });
+    return data;
+  },
+  getTopProducts: async (limit = 10): Promise<TopProduct[]> => {
+    const { data } = await api.get('/affiliate/dashboard/top-products', { params: { limit } });
     return data;
   },
 };

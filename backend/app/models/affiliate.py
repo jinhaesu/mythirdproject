@@ -101,6 +101,10 @@ class ReferralConversion(Base):
     order_amount: Mapped[float] = mapped_column(Float, default=0)
     commission_amount: Mapped[float] = mapped_column(Float, default=0)
     converted_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    # 환불/취소 상태 (paid | refunded | cancelled)
+    status: Mapped[str] = mapped_column(String(20), default="paid", index=True)
+    refunded_amount: Mapped[float] = mapped_column(Float, default=0.0)  # 부분 환불 대응
+    refunded_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
 
 class AffiliateSettlement(Base):

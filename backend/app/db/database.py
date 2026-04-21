@@ -387,6 +387,34 @@ async def init_db():
             except Exception as te:
                 logger.warning(f"{tbl_name} create skipped: {te}")
 
+    # Phase 6 — ReferralConversion status / refunded_amount / refunded_at
+    for col, col_type in [
+        ("status", "VARCHAR(20) DEFAULT 'paid'"),
+        ("refunded_amount", "DOUBLE PRECISION DEFAULT 0"),
+        ("refunded_at", "TIMESTAMP"),
+    ]:
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(
+                    __import__('sqlalchemy').text(
+                        f"ALTER TABLE referral_conversions ADD COLUMN IF NOT EXISTS {col} {col_type}"
+                    )
+                )
+            logger.info(f"[init_db] referral_conversions.{col} ensured")
+        except Exception as e:
+            logger.warning(f"[init_db] referral_conversions.{col} skipped: {e}")
+
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(
+                __import__('sqlalchemy').text(
+                    "CREATE INDEX IF NOT EXISTS ix_referral_conversions_status "
+                    "ON referral_conversions(status)"
+                )
+            )
+    except Exception:
+        pass
+
     # Backfill: affiliate_partners → partner_campaigns
     try:
         async with engine.begin() as conn:
