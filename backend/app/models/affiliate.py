@@ -70,6 +70,7 @@ class AffiliatePartner(Base):
     status: Mapped[str] = mapped_column(String(20), default="pending")
     referral_code: Mapped[str] = mapped_column(String(50), unique=True)
     referral_link: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    phone: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     memo: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     # Soft delete — 휴지통으로 이동한 시각. NULL이면 활성 파트너.

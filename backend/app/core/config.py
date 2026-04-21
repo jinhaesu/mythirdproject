@@ -57,6 +57,11 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = "http://localhost:3000"
     BACKEND_URL: str = ""  # Public backend URL for external access (e.g., https://xxx.up.railway.app)
 
+    # Solapi SMS
+    SOLAPI_API_KEY: str = ""
+    SOLAPI_API_SECRET: str = ""
+    SOLAPI_SENDER: str = ""  # 사전 등록된 발신번호 (Solapi 콘솔에서 등록 필수)
+
     # Cafe24 OAuth 2.0
     CAFE24_CLIENT_ID: str = ""
     CAFE24_CLIENT_SECRET: str = ""

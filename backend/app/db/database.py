@@ -341,6 +341,18 @@ async def init_db():
     except Exception:
         pass  # Column already exists
 
+    # affiliate_partners phone column
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(
+                __import__('sqlalchemy').text(
+                    "ALTER TABLE affiliate_partners ADD COLUMN IF NOT EXISTS phone VARCHAR(20)"
+                )
+            )
+        logger.info("[init_db] affiliate_partners.phone ensured")
+    except Exception:
+        pass  # Column already exists
+
     # Phase 3 — ReferralConversion cafe24_order_id
     try:
         async with engine.begin() as conn:

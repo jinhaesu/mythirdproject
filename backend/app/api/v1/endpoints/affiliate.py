@@ -72,6 +72,7 @@ class PartnerCreate(BaseModel):
     campaign_ids: List[int] = []  # Phase 5 M:N
     name: str
     email: Optional[str] = None
+    phone: Optional[str] = None
     channel: str = "instagram"
     channels: Optional[List[str]] = None  # multi-channel support
     followers: int = 0
@@ -82,6 +83,7 @@ class PartnerUpdate(BaseModel):
     campaign_id: Optional[int] = None
     name: Optional[str] = None
     email: Optional[str] = None
+    phone: Optional[str] = None
     channel: Optional[str] = None
     channels: Optional[List[str]] = None  # multi-channel support
     followers: Optional[int] = None
@@ -548,6 +550,23 @@ async def create_partner(
                 logger.info(f"[Affiliate] Invite email sent to {partner.email}")
         except Exception as e:
             logger.warning(f"[Affiliate] Email send failed: {e}")
+
+    # SMS 발송 (Solapi) — phone 있을 때
+    if partner.phone:
+        try:
+            from app.services.sms import send_sms
+            portal_url = f"{_settings.FRONTEND_URL}/partner?email={partner.email or ''}"
+            sms_message = (
+                f"[널담] {partner.name}님, 어필리에이트 파트너로 초대되었습니다. "
+                f"아래 링크로 로그인해 판매 현황을 확인하세요.\n{portal_url}"
+            )
+            sms_result = await send_sms(partner.phone, sms_message)
+            if sms_result.get("success"):
+                logger.info(f"[Affiliate] Invite SMS sent to {partner.phone}")
+            else:
+                logger.warning(f"[Affiliate] SMS send skipped/failed: {sms_result.get('reason')}")
+        except Exception as e:
+            logger.warning(f"[Affiliate] SMS send failed: {e}")
 
     return _partner_to_dict(partner)
 

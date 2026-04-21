@@ -726,6 +726,7 @@ export interface AffiliatePartner {
   channel: string;
   /** 다중 채널 (백엔드 JSON 파싱 후 반환) */
   channels?: string[];
+  phone?: string | null;
   followers: number;
   status: 'pending' | 'approved' | 'rejected';
   total_sales: number;
@@ -791,6 +792,7 @@ export const affiliateApi = {
   createPartnerMulti: async (d: {
     name: string;
     email?: string;
+    phone?: string | null;
     channel: string;
     channels: string[];
     followers: number;

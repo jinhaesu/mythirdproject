@@ -3,7 +3,7 @@ from fastapi import APIRouter
 
 from app.api.v1.endpoints import (
     auth, benchmark, creative, campaign, analytics, dashboard, campaign_planner, chat, market_keywords,
-    naver_analytics, naver_campaign, affiliate,
+    naver_analytics, naver_campaign, affiliate, partner_auth, partner_portal,
 )
 from app.api.v1.endpoints import cafe24, webhooks
 
@@ -98,6 +98,20 @@ api_router.include_router(
     cafe24.router,
     prefix="/cafe24",
     tags=["Cafe24"]
+)
+
+# Partner Portal Auth (매직링크 이메일 로그인)
+api_router.include_router(
+    partner_auth.router,
+    prefix="/partner/auth",
+    tags=["Partner Auth"],
+)
+
+# Partner Portal (내 정보, 대시보드, 캠페인 성과)
+api_router.include_router(
+    partner_portal.router,
+    prefix="/partner",
+    tags=["Partner Portal"],
 )
 
 # Webhooks (HMAC protected, no auth)

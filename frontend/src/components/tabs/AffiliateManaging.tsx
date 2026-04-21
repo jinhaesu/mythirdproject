@@ -6,7 +6,7 @@ import {
   Users, Link2, Share2, TrendingUp, DollarSign, Award, Plus, Search,
   Eye, Copy, CheckCircle, Clock, X, BarChart2, Gift, UserPlus, ExternalLink,
   Percent, ShoppingBag, Megaphone, Settings, Filter, Download, Loader2,
-  AlertCircle, Coins, Tag, Store, ChevronDown, Trash2, Pencil,
+  AlertCircle, Coins, Tag, Store, ChevronDown, Trash2, Pencil, Phone,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
@@ -109,6 +109,7 @@ interface NewCampaignForm {
 interface NewPartnerForm {
   name: string;
   email: string;
+  phone: string;
   /** 대표 채널 (하위 호환용, channels[0] 로 채워짐) */
   channel: string;
   /** 다중 채널 선택 */
@@ -1724,6 +1725,7 @@ function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalP
 interface PartnerEditForm {
   name: string;
   email: string;
+  phone: string;
   channels: string[];
   followers: number;
   memo: string;
@@ -1741,6 +1743,7 @@ function PartnerEditModal({ partner, onClose, onSave, isSaving }: PartnerEditMod
   const [editForm, setEditForm] = useState<PartnerEditForm>({
     name: partner.name,
     email: partner.email,
+    phone: partner.phone ?? '',
     channels: partner.channels && partner.channels.length > 0 ? partner.channels : partner.channel ? [partner.channel] : [],
     followers: partner.followers,
     memo: partner.memo ?? '',
@@ -1763,6 +1766,7 @@ function PartnerEditModal({ partner, onClose, onSave, isSaving }: PartnerEditMod
     onSave(partner.id, {
       name: editForm.name,
       email: editForm.email,
+      phone: editForm.phone || null,
       channels: editForm.channels,
       channel: editForm.channels[0],
       followers: editForm.followers,
@@ -1803,6 +1807,16 @@ function PartnerEditModal({ partner, onClose, onSave, isSaving }: PartnerEditMod
                 type="email"
                 value={editForm.email}
                 onChange={e => setEditForm({ ...editForm, email: e.target.value })}
+                className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-blue-500/50"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-gray-400">연락처</label>
+              <input
+                type="tel"
+                value={editForm.phone}
+                onChange={e => setEditForm({ ...editForm, phone: e.target.value })}
+                placeholder="010-1234-5678"
                 className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-blue-500/50"
               />
             </div>
@@ -1897,6 +1911,7 @@ function PartnersSection() {
   const [inviteForm, setInviteForm] = useState<NewPartnerForm>({
     name: '',
     email: '',
+    phone: '',
     channel: 'instagram',
     channels: [],
     followers: 0,
@@ -1956,7 +1971,7 @@ function PartnersSection() {
       qc.invalidateQueries({ queryKey: ['affiliate', 'dashboard'] });
       toast.success('파트너 초대가 완료되었습니다');
       setShowInviteForm(false);
-      setInviteForm({ name: '', email: '', channel: 'instagram', channels: [], followers: 0, campaign_ids: [], memo: '' });
+      setInviteForm({ name: '', email: '', phone: '', channel: 'instagram', channels: [], followers: 0, campaign_ids: [], memo: '' });
     },
     onError: () => toast.error('파트너 초대에 실패했습니다'),
   });
@@ -2013,7 +2028,11 @@ function PartnersSection() {
     if (!inviteForm.email.trim()) { toast.error('이메일을 입력하세요'); return; }
     if (inviteForm.channels.length === 0) { toast.error('채널을 최소 1개 선택하세요'); return; }
     // 하위 호환: channel 필드에 첫 번째 선택값 세팅
-    createMutation.mutate({ ...inviteForm, channel: inviteForm.channels[0] });
+    createMutation.mutate({
+      ...inviteForm,
+      channel: inviteForm.channels[0],
+      ...(inviteForm.phone ? { phone: inviteForm.phone } : {}),
+    });
   };
 
   const toggleCampaign = (id: number) => {
@@ -2156,6 +2175,16 @@ function PartnersSection() {
                   className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-emerald-500/50"
                 />
               </div>
+              <div>
+                <label className="text-xs text-gray-400">연락처</label>
+                <input
+                  type="tel"
+                  value={inviteForm.phone}
+                  onChange={e => setInviteForm({ ...inviteForm, phone: e.target.value })}
+                  placeholder="010-1234-5678"
+                  className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-emerald-500/50"
+                />
+              </div>
               <div className="md:col-span-2">
                 <label className="text-xs text-gray-400 flex items-center gap-1.5">
                   채널 *
@@ -2295,6 +2324,12 @@ function PartnersSection() {
                       <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
                         <ChannelBadges channels={p.channels} channel={p.channel} />
                         <span className="text-[10px] text-gray-500">{fmt(p.followers)} followers · {p.email}</span>
+                        {p.phone && (
+                          <span className="flex items-center gap-0.5 text-[10px] text-gray-500">
+                            <Phone size={9} className="text-gray-600" />
+                            {p.phone}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
