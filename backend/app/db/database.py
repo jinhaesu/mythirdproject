@@ -415,6 +415,19 @@ async def init_db():
     except Exception:
         pass
 
+    # Backfill: 기존 conversions의 NULL status를 'paid'로 보정
+    try:
+        async with engine.begin() as conn:
+            result = await conn.execute(
+                __import__('sqlalchemy').text(
+                    "UPDATE referral_conversions SET status='paid' WHERE status IS NULL"
+                )
+            )
+            if hasattr(result, 'rowcount') and result.rowcount and result.rowcount > 0:
+                logger.info(f"[init_db] referral_conversions.status backfilled {result.rowcount} rows")
+    except Exception as e:
+        logger.warning(f"[init_db] status backfill skipped: {e}")
+
     # Backfill: affiliate_partners → partner_campaigns
     try:
         async with engine.begin() as conn:

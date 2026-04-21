@@ -84,8 +84,10 @@ async def cafe24_order_webhook(request: Request):
     resource_name = str(data.get("resource_name") or resource.get("resource_name") or "").lower()
     topic = str(data.get("topic") or "").lower()
 
-    is_refund = any(x in f"{event_code} {resource_name} {topic}" for x in ["refund"])
-    is_cancel = any(x in f"{event_code} {resource_name} {topic}" for x in ["cancel"])
+    event_blob = f"{event_code} {resource_name} {topic}"
+    # 단어 경계 매칭 — "cancellation_rules" 같은 단어 일부만 매칭되는 오판 방지
+    is_refund = bool(re.search(r"\brefund(ed|s)?\b", event_blob))
+    is_cancel = bool(re.search(r"\bcancel(led|ed|lation)?\b", event_blob))
 
     # payload 내부 상태값 추가 heuristic
     refund_status = str(resource.get("refund_status") or "").lower()
@@ -94,6 +96,12 @@ async def cafe24_order_webhook(request: Request):
         is_refund = True
     if order_status in ("cancelled", "canceled", "cancel_complete"):
         is_cancel = True
+
+    if is_refund and is_cancel:
+        # 둘 다 True면 환불 우선 — 로그로 모호성 명시
+        logger.warning(
+            f"[Webhook] order={order_id} — 환불과 취소 양쪽 플래그 True, refund 우선 처리"
+        )
 
     logger.info(
         f"[Webhook] event={event_code}/{resource_name}/{topic} "
