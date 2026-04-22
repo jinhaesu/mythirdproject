@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.endpoints.auth import get_current_user
+from app.api.v1.endpoints.auth import get_current_user, get_shared_cafe24_user
 from app.core.config import get_settings
 from app.db.database import get_db
 from app.models.affiliate import (
@@ -31,6 +31,16 @@ _settings = get_settings()
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+async def _resolve_cafe24_user(current_user: User, db: AsyncSession) -> User:
+    """현재 유저가 Cafe24 토큰 없으면 공유 유저 반환. 둘 다 없으면 400."""
+    if current_user.cafe24_access_token:
+        return current_user
+    shared = await get_shared_cafe24_user(db)
+    if shared:
+        return shared
+    raise HTTPException(status_code=400, detail="Cafe24 스토어 연결이 필요합니다.")
 
 
 # ---------------------------------------------------------------------------
@@ -160,15 +170,14 @@ async def create_campaign(
     coupon_warning: Optional[str] = None
 
     if cafe24_product_no:
-        # Cafe24 연결 확인
-        if not current_user.cafe24_access_token:
-            raise HTTPException(status_code=400, detail="Cafe24 스토어 연결이 필요합니다.")
+        # Cafe24 공유 유저 resolve (현재 유저 토큰 없으면 공유 유저 사용)
+        cafe24_user = await _resolve_cafe24_user(current_user, db)
 
-        mall_id = current_user.cafe24_mall_id
+        mall_id = cafe24_user.cafe24_mall_id
 
         # 상품 정보 조회
         try:
-            product = await cafe24_svc.get_product(current_user, db, cafe24_product_no)
+            product = await cafe24_svc.get_product(cafe24_user, db, cafe24_product_no)
         except Exception as e:
             logger.warning(f"[Campaign] 상품 조회 실패: {e}")
             product = {}
@@ -180,7 +189,7 @@ async def create_campaign(
         data["discount_value"] = discount_value
 
         # 외부 공개 도메인 사용 (nuldam.com 등)
-        domain = _cafe24_store_domain(current_user)
+        domain = _cafe24_store_domain(cafe24_user)
         base_url = f"https://{domain}/product/detail.html?product_no={cafe24_product_no}"
         data["base_product_url"] = base_url
 
@@ -203,7 +212,7 @@ async def create_campaign(
             benefit_type_map = {"percentage": "A", "fixed": "B", "shipping": "D"}
             benefit_type = benefit_type_map.get(discount_type or "percentage", "A")
             coupon_result = await cafe24_svc.create_coupon(
-                current_user, db,
+                cafe24_user, db,
                 coupon_name=f"[{payload.name}] 할인쿠폰",
                 benefit_type=benefit_type,
                 benefit_percentage=discount_value if discount_type == "percentage" else None,
@@ -245,10 +254,8 @@ async def list_campaigns(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """List all campaigns for the current user."""
-    result = await db.execute(
-        select(AffiliateCampaign).where(AffiliateCampaign.user_id == current_user.id)
-    )
+    """List all campaigns (전체 관리자 계정 공유)."""
+    result = await db.execute(select(AffiliateCampaign))
     return [_campaign_to_dict(c, current_user) for c in result.scalars().all()]
 
 
@@ -258,12 +265,9 @@ async def get_campaign(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get a single campaign by ID."""
+    """Get a single campaign by ID (전체 관리자 공유)."""
     result = await db.execute(
-        select(AffiliateCampaign).where(
-            AffiliateCampaign.id == campaign_id,
-            AffiliateCampaign.user_id == current_user.id,
-        )
+        select(AffiliateCampaign).where(AffiliateCampaign.id == campaign_id)
     )
     campaign = result.scalar_one_or_none()
     if not campaign:
@@ -278,12 +282,9 @@ async def update_campaign(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Update an existing campaign."""
+    """Update an existing campaign (전체 관리자 공유)."""
     result = await db.execute(
-        select(AffiliateCampaign).where(
-            AffiliateCampaign.id == campaign_id,
-            AffiliateCampaign.user_id == current_user.id,
-        )
+        select(AffiliateCampaign).where(AffiliateCampaign.id == campaign_id)
     )
     campaign = result.scalar_one_or_none()
     if not campaign:
@@ -304,14 +305,11 @@ async def delete_campaign(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """캠페인 삭제. 의존 레코드(partner_campaigns/clicks/conversions)도 함께 정리."""
+    """캠페인 삭제 (전체 관리자 공유). 의존 레코드(partner_campaigns/clicks/conversions)도 함께 정리."""
     from sqlalchemy import update as sa_update
 
     result = await db.execute(
-        select(AffiliateCampaign).where(
-            AffiliateCampaign.id == campaign_id,
-            AffiliateCampaign.user_id == current_user.id,
-        )
+        select(AffiliateCampaign).where(AffiliateCampaign.id == campaign_id)
     )
     campaign = result.scalar_one_or_none()
     if not campaign:
@@ -569,11 +567,8 @@ async def list_partners(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """List partners (excludes trashed), optionally filtered by campaign or status."""
-    query = select(AffiliatePartner).where(
-        AffiliatePartner.user_id == current_user.id,
-        AffiliatePartner.deleted_at.is_(None),
-    )
+    """List partners (전체 관리자 공유, excludes trashed), optionally filtered by campaign or status."""
+    query = select(AffiliatePartner).where(AffiliatePartner.deleted_at.is_(None))
     if campaign_id is not None:
         query = query.where(AffiliatePartner.campaign_id == campaign_id)
     if status is not None:
@@ -590,12 +585,9 @@ async def update_partner(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Update partner information."""
+    """Update partner information (전체 관리자 공유)."""
     result = await db.execute(
-        select(AffiliatePartner).where(
-            AffiliatePartner.id == partner_id,
-            AffiliatePartner.user_id == current_user.id,
-        )
+        select(AffiliatePartner).where(AffiliatePartner.id == partner_id)
     )
     partner = result.scalar_one_or_none()
     if not partner:
@@ -622,12 +614,9 @@ async def approve_partner(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Approve a pending partner."""
+    """Approve a pending partner (전체 관리자 공유)."""
     result = await db.execute(
-        select(AffiliatePartner).where(
-            AffiliatePartner.id == partner_id,
-            AffiliatePartner.user_id == current_user.id,
-        )
+        select(AffiliatePartner).where(AffiliatePartner.id == partner_id)
     )
     partner = result.scalar_one_or_none()
     if not partner:
@@ -645,12 +634,9 @@ async def reject_partner(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Reject a pending partner."""
+    """Reject a pending partner (전체 관리자 공유)."""
     result = await db.execute(
-        select(AffiliatePartner).where(
-            AffiliatePartner.id == partner_id,
-            AffiliatePartner.user_id == current_user.id,
-        )
+        select(AffiliatePartner).where(AffiliatePartner.id == partner_id)
     )
     partner = result.scalar_one_or_none()
     if not partner:
@@ -668,12 +654,9 @@ async def delete_partner(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """파트너 소프트 삭제 — 휴지통으로 이동 (deleted_at 타임스탬프 설정)."""
+    """파트너 소프트 삭제 — 휴지통으로 이동 (전체 관리자 공유)."""
     result = await db.execute(
-        select(AffiliatePartner).where(
-            AffiliatePartner.id == partner_id,
-            AffiliatePartner.user_id == current_user.id,
-        )
+        select(AffiliatePartner).where(AffiliatePartner.id == partner_id)
     )
     partner = result.scalar_one_or_none()
     if not partner:
@@ -690,10 +673,9 @@ async def list_deleted_partners(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """휴지통에 있는 파트너 목록."""
+    """휴지통에 있는 파트너 목록 (전체 관리자 공유)."""
     result = await db.execute(
         select(AffiliatePartner).where(
-            AffiliatePartner.user_id == current_user.id,
             AffiliatePartner.deleted_at.isnot(None),
         ).order_by(AffiliatePartner.deleted_at.desc())
     )
@@ -706,12 +688,9 @@ async def restore_partner(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """휴지통에서 파트너 복원 (deleted_at을 NULL로)."""
+    """휴지통에서 파트너 복원 (전체 관리자 공유)."""
     result = await db.execute(
-        select(AffiliatePartner).where(
-            AffiliatePartner.id == partner_id,
-            AffiliatePartner.user_id == current_user.id,
-        )
+        select(AffiliatePartner).where(AffiliatePartner.id == partner_id)
     )
     partner = result.scalar_one_or_none()
     if not partner:
@@ -730,12 +709,9 @@ async def permanent_delete_partner(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """영구 삭제 — PartnerCampaign/Click/Conversion/Settlement 전부 삭제 후 파트너 제거."""
+    """영구 삭제 (전체 관리자 공유) — PartnerCampaign/Click/Conversion/Settlement 전부 삭제 후 파트너 제거."""
     result = await db.execute(
-        select(AffiliatePartner).where(
-            AffiliatePartner.id == partner_id,
-            AffiliatePartner.user_id == current_user.id,
-        )
+        select(AffiliatePartner).where(AffiliatePartner.id == partner_id)
     )
     partner = result.scalar_one_or_none()
     if not partner:
@@ -761,20 +737,17 @@ async def get_dashboard(
 ):
     """Return aggregated affiliate KPIs for the current user."""
 
-    # Total partners by status (휴지통 제외)
+    # Total partners by status (휴지통 제외, 전체 공유)
     partners_result = await db.execute(
         select(AffiliatePartner.status, func.count(AffiliatePartner.id))
-        .where(
-            AffiliatePartner.user_id == current_user.id,
-            AffiliatePartner.deleted_at.is_(None),
-        )
+        .where(AffiliatePartner.deleted_at.is_(None))
         .group_by(AffiliatePartner.status)
     )
     partners_by_status = {row[0]: row[1] for row in partners_result.all()}
 
-    # Partner IDs for this user (모든 파트너 포함 — 과거 클릭/전환 히스토리는 집계에 포함)
+    # 전체 파트너 ID 목록 (과거 클릭/전환 히스토리 집계용)
     partner_ids_result = await db.execute(
-        select(AffiliatePartner.id).where(AffiliatePartner.user_id == current_user.id)
+        select(AffiliatePartner.id)
     )
     partner_ids = [row[0] for row in partner_ids_result.all()]
 
@@ -839,27 +812,23 @@ async def get_dashboard(
     # Conversion rate
     conversion_rate = (total_conversions / total_clicks * 100) if total_clicks > 0 else 0.0
 
-    # Total campaigns
+    # Total campaigns (전체 공유)
     campaigns_result = await db.execute(
-        select(func.count(AffiliateCampaign.id)).where(
-            AffiliateCampaign.user_id == current_user.id
-        )
+        select(func.count(AffiliateCampaign.id))
     )
     total_campaigns = campaigns_result.scalar() or 0
 
-    # Pending settlements
+    # Pending settlements (전체 공유)
     pending_settlement_result = await db.execute(
         select(func.coalesce(func.sum(AffiliateSettlement.amount), 0)).where(
-            AffiliateSettlement.user_id == current_user.id,
             AffiliateSettlement.status == "pending",
         )
     )
     pending_settlement_amount = float(pending_settlement_result.scalar() or 0)
 
-    # Active campaigns (각 캠페인별 집계 포함)
+    # Active campaigns (전체 공유, 각 캠페인별 집계 포함)
     active_campaigns_result = await db.execute(
         select(AffiliateCampaign).where(
-            AffiliateCampaign.user_id == current_user.id,
             AffiliateCampaign.status == "active",
         ).limit(5)
     )
@@ -910,38 +879,36 @@ async def get_dashboard(
             "total_commission": float(conv_row[2]),
         })
 
-    # Top partners by conversion count (휴지통 제외)
+    # Top partners by conversion count (전체 공유, 휴지통 제외)
     top_partners = []
-    if partner_ids:
-        top_result = await db.execute(
-            select(
-                AffiliatePartner.id, AffiliatePartner.name, AffiliatePartner.channel,
-                AffiliatePartner.channels,
-                AffiliatePartner.followers,
-                func.count(ReferralConversion.id).label("conversions"),
-                func.coalesce(func.sum(ReferralConversion.order_amount), 0).label("sales"),
-            )
-            .outerjoin(
-                ReferralConversion,
-                (ReferralConversion.partner_id == AffiliatePartner.id)
-                & (ReferralConversion.status == "paid"),
-            )
-            .where(
-                AffiliatePartner.user_id == current_user.id,
-                AffiliatePartner.status == "approved",
-                AffiliatePartner.deleted_at.is_(None),
-            )
-            .group_by(AffiliatePartner.id)
-            .order_by(func.coalesce(func.sum(ReferralConversion.order_amount), 0).desc())
-            .limit(5)
+    top_result = await db.execute(
+        select(
+            AffiliatePartner.id, AffiliatePartner.name, AffiliatePartner.channel,
+            AffiliatePartner.channels,
+            AffiliatePartner.followers,
+            func.count(ReferralConversion.id).label("conversions"),
+            func.coalesce(func.sum(ReferralConversion.order_amount), 0).label("sales"),
         )
-        for row in top_result.all():
-            top_partners.append({
-                "id": row[0], "name": row[1], "channel": row[2],
-                "channels": _parse_channels(row[3]),
-                "followers": row[4],
-                "conversion_count": row[5], "total_sales": float(row[6]),
-            })
+        .outerjoin(
+            ReferralConversion,
+            (ReferralConversion.partner_id == AffiliatePartner.id)
+            & (ReferralConversion.status == "paid"),
+        )
+        .where(
+            AffiliatePartner.status == "approved",
+            AffiliatePartner.deleted_at.is_(None),
+        )
+        .group_by(AffiliatePartner.id)
+        .order_by(func.coalesce(func.sum(ReferralConversion.order_amount), 0).desc())
+        .limit(5)
+    )
+    for row in top_result.all():
+        top_partners.append({
+            "id": row[0], "name": row[1], "channel": row[2],
+            "channels": _parse_channels(row[3]),
+            "followers": row[4],
+            "conversion_count": row[5], "total_sales": float(row[6]),
+        })
 
     return {
         "total_campaigns": total_campaigns,
@@ -970,14 +937,12 @@ async def get_dashboard_timeseries(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    현재 유저의 최근 N일간 일별 매출/커미션/클릭/전환 시계열 데이터.
+    최근 N일간 일별 매출/커미션/클릭/전환 시계열 데이터 (전체 관리자 공유).
 
     데이터가 있는 날짜만 반환하며 날짜 gap은 프론트엔드에서 채웁니다.
     """
-    # 현재 유저의 파트너 ID 목록
-    pid_result = await db.execute(
-        select(AffiliatePartner.id).where(AffiliatePartner.user_id == current_user.id)
-    )
+    # 전체 파트너 ID 목록
+    pid_result = await db.execute(select(AffiliatePartner.id))
     partner_ids = [row[0] for row in pid_result.all()]
 
     since = datetime.utcnow() - timedelta(days=days)
@@ -1046,69 +1011,45 @@ async def get_dashboard_by_campaign(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    캠페인별 성과 집계: 매출/커미션/클릭/전환/파트너 수.
+    캠페인별 성과 집계: 매출/커미션/클릭/전환/파트너 수 (전체 관리자 공유).
     """
-    # 현재 유저의 파트너 ID 목록
-    pid_result = await db.execute(
-        select(AffiliatePartner.id).where(AffiliatePartner.user_id == current_user.id)
-    )
-    partner_ids = [row[0] for row in pid_result.all()]
-
-    # 현재 유저의 캠페인 목록
-    camp_result = await db.execute(
-        select(AffiliateCampaign).where(AffiliateCampaign.user_id == current_user.id)
-    )
+    # 전체 캠페인 목록
+    camp_result = await db.execute(select(AffiliateCampaign))
     campaigns = camp_result.scalars().all()
 
     result_list = []
     for campaign in campaigns:
-        # 이 캠페인에 연결된 파트너 수 (현재 유저 파트너 중)
-        if partner_ids:
-            pcount_result = await db.execute(
-                select(func.count(AffiliatePartner.id)).where(
-                    AffiliatePartner.campaign_id == campaign.id,
-                    AffiliatePartner.id.in_(partner_ids),
-                )
+        # 이 캠페인에 연결된 파트너 수 (전체)
+        pcount_result = await db.execute(
+            select(func.count(AffiliatePartner.id)).where(
+                AffiliatePartner.campaign_id == campaign.id,
             )
-        else:
-            pcount_result = await db.execute(
-                select(func.count(AffiliatePartner.id)).where(
-                    AffiliatePartner.campaign_id == campaign.id
-                )
-            )
+        )
         partner_count = pcount_result.scalar() or 0
 
         # 클릭 수
-        clicks = 0
-        if partner_ids:
-            click_result = await db.execute(
-                select(func.count(ReferralClick.id)).where(
-                    ReferralClick.campaign_id == campaign.id,
-                    ReferralClick.partner_id.in_(partner_ids),
-                )
+        click_result = await db.execute(
+            select(func.count(ReferralClick.id)).where(
+                ReferralClick.campaign_id == campaign.id,
             )
-            clicks = click_result.scalar() or 0
+        )
+        clicks = click_result.scalar() or 0
 
         # 전환/매출/커미션 (status='paid' 순매출만)
-        conversions = 0
-        revenue = 0.0
-        commission = 0.0
-        if partner_ids:
-            conv_result = await db.execute(
-                select(
-                    func.count(ReferralConversion.id),
-                    func.coalesce(func.sum(ReferralConversion.order_amount), 0),
-                    func.coalesce(func.sum(ReferralConversion.commission_amount), 0),
-                ).where(
-                    ReferralConversion.campaign_id == campaign.id,
-                    ReferralConversion.partner_id.in_(partner_ids),
-                    ReferralConversion.status == "paid",
-                )
+        conv_result = await db.execute(
+            select(
+                func.count(ReferralConversion.id),
+                func.coalesce(func.sum(ReferralConversion.order_amount), 0),
+                func.coalesce(func.sum(ReferralConversion.commission_amount), 0),
+            ).where(
+                ReferralConversion.campaign_id == campaign.id,
+                ReferralConversion.status == "paid",
             )
-            conv_row = conv_result.one()
-            conversions = conv_row[0] or 0
-            revenue = float(conv_row[1])
-            commission = float(conv_row[2])
+        )
+        conv_row = conv_result.one()
+        conversions = conv_row[0] or 0
+        revenue = float(conv_row[1])
+        commission = float(conv_row[2])
 
         result_list.append({
             "campaign_id": campaign.id,
@@ -1141,27 +1082,15 @@ async def get_dashboard_hourly(
     """
     from sqlalchemy import text as sa_text
 
-    pid_result = await db.execute(
-        select(AffiliatePartner.id).where(AffiliatePartner.user_id == current_user.id)
-    )
-    partner_ids = [row[0] for row in pid_result.all()]
-
     # 빈 매트릭스 초기화 (0=월 ~ 6=일, 0~23시)
     matrix: dict[tuple[int, int], dict] = {}
     for dow in range(7):
         for hour in range(24):
             matrix[(hour, dow)] = {"conversions": 0, "revenue": 0.0}
 
-    if not partner_ids:
-        result_list = [
-            {"hour": h, "day_of_week": d, "conversions": 0, "revenue": 0.0}
-            for d in range(7) for h in range(24)
-        ]
-        return result_list
-
     since = datetime.utcnow() - timedelta(days=days)
 
-    # EXTRACT(ISODOW) - 1 → 0=월, 6=일
+    # EXTRACT(ISODOW) - 1 → 0=월, 6=일 (전체 공유, partner_id 필터 없음)
     hour_col = func.extract("hour", ReferralConversion.converted_at).label("hour")
     dow_col = (func.extract("isodow", ReferralConversion.converted_at) - 1).label("dow")
 
@@ -1173,7 +1102,6 @@ async def get_dashboard_hourly(
             func.coalesce(func.sum(ReferralConversion.order_amount), 0),
         )
         .where(
-            ReferralConversion.partner_id.in_(partner_ids),
             ReferralConversion.converted_at >= since,
             ReferralConversion.status == "paid",
         )
@@ -1198,8 +1126,7 @@ async def get_dashboard_hourly(
         for d in range(7) for h in range(24)
     ]
     logger.info(
-        f"[Dashboard] hourly matrix: user={current_user.id} days={days} "
-        f"partner_ids_count={len(partner_ids)}"
+        f"[Dashboard] hourly matrix: user={current_user.id} days={days} (shared/all partners)"
     )
     return result_list
 
@@ -1219,15 +1146,7 @@ async def get_dashboard_top_products(
 
     status='paid' 전환만 포함. revenue 내림차순 정렬.
     """
-    pid_result = await db.execute(
-        select(AffiliatePartner.id).where(AffiliatePartner.user_id == current_user.id)
-    )
-    partner_ids = [row[0] for row in pid_result.all()]
-
-    if not partner_ids:
-        return []
-
-    # 현재 유저의 캠페인 중 cafe24_product_no가 있는 것만
+    # 전체 캠페인 중 cafe24_product_no가 있는 것만 (전체 관리자 공유)
     # GROUP BY product_no + name + image
     rows = await db.execute(
         select(
@@ -1245,7 +1164,6 @@ async def get_dashboard_top_products(
             & (ReferralConversion.status == "paid"),
         )
         .where(
-            AffiliateCampaign.user_id == current_user.id,
             AffiliateCampaign.cafe24_product_no.isnot(None),
         )
         .group_by(
@@ -1286,8 +1204,8 @@ async def list_settlements(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """List settlements for the current user."""
-    query = select(AffiliateSettlement).where(AffiliateSettlement.user_id == current_user.id)
+    """List settlements (전체 관리자 공유)."""
+    query = select(AffiliateSettlement)
     if partner_id is not None:
         query = query.where(AffiliateSettlement.partner_id == partner_id)
     if status is not None:
@@ -1304,12 +1222,9 @@ async def create_settlement(
     db: AsyncSession = Depends(get_db),
 ):
     """Create a settlement record for a partner."""
-    # Verify partner belongs to current user
+    # 파트너 존재 확인 (전체 공유)
     partner_result = await db.execute(
-        select(AffiliatePartner).where(
-            AffiliatePartner.id == payload.partner_id,
-            AffiliatePartner.user_id == current_user.id,
-        )
+        select(AffiliatePartner).where(AffiliatePartner.id == payload.partner_id)
     )
     if not partner_result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Partner not found")
@@ -1334,12 +1249,9 @@ async def pay_settlement(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Mark a settlement as paid."""
+    """Mark a settlement as paid (전체 관리자 공유)."""
     result = await db.execute(
-        select(AffiliateSettlement).where(
-            AffiliateSettlement.id == settlement_id,
-            AffiliateSettlement.user_id == current_user.id,
-        )
+        select(AffiliateSettlement).where(AffiliateSettlement.id == settlement_id)
     )
     settlement = result.scalar_one_or_none()
     if not settlement:
@@ -1380,10 +1292,8 @@ async def list_referral_programs(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """List referral programs for the current user."""
-    result = await db.execute(
-        select(ReferralProgram).where(ReferralProgram.user_id == current_user.id)
-    )
+    """List referral programs (전체 관리자 공유)."""
+    result = await db.execute(select(ReferralProgram))
     return result.scalars().all()
 
 
@@ -1394,12 +1304,9 @@ async def update_referral_program(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Update an existing referral program."""
+    """Update an existing referral program (전체 관리자 공유)."""
     result = await db.execute(
-        select(ReferralProgram).where(
-            ReferralProgram.id == program_id,
-            ReferralProgram.user_id == current_user.id,
-        )
+        select(ReferralProgram).where(ReferralProgram.id == program_id)
     )
     program = result.scalar_one_or_none()
     if not program:
@@ -1678,12 +1585,9 @@ async def add_partner_campaign(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """파트너에 캠페인 연결 추가."""
+    """파트너에 캠페인 연결 추가 (전체 관리자 공유)."""
     p_result = await db.execute(
-        select(AffiliatePartner).where(
-            AffiliatePartner.id == partner_id,
-            AffiliatePartner.user_id == current_user.id,
-        )
+        select(AffiliatePartner).where(AffiliatePartner.id == partner_id)
     )
     partner = p_result.scalar_one_or_none()
     if not partner:
@@ -1734,12 +1638,9 @@ async def remove_partner_campaign(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """파트너-캠페인 연결 해제."""
+    """파트너-캠페인 연결 해제 (전체 관리자 공유)."""
     p_result = await db.execute(
-        select(AffiliatePartner).where(
-            AffiliatePartner.id == partner_id,
-            AffiliatePartner.user_id == current_user.id,
-        )
+        select(AffiliatePartner).where(AffiliatePartner.id == partner_id)
     )
     if not p_result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Partner not found")
@@ -1764,12 +1665,9 @@ async def get_partner_performance(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """파트너별 캠페인 성과 집계. PartnerCampaign + legacy campaign_id 둘 다 포함."""
+    """파트너별 캠페인 성과 집계 (전체 관리자 공유). PartnerCampaign + legacy campaign_id 둘 다 포함."""
     p_result = await db.execute(
-        select(AffiliatePartner).where(
-            AffiliatePartner.id == partner_id,
-            AffiliatePartner.user_id == current_user.id,
-        )
+        select(AffiliatePartner).where(AffiliatePartner.id == partner_id)
     )
     partner_obj = p_result.scalar_one_or_none()
     if not partner_obj:

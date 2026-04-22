@@ -134,7 +134,7 @@ async def _get_naver_search_api(
     db: AsyncSession,
 ) -> NaverSearchAdsAPI:
     """Resolve Naver Search Ads credentials and return API client.
-    Priority: env vars FIRST (most reliable), then PlatformConnection DB.
+    Priority: env vars FIRST (most reliable), then PlatformConnection DB (전체 공유).
     """
     import logging
     logger = logging.getLogger(__name__)
@@ -151,13 +151,12 @@ async def _get_naver_search_api(
             customer_id=settings.NAVER_ADS_CUSTOMER_ID,
         )
 
-    # 2) Fallback: PlatformConnection from DB
+    # 2) Fallback: PlatformConnection from DB (전체 공유 — user_id 필터 없음)
     result = await db.execute(
         select(PlatformConnection).where(
-            PlatformConnection.user_id == current_user.id,
             PlatformConnection.platform == "NAVER",
             PlatformConnection.is_active == True,  # noqa: E712
-        )
+        ).limit(1)
     )
     conn = result.scalar_one_or_none()
 
@@ -182,13 +181,12 @@ async def _get_naver_gfa_api(
     current_user: User,
     db: AsyncSession,
 ) -> NaverGFAAPI:
-    """Resolve Naver GFA credentials and return API client."""
+    """Resolve Naver GFA credentials and return API client (전체 공유)."""
     result = await db.execute(
         select(PlatformConnection).where(
-            PlatformConnection.user_id == current_user.id,
             PlatformConnection.platform == "NAVER",
             PlatformConnection.is_active == True,  # noqa: E712
-        )
+        ).limit(1)
     )
     conn = result.scalar_one_or_none()
 
@@ -264,10 +262,9 @@ async def search_ads_debug(
 
     result_db = await db.execute(
         select(PlatformConnection).where(
-            PlatformConnection.user_id == current_user.id,
             PlatformConnection.platform == "NAVER",
             PlatformConnection.is_active == True,  # noqa: E712
-        )
+        ).limit(1)
     )
     db_conn = result_db.scalar_one_or_none()
     db_available = bool(db_conn and db_conn.access_token and db_conn.account_id)

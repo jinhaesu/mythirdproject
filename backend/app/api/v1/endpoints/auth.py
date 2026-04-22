@@ -30,6 +30,27 @@ async def get_shared_meta_credentials(db: AsyncSession):
     return result.scalar_one_or_none()
 
 
+async def get_shared_cafe24_user(db: AsyncSession) -> Optional[User]:
+    """전체 계정에서 공유하는 Cafe24 인증된 User 반환 (최초 1회 연결로 전체 공유)."""
+    result = await db.execute(
+        select(User).where(
+            User.cafe24_access_token.isnot(None),
+            User.cafe24_access_token != "",
+        ).limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+async def get_shared_naver_user(db: AsyncSession) -> Optional[User]:
+    """전체 계정에서 공유하는 Naver 인증된 User 반환."""
+    result = await db.execute(
+        select(User).where(
+            (User.naver_search_ads_connected == True) | (User.naver_gfa_connected == True)  # noqa: E712
+        ).limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
 async def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],
     db: AsyncSession = Depends(get_db)

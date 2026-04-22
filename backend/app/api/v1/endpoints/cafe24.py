@@ -7,11 +7,21 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.endpoints.auth import get_current_user
+from app.api.v1.endpoints.auth import get_current_user, get_shared_cafe24_user
 from app.core.config import get_settings
 from app.db.database import get_db
 from app.models.user import User
 import app.services.cafe24 as cafe24_svc
+
+
+async def _resolve_cafe24_user(current_user: User, db: AsyncSession) -> User:
+    """현재 유저가 Cafe24 토큰 없으면 공유 유저 반환. 둘 다 없으면 400."""
+    if current_user.cafe24_access_token:
+        return current_user
+    shared = await get_shared_cafe24_user(db)
+    if shared:
+        return shared
+    raise HTTPException(status_code=400, detail="Cafe24 스토어 연결이 필요합니다.")
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -104,14 +114,17 @@ async def cafe24_auth_callback(
 @router.get("/status")
 async def cafe24_status(
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
-    """Cafe24 연결 상태 반환."""
-    connected = bool(current_user.cafe24_access_token)
+    """Cafe24 연결 상태 반환 (전체 계정 공유)."""
+    # 현재 유저 토큰 없으면 공유 유저 fallback
+    cafe24_user = current_user if current_user.cafe24_access_token else await get_shared_cafe24_user(db)
+    connected = bool(cafe24_user and cafe24_user.cafe24_access_token)
     return {
         "connected": connected,
-        "mall_id": current_user.cafe24_mall_id,
-        "scopes": current_user.cafe24_scopes,
-        "token_expires_at": current_user.cafe24_token_expires_at,
+        "mall_id": cafe24_user.cafe24_mall_id if cafe24_user else None,
+        "scopes": cafe24_user.cafe24_scopes if cafe24_user else None,
+        "token_expires_at": cafe24_user.cafe24_token_expires_at if cafe24_user else None,
     }
 
 
@@ -120,13 +133,16 @@ async def cafe24_disconnect(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Cafe24 연동 해제."""
-    current_user.cafe24_mall_id = None
-    current_user.cafe24_access_token = None
-    current_user.cafe24_refresh_token = None
-    current_user.cafe24_token_expires_at = None
-    current_user.cafe24_scopes = None
-    await db.commit()
+    """Cafe24 연동 해제 (공유 토큰 보유자의 토큰을 지움)."""
+    # 토큰 보유자가 공유 유저일 수 있으므로 실제 토큰 소유자 기준으로 제거
+    target = current_user if current_user.cafe24_access_token else await get_shared_cafe24_user(db)
+    if target:
+        target.cafe24_mall_id = None
+        target.cafe24_access_token = None
+        target.cafe24_refresh_token = None
+        target.cafe24_token_expires_at = None
+        target.cafe24_scopes = None
+        await db.commit()
     return {"success": True, "message": "Cafe24 연동이 해제되었습니다."}
 
 
@@ -138,13 +154,12 @@ async def cafe24_list_products(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Cafe24 상품 목록 조회 (기본: 공개+판매중)."""
-    if not current_user.cafe24_access_token:
-        raise HTTPException(status_code=400, detail="Cafe24 스토어 연결이 필요합니다.")
+    """Cafe24 상품 목록 조회 (전체 계정 공유, 기본: 공개+판매중)."""
+    shared_user = await _resolve_cafe24_user(current_user, db)
 
     try:
         products = await cafe24_svc.list_products(
-            current_user, db, q=q, limit=limit, include_hidden=include_hidden
+            shared_user, db, q=q, limit=limit, include_hidden=include_hidden
         )
     except Exception as e:
         logger.error(f"[Cafe24] list_products failed: {e}")
