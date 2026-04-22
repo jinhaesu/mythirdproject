@@ -45,24 +45,13 @@ def _build_referral_link_simple(
     code: str,
 ) -> str:
     """
-    파트너 포털용 레퍼럴 링크 빌드 (user 컨텍스트 없이).
-
-    Cafe24 상품 연결 여부와 캠페인 landing_url을 순서대로 확인한다.
+    파트너 포털용 레퍼럴 링크 — 관리자 쪽과 동일하게 백엔드 추적기 경유.
+    {BACKEND_URL}/r/{code} — 클릭 시 ReferralClick 기록 후 Cafe24로 302.
     """
     from app.core.config import get_settings as _gs
     _s = _gs()
-    if campaign and campaign.cafe24_product_no and _s.CAFE24_PUBLIC_DOMAIN:
-        domain = _s.CAFE24_PUBLIC_DOMAIN.replace("https://", "").replace("http://", "").rstrip("/")
-        url = f"https://{domain}/product/detail.html?product_no={campaign.cafe24_product_no}"
-        if campaign.cafe24_coupon_code:
-            url += f"&coupon={campaign.cafe24_coupon_code}"
-        url += f"&ref={code}"
-        return url
-    if campaign and campaign.landing_url:
-        sep = "&" if "?" in campaign.landing_url else "?"
-        return f"{campaign.landing_url}{sep}ref={code}"
-    fallback = f"https://{_s.CAFE24_PUBLIC_DOMAIN}" if _s.CAFE24_PUBLIC_DOMAIN else "https://nuldam.com"
-    return f"{fallback}?ref={code}"
+    backend = (_s.BACKEND_URL or "").rstrip("/")
+    return f"{backend}/r/{code}" if backend else f"/r/{code}"
 
 
 # ---------------------------------------------------------------------------
