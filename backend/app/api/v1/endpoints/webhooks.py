@@ -27,18 +27,26 @@ router = APIRouter()
 
 
 def _verify_hmac(raw: bytes, signature: str) -> bool:
-    """Cafe24 웹훅 HMAC-SHA256 서명 검증. 시크릿 미설정이면 거부."""
-    secret = settings.CAFE24_WEBHOOK_SECRET
-    if not secret:
-        # 보안상 시크릿 없이 통과시키지 않음 — 위조된 전환 방지
-        logger.error("[Webhook] CAFE24_WEBHOOK_SECRET 미설정 — 웹훅 거부")
-        return False
+    """
+    Cafe24 웹훅 HMAC-SHA256 서명 검증.
+    Cafe24는 앱의 Client Secret으로 서명. CAFE24_WEBHOOK_SECRET이 별도 설정돼 있으면 그걸 우선.
+    """
     if not signature:
         return False
-    computed = base64.b64encode(
-        hmac.new(secret.encode(), raw, hashlib.sha256).digest()
-    ).decode()
-    return hmac.compare_digest(computed, signature)
+    # 우선순위: CAFE24_WEBHOOK_SECRET (명시적 override) → CAFE24_CLIENT_SECRET (Cafe24 기본)
+    candidates = [
+        settings.CAFE24_WEBHOOK_SECRET,
+        settings.CAFE24_CLIENT_SECRET,
+    ]
+    for secret in candidates:
+        if not secret:
+            continue
+        computed = base64.b64encode(
+            hmac.new(secret.encode(), raw, hashlib.sha256).digest()
+        ).decode()
+        if hmac.compare_digest(computed, signature):
+            return True
+    return False
 
 
 def _extract_ref_code(text: str) -> str | None:
@@ -49,45 +57,80 @@ def _extract_ref_code(text: str) -> str | None:
     return m.group(1) if m else None
 
 
+@router.get("/cafe24/orders")
+async def cafe24_order_webhook_health():
+    """GET 응답 — Cafe24의 endpoint 존재 확인용."""
+    return {"status": "ok", "endpoint": "cafe24_order_webhook"}
+
+
 @router.post("/cafe24/orders")
 async def cafe24_order_webhook(request: Request):
     """
-    Cafe24 주문 완료 웹훅.
+    Cafe24 주문 웹훅.
 
-    헤더 X-Cafe24-Hmac-Sha256 검증 후 쿠폰 코드로 파트너/캠페인 매칭,
-    커미션을 ReferralConversion에 기록합니다.
+    HMAC 서명 검증 후 쿠폰/ref 코드로 매칭해 ReferralConversion에 기록.
+    서명 실패 시 Cafe24 test 버튼 케이스는 200으로 수용(DB 업데이트 없음) —
+    실제 운영 데이터는 서명 검증된 요청만 기록.
     """
     raw = await request.body()
     signature = request.headers.get("X-Cafe24-Hmac-Sha256", "")
-
-    if not _verify_hmac(raw, signature):
-        raise HTTPException(status_code=401, detail="HMAC 서명 불일치")
+    hmac_ok = _verify_hmac(raw, signature)
 
     try:
-        data = json.loads(raw)
+        data = json.loads(raw) if raw else {}
     except Exception:
         raise HTTPException(status_code=400, detail="JSON 파싱 실패")
+
+    # 테스트 샘플 식별 (Cafe24 test button 전송 payload)
+    resource_pre = data.get("resource", {}) if isinstance(data, dict) else {}
+    is_sample = (
+        resource_pre.get("mall_id") in ("cafe24bestshop", None, "")
+        or resource_pre.get("order_id") in ("20200716-0000023", None, "")
+    )
+
+    if not hmac_ok:
+        if is_sample:
+            logger.info(
+                f"[Webhook] test 샘플 수신 (HMAC 미일치) — 200 응답, DB 기록 생략. "
+                f"order={resource_pre.get('order_id')} event_code={resource_pre.get('event_code')}"
+            )
+            return {"status": "test_accepted", "hmac_verified": False}
+        logger.warning(
+            f"[Webhook] HMAC 서명 불일치 — sig_len={len(signature)} body_len={len(raw)}"
+        )
+        raise HTTPException(status_code=401, detail="HMAC 서명 불일치")
 
     resource = data.get("resource", {})
     order_id = resource.get("order_id")
     mall_id = resource.get("mall_id")
     used_coupons = resource.get("coupons") or resource.get("order_coupons") or []
     total_price = float(
-        resource.get("order_price_amount") or resource.get("payment_amount") or 0
+        resource.get("order_price_amount") or resource.get("payment_amount")
+        or resource.get("actual_payment_amount") or 0
     )
     buyer_id = resource.get("buyer_id") or resource.get("member_id")
-    order_memo = resource.get("order_memo") or ""
-    landing_url_in_payload = resource.get("landing_url") or ""
+    order_memo = (
+        resource.get("order_memo")
+        or resource.get("shipping_message")
+        or ""
+    )
+    landing_url_in_payload = (
+        resource.get("landing_url")
+        or resource.get("order_place_name")
+        or ""
+    )
 
     # ── 이벤트 타입 판별 (환불/취소 vs 신규 주문) ────────────────────────────
-    event_code = str(data.get("event_no") or resource.get("event_no") or "").lower()
+    # Cafe24 실제 payload: resource.event_code = "refund_order" / "cancel_order" 등
+    event_no = str(data.get("event_no") or resource.get("event_no") or "").lower()
+    event_code_field = str(resource.get("event_code") or data.get("event_code") or "").lower()
     resource_name = str(data.get("resource_name") or resource.get("resource_name") or "").lower()
     topic = str(data.get("topic") or "").lower()
 
-    event_blob = f"{event_code} {resource_name} {topic}"
+    event_blob = f"{event_no} {event_code_field} {resource_name} {topic}"
     # 단어 경계 매칭 — "cancellation_rules" 같은 단어 일부만 매칭되는 오판 방지
-    is_refund = bool(re.search(r"\brefund(ed|s)?\b", event_blob))
-    is_cancel = bool(re.search(r"\bcancel(led|ed|lation)?\b", event_blob))
+    is_refund = bool(re.search(r"\brefund(ed|s)?\b|\brefund_", event_blob))
+    is_cancel = bool(re.search(r"\bcancel(led|ed|lation)?\b|\bcancel_", event_blob))
 
     # payload 내부 상태값 추가 heuristic
     refund_status = str(resource.get("refund_status") or "").lower()
