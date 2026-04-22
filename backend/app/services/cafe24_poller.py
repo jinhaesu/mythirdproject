@@ -61,18 +61,34 @@ async def _process_order(db, order: dict) -> dict:
     order_status = str(order.get("order_status") or "").upper()
     cancel_date = order.get("cancel_date")
     refund_amount = float(order.get("refund_amount") or 0)
-    # 주문 금액 우선순위: initial_order_amount(최초 주문액, 취소 후에도 보존) →
-    # order_price_amount → payment_amount → actual_payment_amount (cancelled 후 0일 수 있음)
+    # Cafe24 orders API:
+    # - initial_order_amount는 중첩 객체: {order_price_amount, payment_amount, ...}
+    #   initial_order_amount.payment_amount = 최초 결제 금액 (취소 후에도 보존)
+    # - top-level payment_amount / actual_payment_amount는 취소 시 0이 됨
     def _f(v) -> float:
         try:
             return float(v) if v is not None else 0.0
         except (TypeError, ValueError):
             return 0.0
+
+    initial_obj = order.get("initial_order_amount") or {}
+    actual_obj = order.get("actual_order_amount") or {}
+    # dict인 경우 내부 필드 추출, 과거 flat 필드 케이스는 0
+    if isinstance(initial_obj, dict):
+        initial_payment = _f(initial_obj.get("payment_amount")) or _f(initial_obj.get("order_price_amount"))
+    else:
+        initial_payment = _f(initial_obj)
+    if isinstance(actual_obj, dict):
+        actual_now = _f(actual_obj.get("payment_amount")) or _f(actual_obj.get("order_price_amount"))
+    else:
+        actual_now = _f(actual_obj)
+
     actual_payment = (
-        _f(order.get("initial_order_amount"))
-        or _f(order.get("order_price_amount"))
+        initial_payment
+        or actual_now
         or _f(order.get("payment_amount"))
         or _f(order.get("actual_payment_amount"))
+        or _f(order.get("order_price_amount"))
         or 0.0
     )
     paid_flag = str(order.get("paid") or "").upper() == "T"
