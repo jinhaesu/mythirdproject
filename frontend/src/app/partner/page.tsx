@@ -242,6 +242,21 @@ function CampaignCard({ campaign }: { campaign: PartnerCampaign }) {
           <p className="text-sm font-bold text-yellow-400">{fmtKRW(campaign.commission)}</p>
         </div>
       </div>
+      {/* 환불/취소 표시 — 데이터 있을 때만 */}
+      {((campaign.refunded_count || 0) > 0 || (campaign.cancelled_count || 0) > 0) && (
+        <div className="mt-2 flex items-center gap-3 flex-wrap text-[11px] border-t border-white/5 pt-2">
+          {(campaign.refunded_count || 0) > 0 && (
+            <span className="text-red-400">
+              환불 {fmtNum(campaign.refunded_count || 0)}건 · {fmtKRW(campaign.refunded_amount || 0)}
+            </span>
+          )}
+          {(campaign.cancelled_count || 0) > 0 && (
+            <span className="text-orange-400">
+              취소 {fmtNum(campaign.cancelled_count || 0)}건 · {fmtKRW(campaign.cancelled_amount || 0)}
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -324,6 +339,32 @@ function DashboardView({ partner, onLogout }: { partner: PartnerInfo; onLogout: 
       ]
     : [];
 
+  const refundCancelItems: KpiCardProps[] = dashboard
+    ? [
+        {
+          icon: <DollarSign size={16} />,
+          label: '환불 건수',
+          value: `${fmtNum(dashboard.refunded_count || 0)}건`,
+          sub: dashboard.refunded_amount ? fmtKRW(dashboard.refunded_amount) : '₩0',
+          accent: (dashboard.refunded_count || 0) > 0 ? 'red' : 'default',
+        },
+        {
+          icon: <DollarSign size={16} />,
+          label: '취소 건수',
+          value: `${fmtNum(dashboard.cancelled_count || 0)}건`,
+          sub: dashboard.cancelled_amount ? fmtKRW(dashboard.cancelled_amount) : '₩0',
+          accent: (dashboard.cancelled_count || 0) > 0 ? 'yellow' : 'default',
+        },
+        {
+          icon: <Coins size={16} />,
+          label: '차감 합계',
+          value: fmtKRW((dashboard.refunded_amount || 0) + (dashboard.cancelled_amount || 0)),
+          sub: '환불 + 취소',
+          accent: 'default',
+        },
+      ]
+    : [];
+
   return (
     <div className="min-h-screen bg-[#08090A]">
       {/* 헤더 */}
@@ -370,6 +411,20 @@ function DashboardView({ partner, onLogout }: { partner: PartnerInfo; onLogout: 
             </div>
           )}
         </section>
+
+        {/* 환불·취소 현황 */}
+        {dashboard && ((dashboard.refunded_count || 0) > 0 || (dashboard.cancelled_count || 0) > 0) && (
+          <section>
+            <h2 className="text-sm font-semibold text-[#8A8F98] uppercase tracking-wider mb-4">
+              환불 · 취소 현황
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {refundCancelItems.map((item, i) => (
+                <KpiCard key={i} {...item} />
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* 캠페인 & 링크 */}
         <section>

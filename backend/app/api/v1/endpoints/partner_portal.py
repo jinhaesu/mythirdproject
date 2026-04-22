@@ -117,21 +117,41 @@ async def get_partner_dashboard(
     )
     total_clicks = clicks_result.scalar() or 0
 
-    # 전환 / 매출 / 커미션 (status='paid' 순매출만)
-    conv_result = await db.execute(
+    # status별 집계 (paid/refunded/cancelled 분리)
+    status_result = await db.execute(
         select(
+            ReferralConversion.status,
             func.count(ReferralConversion.id),
             func.coalesce(func.sum(ReferralConversion.order_amount), 0),
             func.coalesce(func.sum(ReferralConversion.commission_amount), 0),
         ).where(
             ReferralConversion.partner_id == partner_id,
-            ReferralConversion.status == "paid",
-        )
+        ).group_by(ReferralConversion.status)
     )
-    conv_row = conv_result.one()
-    total_conversions = conv_row[0] or 0
-    total_sales = float(conv_row[1])
-    total_commission = float(conv_row[2])
+    total_conversions = 0
+    total_sales = 0.0
+    total_commission = 0.0
+    refunded_count = 0
+    refunded_amount = 0.0
+    cancelled_count = 0
+    cancelled_amount = 0.0
+    for row in status_result.all():
+        st = row[0] or "paid"
+        cnt = int(row[1])
+        amt = float(row[2])
+        comm = float(row[3])
+        if st == "paid":
+            total_conversions = cnt
+            total_sales = amt
+            total_commission = comm
+        elif st == "refunded":
+            refunded_count = cnt
+            refunded_amount = amt
+        elif st == "cancelled":
+            cancelled_count = cnt
+            cancelled_amount = amt
+
+    gross_sales = total_sales + refunded_amount + cancelled_amount
 
     # 전환율 / 객단가
     conversion_rate = round((total_conversions / total_clicks * 100), 2) if total_clicks > 0 else 0.0
@@ -157,6 +177,11 @@ async def get_partner_dashboard(
         "total_commission": total_commission,
         "unpaid_commission": unpaid_commission,
         "paid_commission": paid_commission,
+        "refunded_count": refunded_count,
+        "refunded_amount": refunded_amount,
+        "cancelled_count": cancelled_count,
+        "cancelled_amount": cancelled_amount,
+        "gross_sales": gross_sales,
     }
 
 
@@ -207,19 +232,36 @@ async def get_partner_campaigns(
         )
         clicks = clicks_result.scalar() or 0
 
-        # 전환 / 매출 / 커미션 (status='paid' 순매출만)
-        conv_result = await db.execute(
+        # 캠페인별 status 집계
+        stat_r = await db.execute(
             select(
+                ReferralConversion.status,
                 func.count(ReferralConversion.id),
                 func.coalesce(func.sum(ReferralConversion.order_amount), 0),
                 func.coalesce(func.sum(ReferralConversion.commission_amount), 0),
             ).where(
                 ReferralConversion.partner_id == partner_id,
                 ReferralConversion.campaign_id == pc.campaign_id,
-                ReferralConversion.status == "paid",
-            )
+            ).group_by(ReferralConversion.status)
         )
-        conv_row = conv_result.one()
+        paid_cnt = 0
+        paid_amt = 0.0
+        paid_comm = 0.0
+        ref_cnt = 0
+        ref_amt = 0.0
+        can_cnt = 0
+        can_amt = 0.0
+        for row in stat_r.all():
+            st = row[0] or "paid"
+            cnt_v = int(row[1])
+            amt_v = float(row[2])
+            comm_v = float(row[3])
+            if st == "paid":
+                paid_cnt, paid_amt, paid_comm = cnt_v, amt_v, comm_v
+            elif st == "refunded":
+                ref_cnt, ref_amt = cnt_v, amt_v
+            elif st == "cancelled":
+                can_cnt, can_amt = cnt_v, amt_v
 
         # 레퍼럴 링크 — 항상 최신 캠페인 상태로 재계산
         fresh_link = (
@@ -235,9 +277,13 @@ async def get_partner_campaigns(
             "product_image": campaign.cafe24_product_image if campaign else None,
             "referral_link": fresh_link,
             "clicks": clicks,
-            "conversions": conv_row[0] or 0,
-            "sales": float(conv_row[1]),
-            "commission": float(conv_row[2]),
+            "conversions": paid_cnt,
+            "sales": paid_amt,
+            "commission": paid_comm,
+            "refunded_count": ref_cnt,
+            "refunded_amount": ref_amt,
+            "cancelled_count": can_cnt,
+            "cancelled_amount": can_amt,
             "commission_type": campaign.commission_type if campaign else "",
             "commission_rate": campaign.commission_rate if campaign else 0.0,
         })

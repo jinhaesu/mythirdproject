@@ -29,6 +29,11 @@ export interface PartnerDashboard {
   total_commission: number;
   unpaid_commission: number;
   paid_commission: number;
+  refunded_count?: number;
+  refunded_amount?: number;
+  cancelled_count?: number;
+  cancelled_amount?: number;
+  gross_sales?: number;
 }
 
 export interface PartnerCampaign {
@@ -43,6 +48,10 @@ export interface PartnerCampaign {
   commission: number;
   commission_type: 'percentage' | 'fixed';
   commission_rate: number;
+  refunded_count?: number;
+  refunded_amount?: number;
+  cancelled_count?: number;
+  cancelled_amount?: number;
 }
 
 // ─── Axios instance ───────────────────────────────────────────────────────────

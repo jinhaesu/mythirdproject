@@ -24,6 +24,7 @@ import {
   LineChart,
   Line,
   LabelList,
+  ComposedChart,
 } from 'recharts';
 import { affiliateApi, cafe24Api, formatCurrency } from '@/lib/api';
 import type { AffiliatePartner, AffiliateTimeseriesPoint, AffiliateByCampaign, AffiliateChannelKey, HourlyConversion, TopProduct } from '@/lib/api';
@@ -882,7 +883,7 @@ function DashboardSection() {
         </h3>
         {tsLoading ? <ChartLoader /> : timeseries.length === 0 ? <ChartEmpty /> : (
           <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={timeseries} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+            <ComposedChart data={timeseries} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="gradRevenue" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.3} />
@@ -976,7 +977,7 @@ function DashboardSection() {
                 strokeDasharray="4 3"
                 dot={false}
               />
-            </AreaChart>
+            </ComposedChart>
           </ResponsiveContainer>
         )}
       </div>
