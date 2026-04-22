@@ -63,6 +63,39 @@ async def cafe24_order_webhook_health():
     return {"status": "ok", "endpoint": "cafe24_order_webhook"}
 
 
+@router.api_route("/debug/{full_path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+async def webhook_debug_catchall(full_path: str, request: Request):
+    """
+    디버그용: /webhooks/debug/{anything} 로 들어오는 모든 요청을 로그.
+    Cafe24가 혹시 다른 경로로 쏘는지 추적용.
+    """
+    body = await request.body()
+    headers = {k: v for k, v in request.headers.items() if k.lower().startswith(("x-", "content-", "user-"))}
+    logger.info(
+        f"[Webhook DEBUG] {request.method} /webhooks/debug/{full_path} "
+        f"headers={headers} body={body[:500]!r}"
+    )
+    return {"status": "logged", "path": full_path, "method": request.method}
+
+
+@router.api_route("/cafe24/{full_path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+async def cafe24_catchall(full_path: str, request: Request):
+    """
+    Cafe24 네임스페이스 catch-all — /webhooks/cafe24/orders 외의 경로로 쏘는 경우 포착.
+    """
+    if full_path == "orders" and request.method in ("GET", "POST"):
+        # 정식 핸들러로 위임 방지 — 이 함수는 정식 경로가 아닌 경우만 처리
+        # FastAPI는 구체적 경로가 우선하므로 여기 안 들어옴
+        pass
+    body = await request.body()
+    headers = {k: v for k, v in request.headers.items() if k.lower().startswith(("x-", "content-", "user-"))}
+    logger.warning(
+        f"[Webhook CATCHALL] {request.method} /webhooks/cafe24/{full_path} "
+        f"headers={headers} body_len={len(body)} body_preview={body[:300]!r}"
+    )
+    return {"status": "caught", "method": request.method, "path": full_path}
+
+
 @router.post("/cafe24/orders")
 async def cafe24_order_webhook(request: Request):
     """
