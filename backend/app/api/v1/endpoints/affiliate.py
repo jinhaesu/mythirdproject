@@ -254,9 +254,48 @@ async def list_campaigns(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """List all campaigns (전체 관리자 계정 공유)."""
+    """List all campaigns (전체 관리자 계정 공유) + 캠페인별 집계 포함."""
     result = await db.execute(select(AffiliateCampaign))
-    return [_campaign_to_dict(c, current_user) for c in result.scalars().all()]
+    campaigns = result.scalars().all()
+    response = []
+    for c in campaigns:
+        d = _campaign_to_dict(c, current_user)
+        # 집계: 파트너 수, 클릭, 전환, 매출, 커미션
+        pc_count_r = await db.execute(
+            select(func.count(func.distinct(PartnerCampaign.partner_id))).where(
+                PartnerCampaign.campaign_id == c.id
+            )
+        )
+        legacy_count_r = await db.execute(
+            select(func.count(AffiliatePartner.id)).where(
+                AffiliatePartner.campaign_id == c.id,
+                AffiliatePartner.deleted_at.is_(None),
+            )
+        )
+        click_count_r = await db.execute(
+            select(func.count(ReferralClick.id)).where(ReferralClick.campaign_id == c.id)
+        )
+        conv_r = await db.execute(
+            select(
+                func.count(ReferralConversion.id),
+                func.coalesce(func.sum(ReferralConversion.order_amount), 0),
+                func.coalesce(func.sum(ReferralConversion.commission_amount), 0),
+            ).where(
+                ReferralConversion.campaign_id == c.id,
+                ReferralConversion.status == "paid",
+            )
+        )
+        conv_row = conv_r.one()
+        clicks = click_count_r.scalar() or 0
+        conversions = conv_row[0] or 0
+        d["partner_count"] = (pc_count_r.scalar() or 0) + (legacy_count_r.scalar() or 0)
+        d["click_count"] = clicks
+        d["conversion_count"] = conversions
+        d["total_sales"] = float(conv_row[1])
+        d["total_commission"] = float(conv_row[2])
+        d["conversion_rate"] = round((conversions / clicks * 100) if clicks > 0 else 0.0, 2)
+        response.append(d)
+    return response
 
 
 @router.get("/campaigns/{campaign_id}")
@@ -567,7 +606,7 @@ async def list_partners(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """List partners (전체 관리자 공유, excludes trashed), optionally filtered by campaign or status."""
+    """List partners + 파트너별 집계 필드 포함."""
     query = select(AffiliatePartner).where(AffiliatePartner.deleted_at.is_(None))
     if campaign_id is not None:
         query = query.where(AffiliatePartner.campaign_id == campaign_id)
@@ -575,7 +614,43 @@ async def list_partners(
         query = query.where(AffiliatePartner.status == status)
 
     result = await db.execute(query)
-    return [_partner_to_dict(p) for p in result.scalars().all()]
+    partners = result.scalars().all()
+
+    response = []
+    for p in partners:
+        d = _partner_to_dict(p)
+        click_r = await db.execute(
+            select(func.count(ReferralClick.id)).where(ReferralClick.partner_id == p.id)
+        )
+        conv_r = await db.execute(
+            select(
+                func.count(ReferralConversion.id),
+                func.coalesce(func.sum(ReferralConversion.order_amount), 0),
+                func.coalesce(func.sum(ReferralConversion.commission_amount), 0),
+            ).where(
+                ReferralConversion.partner_id == p.id,
+                ReferralConversion.status == "paid",
+            )
+        )
+        conv_row = conv_r.one()
+        settle_r = await db.execute(
+            select(func.coalesce(func.sum(AffiliateSettlement.amount), 0)).where(
+                AffiliateSettlement.partner_id == p.id,
+                AffiliateSettlement.status == "paid",
+            )
+        )
+        clicks = click_r.scalar() or 0
+        conversions = conv_row[0] or 0
+        total_commission = float(conv_row[2])
+        paid_settlement = float(settle_r.scalar() or 0)
+        d["click_count"] = clicks
+        d["conversion_count"] = conversions
+        d["total_sales"] = float(conv_row[1])
+        d["total_commission"] = total_commission
+        d["unpaid_commission"] = max(0.0, total_commission - paid_settlement)
+        d["conversion_rate"] = round((conversions / clicks * 100) if clicks > 0 else 0.0, 2)
+        response.append(d)
+    return response
 
 
 @router.put("/partners/{partner_id}")
