@@ -281,3 +281,48 @@ async def manual_poll_cafe24(lookback_hours: int = 24):
     from app.services.cafe24_poller import poll_cafe24_orders
     result = await poll_cafe24_orders(lookback_hours=lookback_hours)
     return result
+
+
+@app.post("/api/v1/affiliate/cleanup-conversions")
+async def cleanup_unattributable_conversions(hours: int = 24):
+    """
+    최근 N시간 내 생성된 ReferralConversion 중 ref/쿠폰으로 매칭 안 된 것을 정리.
+    "전역 최근 클릭 fallback"으로 잘못 귀속된 비어필리에이트 주문 제거용.
+    """
+    from datetime import timedelta as _td
+    from sqlalchemy import delete as _delete, select as _select
+    from app.db.database import AsyncSessionLocal as _S
+    from app.models.affiliate import ReferralConversion, AffiliateCampaign
+
+    since = datetime.utcnow() - _td(hours=hours)
+    async with _S() as db:
+        # 최근 생성된 conversion 조회
+        rows_r = await db.execute(
+            _select(ReferralConversion).where(ReferralConversion.converted_at >= since)
+        )
+        rows = rows_r.scalars().all()
+
+        deleted = 0
+        kept = 0
+        details = []
+        for c in rows:
+            # 쿠폰 있는 캠페인의 conversion은 유지 (강한 신호)
+            if c.campaign_id:
+                cr = await db.execute(
+                    _select(AffiliateCampaign).where(AffiliateCampaign.id == c.campaign_id)
+                )
+                camp = cr.scalar_one_or_none()
+                if camp and camp.cafe24_coupon_code:
+                    # 쿠폰 매칭 기반 conversion은 유지
+                    kept += 1
+                    continue
+            # 쿠폰 없는 캠페인의 conversion은 삭제 (전역 fallback으로 귀속됐을 가능성)
+            details.append({
+                "id": c.id, "order_id": c.cafe24_order_id,
+                "partner_id": c.partner_id, "campaign_id": c.campaign_id,
+                "order_amount": c.order_amount,
+            })
+            await db.delete(c)
+            deleted += 1
+        await db.commit()
+        return {"deleted": deleted, "kept": kept, "details": details}

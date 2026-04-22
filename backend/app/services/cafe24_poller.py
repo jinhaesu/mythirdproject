@@ -140,33 +140,15 @@ async def _process_order(db, order: dict) -> dict:
             if campaign:
                 break
 
-    # 3) 전역 최근 클릭 fallback (2시간 내)
     click_id = None
-    if not campaign and not partner:
-        since_recent = datetime.utcnow() - timedelta(hours=2)
-        click_r = await db.execute(
-            select(ReferralClick)
-            .where(ReferralClick.clicked_at >= since_recent)
-            .order_by(ReferralClick.clicked_at.desc())
-            .limit(1)
-        )
-        rc = click_r.scalar_one_or_none()
-        if rc:
-            click_id = rc.id
-            p_r = await db.execute(
-                select(AffiliatePartner).where(AffiliatePartner.id == rc.partner_id)
-            )
-            partner = p_r.scalar_one_or_none()
-            if rc.campaign_id:
-                c_r = await db.execute(
-                    select(AffiliateCampaign).where(AffiliateCampaign.id == rc.campaign_id)
-                )
-                campaign = c_r.scalar_one_or_none()
 
+    # 엄격 매칭: ref 또는 쿠폰으로 명확히 매칭된 경우만 attribution.
+    # "최근 클릭" fallback은 어필리에이트 아닌 주문까지 귀속시키는 부작용이 있어 제거.
     if not campaign and not partner:
-        return {"status": "no_match", "order_id": order_id}
+        return {"status": "no_match_strict", "order_id": order_id}
 
-    # 파트너 보완: 같은 캠페인 최근 클릭
+    # 쿠폰으로 캠페인만 매칭된 경우: 같은 캠페인의 최근 클릭으로 파트너 보완
+    # (쿠폰 코드를 쓴 고객은 해당 링크로 유입됐을 가능성이 매우 높음)
     if not partner and campaign:
         since_recent = datetime.utcnow() - timedelta(days=7)
         click_r = await db.execute(

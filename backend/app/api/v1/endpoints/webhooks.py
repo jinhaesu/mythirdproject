@@ -283,33 +283,8 @@ async def cafe24_order_webhook(request: Request):
                 if campaign:
                     break
 
-        # 쿠폰/ref 없으면 "최근 클릭 전역 fallback" — 쿠폰 미사용 정책 대응
-        # 최근 2시간 내 클릭이 있으면 그 파트너/캠페인으로 귀속
-        if not campaign and not partner:
-            since_recent = datetime.utcnow() - timedelta(hours=2)
-            recent_click_r = await db.execute(
-                select(ReferralClick)
-                .where(ReferralClick.clicked_at >= since_recent)
-                .order_by(ReferralClick.clicked_at.desc())
-                .limit(1)
-            )
-            recent_click = recent_click_r.scalar_one_or_none()
-            if recent_click:
-                click_id = recent_click.id
-                p_result = await db.execute(
-                    select(AffiliatePartner).where(AffiliatePartner.id == recent_click.partner_id)
-                )
-                partner = p_result.scalar_one_or_none()
-                if recent_click.campaign_id:
-                    camp_result = await db.execute(
-                        select(AffiliateCampaign).where(AffiliateCampaign.id == recent_click.campaign_id)
-                    )
-                    campaign = camp_result.scalar_one_or_none()
-                logger.info(
-                    f"[Webhook] order={order_id} — 전역 최근 클릭 fallback: "
-                    f"click={click_id} partner={recent_click.partner_id} campaign={recent_click.campaign_id}"
-                )
-
+        # 엄격 매칭: ref 또는 쿠폰으로 명확히 매칭된 경우만 attribution.
+        # "전역 최근 클릭" fallback은 어필리에이트와 무관한 주문까지 귀속시키므로 제거.
         if not campaign and not partner:
             logger.info(
                 f"[Webhook] order={order_id} — 매칭 없음 (coupons={coupon_codes}, ref={ref_code})"
