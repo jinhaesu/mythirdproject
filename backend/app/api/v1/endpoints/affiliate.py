@@ -257,13 +257,20 @@ async def list_campaigns(
     """List all campaigns (전체 관리자 계정 공유) + 캠페인별 집계 포함."""
     result = await db.execute(select(AffiliateCampaign))
     campaigns = result.scalars().all()
+
+    # 활성 파트너 ID 집합 (휴지통 제외) — 집계 시 필터
+    active_pids_r = await db.execute(
+        select(AffiliatePartner.id).where(AffiliatePartner.deleted_at.is_(None))
+    )
+    active_partner_ids = [row[0] for row in active_pids_r.all()]
+
     response = []
     for c in campaigns:
         d = _campaign_to_dict(c, current_user)
-        # 집계: 파트너 수, 클릭, 전환, 매출, 커미션
         pc_count_r = await db.execute(
             select(func.count(func.distinct(PartnerCampaign.partner_id))).where(
-                PartnerCampaign.campaign_id == c.id
+                PartnerCampaign.campaign_id == c.id,
+                PartnerCampaign.partner_id.in_(active_partner_ids) if active_partner_ids else False,
             )
         )
         legacy_count_r = await db.execute(
@@ -272,18 +279,23 @@ async def list_campaigns(
                 AffiliatePartner.deleted_at.is_(None),
             )
         )
+        click_conditions = [ReferralClick.campaign_id == c.id]
+        conv_conditions = [
+            ReferralConversion.campaign_id == c.id,
+            ReferralConversion.status == "paid",
+        ]
+        if active_partner_ids:
+            click_conditions.append(ReferralClick.partner_id.in_(active_partner_ids))
+            conv_conditions.append(ReferralConversion.partner_id.in_(active_partner_ids))
         click_count_r = await db.execute(
-            select(func.count(ReferralClick.id)).where(ReferralClick.campaign_id == c.id)
+            select(func.count(ReferralClick.id)).where(*click_conditions)
         )
         conv_r = await db.execute(
             select(
                 func.count(ReferralConversion.id),
                 func.coalesce(func.sum(ReferralConversion.order_amount), 0),
                 func.coalesce(func.sum(ReferralConversion.commission_amount), 0),
-            ).where(
-                ReferralConversion.campaign_id == c.id,
-                ReferralConversion.status == "paid",
-            )
+            ).where(*conv_conditions)
         )
         conv_row = conv_r.one()
         clicks = click_count_r.scalar() or 0
@@ -363,16 +375,12 @@ async def delete_campaign(
         .where(AffiliatePartner.campaign_id == campaign_id)
         .values(campaign_id=None)
     )
-    # 3) referral_clicks / referral_conversions 의 campaign_id 는 nullable → NULL 처리 (히스토리 유지)
+    # 3) 관련 클릭/전환 기록 완전 삭제 (대시보드 집계에서 제외되도록)
     await db.execute(
-        sa_update(ReferralClick)
-        .where(ReferralClick.campaign_id == campaign_id)
-        .values(campaign_id=None)
+        delete(ReferralClick).where(ReferralClick.campaign_id == campaign_id)
     )
     await db.execute(
-        sa_update(ReferralConversion)
-        .where(ReferralConversion.campaign_id == campaign_id)
-        .values(campaign_id=None)
+        delete(ReferralConversion).where(ReferralConversion.campaign_id == campaign_id)
     )
     await db.delete(campaign)
     await db.commit()
@@ -854,9 +862,9 @@ async def get_dashboard(
     )
     partners_by_status = {row[0]: row[1] for row in partners_result.all()}
 
-    # 전체 파트너 ID 목록 (과거 클릭/전환 히스토리 집계용)
+    # 활성 파트너 ID만 (휴지통 파트너 제외)
     partner_ids_result = await db.execute(
-        select(AffiliatePartner.id)
+        select(AffiliatePartner.id).where(AffiliatePartner.deleted_at.is_(None))
     )
     partner_ids = [row[0] for row in partner_ids_result.all()]
 
