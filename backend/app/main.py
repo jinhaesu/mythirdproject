@@ -290,13 +290,12 @@ async def cleanup_unattributable_conversions(hours: int = 24):
     "전역 최근 클릭 fallback"으로 잘못 귀속된 비어필리에이트 주문 제거용.
     """
     from datetime import timedelta as _td
-    from sqlalchemy import delete as _delete, select as _select
+    from sqlalchemy import select as _select
     from app.db.database import AsyncSessionLocal as _S
     from app.models.affiliate import ReferralConversion, AffiliateCampaign
 
     since = datetime.utcnow() - _td(hours=hours)
     async with _S() as db:
-        # 최근 생성된 conversion 조회
         rows_r = await db.execute(
             _select(ReferralConversion).where(ReferralConversion.converted_at >= since)
         )
@@ -306,17 +305,14 @@ async def cleanup_unattributable_conversions(hours: int = 24):
         kept = 0
         details = []
         for c in rows:
-            # 쿠폰 있는 캠페인의 conversion은 유지 (강한 신호)
             if c.campaign_id:
                 cr = await db.execute(
                     _select(AffiliateCampaign).where(AffiliateCampaign.id == c.campaign_id)
                 )
                 camp = cr.scalar_one_or_none()
                 if camp and camp.cafe24_coupon_code:
-                    # 쿠폰 매칭 기반 conversion은 유지
                     kept += 1
                     continue
-            # 쿠폰 없는 캠페인의 conversion은 삭제 (전역 fallback으로 귀속됐을 가능성)
             details.append({
                 "id": c.id, "order_id": c.cafe24_order_id,
                 "partner_id": c.partner_id, "campaign_id": c.campaign_id,
@@ -326,3 +322,39 @@ async def cleanup_unattributable_conversions(hours: int = 24):
             deleted += 1
         await db.commit()
         return {"deleted": deleted, "kept": kept, "details": details}
+
+
+@app.post("/api/v1/affiliate/conversions/purge-by-campaign")
+async def purge_conversions_by_campaign(campaign_id: int):
+    """특정 캠페인의 ReferralConversion을 전부 삭제. 잘못 귀속된 과거 데이터 초기화용."""
+    from sqlalchemy import delete as _delete, select as _select, func as _func
+    from app.db.database import AsyncSessionLocal as _S
+    from app.models.affiliate import ReferralConversion
+
+    async with _S() as db:
+        count_r = await db.execute(
+            _select(_func.count(ReferralConversion.id)).where(
+                ReferralConversion.campaign_id == campaign_id
+            )
+        )
+        count = count_r.scalar() or 0
+        await db.execute(
+            _delete(ReferralConversion).where(ReferralConversion.campaign_id == campaign_id)
+        )
+        await db.commit()
+        return {"campaign_id": campaign_id, "deleted": count}
+
+
+@app.post("/api/v1/affiliate/conversions/purge-all")
+async def purge_all_conversions():
+    """모든 ReferralConversion 삭제. nuclear 옵션 — 폴링이 다음 주기에 재구축."""
+    from sqlalchemy import delete as _delete, select as _select, func as _func
+    from app.db.database import AsyncSessionLocal as _S
+    from app.models.affiliate import ReferralConversion
+
+    async with _S() as db:
+        count_r = await db.execute(_select(_func.count(ReferralConversion.id)))
+        count = count_r.scalar() or 0
+        await db.execute(_delete(ReferralConversion))
+        await db.commit()
+        return {"deleted": count, "message": "모든 전환 기록 초기화. 폴링이 재구축."}
