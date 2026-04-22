@@ -251,7 +251,7 @@ async def create_coupon(
         "benefit_type": benefit_type,
         "issue_type": "M",
         "issued_member_scope": "A",
-        "available_site": "A",  # A=전체(웹+모바일), W=웹, M=모바일
+        "available_site": ["W", "M"],  # 배열 필수. W=웹, M=모바일 둘 다
         "available_period_type": "F",
         "available_begin_datetime": begin,
         "available_end_datetime": end,
