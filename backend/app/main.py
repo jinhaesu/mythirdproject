@@ -344,6 +344,26 @@ async def purge_conversions_by_campaign(campaign_id: int):
         return {"campaign_id": campaign_id, "deleted": count}
 
 
+@app.get("/api/v1/affiliate/debug/cafe24-order")
+async def debug_cafe24_order(order_id: str):
+    """특정 Cafe24 주문 raw payload 조회 (디버그용)."""
+    from app.db.database import AsyncSessionLocal as _S
+    from app.api.v1.endpoints.auth import get_shared_cafe24_user
+    from app.services import cafe24 as cafe24_svc
+    async with _S() as db:
+        user = await get_shared_cafe24_user(db)
+        if not user:
+            return {"error": "no_cafe24_user"}
+        try:
+            data = await cafe24_svc.api_request(
+                user, db, "GET", f"/api/v2/admin/orders/{order_id}",
+                params={"embed": "items,coupons"},
+            )
+            return data
+        except Exception as e:
+            return {"error": str(e)}
+
+
 @app.get("/api/v1/affiliate/debug/conversions")
 async def debug_list_conversions():
     """모든 ReferralConversion 조회 (디버그용, 인증 없음)."""
