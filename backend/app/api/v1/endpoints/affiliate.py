@@ -1713,12 +1713,21 @@ async def remove_partner_campaign(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """파트너-캠페인 연결 해제 (전체 관리자 공유)."""
+    """파트너-캠페인 연결 해제. pc_id=-1은 legacy campaign_id 처리."""
     p_result = await db.execute(
         select(AffiliatePartner).where(AffiliatePartner.id == partner_id)
     )
-    if not p_result.scalar_one_or_none():
+    partner = p_result.scalar_one_or_none()
+    if not partner:
         raise HTTPException(status_code=404, detail="Partner not found")
+
+    # pc_id = -1 → 가상 행(legacy campaign_id) 제거: partner.campaign_id NULL 처리
+    if pc_id == -1:
+        if partner.campaign_id is None:
+            raise HTTPException(status_code=404, detail="legacy 캠페인 연결이 없습니다")
+        partner.campaign_id = None
+        await db.commit()
+        return
 
     pc_result = await db.execute(
         select(PartnerCampaign).where(
@@ -1729,6 +1738,10 @@ async def remove_partner_campaign(
     pc = pc_result.scalar_one_or_none()
     if not pc:
         raise HTTPException(status_code=404, detail="PartnerCampaign not found")
+
+    # legacy campaign_id가 동일하면 함께 NULL 처리 (중복 연결 방지)
+    if partner.campaign_id == pc.campaign_id:
+        partner.campaign_id = None
 
     await db.delete(pc)
     await db.commit()
