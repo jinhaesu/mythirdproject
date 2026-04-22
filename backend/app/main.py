@@ -344,6 +344,43 @@ async def purge_conversions_by_campaign(campaign_id: int):
         return {"campaign_id": campaign_id, "deleted": count}
 
 
+@app.get("/api/v1/affiliate/debug/conversions")
+async def debug_list_conversions():
+    """모든 ReferralConversion 조회 (디버그용, 인증 없음)."""
+    from sqlalchemy import select as _select, desc as _desc
+    from app.db.database import AsyncSessionLocal as _S
+    from app.models.affiliate import ReferralConversion, AffiliatePartner, AffiliateCampaign
+
+    async with _S() as db:
+        r = await db.execute(
+            _select(ReferralConversion).order_by(_desc(ReferralConversion.id)).limit(100)
+        )
+        rows = r.scalars().all()
+        result = []
+        for c in rows:
+            p_r = await db.execute(_select(AffiliatePartner).where(AffiliatePartner.id == c.partner_id))
+            p = p_r.scalar_one_or_none()
+            camp = None
+            if c.campaign_id:
+                c_r = await db.execute(_select(AffiliateCampaign).where(AffiliateCampaign.id == c.campaign_id))
+                camp = c_r.scalar_one_or_none()
+            result.append({
+                "id": c.id,
+                "cafe24_order_id": c.cafe24_order_id,
+                "status": c.status,
+                "order_amount": c.order_amount,
+                "refunded_amount": c.refunded_amount,
+                "commission_amount": c.commission_amount,
+                "partner_id": c.partner_id,
+                "partner_name": p.name if p else None,
+                "partner_deleted": p.deleted_at.isoformat() if p and p.deleted_at else None,
+                "campaign_id": c.campaign_id,
+                "campaign_name": camp.name if camp else None,
+                "converted_at": c.converted_at.isoformat() if c.converted_at else None,
+            })
+        return {"total": len(result), "conversions": result}
+
+
 @app.post("/api/v1/affiliate/conversions/purge-all")
 async def purge_all_conversions():
     """모든 ReferralConversion 삭제. nuclear 옵션 — 폴링이 다음 주기에 재구축."""
