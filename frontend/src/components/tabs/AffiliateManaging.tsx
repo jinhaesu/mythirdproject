@@ -1028,81 +1028,47 @@ function DashboardSection() {
               <p className="text-xs text-gray-500">데이터 없음</p>
             </div>
           ) : (
-            <ResponsiveContainer width="100%" height={Math.max(200, top10Campaigns.length * 32 + 24)}>
-              <BarChart
-                data={top10Campaigns.map((c, idx) => {
-                  const totalRevenue = top10Campaigns.reduce((sum, x) => sum + x.revenue, 0);
-                  const cr = c.clicks > 0 ? ((c.conversions / c.clicks) * 100).toFixed(1) : '0.0';
-                  return {
-                    ...c,
-                    rank: idx,
-                    name: c.campaign_name.length > 14 ? c.campaign_name.slice(0, 14) + '…' : c.campaign_name,
-                    label: `₩${fmt(c.revenue)} · ${c.conversions}건 · CR ${cr}%`,
-                    shareRatio: totalRevenue > 0 ? c.revenue / totalRevenue : 0,
-                  };
-                })}
-                layout="vertical"
-                margin={{ top: 0, right: 8, left: 0, bottom: 0 }}
-                onClick={(payload) => {
-                  if (payload && payload.activePayload && payload.activePayload[0]) {
-                    const item = payload.activePayload[0].payload as AffiliateByCampaign & { name: string };
-                    const el = document.getElementById(`campaign-card-${item.campaign_id}`);
-                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                  }
-                }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" horizontal={false} />
-                <XAxis
-                  type="number"
-                  dataKey="revenue"
-                  tick={{ fill: '#8A8F98', fontSize: 9 }}
-                  stroke="#8A8F98"
-                  tickFormatter={(v: number) => `₩${(v / 10000).toFixed(0)}만`}
-                />
-                <YAxis
-                  type="category"
-                  dataKey="name"
-                  width={90}
-                  tick={{ fill: '#d1d5db', fontSize: 10 }}
-                  stroke="transparent"
-                />
-                <Tooltip
-                  contentStyle={DARK_TOOLTIP_STYLE}
-                  formatter={(value: number, _name: string, props: { payload?: { conversions?: number; clicks?: number } }) => {
-                    const p = props.payload;
-                    const cr = p && p.clicks && p.clicks > 0 ? ((( p.conversions ?? 0) / p.clicks) * 100).toFixed(1) : '0.0';
-                    return [
-                      `${formatCurrency(value)} · 전환 ${p?.conversions ?? 0}건 · CR ${cr}%`,
-                      '매출',
-                    ];
-                  }}
-                  cursor={{ fill: 'rgba(255,255,255,0.04)' }}
-                />
-                <Bar
-                  dataKey="revenue"
-                  radius={[0, 3, 3, 0]}
-                  maxBarSize={22}
-                  isAnimationActive={true}
-                >
-                  {top10Campaigns.map((_, idx) => {
-                    // emerald 그라디언트: 순위가 낮을수록 옅어짐 (index 0이 가장 진함)
-                    const opacity = 1 - (idx / Math.max(top10Campaigns.length - 1, 1)) * 0.55;
-                    return (
-                      <Cell
-                        key={idx}
-                        fill={`rgba(16,185,129,${opacity})`}
-                        style={{ cursor: 'pointer' }}
+            <div className="space-y-2">
+              {top10Campaigns.map((c, idx) => {
+                const maxRevenue = Math.max(...top10Campaigns.map(x => x.revenue), 1);
+                const barRatio = (c.revenue / maxRevenue) * 100;
+                const cr = c.clicks > 0 ? ((c.conversions / c.clicks) * 100).toFixed(1) : '0.0';
+                const opacity = 1 - (idx / Math.max(top10Campaigns.length - 1, 1)) * 0.55;
+                return (
+                  <button
+                    type="button"
+                    key={c.campaign_id}
+                    onClick={() => {
+                      const el = document.getElementById(`campaign-card-${c.campaign_id}`);
+                      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }}
+                    className="group w-full text-left bg-[#141516] hover:bg-[#1a1d20] rounded-lg p-2.5 border border-[#2a2d35] hover:border-emerald-500/30 transition-all"
+                  >
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span className="text-[10px] font-bold text-gray-500 w-5 shrink-0">{idx + 1}.</span>
+                      <span className="text-xs font-medium text-white truncate flex-1" title={c.campaign_name}>
+                        {c.campaign_name}
+                      </span>
+                      <span className="text-[10px] text-emerald-400 font-semibold shrink-0">
+                        ₩{fmt(c.revenue)}
+                      </span>
+                    </div>
+                    <div className="relative h-1.5 bg-[#0f1011] rounded-full overflow-hidden">
+                      <div
+                        className="absolute inset-y-0 left-0 rounded-full transition-all"
+                        style={{ width: `${barRatio}%`, backgroundColor: `rgba(16,185,129,${opacity})` }}
                       />
-                    );
-                  })}
-                  <LabelList
-                    dataKey="label"
-                    position="insideRight"
-                    style={{ fill: 'rgba(255,255,255,0.85)', fontSize: 9, fontWeight: 500 }}
-                  />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+                    </div>
+                    <div className="flex items-center gap-3 mt-1 text-[10px] text-gray-500 flex-wrap">
+                      <span>전환 <span className="text-cyan-400 font-semibold">{c.conversions}건</span></span>
+                      <span>클릭 <span className="text-gray-300">{c.clicks}</span></span>
+                      <span>CR <span className="text-yellow-400">{cr}%</span></span>
+                      <span className="ml-auto text-gray-600">커미션 ₩{fmt(c.commission)}</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           )}
         </div>
 
