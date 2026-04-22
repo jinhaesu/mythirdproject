@@ -344,6 +344,35 @@ async def purge_conversions_by_campaign(campaign_id: int):
         return {"campaign_id": campaign_id, "deleted": count}
 
 
+@app.get("/api/v1/affiliate/debug/timeseries")
+async def debug_timeseries(days: int = 30):
+    """timeseries raw 데이터 (디버그용, 인증 없음)."""
+    from datetime import timedelta as _td
+    from sqlalchemy import select as _select, func as _func
+    from app.db.database import AsyncSessionLocal as _S
+    from app.models.affiliate import AffiliatePartner, ReferralClick, ReferralConversion
+
+    async with _S() as db:
+        pid_r = await db.execute(_select(AffiliatePartner.id).where(AffiliatePartner.deleted_at.is_(None)))
+        pids = [r[0] for r in pid_r.all()]
+        since = datetime.utcnow() - _td(days=days)
+        if not pids:
+            return {"partner_ids": [], "days": days, "since": since.isoformat(), "rows": []}
+        day_col = _func.date(ReferralConversion.converted_at).label("day")
+        r = await db.execute(
+            _select(day_col, ReferralConversion.status, _func.count(ReferralConversion.id),
+                    _func.coalesce(_func.sum(ReferralConversion.order_amount), 0))
+            .where(
+                ReferralConversion.partner_id.in_(pids),
+                ReferralConversion.converted_at >= since,
+            )
+            .group_by(day_col, ReferralConversion.status)
+            .order_by(day_col)
+        )
+        rows = [{"date": str(row[0]), "status": row[1], "count": int(row[2]), "amount": float(row[3])} for row in r.all()]
+        return {"partner_ids": pids, "days": days, "since": since.isoformat(), "rows": rows}
+
+
 @app.get("/api/v1/affiliate/debug/cafe24-order")
 async def debug_cafe24_order(order_id: str):
     """특정 Cafe24 주문 raw payload 조회 (디버그용)."""
