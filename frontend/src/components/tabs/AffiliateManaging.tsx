@@ -14,8 +14,6 @@ import {
   Area,
   BarChart,
   Bar,
-  PieChart,
-  Pie,
   Cell,
   XAxis,
   YAxis,
@@ -25,6 +23,7 @@ import {
   ResponsiveContainer,
   LineChart,
   Line,
+  LabelList,
 } from 'recharts';
 import { affiliateApi, cafe24Api, formatCurrency } from '@/lib/api';
 import type { AffiliatePartner, AffiliateTimeseriesPoint, AffiliateByCampaign, AffiliateChannelKey, HourlyConversion, TopProduct } from '@/lib/api';
@@ -682,8 +681,6 @@ const DARK_TOOLTIP_STYLE = {
   color: '#e5e7eb',
 };
 
-const PIE_PALETTE = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
-
 function ChartLoader() {
   return (
     <div className="flex items-center justify-center h-48 gap-2">
@@ -800,10 +797,13 @@ function DashboardSection() {
     'bg-orange-500/20 text-orange-400',
   ];
 
-  // 상위 5개 캠페인 (매출 기준)
-  const top5Campaigns = [...byCampaign]
+  // 상위 10개 캠페인 (매출 기준)
+  const top10Campaigns = [...byCampaign]
     .sort((a, b) => b.revenue - a.revenue)
-    .slice(0, 5);
+    .slice(0, 10);
+
+  // 환불/취소 차액
+  const refundCancelDiff = d.gross_sales - d.net_sales;
 
   // ── 히트맵 데이터 처리 ──
   const heatmap: HourlyConversion[] = Array.isArray(hourlyRaw) ? hourlyRaw : [];
@@ -1015,37 +1015,93 @@ function DashboardSection() {
       </div>
 
       <div className="grid lg:grid-cols-2 gap-4">
-        {/* 차트 3: 캠페인별 매출 기여도 PieChart */}
-        <div className="bg-[#1a1b1e] rounded-xl p-4 border border-[#2a2d35]">
+        {/* 차트 3: 캠페인별 매출 기여도 가로 BarChart (Top 10) */}
+        <div className="bg-[#1a1b1e] rounded-xl p-4 border border-[#2a2d35] min-h-[280px]">
           <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
-            <Percent size={14} className="text-yellow-400" /> 캠페인별 매출 기여도 (Top 5)
+            <Percent size={14} className="text-yellow-400" /> 캠페인별 매출 기여도 (Top 10)
           </h3>
-          {bcLoading ? <ChartLoader /> : top5Campaigns.length === 0 ? <ChartEmpty /> : (
-            <ResponsiveContainer width="100%" height={220}>
-              <PieChart>
-                <Pie
-                  data={top5Campaigns}
-                  dataKey="revenue"
-                  nameKey="campaign_name"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={80}
-                  innerRadius={44}
-                  paddingAngle={3}
-                  label={({ name, percent }: { name: string; percent: number }) =>
-                    `${name.length > 8 ? name.slice(0, 8) + '…' : name} ${(percent * 100).toFixed(0)}%`
+          {bcLoading ? (
+            <ChartLoader />
+          ) : top10Campaigns.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-48 gap-2">
+              <BarChart2 size={24} className="text-gray-600" />
+              <p className="text-xs text-gray-500">데이터 없음</p>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={Math.max(200, top10Campaigns.length * 32 + 24)}>
+              <BarChart
+                data={top10Campaigns.map((c, idx) => {
+                  const totalRevenue = top10Campaigns.reduce((sum, x) => sum + x.revenue, 0);
+                  const cr = c.clicks > 0 ? ((c.conversions / c.clicks) * 100).toFixed(1) : '0.0';
+                  return {
+                    ...c,
+                    rank: idx,
+                    name: c.campaign_name.length > 14 ? c.campaign_name.slice(0, 14) + '…' : c.campaign_name,
+                    label: `₩${fmt(c.revenue)} · ${c.conversions}건 · CR ${cr}%`,
+                    shareRatio: totalRevenue > 0 ? c.revenue / totalRevenue : 0,
+                  };
+                })}
+                layout="vertical"
+                margin={{ top: 0, right: 8, left: 0, bottom: 0 }}
+                onClick={(payload) => {
+                  if (payload && payload.activePayload && payload.activePayload[0]) {
+                    const item = payload.activePayload[0].payload as AffiliateByCampaign & { name: string };
+                    const el = document.getElementById(`campaign-card-${item.campaign_id}`);
+                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
                   }
-                  labelLine={{ stroke: '#8A8F98', strokeWidth: 1 }}
-                >
-                  {top5Campaigns.map((_, idx) => (
-                    <Cell key={idx} fill={PIE_PALETTE[idx % PIE_PALETTE.length]} />
-                  ))}
-                </Pie>
+                }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" horizontal={false} />
+                <XAxis
+                  type="number"
+                  dataKey="revenue"
+                  tick={{ fill: '#8A8F98', fontSize: 9 }}
+                  stroke="#8A8F98"
+                  tickFormatter={(v: number) => `₩${(v / 10000).toFixed(0)}만`}
+                />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  width={90}
+                  tick={{ fill: '#d1d5db', fontSize: 10 }}
+                  stroke="transparent"
+                />
                 <Tooltip
                   contentStyle={DARK_TOOLTIP_STYLE}
-                  formatter={(value: number) => [formatCurrency(value), '매출']}
+                  formatter={(value: number, _name: string, props: { payload?: { conversions?: number; clicks?: number } }) => {
+                    const p = props.payload;
+                    const cr = p && p.clicks && p.clicks > 0 ? ((( p.conversions ?? 0) / p.clicks) * 100).toFixed(1) : '0.0';
+                    return [
+                      `${formatCurrency(value)} · 전환 ${p?.conversions ?? 0}건 · CR ${cr}%`,
+                      '매출',
+                    ];
+                  }}
+                  cursor={{ fill: 'rgba(255,255,255,0.04)' }}
                 />
-              </PieChart>
+                <Bar
+                  dataKey="revenue"
+                  radius={[0, 3, 3, 0]}
+                  maxBarSize={22}
+                  isAnimationActive={true}
+                >
+                  {top10Campaigns.map((_, idx) => {
+                    // emerald 그라디언트: 순위가 낮을수록 옅어짐 (index 0이 가장 진함)
+                    const opacity = 1 - (idx / Math.max(top10Campaigns.length - 1, 1)) * 0.55;
+                    return (
+                      <Cell
+                        key={idx}
+                        fill={`rgba(16,185,129,${opacity})`}
+                        style={{ cursor: 'pointer' }}
+                      />
+                    );
+                  })}
+                  <LabelList
+                    dataKey="label"
+                    position="insideRight"
+                    style={{ fill: 'rgba(255,255,255,0.85)', fontSize: 9, fontWeight: 500 }}
+                  />
+                </Bar>
+              </BarChart>
             </ResponsiveContainer>
           )}
         </div>
@@ -1179,6 +1235,76 @@ function DashboardSection() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* ── 취소/환불 현황 ── */}
+      <div className="bg-[#1a1b1e] border border-[#2a2d35] rounded-xl p-4">
+        <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+          <AlertCircle size={14} className="text-red-400" /> 취소 · 환불 현황
+        </h3>
+
+        {/* 2-A: KPI 카드 3개 */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+          {/* 환불 건수 */}
+          <div className="bg-[#141516] rounded-lg p-3 border border-red-500/20">
+            <p className="text-[10px] text-gray-500 mb-1">환불 건수</p>
+            <p className="text-2xl font-bold text-red-400">{d.refunded_count}<span className="text-sm font-normal ml-0.5">건</span></p>
+            <p className="text-[10px] text-gray-600 mt-0.5">결제 완료 후 환불 처리</p>
+          </div>
+
+          {/* 취소 건수 */}
+          <div className="bg-[#141516] rounded-lg p-3 border border-orange-500/20">
+            <p className="text-[10px] text-gray-500 mb-1">취소 건수</p>
+            <p className="text-2xl font-bold text-orange-400">{d.cancelled_count}<span className="text-sm font-normal ml-0.5">건</span></p>
+            <p className="text-[10px] text-gray-600 mt-0.5">결제 전 또는 배송 전 취소</p>
+          </div>
+
+          {/* 환불·취소 차액 (Gross - Net) */}
+          <div className="bg-[#141516] rounded-lg p-3 border border-[#2a2d35]">
+            <p className="text-[10px] text-gray-500 mb-1">환불·취소 차감액</p>
+            <p className="text-2xl font-bold text-gray-300">
+              {refundCancelDiff > 0 ? `₩${fmt(refundCancelDiff)}` : '₩0'}
+            </p>
+            <p className="text-[10px] text-gray-600 mt-0.5">Gross - Net 차이</p>
+          </div>
+        </div>
+
+        {/* 2-B: 매출 구성 요약 바 */}
+        {d.gross_sales > 0 && (
+          <div className="space-y-2">
+            <p className="text-[10px] text-gray-500">매출 구성 비율</p>
+            <div className="flex h-4 rounded-full overflow-hidden gap-0.5">
+              {/* 순매출 */}
+              <div
+                className="bg-emerald-500 transition-all"
+                style={{ width: `${d.gross_sales > 0 ? (d.net_sales / d.gross_sales) * 100 : 100}%` }}
+                title={`순매출: ${formatCurrency(d.net_sales)}`}
+              />
+              {/* 환불·취소 차감 */}
+              {refundCancelDiff > 0 && (
+                <div
+                  className="bg-red-500/70 transition-all"
+                  style={{ width: `${(refundCancelDiff / d.gross_sales) * 100}%` }}
+                  title={`차감: ${formatCurrency(refundCancelDiff)}`}
+                />
+              )}
+            </div>
+            <div className="flex items-center gap-4 text-[10px]">
+              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-500 inline-block" /> 순매출 {fmtMan(d.net_sales)}</span>
+              {refundCancelDiff > 0 && (
+                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-red-500/70 inline-block" /> 환불·취소 차감 {fmtMan(refundCancelDiff)}</span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 환불/취소 모두 0인 경우 */}
+        {d.refunded_count === 0 && d.cancelled_count === 0 && (
+          <div className="flex items-center gap-2 mt-2 px-3 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+            <CheckCircle size={13} className="text-emerald-400 shrink-0" />
+            <p className="text-xs text-emerald-400">환불·취소 내역이 없습니다</p>
+          </div>
+        )}
       </div>
 
       {/* ── 시간대별 전환 히트맵 ── */}
