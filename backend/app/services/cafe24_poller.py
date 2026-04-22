@@ -61,11 +61,19 @@ async def _process_order(db, order: dict) -> dict:
     order_status = str(order.get("order_status") or "").upper()
     cancel_date = order.get("cancel_date")
     refund_amount = float(order.get("refund_amount") or 0)
-    actual_payment = float(
-        order.get("actual_payment_amount")
-        or order.get("order_price_amount")
-        or order.get("payment_amount")
-        or 0
+    # 주문 금액 우선순위: initial_order_amount(최초 주문액, 취소 후에도 보존) →
+    # order_price_amount → payment_amount → actual_payment_amount (cancelled 후 0일 수 있음)
+    def _f(v) -> float:
+        try:
+            return float(v) if v is not None else 0.0
+        except (TypeError, ValueError):
+            return 0.0
+    actual_payment = (
+        _f(order.get("initial_order_amount"))
+        or _f(order.get("order_price_amount"))
+        or _f(order.get("payment_amount"))
+        or _f(order.get("actual_payment_amount"))
+        or 0.0
     )
     paid_flag = str(order.get("paid") or "").upper() == "T"
 
