@@ -142,13 +142,66 @@ async def _process_order(db, order: dict) -> dict:
 
     click_id = None
 
-    # 엄격 매칭: ref 또는 쿠폰으로 명확히 매칭된 경우만 attribution.
-    # "최근 클릭" fallback은 어필리에이트 아닌 주문까지 귀속시키는 부작용이 있어 제거.
-    if not campaign and not partner:
-        return {"status": "no_match_strict", "order_id": order_id}
+    # 3) 상품 기반 매칭 — 주문 상품이 어떤 캠페인의 cafe24_product_no와 일치하면
+    #    그 캠페인의 "최근 2시간 내" 클릭의 파트너로 귀속 (쿠폰 안 써도 동작)
+    if not campaign:
+        # 주문 상품 번호 수집
+        product_nos = set()
+        # ordering_product_code는 문자열 코드일 수 있으므로 items embed 우선
+        items = order.get("items") or []
+        for it in items:
+            pn = it.get("product_no")
+            if pn:
+                try:
+                    product_nos.add(int(pn))
+                except (ValueError, TypeError):
+                    pass
+        # items embed가 없거나 product_no 없으면 ordering_product_no 필드 시도
+        if not product_nos:
+            opn = order.get("ordering_product_no") or order.get("product_no")
+            if opn:
+                try:
+                    product_nos.add(int(opn))
+                except (ValueError, TypeError):
+                    pass
+
+        if product_nos:
+            # 매칭 캠페인 찾기
+            camp_r = await db.execute(
+                select(AffiliateCampaign).where(
+                    AffiliateCampaign.cafe24_product_no.in_(list(product_nos))
+                )
+            )
+            candidates = list(camp_r.scalars().all())
+            # 각 후보 캠페인의 최근 2시간 내 클릭 중 가장 최신을 찾음
+            since_recent = datetime.utcnow() - timedelta(hours=2)
+            best_click = None
+            for cand in candidates:
+                click_r = await db.execute(
+                    select(ReferralClick)
+                    .where(
+                        ReferralClick.campaign_id == cand.id,
+                        ReferralClick.clicked_at >= since_recent,
+                    )
+                    .order_by(ReferralClick.clicked_at.desc())
+                    .limit(1)
+                )
+                rc = click_r.scalar_one_or_none()
+                if rc and (best_click is None or rc.clicked_at > best_click.clicked_at):
+                    best_click = rc
+                    campaign = cand
+            if best_click:
+                click_id = best_click.id
+                p_r = await db.execute(
+                    select(AffiliatePartner).where(AffiliatePartner.id == best_click.partner_id)
+                )
+                partner = p_r.scalar_one_or_none()
+                logger.info(
+                    f"[Poller] order={order_id} 상품 기반 매칭: "
+                    f"products={product_nos} campaign={campaign.id} partner={partner.id if partner else None}"
+                )
 
     # 쿠폰으로 캠페인만 매칭된 경우: 같은 캠페인의 최근 클릭으로 파트너 보완
-    # (쿠폰 코드를 쓴 고객은 해당 링크로 유입됐을 가능성이 매우 높음)
     if not partner and campaign:
         since_recent = datetime.utcnow() - timedelta(days=7)
         click_r = await db.execute(
@@ -167,6 +220,9 @@ async def _process_order(db, order: dict) -> dict:
                 select(AffiliatePartner).where(AffiliatePartner.id == rc.partner_id)
             )
             partner = p_r.scalar_one_or_none()
+
+    if not campaign and not partner:
+        return {"status": "no_match_strict", "order_id": order_id}
 
     if not partner:
         return {"status": "no_partner", "order_id": order_id, "campaign_id": campaign.id if campaign else None}
