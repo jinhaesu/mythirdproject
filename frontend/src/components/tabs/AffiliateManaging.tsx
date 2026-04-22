@@ -2660,7 +2660,25 @@ function PartnersSection() {
                       <div><p className="text-[10px] text-gray-500">총 커미션</p><p className="text-sm font-bold text-yellow-400">₩{fmt(p.total_commission)}</p></div>
                       <div><p className="text-[10px] text-gray-500">미정산</p><p className="text-sm font-bold text-red-400">₩{fmt(p.unpaid_commission)}</p></div>
                     </div>
-                    {p.referral_link && (
+                    {p.campaign_links && p.campaign_links.length > 0 ? (
+                      <div
+                        className="space-y-1.5"
+                        onClick={e => e.stopPropagation()}
+                      >
+                        {p.campaign_links.map((cl) => (
+                          <div key={cl.pc_id} className="flex items-center gap-2 bg-[#141516] rounded-lg px-3 py-2">
+                            <Link2 size={12} className="text-gray-500 shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[10px] text-gray-500 truncate">{cl.campaign_name || `캠페인 #${cl.campaign_id}`}</p>
+                              <code className="text-[10px] text-gray-400 truncate block">{cl.referral_link}</code>
+                            </div>
+                            <button onClick={() => copyLink(cl.referral_link)} className="text-gray-400 hover:text-white transition-colors shrink-0" title="복사">
+                              <Copy size={12} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : p.referral_link ? (
                       <div
                         className="flex items-center gap-2 bg-[#141516] rounded-lg px-3 py-2"
                         onClick={e => e.stopPropagation()}
@@ -2671,7 +2689,7 @@ function PartnersSection() {
                           <Copy size={12} />
                         </button>
                       </div>
-                    )}
+                    ) : null}
                   </>
                 )}
               </div>

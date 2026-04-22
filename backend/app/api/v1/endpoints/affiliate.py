@@ -649,6 +649,40 @@ async def list_partners(
         d["total_commission"] = total_commission
         d["unpaid_commission"] = max(0.0, total_commission - paid_settlement)
         d["conversion_rate"] = round((conversions / clicks * 100) if clicks > 0 else 0.0, 2)
+
+        # 파트너별 연결된 캠페인들의 링크 배열 (중복 제거)
+        pc_rows_r = await db.execute(
+            select(PartnerCampaign).where(PartnerCampaign.partner_id == p.id)
+        )
+        pcs = list(pc_rows_r.scalars().all())
+        seen_campaign_ids = {pc.campaign_id for pc in pcs}
+        campaign_links = []
+        for pc in pcs:
+            cr = await db.execute(
+                select(AffiliateCampaign).where(AffiliateCampaign.id == pc.campaign_id)
+            )
+            camp = cr.scalar_one_or_none()
+            campaign_links.append({
+                "pc_id": pc.id,
+                "campaign_id": pc.campaign_id,
+                "campaign_name": camp.name if camp else "",
+                "referral_code": pc.referral_code,
+                "referral_link": _build_referral_link(camp, pc.referral_code, current_user) if camp else pc.referral_link,
+            })
+        # legacy campaign_id 가상 row (PC에 없고 partner.campaign_id만 있는 경우)
+        if p.campaign_id and p.campaign_id not in seen_campaign_ids:
+            cr = await db.execute(
+                select(AffiliateCampaign).where(AffiliateCampaign.id == p.campaign_id)
+            )
+            camp = cr.scalar_one_or_none()
+            campaign_links.append({
+                "pc_id": -1,
+                "campaign_id": p.campaign_id,
+                "campaign_name": camp.name if camp else "",
+                "referral_code": p.referral_code,
+                "referral_link": _build_referral_link(camp, p.referral_code, current_user) if camp else p.referral_link,
+            })
+        d["campaign_links"] = campaign_links
         response.append(d)
     return response
 

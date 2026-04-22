@@ -718,6 +718,14 @@ export type AffiliateChannelKey =
   | 'kakao'
   | 'other';
 
+export interface PartnerCampaignLink {
+  pc_id: number;
+  campaign_id: number;
+  campaign_name: string;
+  referral_code: string;
+  referral_link: string;
+}
+
 export interface AffiliatePartner {
   id: number;
   name: string;
@@ -732,6 +740,8 @@ export interface AffiliatePartner {
   total_sales: number;
   total_commission: number;
   unpaid_commission: number;
+  /** 파트너에 연결된 캠페인별 링크 목록 (list_partners 응답) */
+  campaign_links?: PartnerCampaignLink[];
   referral_link: string;
   click_count: number;
   conversion_count: number;
