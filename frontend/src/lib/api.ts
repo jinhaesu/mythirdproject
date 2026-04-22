@@ -756,6 +756,10 @@ export interface AffiliateTimeseriesPoint {
   commission: number;
   clicks: number;
   conversions: number;
+  refunded_count?: number;
+  refunded_amount?: number;
+  cancelled_count?: number;
+  cancelled_amount?: number;
 }
 
 export interface AffiliateByCampaign {

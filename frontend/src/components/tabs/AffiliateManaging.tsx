@@ -917,14 +917,27 @@ function DashboardSection() {
               />
               <Tooltip
                 contentStyle={DARK_TOOLTIP_STYLE}
-                formatter={(value: number, name: string) => [
-                  formatCurrency(value),
-                  name === 'revenue' ? '매출' : '커미션',
-                ]}
+                itemStyle={{ color: '#e5e7eb' }}
+                labelStyle={{ color: '#d1d5db' }}
+                formatter={(value: number, name: string) => {
+                  const labelMap: Record<string, string> = {
+                    revenue: '매출',
+                    commission: '커미션',
+                    refunded_amount: '환불액',
+                    cancelled_amount: '취소액',
+                  };
+                  return [formatCurrency(value), labelMap[name] || name];
+                }}
                 labelFormatter={(label: string) => `날짜: ${label}`}
               />
               <Legend
-                formatter={(value: string) => (value === 'revenue' ? '매출' : '커미션')}
+                formatter={(value: string) => {
+                  const labelMap: Record<string, string> = {
+                    revenue: '매출', commission: '커미션',
+                    refunded_amount: '환불', cancelled_amount: '취소',
+                  };
+                  return labelMap[value] || value;
+                }}
                 wrapperStyle={{ fontSize: 11, color: '#9ca3af' }}
               />
               <Area
@@ -943,6 +956,24 @@ function DashboardSection() {
                 stroke="#10B981"
                 strokeWidth={2}
                 fill="url(#gradCommission)"
+                dot={false}
+              />
+              <Line
+                yAxisId="left"
+                type="monotone"
+                dataKey="refunded_amount"
+                stroke="#EF4444"
+                strokeWidth={1.5}
+                strokeDasharray="4 3"
+                dot={false}
+              />
+              <Line
+                yAxisId="left"
+                type="monotone"
+                dataKey="cancelled_amount"
+                stroke="#F97316"
+                strokeWidth={1.5}
+                strokeDasharray="4 3"
                 dot={false}
               />
             </AreaChart>

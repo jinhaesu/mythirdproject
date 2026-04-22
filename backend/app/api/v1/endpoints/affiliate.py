@@ -1080,13 +1080,14 @@ async def get_dashboard_timeseries(
         for row in click_rows.all():
             clicks_by_date[str(row[0])] = int(row[1])
 
-    # 일별 전환/매출/커미션 집계 (status='paid' 순매출만)
+    # 일별 전환/매출/커미션 집계 (status별 — paid/refunded/cancelled 분리)
     conv_by_date: dict = {}
     if partner_ids:
         day_col2 = func.date(ReferralConversion.converted_at).label("day")
         conv_rows = await db.execute(
             select(
                 day_col2,
+                ReferralConversion.status,
                 func.count(ReferralConversion.id),
                 func.coalesce(func.sum(ReferralConversion.order_amount), 0),
                 func.coalesce(func.sum(ReferralConversion.commission_amount), 0),
@@ -1094,29 +1095,51 @@ async def get_dashboard_timeseries(
             .where(
                 ReferralConversion.partner_id.in_(partner_ids),
                 ReferralConversion.converted_at >= since,
-                ReferralConversion.status == "paid",
             )
-            .group_by(day_col2)
+            .group_by(day_col2, ReferralConversion.status)
             .order_by(day_col2)
         )
         for row in conv_rows.all():
-            conv_by_date[str(row[0])] = {
-                "conversions": int(row[1]),
-                "revenue": float(row[2]),
-                "commission": float(row[3]),
-            }
+            date_str = str(row[0])
+            st = row[1] or "paid"
+            entry = conv_by_date.setdefault(date_str, {
+                "conversions": 0, "revenue": 0.0, "commission": 0.0,
+                "refunded_count": 0, "refunded_amount": 0.0,
+                "cancelled_count": 0, "cancelled_amount": 0.0,
+            })
+            count = int(row[2])
+            amount = float(row[3])
+            commission = float(row[4])
+            if st == "paid":
+                entry["conversions"] = count
+                entry["revenue"] = amount
+                entry["commission"] = commission
+            elif st == "refunded":
+                entry["refunded_count"] = count
+                entry["refunded_amount"] = amount
+            elif st == "cancelled":
+                entry["cancelled_count"] = count
+                entry["cancelled_amount"] = amount
 
     # 날짜 합치기
     all_dates = sorted(set(list(clicks_by_date.keys()) + list(conv_by_date.keys())))
     result_list = []
     for date_str in all_dates:
-        conv = conv_by_date.get(date_str, {"conversions": 0, "revenue": 0.0, "commission": 0.0})
+        conv = conv_by_date.get(date_str, {
+            "conversions": 0, "revenue": 0.0, "commission": 0.0,
+            "refunded_count": 0, "refunded_amount": 0.0,
+            "cancelled_count": 0, "cancelled_amount": 0.0,
+        })
         result_list.append({
             "date": date_str,
             "revenue": conv["revenue"],
             "commission": conv["commission"],
             "clicks": clicks_by_date.get(date_str, 0),
             "conversions": conv["conversions"],
+            "refunded_count": conv.get("refunded_count", 0),
+            "refunded_amount": conv.get("refunded_amount", 0.0),
+            "cancelled_count": conv.get("cancelled_count", 0),
+            "cancelled_amount": conv.get("cancelled_amount", 0.0),
         })
 
     return result_list

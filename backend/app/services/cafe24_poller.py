@@ -96,8 +96,9 @@ async def _process_order(db, order: dict) -> dict:
             return {"status": f"{new_status}_updated", "conversion_id": existing.id}
         return {"status": "already_recorded", "conversion_id": existing.id}
 
-    # 결제완료 상태 아니면 신규 생성 안 함
-    if not paid_flag and actual_payment <= 0:
+    # 신규 주문: paid 또는 취소/환불 상태여도 attribution 가능하면 기록
+    # (취소/환불로 이미 들어온 주문도 attribution 성공 시 cancelled/refunded 상태로 생성)
+    if not paid_flag and actual_payment <= 0 and not is_cancel and not is_refund:
         return {"status": "skipped", "reason": "not_paid"}
 
     # Attribution 매칭
@@ -235,6 +236,11 @@ async def _process_order(db, order: dict) -> dict:
         else:
             commission = campaign.commission_rate
 
+    # 이미 취소/환불 상태로 처음 들어온 주문도 적절한 status로 기록
+    initial_status = "refunded" if is_refund else ("cancelled" if is_cancel else "paid")
+    refunded_at_value = datetime.utcnow() if initial_status in ("refunded", "cancelled") else None
+    refunded_amount_value = refund_amount if initial_status == "refunded" else (actual_payment if initial_status == "cancelled" else 0.0)
+
     conv = ReferralConversion(
         click_id=click_id,
         partner_id=partner.id,
@@ -243,14 +249,17 @@ async def _process_order(db, order: dict) -> dict:
         cafe24_order_id=order_id,
         order_amount=actual_payment,
         commission_amount=round(commission, 2),
-        status="paid",
+        status=initial_status,
+        refunded_amount=refunded_amount_value,
+        refunded_at=refunded_at_value,
     )
     db.add(conv)
     await db.commit()
     await db.refresh(conv)
     logger.info(
         f"[Poller] conversion recorded: order={order_id} partner={partner.id} "
-        f"campaign={campaign.id if campaign else None} amount={actual_payment} commission={commission}"
+        f"campaign={campaign.id if campaign else None} amount={actual_payment} "
+        f"commission={commission} status={initial_status}"
     )
     return {"status": "recorded", "conversion_id": conv.id}
 
