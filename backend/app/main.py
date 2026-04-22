@@ -32,17 +32,29 @@ async def _run_scheduled_reports():
     from app.models.keyword_rank_schedule import KeywordRankSchedule
     from app.services.scheduled_report_executor import execute_scheduled_report, calc_next_run
     from app.services.keyword_rank_service import execute_keyword_rank_check
+    from app.services.cafe24_poller import poll_cafe24_orders
     from sqlalchemy import select
     import json as _json
 
     global _scheduler_last_check, _scheduler_status, _scheduler_run_count, _scheduler_last_error, _scheduler_last_result
     _scheduler_status = "running"
+    _cafe24_poll_counter = 0
     while True:
         try:
             await asyncio.sleep(60)
             now = datetime.utcnow()
             _scheduler_last_check = now
             _scheduler_run_count += 1
+
+            # ── Cafe24 주문 폴링 (5분마다, 웹훅 fallback) ──
+            _cafe24_poll_counter += 1
+            if _cafe24_poll_counter >= 5:
+                _cafe24_poll_counter = 0
+                try:
+                    result = await poll_cafe24_orders(lookback_hours=6)
+                    logger.info(f"[Scheduler] Cafe24 poll result: {result}")
+                except Exception as pe:
+                    logger.error(f"[Scheduler] Cafe24 poll failed: {pe}", exc_info=True)
             async with async_session_factory() as db:
                 # ── 1. 기존 스케줄 리포트 ──
                 result = await db.execute(
@@ -261,3 +273,11 @@ async def scheduler_status():
         "resend_from": settings.RESEND_FROM_EMAIL,
         "meta_token_configured": bool(settings.META_ACCESS_TOKEN),
     }
+
+
+@app.post("/api/v1/affiliate/poll-cafe24")
+async def manual_poll_cafe24(lookback_hours: int = 24):
+    """Cafe24 주문 폴링 수동 실행 — 즉시 현재까지의 주문을 조회해 conversion 반영."""
+    from app.services.cafe24_poller import poll_cafe24_orders
+    result = await poll_cafe24_orders(lookback_hours=lookback_hours)
+    return result

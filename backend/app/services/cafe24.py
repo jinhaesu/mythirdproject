@@ -174,6 +174,28 @@ async def list_products(
     ]
 
 
+async def list_orders(
+    user,
+    db,
+    start_date: datetime,
+    end_date: datetime,
+    limit: int = 500,
+) -> list:
+    """Cafe24 주문 목록 조회. start/end_date는 naive datetime(UTC)."""
+    params = {
+        "start_date": start_date.strftime("%Y-%m-%d"),
+        "end_date": end_date.strftime("%Y-%m-%d"),
+        "limit": limit,
+        "embed": "items,coupons",  # 주문 상세에 items/coupons 포함 요청
+    }
+    data = await api_request(user, db, "GET", "/api/v2/admin/orders", params=params)
+    orders = data.get("orders", [])
+    logger.info(
+        f"[Cafe24] list_orders {params['start_date']}~{params['end_date']} -> {len(orders)} items"
+    )
+    return orders
+
+
 async def get_product(user, db, product_no: int) -> dict:
     """단일 상품 상세 조회."""
     data = await api_request(
