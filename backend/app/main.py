@@ -336,6 +336,32 @@ async def cleanup_unattributable_conversions(hours: int = 24):
         return {"deleted": deleted, "kept": kept, "details": details}
 
 
+@app.post("/api/v1/affiliate/conversions/delete-by-order")
+async def delete_conversion_by_order(order_id: str):
+    """특정 cafe24_order_id의 ReferralConversion 단건 삭제 (수동 정정용)."""
+    from sqlalchemy import delete as _delete, select as _select
+    from app.db.database import AsyncSessionLocal as _S
+    from app.models.affiliate import ReferralConversion
+
+    async with _S() as db:
+        r = await db.execute(
+            _select(ReferralConversion).where(ReferralConversion.cafe24_order_id == order_id)
+        )
+        row = r.scalar_one_or_none()
+        if not row:
+            return {"deleted": 0, "order_id": order_id}
+        snapshot = {
+            "id": row.id, "order_id": row.cafe24_order_id,
+            "status": row.status, "order_amount": row.order_amount,
+            "partner_id": row.partner_id, "campaign_id": row.campaign_id,
+        }
+        await db.execute(
+            _delete(ReferralConversion).where(ReferralConversion.cafe24_order_id == order_id)
+        )
+        await db.commit()
+        return {"deleted": 1, "snapshot": snapshot}
+
+
 @app.post("/api/v1/affiliate/conversions/purge-by-campaign")
 async def purge_conversions_by_campaign(campaign_id: int):
     """특정 캠페인의 ReferralConversion을 전부 삭제. 잘못 귀속된 과거 데이터 초기화용."""

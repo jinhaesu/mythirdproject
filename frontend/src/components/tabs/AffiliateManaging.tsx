@@ -788,7 +788,7 @@ function heatColor(ratio: number): string {
 // ─── Dashboard section ────────────────────────────────────────────────────────
 
 function DashboardSection() {
-  const [days, setDays] = useState<7 | 30 | 90>(30);
+  const [days, setDays] = useState<7 | 30 | 90>(7);
   const [heatmapDays, setHeatmapDays] = useState<7 | 30 | 90>(30);
   /** 히트맵 hover cell: "dow_hour" 키 */
   const [hoveredCell, setHoveredCell] = useState<string | null>(null);

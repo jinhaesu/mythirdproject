@@ -168,7 +168,9 @@ async def _process_order(db, order: dict) -> dict:
     click_id = None
 
     # 3) 상품 기반 매칭 — 주문 상품이 어떤 캠페인의 cafe24_product_no와 일치하면
-    #    그 캠페인의 "최근 2시간 내" 클릭의 파트너로 귀속 (쿠폰 안 써도 동작)
+    #    그 캠페인의 "주문 시점 기준 이전 2시간 내" 클릭의 파트너로 귀속.
+    #    (쿠폰 안 써도 동작. 반드시 click ≤ order_date 여야 함 —
+    #     폴러 지연 실행 시 주문 이후의 클릭이 잘못 귀속되는 것 방지.)
     if not campaign:
         # 주문 상품 번호 수집
         product_nos = set()
@@ -190,6 +192,21 @@ async def _process_order(db, order: dict) -> dict:
                 except (ValueError, TypeError):
                     pass
 
+        # 주문 시각 파싱 (Cafe24: ISO8601 with timezone, 예: 2026-04-23T00:46:43+09:00)
+        # → naive UTC datetime으로 변환 (ReferralClick.clicked_at이 naive UTC)
+        from datetime import timezone as _tz
+        order_dt_utc = None
+        order_date_str = order.get("order_date") or order.get("payment_date")
+        if order_date_str:
+            try:
+                parsed = datetime.fromisoformat(str(order_date_str).replace("Z", "+00:00"))
+                if parsed.tzinfo is not None:
+                    order_dt_utc = parsed.astimezone(_tz.utc).replace(tzinfo=None)
+                else:
+                    order_dt_utc = parsed
+            except Exception:
+                order_dt_utc = None
+
         if product_nos:
             # 매칭 캠페인 찾기
             camp_r = await db.execute(
@@ -198,23 +215,30 @@ async def _process_order(db, order: dict) -> dict:
                 )
             )
             candidates = list(camp_r.scalars().all())
-            # 각 후보 캠페인의 최근 2시간 내 클릭 중 가장 최신을 찾음
-            since_recent = datetime.utcnow() - timedelta(hours=2)
+            # 주문 시각 ± 2시간 — 시각을 모르면 매칭 스킵 (잘못된 귀속 방지)
             best_click = None
-            for cand in candidates:
-                click_r = await db.execute(
-                    select(ReferralClick)
-                    .where(
-                        ReferralClick.campaign_id == cand.id,
-                        ReferralClick.clicked_at >= since_recent,
-                    )
-                    .order_by(ReferralClick.clicked_at.desc())
-                    .limit(1)
+            if order_dt_utc is None:
+                logger.warning(
+                    f"[Poller] order={order_id} order_date 파싱 실패 — 상품매칭 스킵"
                 )
-                rc = click_r.scalar_one_or_none()
-                if rc and (best_click is None or rc.clicked_at > best_click.clicked_at):
-                    best_click = rc
-                    campaign = cand
+            else:
+                window_start = order_dt_utc - timedelta(hours=2)
+                window_end = order_dt_utc + timedelta(minutes=10)
+                for cand in candidates:
+                    click_r = await db.execute(
+                        select(ReferralClick)
+                        .where(
+                            ReferralClick.campaign_id == cand.id,
+                            ReferralClick.clicked_at >= window_start,
+                            ReferralClick.clicked_at <= window_end,
+                        )
+                        .order_by(ReferralClick.clicked_at.desc())
+                        .limit(1)
+                    )
+                    rc = click_r.scalar_one_or_none()
+                    if rc and (best_click is None or rc.clicked_at > best_click.clicked_at):
+                        best_click = rc
+                        campaign = cand
             if best_click:
                 click_id = best_click.id
                 p_r = await db.execute(
@@ -223,7 +247,9 @@ async def _process_order(db, order: dict) -> dict:
                 partner = p_r.scalar_one_or_none()
                 logger.info(
                     f"[Poller] order={order_id} 상품 기반 매칭: "
-                    f"products={product_nos} campaign={campaign.id} partner={partner.id if partner else None}"
+                    f"products={product_nos} campaign={campaign.id} "
+                    f"partner={partner.id if partner else None} "
+                    f"order_at={order_dt_utc} click_at={best_click.clicked_at}"
                 )
 
     # 쿠폰으로 캠페인만 매칭된 경우: 같은 캠페인의 최근 클릭으로 파트너 보완
