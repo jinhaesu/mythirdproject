@@ -104,13 +104,21 @@ async def proactive_refresh_all(db) -> dict:
             skipped += 1
             continue
         try:
-            await ensure_valid_token(u, db)
+            # 1시간 이내 → 무조건 force refresh 해서 체인 유지
+            # (ensure_valid_token은 1분 이내만 갱신하므로 여기선 _do_refresh_locked 직접 호출)
+            await _do_refresh_locked(u, db, force=True)
             refreshed += 1
             logger.info(f"[Cafe24] Proactive refresh ok user={u.id}")
         except Exception as e:
             failed += 1
             logger.error(f"[Cafe24] Proactive refresh FAILED user={u.id}: {e}")
-            await _notify_cafe24_disconnect(u.id, str(e))
+            # 진짜 끊김일 때만 알림 (토큰이 DB에서 이미 초기화됐는지로 판정)
+            try:
+                await db.refresh(u)
+            except Exception:
+                pass
+            if not u.cafe24_refresh_token:
+                await _notify_cafe24_disconnect(u.id, str(e))
     return {"refreshed": refreshed, "failed": failed, "skipped": skipped, "total": len(users)}
 
 
@@ -154,41 +162,65 @@ async def _notify_cafe24_disconnect(user_id: int, error: str) -> None:
         logger.warning(f"[Cafe24] disconnect 알림 실패: {e}")
 
 
-async def ensure_valid_token(user, db) -> str:
-    """만료 1분 이내이면 갱신 후 DB에 저장, access_token 반환.
+def _is_invalid_grant_error(resp_text: str) -> bool:
+    """Cafe24 응답 본문이 refresh_token 무효화(재연결 필요) 에러인지 판정.
 
-    - 유저별 asyncio lock으로 동시 refresh 경합 방지 (Cafe24는 refresh_token
-      일회성: 첫 요청이 성공하면 기존 refresh_token 폐기됨).
-    - refresh 실패(400) 시 토큰 필드 전체 초기화 → 재연결 유도.
+    네트워크 일시 오류나 기타 400과 구분해 refresh_token 체인을 불필요하게
+    파기하지 않도록 함.
     """
-    expires_at = user.cafe24_token_expires_at
-    now = datetime.utcnow()
+    t = (resp_text or "").lower()
+    keywords = ("invalid_grant", "invalid_refresh", "invalid_token",
+                "revoked", "expired_token", "access denied")
+    return any(k in t for k in keywords)
 
-    need_refresh = (expires_at is None) or (expires_at - now < timedelta(minutes=1))
 
-    if not (need_refresh and user.cafe24_refresh_token):
-        return user.cafe24_access_token
+async def _persist_refresh_result(user, db, data: dict) -> None:
+    """refresh() 결과를 DB에 atomic 저장. access+refresh+expires_at 함께 커밋."""
+    user.cafe24_access_token = data.get("access_token", user.cafe24_access_token)
+    if data.get("refresh_token"):
+        user.cafe24_refresh_token = data["refresh_token"]
+    if data.get("expires_at"):
+        try:
+            user.cafe24_token_expires_at = datetime.fromisoformat(
+                data["expires_at"].replace("Z", "+00:00")
+            ).replace(tzinfo=None)
+        except Exception:
+            pass
+    await db.commit()
 
-    # 유저별 단일 refresh 직렬화
+
+async def _do_refresh_locked(user, db, force: bool = False) -> str:
+    """유저별 lock 하에 DB를 최신으로 재조회 후 필요시 refresh.
+
+    force=True면 (access_token 만료 판정과 무관하게) 무조건 refresh 시도.
+    실패 시에도 refresh_token 체인 무효화는 오직 invalid_grant 계열 응답일 때만.
+    """
     lock = _refresh_locks.setdefault(user.id, _asyncio.Lock())
     async with lock:
-        # 락 획득 후 재조회 — 다른 요청이 이미 갱신했을 수 있음
-        await db.refresh(user)
+        # 락 획득 직후 DB 최신값 재조회 — 다른 워커/요청이 이미 갱신했을 수 있음
+        try:
+            await db.refresh(user)
+        except Exception:
+            pass
         expires_at = user.cafe24_token_expires_at
         now = datetime.utcnow()
-        need_refresh = (expires_at is None) or (expires_at - now < timedelta(minutes=1))
+        need_refresh = force or (expires_at is None) or (
+            expires_at - now < timedelta(minutes=1)
+        )
         if not need_refresh:
             return user.cafe24_access_token
+        if not user.cafe24_refresh_token:
+            raise RuntimeError("Cafe24 refresh_token 없음 — 재연결 필요")
 
-        logger.info(f"[Cafe24] Refreshing token for user {user.id}")
+        logger.info(f"[Cafe24] Refreshing token user={user.id} force={force}")
         try:
             data = await refresh(user.cafe24_mall_id, user.cafe24_refresh_token)
         except httpx.HTTPStatusError as e:
             status = e.response.status_code if e.response else 0
-            body = e.response.text[:200] if e.response else ""
-            logger.error(f"[Cafe24] Refresh 실패 status={status}: {body}")
-            # 400/401이면 refresh_token 무효 → 전체 토큰 초기화해 재연결 유도
-            if status in (400, 401):
+            body = e.response.text if e.response else ""
+            logger.error(f"[Cafe24] Refresh 실패 status={status}: {body[:300]}")
+            # invalid_grant 계열만 토큰 초기화 — 네트워크/일시 오류로 체인 끊기지 않도록
+            if status in (400, 401) and _is_invalid_grant_error(body):
                 user.cafe24_access_token = None
                 user.cafe24_refresh_token = None
                 user.cafe24_token_expires_at = None
@@ -198,21 +230,30 @@ async def ensure_valid_token(user, db) -> str:
                     "Cafe24 재연결이 필요합니다. 관리자에서 Cafe24를 다시 연결해주세요.",
                     request=e.request, response=e.response,
                 )
+            # 그 외 400/5xx/timeout은 일시 오류로 보고 토큰 보존 + 재시도 기회
+            raise
+        except (httpx.RequestError, httpx.TimeoutException) as e:
+            logger.error(f"[Cafe24] Refresh 네트워크 오류 user={user.id}: {e}")
             raise
 
-        user.cafe24_access_token = data.get("access_token", user.cafe24_access_token)
-        if data.get("refresh_token"):
-            user.cafe24_refresh_token = data["refresh_token"]
-        if data.get("expires_at"):
-            try:
-                user.cafe24_token_expires_at = datetime.fromisoformat(
-                    data["expires_at"].replace("Z", "+00:00")
-                ).replace(tzinfo=None)
-            except Exception:
-                pass
-        await db.commit()
+        await _persist_refresh_result(user, db, data)
 
     return user.cafe24_access_token
+
+
+async def ensure_valid_token(user, db) -> str:
+    """access_token 만료 1분 이내이면 refresh 후 DB에 저장, access_token 반환.
+
+    - 유저별 asyncio lock으로 동시 refresh 경합 방지
+    - Cafe24는 refresh_token rotating 방식 → 반드시 새 refresh_token도 같이 DB 저장
+    - refresh 실패 시 invalid_grant 계열만 토큰 초기화 (네트워크 일시 오류 보호)
+    """
+    expires_at = user.cafe24_token_expires_at
+    now = datetime.utcnow()
+    need_refresh = (expires_at is None) or (expires_at - now < timedelta(minutes=1))
+    if not (need_refresh and user.cafe24_refresh_token):
+        return user.cafe24_access_token
+    return await _do_refresh_locked(user, db, force=False)
 
 
 async def api_request(
@@ -237,12 +278,11 @@ async def api_request(
         resp = await client.request(method, url, headers=headers, params=params, json=json)
 
         if resp.status_code == 401:
-            # 토큰 강제 갱신 후 재시도
+            # 401 → 락 보호 하에 강제 refresh + 새 refresh_token 저장 후 1회 재시도
+            # (rotating refresh_token이 유실되어 체인 끊기는 것 방지)
             if user.cafe24_refresh_token:
-                data = await refresh(user.cafe24_mall_id, user.cafe24_refresh_token)
-                user.cafe24_access_token = data.get("access_token", user.cafe24_access_token)
-                await db.commit()
-                headers["Authorization"] = f"Bearer {user.cafe24_access_token}"
+                new_token = await _do_refresh_locked(user, db, force=True)
+                headers["Authorization"] = f"Bearer {new_token}"
                 resp = await client.request(method, url, headers=headers, params=params, json=json)
 
         if resp.status_code >= 400:
