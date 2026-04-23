@@ -74,18 +74,56 @@ async def refresh(mall_id: str, refresh_token: str) -> dict:
         return resp.json()
 
 
-async def ensure_valid_token(user, db) -> str:
-    """만료 1분 이내이면 갱신 후 DB에 저장, access_token 반환."""
-    from app.models.user import User  # circular import 방지
+import asyncio as _asyncio
+_refresh_locks: dict = {}
 
+
+async def ensure_valid_token(user, db) -> str:
+    """만료 1분 이내이면 갱신 후 DB에 저장, access_token 반환.
+
+    - 유저별 asyncio lock으로 동시 refresh 경합 방지 (Cafe24는 refresh_token
+      일회성: 첫 요청이 성공하면 기존 refresh_token 폐기됨).
+    - refresh 실패(400) 시 토큰 필드 전체 초기화 → 재연결 유도.
+    """
     expires_at = user.cafe24_token_expires_at
     now = datetime.utcnow()
 
     need_refresh = (expires_at is None) or (expires_at - now < timedelta(minutes=1))
 
-    if need_refresh and user.cafe24_refresh_token:
+    if not (need_refresh and user.cafe24_refresh_token):
+        return user.cafe24_access_token
+
+    # 유저별 단일 refresh 직렬화
+    lock = _refresh_locks.setdefault(user.id, _asyncio.Lock())
+    async with lock:
+        # 락 획득 후 재조회 — 다른 요청이 이미 갱신했을 수 있음
+        await db.refresh(user)
+        expires_at = user.cafe24_token_expires_at
+        now = datetime.utcnow()
+        need_refresh = (expires_at is None) or (expires_at - now < timedelta(minutes=1))
+        if not need_refresh:
+            return user.cafe24_access_token
+
         logger.info(f"[Cafe24] Refreshing token for user {user.id}")
-        data = await refresh(user.cafe24_mall_id, user.cafe24_refresh_token)
+        try:
+            data = await refresh(user.cafe24_mall_id, user.cafe24_refresh_token)
+        except httpx.HTTPStatusError as e:
+            status = e.response.status_code if e.response else 0
+            body = e.response.text[:200] if e.response else ""
+            logger.error(f"[Cafe24] Refresh 실패 status={status}: {body}")
+            # 400/401이면 refresh_token 무효 → 전체 토큰 초기화해 재연결 유도
+            if status in (400, 401):
+                user.cafe24_access_token = None
+                user.cafe24_refresh_token = None
+                user.cafe24_token_expires_at = None
+                user.cafe24_scopes = None
+                await db.commit()
+                raise httpx.HTTPStatusError(
+                    "Cafe24 재연결이 필요합니다. 관리자에서 Cafe24를 다시 연결해주세요.",
+                    request=e.request, response=e.response,
+                )
+            raise
+
         user.cafe24_access_token = data.get("access_token", user.cafe24_access_token)
         if data.get("refresh_token"):
             user.cafe24_refresh_token = data["refresh_token"]
