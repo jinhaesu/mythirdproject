@@ -26,8 +26,8 @@ import {
   LabelList,
   ComposedChart,
 } from 'recharts';
-import { affiliateApi, cafe24Api, formatCurrency } from '@/lib/api';
-import type { AffiliatePartner, AffiliateTimeseriesPoint, AffiliateByCampaign, AffiliateChannelKey, HourlyConversion, TopProduct } from '@/lib/api';
+import { affiliateApi, authApi, cafe24Api, formatCurrency } from '@/lib/api';
+import type { AffiliatePartner, AffiliateTimeseriesPoint, AffiliateByCampaign, AffiliateChannelKey, HourlyConversion, TopProduct, ConnectionsStatus } from '@/lib/api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -302,6 +302,76 @@ function SectionError({ message }: { message?: string }) {
 }
 
 // ─── Cafe24 Status Banner ─────────────────────────────────────────────────────
+
+// ─── 연결 상태등 위젯 ─────────────────────────────────────────────────────────
+
+function ConnectionStatusIndicator() {
+  const { data } = useQuery<ConnectionsStatus>({
+    queryKey: ['connections-status'],
+    queryFn: authApi.getConnectionsStatus,
+    retry: 1,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
+
+  if (!data) return null;
+
+  const items = [
+    {
+      label: 'Cafe24',
+      connected: data.cafe24.connected,
+      warning: data.cafe24.expiring_soon && data.cafe24.connected,
+      detail: data.cafe24.mall_id || undefined,
+    },
+    {
+      label: 'Meta',
+      connected: data.meta.connected,
+      detail: data.meta.ad_account_id || undefined,
+    },
+    {
+      label: 'Naver',
+      connected: data.naver.connected,
+      detail: [data.naver.search_ads ? '검색' : null, data.naver.gfa ? 'GFA' : null].filter(Boolean).join(' · ') || undefined,
+    },
+  ];
+
+  const anyDisconnected = items.some(i => !i.connected);
+  const anyWarning = items.some(i => i.warning);
+
+  return (
+    <div className={`flex items-center gap-3 px-4 py-2.5 rounded-xl border ${
+      anyDisconnected ? 'bg-red-500/5 border-red-500/20' : anyWarning ? 'bg-amber-500/5 border-amber-500/20' : 'bg-[#1a1b1e] border-[#2a2d35]'
+    }`}>
+      <span className="text-[10px] font-medium text-gray-500 uppercase tracking-wider shrink-0">연결 상태</span>
+      <div className="flex items-center gap-4 flex-wrap">
+        {items.map((item) => {
+          const color = item.warning ? 'bg-amber-400' : item.connected ? 'bg-emerald-400' : 'bg-red-400';
+          const textColor = item.warning ? 'text-amber-300' : item.connected ? 'text-gray-300' : 'text-red-300';
+          return (
+            <div
+              key={item.label}
+              className="flex items-center gap-1.5 group relative"
+              title={
+                item.warning
+                  ? `${item.label}: 토큰 만료 임박`
+                  : item.connected
+                    ? `${item.label}: 연결됨${item.detail ? ` (${item.detail})` : ''}`
+                    : `${item.label}: 연결 안 됨`
+              }
+            >
+              <span className={`w-2 h-2 rounded-full ${color} ${!item.connected || item.warning ? 'animate-pulse' : ''}`} />
+              <span className={`text-xs font-medium ${textColor}`}>{item.label}</span>
+              {item.detail && item.connected && !item.warning && (
+                <span className="text-[10px] text-gray-500 hidden md:inline">({item.detail})</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 
 function Cafe24Banner() {
   const qc = useQueryClient();
@@ -3471,7 +3541,8 @@ export function AffiliateManaging() {
 
   return (
     <div className="space-y-4">
-      {/* Cafe24 연결 상태 배너 — 탭 네비게이션 위 */}
+      {/* 연결 상태등 + Cafe24 연결 배너 */}
+      <ConnectionStatusIndicator />
       <Cafe24Banner />
 
       {/* 탭 네비게이션 */}

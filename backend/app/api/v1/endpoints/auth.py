@@ -723,3 +723,48 @@ async def update_meta_settings(
         "meta_ig_account_id": current_user.meta_ig_account_id,
         "message": "대표 계정 설정이 저장되었습니다.",
     }
+
+
+@router.get("/connections-status")
+async def get_connections_status(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """모든 외부 플랫폼 연결 상태 한번에 반환 (Cafe24 / Meta / Naver)."""
+    from datetime import datetime as _dt, timedelta as _td
+
+    # Cafe24 (shared)
+    cafe24_user = current_user if current_user.cafe24_access_token else await get_shared_cafe24_user(db)
+    cafe24_connected = bool(cafe24_user and cafe24_user.cafe24_access_token)
+    cafe24_expiring = False
+    if cafe24_connected and cafe24_user.cafe24_token_expires_at:
+        # 만료 1시간 내 = 경고 (이미 만료됐을 수도)
+        delta = cafe24_user.cafe24_token_expires_at - _dt.utcnow()
+        cafe24_expiring = delta < _td(hours=1)
+
+    # Meta (shared)
+    meta_user = current_user if current_user.meta_access_token else await get_shared_meta_credentials(db)
+    meta_connected = bool(meta_user and meta_user.meta_access_token)
+
+    # Naver (shared)
+    naver_user = current_user if (current_user.naver_search_ads_connected or current_user.naver_gfa_connected) else await get_shared_naver_user(db)
+    naver_connected = bool(naver_user and (naver_user.naver_search_ads_connected or naver_user.naver_gfa_connected))
+
+    return {
+        "cafe24": {
+            "connected": cafe24_connected,
+            "mall_id": cafe24_user.cafe24_mall_id if cafe24_user else None,
+            "expires_at": cafe24_user.cafe24_token_expires_at.isoformat() if cafe24_connected and cafe24_user and cafe24_user.cafe24_token_expires_at else None,
+            "expiring_soon": cafe24_expiring,
+        },
+        "meta": {
+            "connected": meta_connected,
+            "user_id": meta_user.meta_user_id if meta_user else None,
+            "ad_account_id": meta_user.meta_ad_account_id if meta_user else None,
+        },
+        "naver": {
+            "connected": naver_connected,
+            "search_ads": bool(naver_user.naver_search_ads_connected) if naver_user else False,
+            "gfa": bool(naver_user.naver_gfa_connected) if naver_user else False,
+        },
+    }

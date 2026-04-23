@@ -118,7 +118,18 @@ export const authApi = {
     const { data } = await api.put('/auth/meta/settings', settings);
     return data;
   },
+
+  getConnectionsStatus: async (): Promise<ConnectionsStatus> => {
+    const { data } = await api.get<ConnectionsStatus>('/auth/connections-status');
+    return data;
+  },
 };
+
+export interface ConnectionsStatus {
+  cafe24: { connected: boolean; mall_id?: string | null; expires_at?: string | null; expiring_soon?: boolean };
+  meta: { connected: boolean; user_id?: string | null; ad_account_id?: string | null };
+  naver: { connected: boolean; search_ads: boolean; gfa: boolean };
+}
 
 // Benchmark API (TAB 1)
 export const benchmarkApi = {
