@@ -1058,8 +1058,10 @@ async def get_dashboard_timeseries(
 
     데이터가 있는 날짜만 반환하며 날짜 gap은 프론트엔드에서 채웁니다.
     """
-    # 전체 파트너 ID 목록
-    pid_result = await db.execute(select(AffiliatePartner.id))
+    # 활성 파트너 ID만 (휴지통 제외)
+    pid_result = await db.execute(
+        select(AffiliatePartner.id).where(AffiliatePartner.deleted_at.is_(None))
+    )
     partner_ids = [row[0] for row in pid_result.all()]
 
     since = datetime.utcnow() - timedelta(days=days)
@@ -1153,38 +1155,44 @@ async def get_dashboard_by_campaign(
     """
     캠페인별 성과 집계: 매출/커미션/클릭/전환/파트너 수 (전체 관리자 공유).
     """
+    # 활성 파트너 ID (휴지통 제외)
+    active_pids_r = await db.execute(
+        select(AffiliatePartner.id).where(AffiliatePartner.deleted_at.is_(None))
+    )
+    active_partner_ids = [row[0] for row in active_pids_r.all()]
+
     # 전체 캠페인 목록
     camp_result = await db.execute(select(AffiliateCampaign))
     campaigns = camp_result.scalars().all()
 
     result_list = []
     for campaign in campaigns:
-        # 이 캠페인에 연결된 파트너 수 (전체)
         pcount_result = await db.execute(
             select(func.count(AffiliatePartner.id)).where(
                 AffiliatePartner.campaign_id == campaign.id,
+                AffiliatePartner.deleted_at.is_(None),
             )
         )
         partner_count = pcount_result.scalar() or 0
 
-        # 클릭 수
-        click_result = await db.execute(
-            select(func.count(ReferralClick.id)).where(
-                ReferralClick.campaign_id == campaign.id,
-            )
-        )
+        click_conds = [ReferralClick.campaign_id == campaign.id]
+        conv_conds = [
+            ReferralConversion.campaign_id == campaign.id,
+            ReferralConversion.status == "paid",
+        ]
+        if active_partner_ids:
+            click_conds.append(ReferralClick.partner_id.in_(active_partner_ids))
+            conv_conds.append(ReferralConversion.partner_id.in_(active_partner_ids))
+
+        click_result = await db.execute(select(func.count(ReferralClick.id)).where(*click_conds))
         clicks = click_result.scalar() or 0
 
-        # 전환/매출/커미션 (status='paid' 순매출만)
         conv_result = await db.execute(
             select(
                 func.count(ReferralConversion.id),
                 func.coalesce(func.sum(ReferralConversion.order_amount), 0),
                 func.coalesce(func.sum(ReferralConversion.commission_amount), 0),
-            ).where(
-                ReferralConversion.campaign_id == campaign.id,
-                ReferralConversion.status == "paid",
-            )
+            ).where(*conv_conds)
         )
         conv_row = conv_result.one()
         conversions = conv_row[0] or 0
@@ -1230,9 +1238,27 @@ async def get_dashboard_hourly(
 
     since = datetime.utcnow() - timedelta(days=days)
 
-    # EXTRACT(ISODOW) - 1 → 0=월, 6=일 (전체 공유, partner_id 필터 없음)
+    # 활성 파트너만 (휴지통 제외)
+    active_pids_r = await db.execute(
+        select(AffiliatePartner.id).where(AffiliatePartner.deleted_at.is_(None))
+    )
+    active_partner_ids = [row[0] for row in active_pids_r.all()]
+
+    # EXTRACT(ISODOW) - 1 → 0=월, 6=일
     hour_col = func.extract("hour", ReferralConversion.converted_at).label("hour")
     dow_col = (func.extract("isodow", ReferralConversion.converted_at) - 1).label("dow")
+
+    conds = [
+        ReferralConversion.converted_at >= since,
+        ReferralConversion.status == "paid",
+    ]
+    if active_partner_ids:
+        conds.append(ReferralConversion.partner_id.in_(active_partner_ids))
+    else:
+        return [
+            {"hour": h, "day_of_week": d, "conversions": 0, "revenue": 0.0}
+            for d in range(7) for h in range(24)
+        ]
 
     rows = await db.execute(
         select(
@@ -1241,10 +1267,7 @@ async def get_dashboard_hourly(
             func.count(ReferralConversion.id),
             func.coalesce(func.sum(ReferralConversion.order_amount), 0),
         )
-        .where(
-            ReferralConversion.converted_at >= since,
-            ReferralConversion.status == "paid",
-        )
+        .where(*conds)
         .group_by(hour_col, dow_col)
     )
 
@@ -1286,8 +1309,24 @@ async def get_dashboard_top_products(
 
     status='paid' 전환만 포함. revenue 내림차순 정렬.
     """
+    # 활성 파트너만 (휴지통 제외)
+    active_pids_r = await db.execute(
+        select(AffiliatePartner.id).where(AffiliatePartner.deleted_at.is_(None))
+    )
+    active_partner_ids = [row[0] for row in active_pids_r.all()]
+
     # 전체 캠페인 중 cafe24_product_no가 있는 것만 (전체 관리자 공유)
     # GROUP BY product_no + name + image
+    join_cond = (
+        (ReferralConversion.campaign_id == AffiliateCampaign.id)
+        & (ReferralConversion.status == "paid")
+    )
+    if active_partner_ids:
+        join_cond = join_cond & ReferralConversion.partner_id.in_(active_partner_ids)
+    else:
+        # 활성 파트너 없음 → 전환은 모두 0으로 반환
+        join_cond = join_cond & (ReferralConversion.id == None)  # noqa: E711
+
     rows = await db.execute(
         select(
             AffiliateCampaign.cafe24_product_no,
@@ -1298,11 +1337,7 @@ async def get_dashboard_top_products(
             func.coalesce(func.sum(ReferralConversion.order_amount), 0).label("revenue"),
             func.coalesce(func.sum(ReferralConversion.commission_amount), 0).label("commission"),
         )
-        .outerjoin(
-            ReferralConversion,
-            (ReferralConversion.campaign_id == AffiliateCampaign.id)
-            & (ReferralConversion.status == "paid"),
-        )
+        .outerjoin(ReferralConversion, join_cond)
         .where(
             AffiliateCampaign.cafe24_product_no.isnot(None),
         )
