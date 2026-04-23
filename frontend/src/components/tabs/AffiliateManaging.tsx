@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Users, Link2, Share2, TrendingUp, DollarSign, Award, Plus, Search,
@@ -800,13 +800,37 @@ function DashboardSection() {
   });
 
   const {
-    data: timeseries = [],
+    data: timeseriesRaw = [],
     isLoading: tsLoading,
   } = useQuery<AffiliateTimeseriesPoint[]>({
     queryKey: ['affiliate-timeseries', days],
     queryFn: () => affiliateApi.getDashboardTimeseries(days),
     retry: 1,
   });
+
+  // X축 고정: 데이터가 없는 날짜도 포함해 최근 N일을 빠짐없이 표시
+  const timeseries = useMemo(() => {
+    const byDate: Record<string, AffiliateTimeseriesPoint> = {};
+    for (const row of timeseriesRaw) byDate[row.date] = row;
+    const out: AffiliateTimeseriesPoint[] = [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      const key = `${yyyy}-${mm}-${dd}`;
+      out.push(byDate[key] ?? {
+        date: key,
+        revenue: 0, commission: 0, clicks: 0, conversions: 0,
+        refunded_count: 0, refunded_amount: 0,
+        cancelled_count: 0, cancelled_amount: 0,
+      });
+    }
+    return out;
+  }, [timeseriesRaw, days]);
 
   const {
     data: byCampaign = [],
