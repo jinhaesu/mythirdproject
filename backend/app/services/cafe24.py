@@ -78,6 +78,82 @@ import asyncio as _asyncio
 _refresh_locks: dict = {}
 
 
+async def proactive_refresh_all(db) -> dict:
+    """
+    모든 Cafe24 연결된 유저의 토큰을 선제적으로 갱신.
+    스케줄러가 30분마다 호출해 2시간 만료 훨씬 전에 refresh —
+    refresh_token 체인이 끊기지 않도록 유지.
+    """
+    from app.models.user import User
+    from sqlalchemy import select as _select
+    r = await db.execute(
+        _select(User).where(
+            User.cafe24_access_token.isnot(None),
+            User.cafe24_access_token != "",
+        )
+    )
+    users = r.scalars().all()
+    refreshed = 0
+    failed = 0
+    skipped = 0
+    for u in users:
+        exp = u.cafe24_token_expires_at
+        now = datetime.utcnow()
+        # 만료까지 1시간 이상 남았으면 스킵 (불필요한 refresh 방지)
+        if exp and (exp - now) > timedelta(hours=1):
+            skipped += 1
+            continue
+        try:
+            await ensure_valid_token(u, db)
+            refreshed += 1
+            logger.info(f"[Cafe24] Proactive refresh ok user={u.id}")
+        except Exception as e:
+            failed += 1
+            logger.error(f"[Cafe24] Proactive refresh FAILED user={u.id}: {e}")
+            await _notify_cafe24_disconnect(u.id, str(e))
+    return {"refreshed": refreshed, "failed": failed, "skipped": skipped, "total": len(users)}
+
+
+async def _notify_cafe24_disconnect(user_id: int, error: str) -> None:
+    """Cafe24 연결 끊김을 관리자 이메일로 알림."""
+    try:
+        _s = settings
+        if not _s.RESEND_API_KEY:
+            return
+        recipients_raw = _s.ALLOWED_EMAILS or ""
+        recipients = [e.strip() for e in recipients_raw.replace(";", ",").split(",") if e.strip()]
+        if not recipients:
+            return
+        import resend
+        resend.api_key = _s.RESEND_API_KEY
+        from_email = _s.RESEND_FROM_EMAIL or "onboarding@resend.dev"
+        if "<" not in from_email:
+            from_email = f"어필리에이트 알림 <{from_email}>"
+        resend.Emails.send({
+            "from": from_email,
+            "to": recipients,
+            "subject": "⚠️ Cafe24 연결이 끊어졌습니다 — 재연결 필요",
+            "html": f"""
+            <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 24px;">
+              <h2 style="color: #DC2626;">Cafe24 어필리에이트 연결 끊김</h2>
+              <p style="color: #333; line-height: 1.6;">
+                자동 토큰 갱신이 실패해 Cafe24 연결이 끊어졌습니다. 어필리에이트 대시보드의
+                <b>Cafe24 스토어 연결</b> 배너에서 <b>"연결하기"</b>를 눌러 OAuth를 다시 진행해주세요.
+              </p>
+              <p style="background: #FEE2E2; padding: 12px; border-radius: 8px; font-size: 12px; color: #991B1B;">
+                <b>오류:</b> {error[:300]}
+              </p>
+              <p style="color: #666; font-size: 13px;">
+                재연결 전까지 상품 조회, 주문 폴링, 쿠폰 발급 기능이 일시 중단됩니다.
+              </p>
+            </div>
+            """,
+        })
+        logger.info(f"[Cafe24] disconnect 알림 이메일 발송 → {recipients}")
+    except Exception as e:
+        logger.warning(f"[Cafe24] disconnect 알림 실패: {e}")
+
+
 async def ensure_valid_token(user, db) -> str:
     """만료 1분 이내이면 갱신 후 DB에 저장, access_token 반환.
 

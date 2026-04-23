@@ -313,6 +313,7 @@ function Cafe24Banner() {
     queryFn: cafe24Api.getStatus,
     retry: 1,
     staleTime: 30_000,
+    refetchInterval: 60_000, // 1분마다 연결 상태 재확인
   });
 
   const disconnectMutation = useMutation({
@@ -364,13 +365,13 @@ function Cafe24Banner() {
   }
 
   return (
-    <div className="px-4 py-3 bg-[#1a1b1e] border border-amber-500/20 rounded-xl space-y-2">
+    <div className="px-4 py-3 bg-red-500/10 border-2 border-red-500/40 rounded-xl space-y-2 animate-pulse-slow">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-2">
-          <AlertCircle size={15} className="text-amber-400 shrink-0 mt-0.5" />
+          <AlertCircle size={16} className="text-red-400 shrink-0 mt-0.5" />
           <div>
-            <p className="text-sm text-amber-300 font-medium">Cafe24 스토어가 연결되지 않았습니다</p>
-            <p className="text-xs text-gray-500 mt-0.5">캠페인의 할인 링크 생성 및 주문 자동 기록을 위해 연결하세요.</p>
+            <p className="text-sm text-red-300 font-semibold">⚠️ Cafe24 스토어 연결이 필요합니다</p>
+            <p className="text-xs text-gray-400 mt-0.5">토큰 만료 또는 갱신 실패로 연결이 끊어졌습니다. 재연결 전까지 상품 조회, 주문 폴링, 쿠폰 발급이 중단됩니다.</p>
           </div>
         </div>
         <button

@@ -33,18 +33,31 @@ async def _run_scheduled_reports():
     from app.services.scheduled_report_executor import execute_scheduled_report, calc_next_run
     from app.services.keyword_rank_service import execute_keyword_rank_check
     from app.services.cafe24_poller import poll_cafe24_orders
+    from app.services.cafe24 import proactive_refresh_all
     from sqlalchemy import select
     import json as _json
 
     global _scheduler_last_check, _scheduler_status, _scheduler_run_count, _scheduler_last_error, _scheduler_last_result
     _scheduler_status = "running"
     _cafe24_poll_counter = 0
+    _cafe24_refresh_counter = 0
     while True:
         try:
             await asyncio.sleep(60)
             now = datetime.utcnow()
             _scheduler_last_check = now
             _scheduler_run_count += 1
+
+            # ── Cafe24 토큰 선제적 refresh (30분마다, 만료 훨씬 전에 갱신) ──
+            _cafe24_refresh_counter += 1
+            if _cafe24_refresh_counter >= 30:
+                _cafe24_refresh_counter = 0
+                try:
+                    async with async_session_factory() as _db:
+                        rr = await proactive_refresh_all(_db)
+                        logger.info(f"[Scheduler] Cafe24 proactive refresh: {rr}")
+                except Exception as e:
+                    logger.error(f"[Scheduler] Cafe24 proactive refresh failed: {e}")
 
             # ── Cafe24 주문 폴링 (5분마다, 웹훅 fallback) ──
             _cafe24_poll_counter += 1
