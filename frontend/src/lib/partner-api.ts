@@ -36,6 +36,14 @@ export interface PartnerDashboard {
   gross_sales?: number;
 }
 
+export interface PartnerTimeseriesPoint {
+  date: string;
+  clicks: number;
+  conversions: number;
+  sales: number;
+  commission: number;
+}
+
 export interface PartnerCampaign {
   campaign_id: number;
   campaign_name: string;
@@ -91,6 +99,10 @@ export const partnerAuthApi = {
     const { data } = await partnerApi.post('/partner/auth/send-magic-link', { email });
     return data;
   },
+  sendSmsLink: async (phone: string): Promise<{ success: boolean }> => {
+    const { data } = await partnerApi.post('/partner/auth/send-sms-link', { phone });
+    return data;
+  },
   verify: async (token: string): Promise<PartnerVerifyResponse> => {
     const { data } = await partnerApi.post('/partner/auth/verify', { token });
     return data;
@@ -110,6 +122,10 @@ export const partnerDashboardApi = {
   },
   getCampaigns: async (): Promise<PartnerCampaign[]> => {
     const { data } = await partnerApi.get('/partner/campaigns');
+    return data;
+  },
+  getTimeseries: async (days = 30): Promise<PartnerTimeseriesPoint[]> => {
+    const { data } = await partnerApi.get('/partner/timeseries', { params: { days } });
     return data;
   },
 };

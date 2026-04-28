@@ -31,8 +31,17 @@ class SendMagicLinkRequest(BaseModel):
     email: str
 
 
+class SendSmsLinkRequest(BaseModel):
+    phone: str
+
+
 class VerifyMagicLinkRequest(BaseModel):
     token: str
+
+
+def _normalize_phone(raw: str) -> str:
+    """휴대폰 번호 정규화 — 숫자만 추출."""
+    return "".join(c for c in (raw or "") if c.isdigit())
 
 
 # ---------------------------------------------------------------------------
@@ -164,6 +173,70 @@ async def send_magic_link(
         )
 
     return {"success": True, "message": "로그인 링크가 이메일로 전송되었습니다."}
+
+
+@router.post("/send-sms-link")
+async def send_sms_link(
+    request: SendSmsLinkRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    파트너 포털 로그인 매직링크를 SMS로 발송 (이메일 미등록 파트너용).
+
+    - approved 상태이고 deleted_at IS NULL 인 파트너만 허용
+    - 입력 phone과 DB phone을 숫자만 비교 (하이픈/공백 무시)
+    - 유효 시간: 10분
+    """
+    target_digits = _normalize_phone(request.phone)
+    if len(target_digits) < 9:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="유효한 휴대폰 번호를 입력하세요.",
+        )
+
+    r = await db.execute(
+        select(AffiliatePartner).where(
+            AffiliatePartner.status == "approved",
+            AffiliatePartner.deleted_at.is_(None),
+            AffiliatePartner.phone.isnot(None),
+        )
+    )
+    matched: AffiliatePartner | None = None
+    for p in r.scalars().all():
+        if _normalize_phone(p.phone or "") == target_digits:
+            matched = p
+            break
+
+    if not matched:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="등록된 파트너 연락처를 찾을 수 없습니다.",
+        )
+
+    token = create_access_token(
+        data={"sub": str(matched.id), "type": "partner_magic_link"},
+        expires_delta=timedelta(minutes=10),
+    )
+    magic_link = f"{settings.FRONTEND_URL}/partner?token={token}"
+
+    try:
+        from app.services.sms import send_sms
+        sms_message = (
+            f"[널담] {matched.name}님 로그인 링크입니다 (10분 유효).\n{magic_link}"
+        )
+        sms_result = await send_sms(matched.phone, sms_message)
+        if not sms_result.get("success"):
+            logger.warning(
+                f"[PartnerAuth] SMS 매직링크 발송 실패: {sms_result.get('reason')}"
+            )
+    except Exception as e:
+        logger.error(f"[PartnerAuth] SMS 발송 예외: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="문자 메시지 발송에 실패했습니다.",
+        )
+
+    return {"success": True, "message": "로그인 링크를 문자로 전송했습니다."}
 
 
 @router.post("/verify")

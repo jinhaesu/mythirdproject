@@ -527,6 +527,8 @@ async def create_partner(
         partner_data["channel"] = payload.channels[0]
     # channel은 payload에서 이미 설정됨 (default "instagram")
 
+    # 관리자가 직접 초대한 파트너는 즉시 승인 — SMS 매직링크가 바로 동작해야 함
+    partner_data.setdefault("status", "approved")
     partner = AffiliatePartner(
         user_id=current_user.id,
         referral_code=code,
@@ -587,14 +589,21 @@ async def create_partner(
         except Exception as e:
             logger.warning(f"[Affiliate] Email send failed: {e}")
 
-    # SMS 발송 (Solapi) — phone 있을 때
+    # SMS 발송 (Solapi) — phone 있을 때, 자동 로그인 매직링크 포함
     if partner.phone:
         try:
             from app.services.sms import send_sms
-            portal_url = f"{_settings.FRONTEND_URL}/partner?email={partner.email or ''}"
+            from app.core.security import create_access_token
+            from datetime import timedelta as _td
+            # 30일 유효 매직링크 토큰 — 클릭 시 즉시 로그인되어 별도 입력 불필요
+            invite_token = create_access_token(
+                data={"sub": str(partner.id), "type": "partner_magic_link"},
+                expires_delta=_td(days=30),
+            )
+            portal_url = f"{_settings.FRONTEND_URL}/partner?token={invite_token}"
             sms_message = (
-                f"[널담] {partner.name}님, 어필리에이트 파트너로 초대되었습니다. "
-                f"아래 링크로 로그인해 판매 현황을 확인하세요.\n{portal_url}"
+                f"[널담] {partner.name}님, 어필리에이트 파트너로 초대되었습니다.\n"
+                f"아래 링크를 누르면 바로 판매 현황 페이지로 이동합니다.\n{portal_url}"
             )
             sms_result = await send_sms(partner.phone, sms_message)
             if sms_result.get("success"):
@@ -1923,3 +1932,87 @@ async def get_partner_performance(
         })
 
     return result_rows
+
+
+@router.get("/partners/{partner_id}/audit")
+async def audit_partner_conversions(
+    partner_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    파트너 매출 정합성 진단 — status별 집계 + 원시 conversion 목록 반환.
+    관리자 화면 vs 파트너 포털 매출 불일치 시 어느 쪽 데이터에 문제가 있는지 추적.
+    """
+    p_r = await db.execute(
+        select(AffiliatePartner).where(AffiliatePartner.id == partner_id)
+    )
+    partner = p_r.scalar_one_or_none()
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner not found")
+
+    # status별 그룹 집계 (관리자 기준과 동일)
+    status_r = await db.execute(
+        select(
+            ReferralConversion.status,
+            func.count(ReferralConversion.id),
+            func.coalesce(func.sum(ReferralConversion.order_amount), 0),
+            func.coalesce(func.sum(ReferralConversion.commission_amount), 0),
+        ).where(ReferralConversion.partner_id == partner_id)
+        .group_by(ReferralConversion.status)
+    )
+    status_breakdown = []
+    paid_amount = 0.0
+    gross_amount = 0.0
+    for row in status_r.all():
+        st_raw = row[0]
+        amt = float(row[2])
+        gross_amount += amt
+        if (st_raw or "").strip().lower() == "paid":
+            paid_amount = amt
+        status_breakdown.append({
+            "status_raw": st_raw,
+            "status_normalized": (st_raw or "").strip().lower() or "(empty)",
+            "count": int(row[1]),
+            "order_amount_sum": amt,
+            "commission_sum": float(row[3]),
+        })
+
+    # 원시 conversion 목록 (최근 200건)
+    rows_r = await db.execute(
+        select(ReferralConversion)
+        .where(ReferralConversion.partner_id == partner_id)
+        .order_by(ReferralConversion.id.desc())
+        .limit(200)
+    )
+    conversions = [
+        {
+            "id": c.id,
+            "campaign_id": c.campaign_id,
+            "order_id": c.order_id,
+            "cafe24_order_id": c.cafe24_order_id,
+            "order_amount": c.order_amount,
+            "commission_amount": c.commission_amount,
+            "status": c.status,
+            "refunded_amount": c.refunded_amount,
+            "refunded_at": c.refunded_at.isoformat() if c.refunded_at else None,
+            "created_at": c.created_at.isoformat() if c.created_at else None,
+        }
+        for c in rows_r.scalars().all()
+    ]
+
+    return {
+        "partner": {
+            "id": partner.id,
+            "name": partner.name,
+            "phone": partner.phone,
+            "email": partner.email,
+        },
+        "summary": {
+            "net_sales_paid_only": paid_amount,
+            "gross_sales_all_status": gross_amount,
+            "diff": gross_amount - paid_amount,
+        },
+        "status_breakdown": status_breakdown,
+        "conversions_recent_200": conversions,
+    }

@@ -879,12 +879,12 @@ function DashboardSection() {
   const hasRefunds = d.refunded_count > 0;
 
   const kpis = [
-    { label: '총 매출', value: fmtMan(d.total_sales), icon: <ShoppingBag size={16} />, color: 'text-blue-400', bg: 'bg-blue-500/10', showRefund: true },
-    { label: '총 커미션', value: fmtMan(d.total_commission), icon: <DollarSign size={16} />, color: 'text-green-400', bg: 'bg-green-500/10', showRefund: false },
-    { label: '활성 파트너', value: `${d.active_partners}명`, icon: <Users size={16} />, color: 'text-purple-400', bg: 'bg-purple-500/10', showRefund: false },
-    { label: '총 클릭', value: fmt(d.total_clicks), icon: <Eye size={16} />, color: 'text-cyan-400', bg: 'bg-cyan-500/10', showRefund: false },
-    { label: '전환', value: fmt(d.total_conversions), icon: <CheckCircle size={16} />, color: 'text-emerald-400', bg: 'bg-emerald-500/10', showRefund: false },
-    { label: '전환율', value: `${fmtPct(d.conversion_rate)}%`, icon: <Percent size={16} />, color: 'text-orange-400', bg: 'bg-orange-500/10', showRefund: false },
+    { label: '순매출 (취소·환불 제외)', value: fmtMan(d.total_sales), icon: <ShoppingBag size={16} />, color: 'text-blue-400', bg: 'bg-blue-500/10', ring: 'ring-blue-500/20', glow: 'from-blue-500/15', showRefund: true },
+    { label: '총 커미션', value: fmtMan(d.total_commission), icon: <DollarSign size={16} />, color: 'text-emerald-400', bg: 'bg-emerald-500/10', ring: 'ring-emerald-500/20', glow: 'from-emerald-500/15', showRefund: false },
+    { label: '활성 파트너', value: `${d.active_partners}명`, icon: <Users size={16} />, color: 'text-violet-400', bg: 'bg-violet-500/10', ring: 'ring-violet-500/20', glow: 'from-violet-500/15', showRefund: false },
+    { label: '총 클릭', value: fmt(d.total_clicks), icon: <Eye size={16} />, color: 'text-cyan-400', bg: 'bg-cyan-500/10', ring: 'ring-cyan-500/20', glow: 'from-cyan-500/15', showRefund: false },
+    { label: '전환', value: fmt(d.total_conversions), icon: <CheckCircle size={16} />, color: 'text-teal-400', bg: 'bg-teal-500/10', ring: 'ring-teal-500/20', glow: 'from-teal-500/15', showRefund: false },
+    { label: '전환율', value: `${fmtPct(d.conversion_rate)}%`, icon: <Percent size={16} />, color: 'text-amber-400', bg: 'bg-amber-500/10', ring: 'ring-amber-500/20', glow: 'from-amber-500/15', showRefund: false },
   ];
 
   const rankColors = [
@@ -930,25 +930,31 @@ function DashboardSection() {
       {/* KPI 카드 */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         {kpis.map((kpi, idx) => (
-          <div key={idx} className="bg-[#1a1b1e] rounded-xl p-4 border border-[#2a2d35]">
-            <div className={`w-8 h-8 rounded-lg ${kpi.bg} flex items-center justify-center ${kpi.color} mb-2`}>
-              {kpi.icon}
-            </div>
-            <p className="text-[10px] text-gray-500">{kpi.label}</p>
-            <p className="text-lg font-bold text-white">{kpi.value}</p>
-            {/* 환불/취소 배지 — 총 매출 카드에만 표시 */}
-            {kpi.showRefund && hasRefunds && (
-              <div className="mt-1.5 flex flex-col gap-0.5">
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-yellow-500/15 border border-yellow-500/30 rounded text-[9px] text-yellow-400 leading-tight">
-                  환불 {d.refunded_count}건 / ₩{fmt(refundDiff)} 제외
-                </span>
-                {d.cancelled_count > 0 && (
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-orange-500/10 border border-orange-500/20 rounded text-[9px] text-orange-400 leading-tight">
-                    취소 {d.cancelled_count}건
-                  </span>
-                )}
+          <div
+            key={idx}
+            className={`group relative overflow-hidden bg-[#1a1b1e] rounded-2xl p-4 border border-white/[0.06] ring-1 ${kpi.ring} hover:border-white/[0.12] transition-all`}
+          >
+            <div className={`pointer-events-none absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-br ${kpi.glow} to-transparent`} />
+            <div className="relative">
+              <div className={`w-9 h-9 rounded-xl ${kpi.bg} flex items-center justify-center ${kpi.color} mb-2.5`}>
+                {kpi.icon}
               </div>
-            )}
+              <p className="text-[10px] text-gray-500 font-medium tracking-wide">{kpi.label}</p>
+              <p className="text-lg font-bold text-white tabular-nums tracking-tight mt-0.5">{kpi.value}</p>
+              {/* 환불/취소 배지 — 순매출 카드에만 표시 */}
+              {kpi.showRefund && hasRefunds && (
+                <div className="mt-2 flex flex-col gap-0.5">
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-yellow-500/15 border border-yellow-500/30 rounded-md text-[9px] text-yellow-400 leading-tight">
+                    환불 {d.refunded_count}건 / ₩{fmt(refundDiff)} 제외
+                  </span>
+                  {d.cancelled_count > 0 && (
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-orange-500/10 border border-orange-500/20 rounded-md text-[9px] text-orange-400 leading-tight">
+                      취소 {d.cancelled_count}건
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         ))}
       </div>
@@ -2031,13 +2037,28 @@ interface PartnerDetailModalProps {
   onClose: () => void;
 }
 
+interface PartnerAuditResponse {
+  partner: { id: number; name: string; phone: string | null; email: string | null };
+  summary: { net_sales_paid_only: number; gross_sales_all_status: number; diff: number };
+  status_breakdown: Array<{ status_raw: string | null; status_normalized: string; count: number; order_amount_sum: number; commission_sum: number }>;
+  conversions_recent_200: Array<{ id: number; campaign_id: number | null; cafe24_order_id: string | null; order_amount: number; status: string | null; created_at: string | null }>;
+}
+
 function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalProps) {
   const qc = useQueryClient();
   const [selectedCampaignId, setSelectedCampaignId] = useState<number>(0);
+  const [showAudit, setShowAudit] = useState(false);
 
   const { data: performance = [], isLoading: perfLoading } = useQuery<PartnerPerformanceRow[]>({
     queryKey: ['affiliate', 'partner-performance', partner.id],
     queryFn: () => affiliateApi.getPartnerPerformance(partner.id),
+    retry: 1,
+  });
+
+  const { data: audit, isLoading: auditLoading } = useQuery<PartnerAuditResponse>({
+    queryKey: ['affiliate', 'partner-audit', partner.id],
+    queryFn: () => affiliateApi.auditPartner(partner.id),
+    enabled: showAudit,
     retry: 1,
   });
 
@@ -2209,6 +2230,78 @@ function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalP
               </button>
             </div>
           )}
+
+          {/* 데이터 정합성 진단 — 관리자 vs 파트너 화면 매출 불일치 추적 */}
+          <div className="border-t border-[#2a2d35] pt-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                <AlertCircle size={14} className="text-yellow-400" /> 매출 정합성 진단
+              </h3>
+              <button
+                onClick={() => setShowAudit(v => !v)}
+                className="text-xs px-2.5 py-1 bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/20 rounded-md transition-colors"
+              >
+                {showAudit ? '닫기' : '진단 열기'}
+              </button>
+            </div>
+            {showAudit && (
+              <div className="mt-3 space-y-3">
+                {auditLoading || !audit ? (
+                  <div className="flex items-center justify-center py-6">
+                    <Loader2 size={16} className="text-yellow-400 animate-spin" />
+                  </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="bg-[#141516] border border-[#2a2d35] rounded-lg p-2.5">
+                        <p className="text-[10px] text-gray-500">순매출 (paid only)</p>
+                        <p className="text-sm font-bold text-emerald-400 mt-0.5">₩{fmt(audit.summary.net_sales_paid_only)}</p>
+                      </div>
+                      <div className="bg-[#141516] border border-[#2a2d35] rounded-lg p-2.5">
+                        <p className="text-[10px] text-gray-500">총합 (all status)</p>
+                        <p className="text-sm font-bold text-blue-400 mt-0.5">₩{fmt(audit.summary.gross_sales_all_status)}</p>
+                      </div>
+                      <div className="bg-[#141516] border border-[#2a2d35] rounded-lg p-2.5">
+                        <p className="text-[10px] text-gray-500">차이 (취소+환불+기타)</p>
+                        <p className="text-sm font-bold text-yellow-400 mt-0.5">₩{fmt(audit.summary.diff)}</p>
+                      </div>
+                    </div>
+                    <div className="overflow-x-auto rounded-lg border border-[#2a2d35]">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="bg-[#141516] text-gray-500 border-b border-[#2a2d35]">
+                            <th className="text-left py-2 px-3">상태값(raw)</th>
+                            <th className="text-left py-2 px-3">정규화</th>
+                            <th className="text-right py-2 px-3">건수</th>
+                            <th className="text-right py-2 px-3">order_amount 합</th>
+                            <th className="text-right py-2 px-3">commission 합</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {audit.status_breakdown.map((b, i) => (
+                            <tr key={i} className="border-b border-[#2a2d35]/50 text-gray-300">
+                              <td className="py-2 px-3 font-mono text-[11px]">
+                                {b.status_raw === null ? <span className="text-red-400">NULL</span> : `"${b.status_raw}"`}
+                              </td>
+                              <td className="py-2 px-3 font-mono text-[11px]">{b.status_normalized}</td>
+                              <td className="py-2 px-3 text-right">{fmt(b.count)}</td>
+                              <td className="py-2 px-3 text-right text-emerald-400">₩{fmt(b.order_amount_sum)}</td>
+                              <td className="py-2 px-3 text-right text-yellow-400">₩{fmt(b.commission_sum)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <p className="text-[11px] text-gray-500 leading-relaxed">
+                      관리자 화면의 &quot;매출&quot;은 status가 정확히 <code className="text-emerald-400">paid</code>인 건의 합입니다.
+                      파트너 포털도 동일한 기준으로 통일되었으니 다음 수집 후 일치할 것입니다.
+                      위 표에서 정규화 컬럼이 <code className="text-yellow-400">refunded/cancelled/(empty)</code>로 표시된 행이 차이의 원인입니다.
+                    </p>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -2256,12 +2349,12 @@ function PartnerEditModal({ partner, onClose, onSave, isSaving }: PartnerEditMod
 
   const handleSubmit = () => {
     if (!editForm.name.trim()) { toast.error('파트너명을 입력하세요'); return; }
-    if (!editForm.email.trim()) { toast.error('이메일을 입력하세요'); return; }
+    if (!editForm.phone.trim()) { toast.error('연락처를 입력하세요 (문자 웹링크 발송용)'); return; }
     if (editForm.channels.length === 0) { toast.error('채널을 최소 1개 선택하세요'); return; }
     onSave(partner.id, {
       name: editForm.name,
-      email: editForm.email,
-      phone: editForm.phone || null,
+      email: editForm.email || null,
+      phone: editForm.phone,
       channels: editForm.channels,
       channel: editForm.channels[0],
       followers: editForm.followers,
@@ -2297,21 +2390,27 @@ function PartnerEditModal({ partner, onClose, onSave, isSaving }: PartnerEditMod
               />
             </div>
             <div>
-              <label className="text-xs text-gray-400">이메일 *</label>
-              <input
-                type="email"
-                value={editForm.email}
-                onChange={e => setEditForm({ ...editForm, email: e.target.value })}
-                className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-blue-500/50"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-gray-400">연락처</label>
+              <label className="text-xs text-gray-400 flex items-center gap-1.5">
+                연락처 *
+                <span className="text-[10px] text-emerald-400/80">문자 웹링크</span>
+              </label>
               <input
                 type="tel"
                 value={editForm.phone}
                 onChange={e => setEditForm({ ...editForm, phone: e.target.value })}
                 placeholder="010-1234-5678"
+                className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-blue-500/50"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-gray-400 flex items-center gap-1.5">
+                이메일 <span className="text-[10px] text-gray-500">(선택)</span>
+              </label>
+              <input
+                type="email"
+                value={editForm.email}
+                onChange={e => setEditForm({ ...editForm, email: e.target.value })}
+                placeholder="partner@example.com (선택)"
                 className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-blue-500/50"
               />
             </div>
@@ -2520,14 +2619,18 @@ function PartnersSection() {
 
   const handleInvite = () => {
     if (!inviteForm.name.trim()) { toast.error('파트너명을 입력하세요'); return; }
-    if (!inviteForm.email.trim()) { toast.error('이메일을 입력하세요'); return; }
+    if (!inviteForm.phone.trim()) { toast.error('연락처를 입력하세요 (문자 웹링크 발송용)'); return; }
     if (inviteForm.channels.length === 0) { toast.error('채널을 최소 1개 선택하세요'); return; }
-    // 하위 호환: channel 필드에 첫 번째 선택값 세팅
-    createMutation.mutate({
+    // 이메일은 선택 — 빈 값이면 payload에 포함하지 않음
+    const payload: Record<string, unknown> = {
       ...inviteForm,
       channel: inviteForm.channels[0],
-      ...(inviteForm.phone ? { phone: inviteForm.phone } : {}),
-    });
+      phone: inviteForm.phone,
+    };
+    if (!inviteForm.email.trim()) {
+      delete payload.email;
+    }
+    createMutation.mutate(payload as Parameters<typeof affiliateApi.createPartnerMulti>[0]);
   };
 
   const toggleCampaign = (id: number) => {
@@ -2661,22 +2764,28 @@ function PartnersSection() {
                 />
               </div>
               <div>
-                <label className="text-xs text-gray-400">이메일 *</label>
-                <input
-                  type="email"
-                  value={inviteForm.email}
-                  onChange={e => setInviteForm({ ...inviteForm, email: e.target.value })}
-                  placeholder="partner@example.com"
-                  className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-emerald-500/50"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-gray-400">연락처</label>
+                <label className="text-xs text-gray-400 flex items-center gap-1.5">
+                  연락처 *
+                  <span className="text-[10px] text-emerald-400/80">문자 웹링크 발송</span>
+                </label>
                 <input
                   type="tel"
                   value={inviteForm.phone}
                   onChange={e => setInviteForm({ ...inviteForm, phone: e.target.value })}
                   placeholder="010-1234-5678"
+                  className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-emerald-500/50"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 flex items-center gap-1.5">
+                  이메일
+                  <span className="text-[10px] text-gray-500">(선택)</span>
+                </label>
+                <input
+                  type="email"
+                  value={inviteForm.email}
+                  onChange={e => setInviteForm({ ...inviteForm, email: e.target.value })}
+                  placeholder="partner@example.com (선택)"
                   className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-emerald-500/50"
                 />
               </div>
