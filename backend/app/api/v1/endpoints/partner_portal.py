@@ -340,17 +340,17 @@ async def get_partner_timeseries(
     # 일별 매출/전환 (paid only — 관리자 기준과 일치)
     conv_rows = await db.execute(
         select(
-            func.date(ReferralConversion.created_at).label("d"),
+            func.date(ReferralConversion.converted_at).label("d"),
             func.count(ReferralConversion.id).label("conversions"),
             func.coalesce(func.sum(ReferralConversion.order_amount), 0).label("sales"),
             func.coalesce(func.sum(ReferralConversion.commission_amount), 0).label("commission"),
         )
         .where(
             ReferralConversion.partner_id == partner_id,
-            ReferralConversion.created_at >= start_dt,
+            ReferralConversion.converted_at >= start_dt,
             ReferralConversion.status == "paid",
         )
-        .group_by(func.date(ReferralConversion.created_at))
+        .group_by(func.date(ReferralConversion.converted_at))
     )
     conv_map: dict[str, dict] = {}
     for row in conv_rows.all():

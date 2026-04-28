@@ -2055,11 +2055,11 @@ function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalP
     retry: 1,
   });
 
-  const { data: audit, isLoading: auditLoading } = useQuery<PartnerAuditResponse>({
+  const { data: audit, isLoading: auditLoading, isError: auditError, error: auditErrObj, refetch: refetchAudit } = useQuery<PartnerAuditResponse>({
     queryKey: ['affiliate', 'partner-audit', partner.id],
     queryFn: () => affiliateApi.auditPartner(partner.id),
     enabled: showAudit,
-    retry: 1,
+    retry: 0,
   });
 
   const addCampaignMutation = useMutation({
@@ -2246,9 +2246,25 @@ function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalP
             </div>
             {showAudit && (
               <div className="mt-3 space-y-3">
-                {auditLoading || !audit ? (
+                {auditLoading ? (
                   <div className="flex items-center justify-center py-6">
                     <Loader2 size={16} className="text-yellow-400 animate-spin" />
+                  </div>
+                ) : auditError || !audit ? (
+                  <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-xs text-red-300 space-y-2">
+                    <p className="font-medium">진단 데이터를 불러오지 못했습니다.</p>
+                    <p className="text-red-400/80 break-all">
+                      {(auditErrObj as { response?: { status?: number; data?: { detail?: string } }; message?: string })?.response?.data?.detail
+                        || (auditErrObj as { response?: { status?: number } })?.response?.status
+                          ? `HTTP ${(auditErrObj as { response?: { status?: number } }).response?.status}`
+                          : (auditErrObj as { message?: string })?.message || '알 수 없는 오류'}
+                    </p>
+                    <button
+                      onClick={() => refetchAudit()}
+                      className="px-2 py-1 bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded text-[11px] font-medium"
+                    >
+                      다시 시도
+                    </button>
                   </div>
                 ) : (
                   <>

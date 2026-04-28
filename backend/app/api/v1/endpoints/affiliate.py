@@ -1996,7 +1996,7 @@ async def audit_partner_conversions(
             "status": c.status,
             "refunded_amount": c.refunded_amount,
             "refunded_at": c.refunded_at.isoformat() if c.refunded_at else None,
-            "created_at": c.created_at.isoformat() if c.created_at else None,
+            "converted_at": c.converted_at.isoformat() if c.converted_at else None,
         }
         for c in rows_r.scalars().all()
     ]
