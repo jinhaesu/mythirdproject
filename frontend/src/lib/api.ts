@@ -806,7 +806,11 @@ export const affiliateApi = {
   getCampaigns: async () => { const { data } = await api.get('/affiliate/campaigns'); return data; },
   createCampaign: async (d: any) => { const { data } = await api.post('/affiliate/campaigns', d); return data; },
   updateCampaign: async (id: number, d: any) => { const { data } = await api.put(`/affiliate/campaigns/${id}`, d); return data; },
-  deleteCampaign: async (id: number) => { const { data } = await api.delete(`/affiliate/campaigns/${id}`); return data; },
+  deleteCampaign: async (id: number, options?: { skipCafe24?: boolean }) => {
+    const qs = options?.skipCafe24 ? '?skip_cafe24=true' : '';
+    const { data } = await api.delete(`/affiliate/campaigns/${id}${qs}`);
+    return data;
+  },
   getPartners: async (): Promise<AffiliatePartner[]> => { const { data } = await api.get('/affiliate/partners'); return data; },
   createPartner: async (d: any) => { const { data } = await api.post('/affiliate/partners', d); return data; },
   approvePartner: async (id: number) => { const { data } = await api.post(`/affiliate/partners/${id}/approve`); return data; },

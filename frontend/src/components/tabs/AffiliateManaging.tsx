@@ -2112,13 +2112,31 @@ function CampaignsSection() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => affiliateApi.deleteCampaign(id),
-    onSuccess: () => {
+    mutationFn: ({ id, skipCafe24 = false }: { id: number; skipCafe24?: boolean }) =>
+      affiliateApi.deleteCampaign(id, { skipCafe24 }),
+    onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: ['affiliate', 'campaigns'] });
       qc.invalidateQueries({ queryKey: ['affiliate', 'dashboard'] });
-      toast.success('캠페인이 삭제되었습니다');
+      toast.success(
+        vars.skipCafe24 ? '강제 삭제 완료 (카페24 카테고리는 그대로 둠)' : '캠페인이 삭제되었습니다',
+      );
     },
-    onError: () => toast.error('캠페인 삭제에 실패했습니다'),
+    onError: (e: { response?: { data?: { detail?: string } } }, vars) => {
+      const detail = e?.response?.data?.detail || '캠페인 삭제에 실패했습니다';
+      toast.error(detail, { duration: 7000 });
+      // 첫 시도가 일반 삭제이고 실패했다면 강제 삭제 옵션 제안
+      if (!vars.skipCafe24) {
+        setTimeout(() => {
+          if (window.confirm(
+            `삭제 실패 원인: ${detail}\n\n` +
+            `강제 삭제로 다시 시도하시겠습니까?\n` +
+            `(카페24 카테고리 cleanup을 건너뛰고 DB에서만 삭제합니다)`
+          )) {
+            deleteMutation.mutate({ id: vars.id, skipCafe24: true });
+          }
+        }, 100);
+      }
+    },
   });
 
   const updateMutation = useMutation({
@@ -2580,9 +2598,14 @@ function CampaignsSection() {
                     <Pencil size={12} />
                   </button>
                   <button
-                    onClick={() => deleteMutation.mutate(c.id)}
+                    onClick={() => {
+                      if (window.confirm(`"${c.name}" 캠페인을 삭제하시겠습니까?\n\n관련 클릭/전환 기록도 함께 삭제됩니다.${c.cafe24_category_no ? '\n카페24 카테고리도 같이 정리합니다.' : ''}`)) {
+                        deleteMutation.mutate({ id: c.id });
+                      }
+                    }}
                     disabled={deleteMutation.isPending}
                     className="p-1 text-gray-500 hover:text-red-400 transition-colors"
+                    title="캠페인 삭제"
                   >
                     <X size={12} />
                   </button>

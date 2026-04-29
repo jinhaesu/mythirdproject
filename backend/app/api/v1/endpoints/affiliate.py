@@ -460,6 +460,7 @@ async def update_campaign(
 @router.delete("/campaigns/{campaign_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_campaign(
     campaign_id: int,
+    skip_cafe24: bool = Query(False, description="카페24 카테고리 cleanup 건너뛰기 (강제 삭제)"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -475,34 +476,47 @@ async def delete_campaign(
 
     # 카페24 카테고리 cleanup (best-effort — 실패해도 캠페인 삭제는 진행)
     cafe24_category_no = campaign.cafe24_category_no
-    if cafe24_category_no:
+    if cafe24_category_no and not skip_cafe24:
         try:
             import app.services.cafe24 as cafe24_svc
             cafe24_user = await _resolve_cafe24_user(current_user, db)
             await cafe24_svc.delete_category(cafe24_user, db, category_no=int(cafe24_category_no))
             logger.info(f"[Affiliate] Cafe24 카테고리 {cafe24_category_no} 삭제 시도")
         except Exception as e:
-            logger.warning(f"[Affiliate] Cafe24 카테고리 {cafe24_category_no} 삭제 실패 (무시): {e}")
+            logger.warning(f"[Affiliate] Cafe24 카테고리 {cafe24_category_no} 삭제 실패 (무시하고 DB 삭제 진행): {e}")
+    elif cafe24_category_no and skip_cafe24:
+        logger.info(f"[Affiliate] Campaign {campaign_id}: 카페24 cleanup 건너뛰기 (skip_cafe24=true)")
 
-    # FK 정리
-    # 1) partner_campaigns 조인 테이블 행 삭제
-    await db.execute(delete(PartnerCampaign).where(PartnerCampaign.campaign_id == campaign_id))
-    # 2) affiliate_partners.campaign_id (레거시 단일 FK) NULL 처리
-    await db.execute(
-        sa_update(AffiliatePartner)
-        .where(AffiliatePartner.campaign_id == campaign_id)
-        .values(campaign_id=None)
-    )
-    # 3) 관련 클릭/전환 기록 완전 삭제 (대시보드 집계에서 제외되도록)
-    await db.execute(
-        delete(ReferralClick).where(ReferralClick.campaign_id == campaign_id)
-    )
-    await db.execute(
-        delete(ReferralConversion).where(ReferralConversion.campaign_id == campaign_id)
-    )
-    await db.delete(campaign)
-    await db.commit()
-    logger.info(f"[Affiliate] Campaign {campaign_id} deleted by user {current_user.id}")
+    # FK 정리 + 본 삭제 — 에러 시 상세 메시지로 surface
+    try:
+        # 1) partner_campaigns 조인 테이블 행 삭제
+        await db.execute(delete(PartnerCampaign).where(PartnerCampaign.campaign_id == campaign_id))
+        # 2) affiliate_partners.campaign_id (레거시 단일 FK) NULL 처리
+        await db.execute(
+            sa_update(AffiliatePartner)
+            .where(AffiliatePartner.campaign_id == campaign_id)
+            .values(campaign_id=None)
+        )
+        # 3) 관련 클릭/전환 기록 완전 삭제 (대시보드 집계에서 제외되도록)
+        await db.execute(
+            delete(ReferralClick).where(ReferralClick.campaign_id == campaign_id)
+        )
+        await db.execute(
+            delete(ReferralConversion).where(ReferralConversion.campaign_id == campaign_id)
+        )
+        await db.delete(campaign)
+        await db.commit()
+        logger.info(f"[Affiliate] Campaign {campaign_id} deleted by user {current_user.id}")
+    except Exception as e:
+        await db.rollback()
+        logger.exception(f"[Affiliate] Campaign {campaign_id} DB 삭제 실패")
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                f"DB 삭제 실패: {type(e).__name__}: {str(e)[:300]}. "
+                "외래키 제약 또는 다른 테이블 참조 가능성. 강제 삭제(skip_cafe24=true) 시도해보세요."
+            ),
+        )
 
 
 # ---------------------------------------------------------------------------
