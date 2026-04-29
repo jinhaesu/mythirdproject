@@ -411,16 +411,16 @@ async def create_category(
     *,
     category_name: str,
     parent_category_no: int = 1,
-    display: bool = False,
+    display: bool = True,
     use_main: bool = False,
 ) -> dict:
     """
     카페24 카테고리 생성.
 
     - parent_category_no=1: 루트 아래 1단(대분류). 0 또는 1을 보통 사용.
-    - display=False: 카테고리 자체는 PC/모바일에서 진열되지 않음 → 메뉴에 노출 안 됨.
-      단, URL 직접 입력 시 페이지는 열림 (카페24 정책. 진짜 비공개는 회원그룹 게이팅 필요).
-    - use_main=False: 메인 분류에서도 숨김.
+    - display=True: PC/모바일에서 카테고리 페이지 URL 접근 허용. 카페24는 display_pc_yn=F인
+      카테고리에 접근 시 홈으로 302 리다이렉트하므로, 인플루언서 링크가 동작하려면 반드시 T.
+    - use_main=False: 메인 카테고리 진열 메뉴에서는 숨김 → 메뉴엔 안 보이지만 URL은 접근 가능.
 
     응답: { category: { category_no, ... } } → category_no 반환.
     """
@@ -432,7 +432,7 @@ async def create_category(
             "category_name": category_name,
             "parent_category_no": parent_category_no,
             "display_order": 0,
-            "use_display": display_yn,
+            "use_display": "T",  # 카테고리 자체는 항상 사용함
             "display_pc_yn": display_yn,
             "display_mobile_yn": display_yn,
             "use_main_category": use_main_yn,
@@ -444,6 +444,37 @@ async def create_category(
         "category_no": cat.get("category_no"),
         "category_name": cat.get("category_name") or category_name,
         "display": cat.get("display") or display_yn,
+    }
+
+
+async def update_category_visibility(
+    user, db, *, category_no: int, display: bool = True, use_main: bool = False,
+) -> dict:
+    """
+    기존 카테고리 진열 설정만 업데이트 — Phase 6 이전에 생성된 비공개(display=F) 카테고리를
+    URL 접근 가능 상태로 전환할 때 사용.
+
+    PUT /api/v2/admin/categories/{N}
+    """
+    display_yn = "T" if display else "F"
+    use_main_yn = "T" if use_main else "F"
+    body = {
+        "shop_no": 1,
+        "request": {
+            "use_display": "T",
+            "display_pc_yn": display_yn,
+            "display_mobile_yn": display_yn,
+            "use_main_category": use_main_yn,
+        },
+    }
+    data = await api_request(
+        user, db, "PUT", f"/api/v2/admin/categories/{category_no}", json=body,
+    )
+    cat = data.get("category", {}) or {}
+    return {
+        "category_no": cat.get("category_no") or category_no,
+        "display_pc_yn": cat.get("display_pc_yn") or display_yn,
+        "display_mobile_yn": cat.get("display_mobile_yn") or display_yn,
     }
 
 

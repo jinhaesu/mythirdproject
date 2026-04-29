@@ -846,6 +846,10 @@ export const affiliateApi = {
   removePartnerCampaign: async (partnerId: number, pcId: number) => { await api.delete(`/affiliate/partners/${partnerId}/campaigns/${pcId}`); },
   getPartnerPerformance: async (partnerId: number) => { const { data } = await api.get(`/affiliate/partners/${partnerId}/performance`); return data; },
   auditPartner: async (partnerId: number) => { const { data } = await api.get(`/affiliate/partners/${partnerId}/audit`); return data; },
+  republishCampaignCategory: async (campaignId: number) => {
+    const { data } = await api.post(`/affiliate/campaigns/${campaignId}/republish-category`);
+    return data;
+  },
   getDashboardTimeseries: async (days = 30): Promise<AffiliateTimeseriesPoint[]> => {
     const { data } = await api.get('/affiliate/dashboard/timeseries', { params: { days } });
     return data;

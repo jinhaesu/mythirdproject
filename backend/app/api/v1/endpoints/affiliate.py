@@ -203,14 +203,15 @@ async def create_campaign(
             logger.warning(f"[Campaign] 첫 상품 조회 실패: {e}")
             first_product = {}
 
-        # 2) 비공개 카테고리 생성
+        # 2) 비공개 카테고리 생성 — display=True여야 URL이 동작 (display=F면 카페24가 홈으로 302)
+        #    use_main=False로 메인 메뉴엔 안 보이게 처리
         cat_name = cafe24_category_name or f"[비공개] {payload.name}"
         try:
             cat = await cafe24_svc.create_category(
                 cafe24_user, db,
                 category_name=cat_name,
                 parent_category_no=cafe24_category_parent_no,
-                display=False,
+                display=True,
                 use_main=False,
             )
             category_no = cat.get("category_no")
@@ -2071,6 +2072,60 @@ async def get_partner_performance(
         })
 
     return result_rows
+
+
+@router.post("/campaigns/{campaign_id}/republish-category")
+async def republish_campaign_category(
+    campaign_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    기존 캠페인의 카페24 비공개 카테고리를 URL 접근 가능 상태로 전환.
+
+    Phase 6 초기 버전에서 display_pc_yn=F로 만들어진 카테고리는 카페24가 홈으로 302시킴.
+    이 엔드포인트가 PUT /categories/{N}으로 display_pc_yn=T, use_main_category=F로 갱신해
+    "메뉴엔 안 보이지만 URL은 동작" 상태로 만든다.
+    """
+    import app.services.cafe24 as cafe24_svc
+
+    r = await db.execute(
+        select(AffiliateCampaign).where(AffiliateCampaign.id == campaign_id)
+    )
+    campaign = r.scalar_one_or_none()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    if not campaign.cafe24_category_no:
+        raise HTTPException(
+            status_code=400,
+            detail="이 캠페인에는 카페24 카테고리가 연결돼 있지 않습니다.",
+        )
+
+    cafe24_user = await _resolve_cafe24_user(current_user, db)
+    try:
+        result = await cafe24_svc.update_category_visibility(
+            cafe24_user, db,
+            category_no=int(campaign.cafe24_category_no),
+            display=True,
+            use_main=False,
+        )
+    except Exception as e:
+        logger.error(f"[Republish] category {campaign.cafe24_category_no} update failed: {e}")
+        raise HTTPException(
+            status_code=502,
+            detail=f"카페24 카테고리 갱신 실패: {str(e)[:200]}",
+        )
+    logger.info(
+        f"[Republish] campaign={campaign_id} category={campaign.cafe24_category_no} "
+        f"-> display_pc_yn={result.get('display_pc_yn')}"
+    )
+    return {
+        "success": True,
+        "campaign_id": campaign_id,
+        "category_no": campaign.cafe24_category_no,
+        "result": result,
+        "category_url": campaign.cafe24_category_url,
+    }
 
 
 @router.get("/partners/{partner_id}/audit")

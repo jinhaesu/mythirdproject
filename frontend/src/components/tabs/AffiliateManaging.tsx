@@ -1899,6 +1899,17 @@ function CampaignsSection() {
     onError: () => toast.error('캠페인 수정에 실패했습니다'),
   });
 
+  const republishMutation = useMutation({
+    mutationFn: (id: number) => affiliateApi.republishCampaignCategory(id),
+    onSuccess: (data: { category_url?: string }) => {
+      qc.invalidateQueries({ queryKey: ['affiliate', 'campaigns'] });
+      toast.success(`카테고리 공개 URL 활성화 완료. 이제 링크가 동작합니다.${data?.category_url ? '\n' + data.category_url : ''}`);
+    },
+    onError: (e: { response?: { data?: { detail?: string } } }) => {
+      toast.error(e?.response?.data?.detail || '카테고리 활성화에 실패했습니다');
+    },
+  });
+
   const handleCreate = () => {
     if (!form.name.trim()) { toast.error('캠페인명을 입력하세요'); return; }
     if (!form.start_date) { toast.error('시작일을 입력하세요'); return; }
@@ -2263,6 +2274,25 @@ function CampaignsSection() {
                 </div>
                 <div className="flex items-center gap-2">
                   <p className="text-xs text-gray-500 hidden md:block">{c.start_date} ~ {c.end_date ?? '진행중'}</p>
+                  {c.cafe24_category_no && (
+                    <button
+                      onClick={() => {
+                        if (window.confirm(
+                          `"${c.cafe24_category_name ?? c.name}" 카테고리를 공개 URL로 활성화하시겠습니까?\n\n` +
+                          `메인 메뉴엔 안 보이지만 링크는 동작하게 됩니다.\n` +
+                          `(처음 만들어진 비공개(display=F) 카테고리가 홈으로 302되는 문제 해결용)`
+                        )) {
+                          republishMutation.mutate(c.id);
+                        }
+                      }}
+                      disabled={republishMutation.isPending}
+                      className="px-2 py-0.5 text-[10px] rounded transition-colors border border-violet-400/40 text-violet-300 hover:bg-violet-400/10 disabled:opacity-50 flex items-center gap-1"
+                      title="카테고리 페이지 URL 접근 활성화 (display_pc_yn=T로 갱신)"
+                    >
+                      {republishMutation.isPending && <Loader2 size={10} className="animate-spin" />}
+                      <Store size={10} /> URL 활성화
+                    </button>
+                  )}
                   <button
                     onClick={() => handleToggleStatus(c)}
                     disabled={updateMutation.isPending}
