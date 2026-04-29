@@ -1860,6 +1860,11 @@ interface Cafe24DebugInfo {
     chain?: Array<{ url: string; status: number; location?: string | null }>;
     error?: string;
   }>;
+  live_category_products?: Array<{ product_no: number; product_name?: string; display_order?: number }>;
+  expected_product_nos?: number[];
+  live_product_nos?: number[];
+  missing_in_category?: number[];
+  extra_in_category?: number[];
   simulated_destination: string | null;
   recommendation: string | null;
 }
@@ -1868,10 +1873,14 @@ function CampaignDebugPanel({
   campaignId,
   onRepublish,
   republishing,
+  onReattach,
+  reattaching,
 }: {
   campaignId: number;
   onRepublish: () => void;
   republishing: boolean;
+  onReattach: () => void;
+  reattaching: boolean;
 }) {
   const { data, isLoading, isError, error, refetch } = useQuery<Cafe24DebugInfo>({
     queryKey: ['affiliate', 'campaign-cafe24-debug', campaignId],
@@ -1902,6 +1911,9 @@ function CampaignDebugPanel({
   const liveOk = !!live?.exists && live?.computed_display_ok === true;
   const needsRepublish = data.mode === 'category' && !liveOk;
   const workingProbe = data.storefront_probes?.find(p => p.ok);
+  const expectedCount = data.expected_product_nos?.length ?? 0;
+  const liveCount = data.live_product_nos?.length ?? 0;
+  const needsReattach = data.mode === 'category' && expectedCount > 0 && liveCount < expectedCount;
 
   return (
     <div className="mt-2 px-3 py-3 bg-[#141516] border border-violet-500/30 rounded-lg space-y-2 text-[11px]">
@@ -1953,6 +1965,22 @@ function CampaignDebugPanel({
         <p className="text-amber-300">cafe24_category_no는 있는데 라이브 조회 실패</p>
       ) : null}
 
+      {data.mode === 'category' && (data.expected_product_nos !== undefined) && (
+        <div className="border-t border-[#2a2d35] pt-2">
+          <p className="font-medium text-gray-300 mb-1">카테고리 상품 첨부 상태</p>
+          <div className="grid grid-cols-3 gap-x-3 gap-y-1">
+            <div>예상(DB): <code className="text-gray-300">{data.expected_product_nos?.length ?? 0}개</code></div>
+            <div>실제(카페24): <code className={(data.live_product_nos?.length ?? 0) > 0 ? 'text-emerald-300' : 'text-red-300'}>{data.live_product_nos?.length ?? 0}개</code></div>
+            <div>누락: <code className={(data.missing_in_category?.length ?? 0) > 0 ? 'text-amber-300' : 'text-emerald-300'}>{data.missing_in_category?.length ?? 0}개</code></div>
+          </div>
+          {(data.missing_in_category?.length ?? 0) > 0 && (
+            <p className="text-[10px] text-amber-300 mt-1">
+              누락된 상품 번호: <code className="break-all">{data.missing_in_category?.join(', ')}</code>
+            </p>
+          )}
+        </div>
+      )}
+
       {data.storefront_probes && data.storefront_probes.length > 0 && (
         <div className="border-t border-[#2a2d35] pt-2">
           <p className="font-medium text-gray-300 mb-1">URL 패턴별 실제 응답 테스트</p>
@@ -1991,17 +2019,27 @@ function CampaignDebugPanel({
       )}
 
       <div className="flex items-center gap-2 pt-1 flex-wrap">
+        {needsReattach && (
+          <button
+            onClick={onReattach}
+            disabled={reattaching}
+            className="px-3 py-1.5 text-xs bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 text-amber-200 rounded font-semibold disabled:opacity-50 flex items-center gap-1.5 shadow-[0_0_12px_rgba(245,158,11,0.2)]"
+          >
+            {reattaching ? <Loader2 size={12} className="animate-spin" /> : <ShoppingBag size={12} />}
+            상품 재첨부 ({liveCount}→{expectedCount}개)
+          </button>
+        )}
         {needsRepublish && (
           <button
             onClick={onRepublish}
             disabled={republishing}
-            className="px-3 py-1.5 text-xs bg-violet-500/20 hover:bg-violet-500/30 border border-violet-500/50 text-violet-200 rounded font-semibold disabled:opacity-50 flex items-center gap-1.5 shadow-[0_0_12px_rgba(139,92,246,0.2)]"
+            className="px-3 py-1.5 text-xs bg-violet-500/20 hover:bg-violet-500/30 border border-violet-500/50 text-violet-200 rounded font-semibold disabled:opacity-50 flex items-center gap-1.5"
           >
             {republishing ? <Loader2 size={12} className="animate-spin" /> : <Store size={12} />}
-            URL 활성화 (display_pc_yn=T로 갱신)
+            URL 활성화
           </button>
         )}
-        {liveOk && (
+        {liveOk && liveCount === expectedCount && (
           <span className="px-2.5 py-1 text-[10px] bg-emerald-500/20 text-emerald-300 rounded">정상 동작 중</span>
         )}
         <button
@@ -2115,6 +2153,19 @@ function CampaignsSection() {
     },
     onError: (e: { response?: { data?: { detail?: string } } }) => {
       toast.error(e?.response?.data?.detail || '카테고리 활성화에 실패했습니다');
+    },
+  });
+
+  const reattachMutation = useMutation({
+    mutationFn: (id: number) => affiliateApi.reattachCampaignProducts(id),
+    onSuccess: (data: { live_count_after?: number; expected_count?: number }) => {
+      qc.invalidateQueries({ queryKey: ['affiliate', 'campaign-cafe24-debug'] });
+      toast.success(
+        `상품 재첨부 완료: 카테고리에 ${data?.live_count_after ?? '?'}/${data?.expected_count ?? '?'}개`,
+      );
+    },
+    onError: (e: { response?: { data?: { detail?: string } } }) => {
+      toast.error(e?.response?.data?.detail || '상품 재첨부에 실패했습니다');
     },
   });
 
@@ -2558,6 +2609,8 @@ function CampaignsSection() {
                   campaignId={c.id}
                   onRepublish={() => republishMutation.mutate(c.id)}
                   republishing={republishMutation.isPending}
+                  onReattach={() => reattachMutation.mutate(c.id)}
+                  reattaching={reattachMutation.isPending}
                 />
               )}
             </div>

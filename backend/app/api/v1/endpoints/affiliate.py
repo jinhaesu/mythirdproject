@@ -2123,8 +2123,12 @@ async def cafe24_debug_campaign(
 
     # 카페24 라이브 카테고리 상태 (cafe24_category_no 있을 때만)
     live_category = None
+    live_category_products: list = []
     if campaign.cafe24_category_no:
         live_category = await cafe24_svc.get_category(
+            cafe24_user, db, category_no=int(campaign.cafe24_category_no),
+        )
+        live_category_products = await cafe24_svc.list_category_products(
             cafe24_user, db, category_no=int(campaign.cafe24_category_no),
         )
 
@@ -2184,14 +2188,102 @@ async def cafe24_debug_campaign(
             "캠페인을 삭제 후 '비공개 카테고리(다중 상품)' 모드로 다시 만드세요."
         )
 
+    # DB의 cafe24_product_nos vs 카페24 라이브 카테고리 상품 비교
+    expected_nos: list[int] = []
+    if campaign.cafe24_product_nos:
+        try:
+            parsed = json.loads(campaign.cafe24_product_nos)
+            if isinstance(parsed, list):
+                expected_nos = [int(x) for x in parsed if x]
+        except Exception:
+            pass
+    live_nos = [int(p.get("product_no")) for p in live_category_products if p.get("product_no")]
+    missing_in_category = sorted(set(expected_nos) - set(live_nos))
+    extra_in_category = sorted(set(live_nos) - set(expected_nos))
+
+    # recommendation 보강: 상품이 0개거나 미스매치면 안내
+    if mode == "category" and live_category and live_category.get("exists") is not False:
+        if len(live_nos) == 0 and len(expected_nos) > 0:
+            recommendation = (
+                f"카테고리는 살아있지만 카페24에 묶인 상품이 0개입니다 "
+                f"(DB에는 {len(expected_nos)}개 있어야 함). "
+                f"POST /campaigns/{campaign.id}/reattach-products 로 재첨부 필요."
+            )
+        elif missing_in_category:
+            recommendation = (
+                f"누락된 상품 {len(missing_in_category)}개: {missing_in_category[:5]}{'...' if len(missing_in_category) > 5 else ''}. "
+                f"POST /campaigns/{campaign.id}/reattach-products 로 재첨부."
+            )
+
     return {
         "mode": mode,
         "domain": domain,
         "db_state": db_state,
         "live_category": live_category,
+        "live_category_products": live_category_products,
+        "expected_product_nos": expected_nos,
+        "live_product_nos": live_nos,
+        "missing_in_category": missing_in_category,
+        "extra_in_category": extra_in_category,
         "storefront_probes": storefront_probes,
         "simulated_destination": simulated_destination,
         "recommendation": recommendation,
+    }
+
+
+@router.post("/campaigns/{campaign_id}/reattach-products")
+async def reattach_campaign_products(
+    campaign_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    캠페인의 cafe24_product_nos를 카페24 카테고리에 재첨부.
+
+    초기 attach_products_to_category가 잘못된 필드명(sort_no)으로 0개 첨부된
+    카테고리를 복구할 때 사용. 이미 카테고리에 있는 상품은 카페24가 알아서 무시함.
+    """
+    import app.services.cafe24 as cafe24_svc
+
+    r = await db.execute(
+        select(AffiliateCampaign).where(AffiliateCampaign.id == campaign_id)
+    )
+    campaign = r.scalar_one_or_none()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    if not campaign.cafe24_category_no:
+        raise HTTPException(status_code=400, detail="이 캠페인은 카테고리에 연결돼 있지 않습니다.")
+    if not campaign.cafe24_product_nos:
+        raise HTTPException(status_code=400, detail="DB에 첨부할 상품 목록(cafe24_product_nos)이 없습니다.")
+
+    try:
+        product_nos = json.loads(campaign.cafe24_product_nos)
+        if not isinstance(product_nos, list) or not product_nos:
+            raise ValueError("empty list")
+    except Exception:
+        raise HTTPException(status_code=400, detail="cafe24_product_nos JSON 파싱 실패")
+
+    cafe24_user = await _resolve_cafe24_user(current_user, db)
+    try:
+        result = await cafe24_svc.attach_products_to_category(
+            cafe24_user, db,
+            category_no=int(campaign.cafe24_category_no),
+            product_nos=[int(p) for p in product_nos],
+        )
+    except Exception as e:
+        logger.error(f"[Reattach] failed: {e}")
+        raise HTTPException(status_code=502, detail=f"카페24 상품 첨부 실패: {str(e)[:200]}")
+
+    # 첨부 후 실제 카테고리에 어떤 상품이 들어갔는지 검증
+    live_after = await cafe24_svc.list_category_products(
+        cafe24_user, db, category_no=int(campaign.cafe24_category_no),
+    )
+    return {
+        "success": True,
+        "category_no": campaign.cafe24_category_no,
+        "expected_count": len(product_nos),
+        "live_count_after": len(live_after),
+        "attach_result": result,
     }
 
 

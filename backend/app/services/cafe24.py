@@ -615,24 +615,62 @@ async def attach_products_to_category(
 ) -> dict:
     """
     상품들을 카테고리에 일괄 추가.
+
     카페24 API: POST /api/v2/admin/categories/{category_no}/products
-    body: { shop_no, requests: [{ product_no, sort_no? }] }
+    body: { shop_no, requests: [{ product_no, display_order }] }
+
+    sort_no 대신 display_order 사용 (카페24가 sort_no는 무시함).
     """
     requests_payload = [
-        {"product_no": int(pn), "sort_no": idx + 1}
+        {"product_no": int(pn), "display_order": idx + 1}
         for idx, pn in enumerate(product_nos)
         if pn
     ]
     if not requests_payload:
         return {"attached": 0}
     body = {"shop_no": 1, "requests": requests_payload}
+    logger.info(
+        f"[Cafe24] attach_products_to_category category={category_no} "
+        f"products={len(requests_payload)} body_preview={requests_payload[:3]}"
+    )
     data = await api_request(
         user, db, "POST",
         f"/api/v2/admin/categories/{category_no}/products",
         json=body,
     )
     products = data.get("products") or []
-    return {"attached": len(products), "raw": products}
+    logger.info(
+        f"[Cafe24] attach_products_to_category 응답 category={category_no} "
+        f"keys={list(data.keys())} attached={len(products)}"
+    )
+    return {"attached": len(products), "raw_keys": list(data.keys())}
+
+
+async def list_category_products(
+    user, db, *, category_no: int, limit: int = 200,
+) -> list:
+    """
+    카페24 카테고리에 실제로 묶인 상품 목록 조회 (검증/진단용).
+    GET /api/v2/admin/categories/{category_no}/products
+    """
+    try:
+        data = await api_request(
+            user, db, "GET",
+            f"/api/v2/admin/categories/{category_no}/products",
+            params={"limit": limit},
+        )
+    except Exception as e:
+        logger.warning(f"[Cafe24] list_category_products {category_no} failed: {e}")
+        return []
+    products = data.get("products") or []
+    return [
+        {
+            "product_no": p.get("product_no"),
+            "product_name": p.get("product_name"),
+            "display_order": p.get("display_order") or p.get("sort_no"),
+        }
+        for p in products
+    ]
 
 
 async def delete_category(user, db, *, category_no: int) -> dict:
