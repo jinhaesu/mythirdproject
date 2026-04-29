@@ -486,12 +486,16 @@ async def get_category(user, db, *, category_no: int) -> dict:
         "exists": True,
         "category_no": cat.get("category_no"),
         "category_name": cat.get("category_name"),
-        "display_pc_yn": cat.get("display_pc_yn"),
+        # 카페24가 응답에 따라 display / display_pc_yn / display_yn 중 하나만 줄 수 있어 모두 노출
+        "display_pc_yn": cat.get("display_pc_yn") or cat.get("display") or cat.get("display_yn"),
         "display_mobile_yn": cat.get("display_mobile_yn"),
+        "display_raw": cat.get("display"),
+        "display_yn_raw": cat.get("display_yn"),
         "use_main_category": cat.get("use_main_category"),
         "use_display": cat.get("use_display"),
         "category_depth": cat.get("category_depth"),
         "parent_category_no": cat.get("parent_category_no"),
+        "all_keys": list(cat.keys()),
     }
 
 
@@ -499,10 +503,10 @@ async def update_category_visibility(
     user, db, *, category_no: int, display: bool = True, use_main: bool = False,
 ) -> dict:
     """
-    기존 카테고리 진열 설정만 업데이트 — Phase 6 이전에 생성된 비공개(display=F) 카테고리를
-    URL 접근 가능 상태로 전환할 때 사용.
+    기존 카테고리 진열 설정 업데이트 — 비공개(display=F) 카테고리를 URL 접근 가능 상태로.
 
-    PUT /api/v2/admin/categories/{N}
+    카페24 PUT /api/v2/admin/categories/{N} — 필드 변형 모두 채워서 호환성 확보:
+    display_pc_yn / display_mobile_yn / use_display / display_yn
     """
     display_yn = "T" if display else "F"
     use_main_yn = "T" if use_main else "F"
@@ -510,19 +514,36 @@ async def update_category_visibility(
         "shop_no": 1,
         "request": {
             "use_display": "T",
+            "display": display_yn,
+            "display_yn": display_yn,
             "display_pc_yn": display_yn,
             "display_mobile_yn": display_yn,
             "use_main_category": use_main_yn,
         },
     }
+    logger.info(
+        f"[Cafe24] update_category_visibility category={category_no} body.request={body['request']}"
+    )
     data = await api_request(
         user, db, "PUT", f"/api/v2/admin/categories/{category_no}", json=body,
     )
-    cat = data.get("category", {}) or {}
+    cat: dict = {}
+    if isinstance(data.get("category"), dict):
+        cat = data["category"]
+    elif isinstance(data.get("categories"), list) and data["categories"]:
+        first = data["categories"][0]
+        if isinstance(first, dict):
+            cat = first
+    logger.info(
+        f"[Cafe24] update_category_visibility 응답 category={category_no} "
+        f"keys={list(data.keys())} cat_keys={list(cat.keys()) if cat else []} "
+        f"display_pc_yn={cat.get('display_pc_yn')} display={cat.get('display')}"
+    )
     return {
         "category_no": cat.get("category_no") or category_no,
-        "display_pc_yn": cat.get("display_pc_yn") or display_yn,
+        "display_pc_yn": cat.get("display_pc_yn") or cat.get("display") or display_yn,
         "display_mobile_yn": cat.get("display_mobile_yn") or display_yn,
+        "raw_response_keys": list(data.keys()),
     }
 
 

@@ -1887,7 +1887,8 @@ function CampaignDebugPanel({
 
   const live = data.live_category;
   const liveOk = !!live?.exists && live?.display_pc_yn === 'T';
-  const needsRepublish = !!live?.exists && live?.display_pc_yn !== 'T';
+  // 카테고리 모드인데 display_pc_yn이 T가 아닌 모든 케이스(undefined/F/empty)에서 republish 권장
+  const needsRepublish = data.mode === 'category' && !liveOk;
 
   return (
     <div className="mt-2 px-3 py-3 bg-[#141516] border border-violet-500/30 rounded-lg space-y-2 text-[11px]">
@@ -1941,19 +1942,19 @@ function CampaignDebugPanel({
         </div>
       )}
 
-      <div className="flex items-center gap-2 pt-1">
+      <div className="flex items-center gap-2 pt-1 flex-wrap">
         {needsRepublish && (
           <button
             onClick={onRepublish}
             disabled={republishing}
-            className="px-2.5 py-1 text-[10px] bg-violet-500/20 hover:bg-violet-500/30 border border-violet-500/40 text-violet-300 rounded font-medium disabled:opacity-50 flex items-center gap-1"
+            className="px-3 py-1.5 text-xs bg-violet-500/20 hover:bg-violet-500/30 border border-violet-500/50 text-violet-200 rounded font-semibold disabled:opacity-50 flex items-center gap-1.5 shadow-[0_0_12px_rgba(139,92,246,0.2)]"
           >
-            {republishing && <Loader2 size={10} className="animate-spin" />}
-            <Store size={10} /> URL 활성화
+            {republishing ? <Loader2 size={12} className="animate-spin" /> : <Store size={12} />}
+            URL 활성화 (display_pc_yn=T로 갱신)
           </button>
         )}
         {liveOk && (
-          <span className="px-2.5 py-1 text-[10px] bg-emerald-500/20 text-emerald-300 rounded">정상</span>
+          <span className="px-2.5 py-1 text-[10px] bg-emerald-500/20 text-emerald-300 rounded">정상 동작 중</span>
         )}
         <button
           onClick={() => refetch()}
@@ -1961,6 +1962,16 @@ function CampaignDebugPanel({
         >
           새로고침
         </button>
+        {data.simulated_destination && (
+          <a
+            href={data.simulated_destination}
+            target="_blank"
+            rel="noreferrer"
+            className="px-2.5 py-1 text-[10px] text-blue-300 border border-blue-500/30 hover:bg-blue-500/10 rounded flex items-center gap-1"
+          >
+            🔗 직접 열어보기
+          </a>
+        )}
       </div>
     </div>
   );
