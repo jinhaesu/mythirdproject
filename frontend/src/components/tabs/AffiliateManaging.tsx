@@ -390,13 +390,15 @@ function Cafe24Banner() {
   const qc = useQueryClient();
   const [mallIdInput, setMallIdInput] = useState('');
   const [showMallInput, setShowMallInput] = useState(false);
+  const [showScopeDetail, setShowScopeDetail] = useState(false);
 
-  const { data: status, isLoading } = useQuery<Cafe24Status>({
+  const { data: status, isLoading, refetch: refetchStatus } = useQuery<Cafe24Status>({
     queryKey: ['cafe24', 'status'],
     queryFn: cafe24Api.getStatus,
     retry: 1,
-    staleTime: 30_000,
+    staleTime: 5_000,
     refetchInterval: 60_000, // 1분마다 연결 상태 재확인
+    refetchOnMount: 'always',
   });
 
   const disconnectMutation = useMutation({
@@ -426,39 +428,103 @@ function Cafe24Banner() {
   if (isLoading) return null;
 
   if (status?.connected) {
+    const required = status.required_scopes ?? [];
+    const grantedSet = new Set((status.scopes ?? '').split(',').map(s => s.trim()).filter(Boolean));
+    const missing = status.missing_scopes ?? [];
+    const grantedCount = required.filter(s => grantedSet.has(s)).length;
     return (
       <div className="space-y-2">
         <div className="flex items-center justify-between px-4 py-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Store size={15} className="text-emerald-400" />
             <span className="text-sm text-emerald-300 font-medium">Cafe24 연결됨</span>
             {status.mall_id && (
               <span className="text-xs text-emerald-400/70">({status.mall_id})</span>
             )}
+            {required.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowScopeDetail(v => !v)}
+                className={`text-[10px] px-2 py-0.5 rounded-md border font-mono transition-colors ${
+                  missing.length > 0
+                    ? 'bg-amber-500/10 border-amber-500/30 text-amber-300 hover:bg-amber-500/20'
+                    : 'bg-white/5 border-white/10 text-gray-400 hover:text-white'
+                }`}
+                title="권한 상세 보기"
+              >
+                권한 {grantedCount}/{required.length}
+                {missing.length > 0 && ` · ${missing.length}개 누락`}
+              </button>
+            )}
           </div>
-          <button
-            onClick={() => disconnectMutation.mutate()}
-            disabled={disconnectMutation.isPending}
-            className="flex items-center gap-1 px-3 py-1.5 text-xs text-red-400 border border-red-400/30 hover:bg-red-400/10 rounded-lg transition-colors disabled:opacity-50"
-          >
-            {disconnectMutation.isPending && <Loader2 size={10} className="animate-spin" />}
-            연결 해제
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => refetchStatus()}
+              className="p-1.5 text-gray-400 hover:text-white border border-white/10 rounded-lg transition-colors"
+              title="상태 새로고침"
+            >
+              <Loader2 size={11} />
+            </button>
+            <button
+              onClick={() => disconnectMutation.mutate()}
+              disabled={disconnectMutation.isPending}
+              className="flex items-center gap-1 px-3 py-1.5 text-xs text-red-400 border border-red-400/30 hover:bg-red-400/10 rounded-lg transition-colors disabled:opacity-50"
+            >
+              {disconnectMutation.isPending && <Loader2 size={10} className="animate-spin" />}
+              연결 해제
+            </button>
+          </div>
         </div>
-        {status.needs_reauth && (status.missing_scopes?.length ?? 0) > 0 && (
+
+        {status.needs_reauth && missing.length > 0 && (
           <div className="px-4 py-3 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-start gap-2">
             <AlertCircle size={14} className="text-amber-400 shrink-0 mt-0.5" />
             <div className="flex-1 text-xs">
               <p className="text-amber-300 font-medium">새로운 기능을 위한 권한이 부족합니다 — 재연결 권장</p>
               <p className="text-gray-400 mt-1">
-                필요 권한 누락:{' '}
-                <code className="text-amber-300">{status.missing_scopes?.join(', ')}</code>
+                누락:{' '}
+                <code className="text-amber-300">{missing.join(', ')}</code>
               </p>
               <p className="text-[11px] text-gray-500 mt-1">
-                비공개 카테고리 자동 생성 등 새 기능을 쓰려면 Cafe24 OAuth를 다시 진행해주세요.
                 위의 &quot;연결 해제&quot;를 누른 뒤 다시 연결하면 새 권한이 적용됩니다.
               </p>
             </div>
+          </div>
+        )}
+
+        {showScopeDetail && (
+          <div className="px-4 py-3 bg-[#141516] border border-[#2a2d35] rounded-xl space-y-2 text-[11px]">
+            <p className="font-medium text-gray-300">서버가 요구하는 권한 (CAFE24_SCOPES env)</p>
+            <div className="flex flex-wrap gap-1.5">
+              {required.length === 0 ? (
+                <span className="text-gray-500">서버에서 권한 정보를 받지 못했습니다 (배포 진행 중일 수 있음)</span>
+              ) : required.map(s => {
+                const has = grantedSet.has(s);
+                return (
+                  <span
+                    key={s}
+                    className={`px-1.5 py-0.5 rounded font-mono ${
+                      has
+                        ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+                        : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                    }`}
+                  >
+                    {has ? '✓' : '✗'} {s}
+                  </span>
+                );
+              })}
+            </div>
+            <p className="text-gray-500 pt-1">
+              실제 토큰에 부여된 권한:{' '}
+              <code className="text-gray-300 break-all">{status.scopes || '(없음)'}</code>
+            </p>
+            <p className="text-gray-500 leading-relaxed">
+              ✗ 표시된 권한이 1개라도 있으면 재연결 필요.
+              아무것도 표시되지 않으면 백엔드 배포(Railway)가 아직 끝나지 않았거나
+              <code className="text-amber-300 mx-1">CAFE24_SCOPES</code>
+              환경변수가 옛날 값으로 설정돼 있어 코드의 기본값을 덮어쓰는 중입니다.
+              Railway → Variables에서 해당 env를 삭제하거나 최신 값으로 갱신하세요.
+            </p>
           </div>
         )}
       </div>

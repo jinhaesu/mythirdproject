@@ -193,6 +193,11 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Database initialization failed: {e}")
         raise
+    # Cafe24 OAuth scopes 진단 — env var override가 적용됐는지 한눈에 확인
+    logger.info(
+        f"[Cafe24] Loaded CAFE24_SCOPES = {settings.CAFE24_SCOPES} "
+        f"(env override applied if differs from code default)"
+    )
     # Start background scheduler
     scheduler_task = asyncio.create_task(_run_scheduled_reports())
     logger.info("Scheduled report background runner started")
