@@ -439,11 +439,59 @@ async def create_category(
         },
     }
     data = await api_request(user, db, "POST", "/api/v2/admin/categories", json=body)
-    cat = data.get("category", {}) or {}
+    # Cafe24 응답 구조 방어적 파싱 — 'category' 단일 또는 'categories' 배열 모두 처리
+    cat: dict = {}
+    if isinstance(data.get("category"), dict):
+        cat = data["category"]
+    elif isinstance(data.get("categories"), list) and data["categories"]:
+        first = data["categories"][0]
+        if isinstance(first, dict):
+            cat = first
+    if not cat or not cat.get("category_no"):
+        logger.error(
+            f"[Cafe24] create_category 응답에 category_no 없음. "
+            f"raw response keys={list(data.keys())} body={str(data)[:500]}"
+        )
+    else:
+        logger.info(
+            f"[Cafe24] create_category 성공: no={cat.get('category_no')} "
+            f"name={cat.get('category_name')} display_pc_yn={cat.get('display_pc_yn')}"
+        )
     return {
         "category_no": cat.get("category_no"),
         "category_name": cat.get("category_name") or category_name,
-        "display": cat.get("display") or display_yn,
+        "display": cat.get("display_pc_yn") or display_yn,
+        "raw_response_keys": list(data.keys()),
+    }
+
+
+async def get_category(user, db, *, category_no: int) -> dict:
+    """단일 카테고리 상세 조회 — 진단/검증용."""
+    try:
+        data = await api_request(
+            user, db, "GET", f"/api/v2/admin/categories/{category_no}",
+        )
+    except Exception as e:
+        return {"error": str(e), "exists": False}
+    cat: dict = {}
+    if isinstance(data.get("category"), dict):
+        cat = data["category"]
+    elif isinstance(data.get("categories"), list) and data["categories"]:
+        first = data["categories"][0]
+        if isinstance(first, dict):
+            cat = first
+    if not cat:
+        return {"error": "카테고리 정보 파싱 실패", "raw_keys": list(data.keys()), "exists": False}
+    return {
+        "exists": True,
+        "category_no": cat.get("category_no"),
+        "category_name": cat.get("category_name"),
+        "display_pc_yn": cat.get("display_pc_yn"),
+        "display_mobile_yn": cat.get("display_mobile_yn"),
+        "use_main_category": cat.get("use_main_category"),
+        "use_display": cat.get("use_display"),
+        "category_depth": cat.get("category_depth"),
+        "parent_category_no": cat.get("parent_category_no"),
     }
 
 

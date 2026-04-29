@@ -1818,6 +1818,154 @@ function DashboardSection() {
   );
 }
 
+// ─── Campaign debug panel ─────────────────────────────────────────────────────
+
+interface Cafe24DebugInfo {
+  mode: 'category' | 'single_product' | 'none_or_legacy';
+  domain: string;
+  db_state: {
+    id: number;
+    name: string;
+    referral_code?: string;
+    cafe24_product_no?: number | null;
+    cafe24_product_name?: string | null;
+    cafe24_category_no?: number | null;
+    cafe24_category_name?: string | null;
+    cafe24_category_url?: string | null;
+    cafe24_product_nos_raw?: string | null;
+    cafe24_coupon_code?: string | null;
+    landing_url?: string | null;
+    base_product_url?: string | null;
+  };
+  live_category: {
+    exists?: boolean;
+    error?: string;
+    category_no?: number;
+    category_name?: string;
+    display_pc_yn?: string;
+    display_mobile_yn?: string;
+    use_main_category?: string;
+    use_display?: string;
+  } | null;
+  simulated_destination: string | null;
+  recommendation: string | null;
+}
+
+function CampaignDebugPanel({
+  campaignId,
+  onRepublish,
+  republishing,
+}: {
+  campaignId: number;
+  onRepublish: () => void;
+  republishing: boolean;
+}) {
+  const { data, isLoading, isError, error, refetch } = useQuery<Cafe24DebugInfo>({
+    queryKey: ['affiliate', 'campaign-cafe24-debug', campaignId],
+    queryFn: () => affiliateApi.cafe24DebugCampaign(campaignId),
+    retry: 0,
+    staleTime: 5_000,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="mt-2 px-3 py-3 bg-[#141516] border border-[#2a2d35] rounded-lg flex items-center gap-2">
+        <Loader2 size={12} className="text-violet-400 animate-spin" />
+        <span className="text-xs text-gray-400">진단 중...</span>
+      </div>
+    );
+  }
+
+  if (isError || !data) {
+    return (
+      <div className="mt-2 px-3 py-3 bg-red-500/10 border border-red-500/30 rounded-lg text-xs text-red-300">
+        진단 실패: {(error as Error)?.message || '알 수 없는 오류'}
+        <button onClick={() => refetch()} className="ml-2 text-red-200 underline">재시도</button>
+      </div>
+    );
+  }
+
+  const live = data.live_category;
+  const liveOk = !!live?.exists && live?.display_pc_yn === 'T';
+  const needsRepublish = !!live?.exists && live?.display_pc_yn !== 'T';
+
+  return (
+    <div className="mt-2 px-3 py-3 bg-[#141516] border border-violet-500/30 rounded-lg space-y-2 text-[11px]">
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-gray-500">모드:</span>
+        <span className={`px-1.5 py-0.5 rounded font-mono ${
+          data.mode === 'category' ? 'bg-violet-500/20 text-violet-300'
+          : data.mode === 'single_product' ? 'bg-emerald-500/20 text-emerald-300'
+          : 'bg-red-500/20 text-red-300'
+        }`}>{data.mode}</span>
+        <span className="text-gray-500">도메인:</span>
+        <code className="text-gray-300">{data.domain || '(없음)'}</code>
+      </div>
+
+      <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+        <div><span className="text-gray-500">cafe24_category_no:</span> <code className={data.db_state.cafe24_category_no ? 'text-emerald-300' : 'text-red-300'}>{String(data.db_state.cafe24_category_no ?? 'NULL')}</code></div>
+        <div><span className="text-gray-500">cafe24_product_no:</span> <code className="text-gray-300">{String(data.db_state.cafe24_product_no ?? 'NULL')}</code></div>
+        <div><span className="text-gray-500">cafe24_category_name:</span> <code className="text-gray-300">{data.db_state.cafe24_category_name ?? 'NULL'}</code></div>
+        <div><span className="text-gray-500">coupon:</span> <code className="text-gray-300">{data.db_state.cafe24_coupon_code ?? 'NULL'}</code></div>
+        <div className="col-span-2"><span className="text-gray-500">cafe24_product_nos:</span> <code className="text-gray-300 break-all">{data.db_state.cafe24_product_nos_raw ?? 'NULL'}</code></div>
+        <div className="col-span-2"><span className="text-gray-500">cafe24_category_url:</span> <code className="text-gray-300 break-all">{data.db_state.cafe24_category_url ?? 'NULL'}</code></div>
+      </div>
+
+      {live ? (
+        <div className="border-t border-[#2a2d35] pt-2">
+          <p className="font-medium text-gray-300 mb-1">카페24 라이브 상태</p>
+          {live.exists === false ? (
+            <p className="text-red-300">카테고리가 카페24에 존재하지 않음 — {live.error}</p>
+          ) : (
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+              <div>display_pc_yn: <code className={live.display_pc_yn === 'T' ? 'text-emerald-300' : 'text-red-300'}>{live.display_pc_yn ?? '?'}</code></div>
+              <div>display_mobile_yn: <code className={live.display_mobile_yn === 'T' ? 'text-emerald-300' : 'text-amber-300'}>{live.display_mobile_yn ?? '?'}</code></div>
+              <div>use_main_category: <code className="text-gray-300">{live.use_main_category ?? '?'}</code></div>
+              <div>category_depth: <code className="text-gray-300">{String((live as Record<string, unknown>).category_depth ?? '?')}</code></div>
+            </div>
+          )}
+        </div>
+      ) : data.mode === 'category' ? (
+        <p className="text-amber-300">cafe24_category_no는 있는데 라이브 조회 실패</p>
+      ) : null}
+
+      <div className="border-t border-[#2a2d35] pt-2">
+        <span className="text-gray-500">실제 리다이렉트 목적지:</span>
+        <code className="text-gray-300 break-all ml-1">{data.simulated_destination ?? 'NULL'}</code>
+      </div>
+
+      {data.recommendation && (
+        <div className="border-t border-[#2a2d35] pt-2 bg-amber-500/5 -mx-3 -mb-3 px-3 py-2 rounded-b-lg">
+          <p className="text-amber-300 font-medium">권장 조치</p>
+          <p className="text-gray-300 mt-0.5 leading-relaxed">{data.recommendation}</p>
+        </div>
+      )}
+
+      <div className="flex items-center gap-2 pt-1">
+        {needsRepublish && (
+          <button
+            onClick={onRepublish}
+            disabled={republishing}
+            className="px-2.5 py-1 text-[10px] bg-violet-500/20 hover:bg-violet-500/30 border border-violet-500/40 text-violet-300 rounded font-medium disabled:opacity-50 flex items-center gap-1"
+          >
+            {republishing && <Loader2 size={10} className="animate-spin" />}
+            <Store size={10} /> URL 활성화
+          </button>
+        )}
+        {liveOk && (
+          <span className="px-2.5 py-1 text-[10px] bg-emerald-500/20 text-emerald-300 rounded">정상</span>
+        )}
+        <button
+          onClick={() => refetch()}
+          className="px-2.5 py-1 text-[10px] text-gray-400 border border-[#2a2d35] hover:text-white hover:border-gray-500 rounded"
+        >
+          새로고침
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Campaigns section ────────────────────────────────────────────────────────
 
 function CampaignsSection() {
@@ -1903,12 +2051,22 @@ function CampaignsSection() {
     mutationFn: (id: number) => affiliateApi.republishCampaignCategory(id),
     onSuccess: (data: { category_url?: string }) => {
       qc.invalidateQueries({ queryKey: ['affiliate', 'campaigns'] });
+      qc.invalidateQueries({ queryKey: ['affiliate', 'campaign-cafe24-debug'] });
       toast.success(`카테고리 공개 URL 활성화 완료. 이제 링크가 동작합니다.${data?.category_url ? '\n' + data.category_url : ''}`);
     },
     onError: (e: { response?: { data?: { detail?: string } } }) => {
       toast.error(e?.response?.data?.detail || '카테고리 활성화에 실패했습니다');
     },
   });
+
+  const [debugOpenIds, setDebugOpenIds] = useState<Set<number>>(new Set());
+  const toggleDebug = (id: number) => {
+    setDebugOpenIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
 
   const handleCreate = () => {
     if (!form.name.trim()) { toast.error('캠페인명을 입력하세요'); return; }
@@ -2274,25 +2432,17 @@ function CampaignsSection() {
                 </div>
                 <div className="flex items-center gap-2">
                   <p className="text-xs text-gray-500 hidden md:block">{c.start_date} ~ {c.end_date ?? '진행중'}</p>
-                  {c.cafe24_category_no && (
-                    <button
-                      onClick={() => {
-                        if (window.confirm(
-                          `"${c.cafe24_category_name ?? c.name}" 카테고리를 공개 URL로 활성화하시겠습니까?\n\n` +
-                          `메인 메뉴엔 안 보이지만 링크는 동작하게 됩니다.\n` +
-                          `(처음 만들어진 비공개(display=F) 카테고리가 홈으로 302되는 문제 해결용)`
-                        )) {
-                          republishMutation.mutate(c.id);
-                        }
-                      }}
-                      disabled={republishMutation.isPending}
-                      className="px-2 py-0.5 text-[10px] rounded transition-colors border border-violet-400/40 text-violet-300 hover:bg-violet-400/10 disabled:opacity-50 flex items-center gap-1"
-                      title="카테고리 페이지 URL 접근 활성화 (display_pc_yn=T로 갱신)"
-                    >
-                      {republishMutation.isPending && <Loader2 size={10} className="animate-spin" />}
-                      <Store size={10} /> URL 활성화
-                    </button>
-                  )}
+                  <button
+                    onClick={() => toggleDebug(c.id)}
+                    className={`px-2 py-0.5 text-[10px] rounded transition-colors border flex items-center gap-1 ${
+                      debugOpenIds.has(c.id)
+                        ? 'bg-violet-500/20 border-violet-400/50 text-violet-200'
+                        : 'border-violet-400/40 text-violet-300 hover:bg-violet-400/10'
+                    }`}
+                    title="DB와 카페24 라이브 상태 진단"
+                  >
+                    <Search size={10} /> 진단
+                  </button>
                   <button
                     onClick={() => handleToggleStatus(c)}
                     disabled={updateMutation.isPending}
@@ -2343,6 +2493,13 @@ function CampaignsSection() {
                     <Copy size={10} /> 복사
                   </button>
                 </div>
+              )}
+              {debugOpenIds.has(c.id) && (
+                <CampaignDebugPanel
+                  campaignId={c.id}
+                  onRepublish={() => republishMutation.mutate(c.id)}
+                  republishing={republishMutation.isPending}
+                />
               )}
             </div>
           ))}

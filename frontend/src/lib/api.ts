@@ -850,6 +850,10 @@ export const affiliateApi = {
     const { data } = await api.post(`/affiliate/campaigns/${campaignId}/republish-category`);
     return data;
   },
+  cafe24DebugCampaign: async (campaignId: number) => {
+    const { data } = await api.get(`/affiliate/campaigns/${campaignId}/cafe24-debug`);
+    return data;
+  },
   getDashboardTimeseries: async (days = 30): Promise<AffiliateTimeseriesPoint[]> => {
     const { data } = await api.get('/affiliate/dashboard/timeseries', { params: { days } });
     return data;

@@ -2074,6 +2074,93 @@ async def get_partner_performance(
     return result_rows
 
 
+@router.get("/campaigns/{campaign_id}/cafe24-debug")
+async def cafe24_debug_campaign(
+    campaign_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    캠페인 진단 — DB에 저장된 cafe24_* 필드 + 카페24 라이브 카테고리 정보 + 추천 조치.
+
+    /r/{code} 가 홈으로 302되는 원인을 즉시 파악하기 위함.
+    """
+    import app.services.cafe24 as cafe24_svc
+
+    r = await db.execute(
+        select(AffiliateCampaign).where(AffiliateCampaign.id == campaign_id)
+    )
+    campaign = r.scalar_one_or_none()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    cafe24_user = await _resolve_cafe24_user(current_user, db)
+    domain = _cafe24_store_domain(cafe24_user)
+
+    db_state = {
+        "id": campaign.id,
+        "name": campaign.name,
+        "referral_code": campaign.referral_code,
+        "cafe24_product_no": campaign.cafe24_product_no,
+        "cafe24_product_name": campaign.cafe24_product_name,
+        "cafe24_category_no": campaign.cafe24_category_no,
+        "cafe24_category_name": campaign.cafe24_category_name,
+        "cafe24_category_url": campaign.cafe24_category_url,
+        "cafe24_product_nos_raw": campaign.cafe24_product_nos,
+        "cafe24_coupon_code": campaign.cafe24_coupon_code,
+        "landing_url": campaign.landing_url,
+        "base_product_url": campaign.base_product_url,
+    }
+
+    # 어떤 모드인지 판정
+    if campaign.cafe24_category_no:
+        mode = "category"
+    elif campaign.cafe24_product_no:
+        mode = "single_product"
+    else:
+        mode = "none_or_legacy"
+
+    # 카페24 라이브 카테고리 상태 (cafe24_category_no 있을 때만)
+    live_category = None
+    if campaign.cafe24_category_no:
+        live_category = await cafe24_svc.get_category(
+            cafe24_user, db, category_no=int(campaign.cafe24_category_no),
+        )
+
+    # /r/{code} 가 실제로 어디로 보낼지 시뮬레이션
+    simulated_destination = _build_destination_url(campaign, cafe24_user)
+
+    # 추천 조치
+    recommendation = None
+    if mode == "category":
+        if live_category and live_category.get("exists") is False:
+            recommendation = (
+                "카페24에서 이 카테고리(no={no})를 찾을 수 없습니다. "
+                "캠페인을 삭제하고 새로 만드세요."
+            ).format(no=campaign.cafe24_category_no)
+        elif live_category and live_category.get("display_pc_yn") != "T":
+            recommendation = (
+                "카테고리 진열이 OFF(display_pc_yn={d})이라 카페24가 홈으로 302시킵니다. "
+                "POST /campaigns/{id}/republish-category 호출하세요."
+            ).format(d=live_category.get("display_pc_yn"), id=campaign.id)
+    elif mode == "none_or_legacy":
+        recommendation = (
+            "이 캠페인은 카페24 카테고리/상품이 연결돼 있지 않아 홈으로 폴백됩니다. "
+            "캠페인을 삭제 후 '비공개 카테고리(다중 상품)' 모드로 다시 만드세요. "
+            "create_category 호출이 실패했을 가능성도 있으니 Railway 로그에서 "
+            "[Cafe24] create_category 항목을 확인하세요."
+        )
+
+    return {
+        "mode": mode,
+        "domain": domain,
+        "db_state": db_state,
+        "live_category": live_category,
+        "simulated_destination": simulated_destination,
+        "recommendation": recommendation,
+    }
+
+
 @router.post("/campaigns/{campaign_id}/republish-category")
 async def republish_campaign_category(
     campaign_id: int,
