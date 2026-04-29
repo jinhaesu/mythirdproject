@@ -488,6 +488,9 @@ async def delete_campaign(
         logger.info(f"[Affiliate] Campaign {campaign_id}: 카페24 cleanup 건너뛰기 (skip_cafe24=true)")
 
     # FK 정리 + 본 삭제 — 에러 시 상세 메시지로 surface
+    # 순서 중요: ReferralConversion.click_id → ReferralClick.id FK 때문에
+    # click을 먼저 지우면 conversion이 그 click을 참조 중이라 FK 위반.
+    # 따라서: conversions의 click_id NULL 처리 → conversions 삭제 → clicks 삭제 순서
     try:
         # 1) partner_campaigns 조인 테이블 행 삭제
         await db.execute(delete(PartnerCampaign).where(PartnerCampaign.campaign_id == campaign_id))
@@ -497,13 +500,23 @@ async def delete_campaign(
             .where(AffiliatePartner.campaign_id == campaign_id)
             .values(campaign_id=None)
         )
-        # 3) 관련 클릭/전환 기록 완전 삭제 (대시보드 집계에서 제외되도록)
+        # 3) 이 캠페인의 클릭을 참조하는 모든 conversion(다른 캠페인의 것 포함)의
+        #    click_id를 NULL로 — 클릭 삭제 시 FK 위반 방지
+        click_ids_subq = select(ReferralClick.id).where(ReferralClick.campaign_id == campaign_id).scalar_subquery()
         await db.execute(
-            delete(ReferralClick).where(ReferralClick.campaign_id == campaign_id)
+            sa_update(ReferralConversion)
+            .where(ReferralConversion.click_id.in_(click_ids_subq))
+            .values(click_id=None)
         )
+        # 4) 이 캠페인의 conversion 삭제 (집계에서 빠지도록)
         await db.execute(
             delete(ReferralConversion).where(ReferralConversion.campaign_id == campaign_id)
         )
+        # 5) 이제 안전하게 click 삭제
+        await db.execute(
+            delete(ReferralClick).where(ReferralClick.campaign_id == campaign_id)
+        )
+        # 6) 캠페인 본체 삭제
         await db.delete(campaign)
         await db.commit()
         logger.info(f"[Affiliate] Campaign {campaign_id} deleted by user {current_user.id}")
