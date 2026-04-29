@@ -54,6 +54,11 @@ interface AffiliateCampaign {
   base_product_url?: string;
   discount_type?: 'percentage' | 'fixed' | 'shipping';
   discount_value?: number;
+  // Phase 6 — 비공개 카테고리 필드
+  cafe24_category_no?: number | null;
+  cafe24_category_name?: string | null;
+  cafe24_category_url?: string | null;
+  cafe24_product_nos?: string | null;  // JSON array string
   // 캠페인 추적 링크
   referral_link?: string | null;
 }
@@ -109,6 +114,11 @@ interface NewCampaignForm {
   cafe24_product_name?: string;
   discount_type?: 'percentage' | 'fixed' | 'shipping';
   discount_value?: number;
+  // Phase 6 — 비공개 카테고리 다중 상품 모드
+  cafe24_product_nos?: number[];
+  cafe24_product_meta?: Array<{ no: number; name: string; image?: string }>;
+  auto_create_category?: boolean;
+  cafe24_category_name?: string;
 }
 
 interface NewPartnerForm {
@@ -146,6 +156,9 @@ interface Cafe24Status {
   connected: boolean;
   mall_id?: string;
   scopes?: string;
+  needs_reauth?: boolean;
+  missing_scopes?: string[];
+  required_scopes?: string[];
 }
 
 function priceToNumber(v: unknown): number {
@@ -414,22 +427,40 @@ function Cafe24Banner() {
 
   if (status?.connected) {
     return (
-      <div className="flex items-center justify-between px-4 py-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
-        <div className="flex items-center gap-2">
-          <Store size={15} className="text-emerald-400" />
-          <span className="text-sm text-emerald-300 font-medium">Cafe24 연결됨</span>
-          {status.mall_id && (
-            <span className="text-xs text-emerald-400/70">({status.mall_id})</span>
-          )}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between px-4 py-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
+          <div className="flex items-center gap-2">
+            <Store size={15} className="text-emerald-400" />
+            <span className="text-sm text-emerald-300 font-medium">Cafe24 연결됨</span>
+            {status.mall_id && (
+              <span className="text-xs text-emerald-400/70">({status.mall_id})</span>
+            )}
+          </div>
+          <button
+            onClick={() => disconnectMutation.mutate()}
+            disabled={disconnectMutation.isPending}
+            className="flex items-center gap-1 px-3 py-1.5 text-xs text-red-400 border border-red-400/30 hover:bg-red-400/10 rounded-lg transition-colors disabled:opacity-50"
+          >
+            {disconnectMutation.isPending && <Loader2 size={10} className="animate-spin" />}
+            연결 해제
+          </button>
         </div>
-        <button
-          onClick={() => disconnectMutation.mutate()}
-          disabled={disconnectMutation.isPending}
-          className="flex items-center gap-1 px-3 py-1.5 text-xs text-red-400 border border-red-400/30 hover:bg-red-400/10 rounded-lg transition-colors disabled:opacity-50"
-        >
-          {disconnectMutation.isPending && <Loader2 size={10} className="animate-spin" />}
-          연결 해제
-        </button>
+        {status.needs_reauth && (status.missing_scopes?.length ?? 0) > 0 && (
+          <div className="px-4 py-3 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-start gap-2">
+            <AlertCircle size={14} className="text-amber-400 shrink-0 mt-0.5" />
+            <div className="flex-1 text-xs">
+              <p className="text-amber-300 font-medium">새로운 기능을 위한 권한이 부족합니다 — 재연결 권장</p>
+              <p className="text-gray-400 mt-1">
+                필요 권한 누락:{' '}
+                <code className="text-amber-300">{status.missing_scopes?.join(', ')}</code>
+              </p>
+              <p className="text-[11px] text-gray-500 mt-1">
+                비공개 카테고리 자동 생성 등 새 기능을 쓰려면 Cafe24 OAuth를 다시 진행해주세요.
+                위의 &quot;연결 해제&quot;를 누른 뒤 다시 연결하면 새 권한이 적용됩니다.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -619,14 +650,102 @@ function Cafe24ProductSelector({ selectedNo, selectedName, onSelect, onClear, di
   );
 }
 
+// ─── Cafe24 다중 상품 셀렉터 (Phase 6 — 비공개 카테고리용) ────────────────────
+
+interface Cafe24MultiProductSelectorProps {
+  selected: Array<{ no: number; name: string; image?: string }>;
+  onChange: (next: Array<{ no: number; name: string; image?: string }>) => void;
+  disabled?: boolean;
+}
+
+function Cafe24MultiProductSelector({ selected, onChange, disabled }: Cafe24MultiProductSelectorProps) {
+  const [browserOpen, setBrowserOpen] = useState(false);
+
+  const addProduct = (no: number, name: string, _price: number, image?: string) => {
+    if (selected.some(s => s.no === no)) return;
+    onChange([...selected, { no, name, image }]);
+  };
+
+  const removeProduct = (no: number) => {
+    onChange(selected.filter(s => s.no !== no));
+  };
+
+  if (disabled) {
+    return (
+      <div className="px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-xs text-gray-600">
+        Cafe24 연결 후 사용 가능합니다
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] text-gray-500">
+          선택된 상품 <span className="text-emerald-400 font-semibold">{selected.length}개</span>
+        </span>
+        <button
+          type="button"
+          onClick={() => setBrowserOpen(true)}
+          className="px-3 py-1.5 bg-[#3B82F6] hover:bg-[#2563EB] rounded-lg text-[11px] font-medium text-white transition-colors flex items-center gap-1.5"
+        >
+          <ShoppingBag size={12} /> 상품 추가
+        </button>
+      </div>
+      {selected.length === 0 ? (
+        <div className="px-3 py-4 bg-[#141516] border border-dashed border-[#2a2d35] rounded-lg text-center">
+          <p className="text-[11px] text-gray-500">상품 추가 버튼을 눌러 카테고리에 묶을 상품들을 선택하세요</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-60 overflow-y-auto pr-1">
+          {selected.map(p => (
+            <div key={p.no} className="flex items-center gap-2 px-2.5 py-2 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
+              {p.image ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={p.image} alt={p.name} className="w-8 h-8 rounded object-cover bg-[#141516] shrink-0" />
+              ) : (
+                <div className="w-8 h-8 rounded bg-[#141516] shrink-0 flex items-center justify-center">
+                  <ShoppingBag size={12} className="text-gray-600" />
+                </div>
+              )}
+              <span className="flex-1 text-[11px] text-emerald-200 truncate">{p.name}</span>
+              <button
+                type="button"
+                onClick={() => removeProduct(p.no)}
+                className="text-gray-400 hover:text-red-400 transition-colors shrink-0"
+                title="제거"
+              >
+                <X size={12} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      {browserOpen && (
+        <Cafe24ProductBrowserModal
+          onClose={() => setBrowserOpen(false)}
+          onPick={(no, name, price) => {
+            addProduct(no, name, price);
+            // 다중 선택은 모달을 닫지 않음 — 여러 개 연속 추가 가능
+          }}
+          multi
+          alreadySelected={selected.map(s => s.no)}
+        />
+      )}
+    </div>
+  );
+}
+
 // ─── Cafe24 전체 상품 조회 모달 ─────────────────────────────────────────────
 
 interface Cafe24ProductBrowserModalProps {
   onClose: () => void;
   onPick: (no: number, name: string, price: number) => void;
+  multi?: boolean;
+  alreadySelected?: number[];
 }
 
-function Cafe24ProductBrowserModal({ onClose, onPick }: Cafe24ProductBrowserModalProps) {
+function Cafe24ProductBrowserModal({ onClose, onPick, multi = false, alreadySelected = [] }: Cafe24ProductBrowserModalProps) {
   const [query, setQuery] = useState('');
   const [debouncedQ, setDebouncedQ] = useState('');
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -715,26 +834,50 @@ function Cafe24ProductBrowserModal({ onClose, onPick }: Cafe24ProductBrowserModa
             </div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              {products.map(p => (
-                <button
-                  key={`${p.product_no}-${p._idx}`}
-                  type="button"
-                  onClick={() => onPick(p.product_no, p.product_name, p.price)}
-                  className="group text-left bg-[#141516] border border-[#2a2d35] rounded-xl p-3 hover:border-[#3B82F6] hover:bg-[#3B82F6]/5 transition-all"
-                >
-                  {p.list_image ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={p.list_image} alt={p.product_name} className="w-full aspect-square rounded-lg object-cover bg-[#0f1011] mb-2" />
-                  ) : (
-                    <div className="w-full aspect-square rounded-lg bg-[#0f1011] mb-2 flex items-center justify-center">
-                      <ShoppingBag size={24} className="text-gray-700" />
-                    </div>
-                  )}
-                  <p className="text-xs font-medium text-white truncate">{p.product_name}</p>
-                  <p className="text-[11px] text-gray-500 mt-0.5">₩{p.price.toLocaleString()}</p>
-                  <p className="text-[10px] text-gray-600 mt-0.5">상품번호 {p.product_no}</p>
-                </button>
-              ))}
+              {products.map(p => {
+                const isSelected = alreadySelected.includes(p.product_no);
+                return (
+                  <button
+                    key={`${p.product_no}-${p._idx}`}
+                    type="button"
+                    onClick={() => onPick(p.product_no, p.product_name, p.price)}
+                    disabled={isSelected && !multi}
+                    className={`group text-left rounded-xl p-3 transition-all relative ${
+                      isSelected
+                        ? 'bg-emerald-500/10 border border-emerald-500/40'
+                        : 'bg-[#141516] border border-[#2a2d35] hover:border-[#3B82F6] hover:bg-[#3B82F6]/5'
+                    }`}
+                  >
+                    {isSelected && (
+                      <span className="absolute top-2 right-2 px-1.5 py-0.5 bg-emerald-500/20 text-emerald-300 text-[9px] font-medium rounded">
+                        선택됨
+                      </span>
+                    )}
+                    {p.list_image ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={p.list_image} alt={p.product_name} className="w-full aspect-square rounded-lg object-cover bg-[#0f1011] mb-2" />
+                    ) : (
+                      <div className="w-full aspect-square rounded-lg bg-[#0f1011] mb-2 flex items-center justify-center">
+                        <ShoppingBag size={24} className="text-gray-700" />
+                      </div>
+                    )}
+                    <p className="text-xs font-medium text-white truncate">{p.product_name}</p>
+                    <p className="text-[11px] text-gray-500 mt-0.5">₩{p.price.toLocaleString()}</p>
+                    <p className="text-[10px] text-gray-600 mt-0.5">상품번호 {p.product_no}</p>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {multi && (
+            <div className="mt-4 flex justify-end">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium rounded-lg transition-colors"
+              >
+                완료 ({alreadySelected.length}개 선택)
+              </button>
             </div>
           )}
         </div>
@@ -1652,7 +1795,7 @@ function CampaignsSection() {
         toast.success('캠페인이 생성되었습니다');
       }
       setShowForm(false);
-      setForm({ name: '', product: '', commission_type: 'percentage', commission_rate: 10, start_date: '', end_date: '', cafe24_product_no: undefined, cafe24_product_name: undefined, discount_type: 'percentage', discount_value: 0 });
+      setForm({ name: '', product: '', commission_type: 'percentage', commission_rate: 10, start_date: '', end_date: '', cafe24_product_no: undefined, cafe24_product_name: undefined, discount_type: 'percentage', discount_value: 0, cafe24_product_nos: undefined, cafe24_product_meta: undefined, auto_create_category: false, cafe24_category_name: undefined });
     },
     onError: () => toast.error('캠페인 생성에 실패했습니다'),
   });
@@ -1685,7 +1828,7 @@ function CampaignsSection() {
       toast.success('캠페인이 수정되었습니다');
       setEditingCampaignId(null);
       setShowForm(false);
-      setForm({ name: '', product: '', commission_type: 'percentage', commission_rate: 10, start_date: '', end_date: '', cafe24_product_no: undefined, cafe24_product_name: undefined, discount_type: 'percentage', discount_value: 0 });
+      setForm({ name: '', product: '', commission_type: 'percentage', commission_rate: 10, start_date: '', end_date: '', cafe24_product_no: undefined, cafe24_product_name: undefined, discount_type: 'percentage', discount_value: 0, cafe24_product_nos: undefined, cafe24_product_meta: undefined, auto_create_category: false, cafe24_category_name: undefined });
     },
     onError: () => toast.error('캠페인 수정에 실패했습니다'),
   });
@@ -1693,8 +1836,15 @@ function CampaignsSection() {
   const handleCreate = () => {
     if (!form.name.trim()) { toast.error('캠페인명을 입력하세요'); return; }
     if (!form.start_date) { toast.error('시작일을 입력하세요'); return; }
+    if (form.auto_create_category && (!form.cafe24_product_nos || form.cafe24_product_nos.length === 0)) {
+      toast.error('카테고리에 묶을 상품을 1개 이상 선택하세요');
+      return;
+    }
+    // 백엔드 페이로드: cafe24_product_meta는 표시용이라 제외
+    const { cafe24_product_meta: _meta, ...payload } = form;
+    void _meta;
     createMutation.mutate({
-      ...form,
+      ...payload,
       start_date: form.start_date || null,
       end_date: form.end_date || null,
     });
@@ -1702,6 +1852,13 @@ function CampaignsSection() {
 
   const handleStartEdit = (c: AffiliateCampaign) => {
     setEditingCampaignId(c.id);
+    let productNos: number[] | undefined;
+    if (c.cafe24_product_nos) {
+      try {
+        const parsed = JSON.parse(c.cafe24_product_nos);
+        if (Array.isArray(parsed)) productNos = parsed.map(n => Number(n)).filter(Boolean);
+      } catch { /* ignore */ }
+    }
     setForm({
       name: c.name,
       product: c.cafe24_product_name ?? c.product,
@@ -1713,6 +1870,9 @@ function CampaignsSection() {
       cafe24_product_name: c.cafe24_product_name,
       discount_type: c.discount_type ?? 'percentage',
       discount_value: c.discount_value ?? 0,
+      cafe24_product_nos: productNos,
+      cafe24_category_name: c.cafe24_category_name ?? undefined,
+      auto_create_category: !!c.cafe24_category_no,
     });
     setShowForm(true);
   };
@@ -1739,7 +1899,7 @@ function CampaignsSection() {
   const handleCancelForm = () => {
     setShowForm(false);
     setEditingCampaignId(null);
-    setForm({ name: '', product: '', commission_type: 'percentage', commission_rate: 10, start_date: '', end_date: '', cafe24_product_no: undefined, cafe24_product_name: undefined, discount_type: 'percentage', discount_value: 0 });
+    setForm({ name: '', product: '', commission_type: 'percentage', commission_rate: 10, start_date: '', end_date: '', cafe24_product_no: undefined, cafe24_product_name: undefined, discount_type: 'percentage', discount_value: 0, cafe24_product_nos: undefined, cafe24_product_meta: undefined, auto_create_category: false, cafe24_category_name: undefined });
   };
 
   const handleToggleStatus = (c: AffiliateCampaign) => {
@@ -1796,8 +1956,8 @@ function CampaignsSection() {
             </div>
           </div>
 
-          {/* Cafe24 상품 셀렉터 — 편집 모드에서는 쿠폰이 이미 발급됐으므로 수정 불가 */}
-          <div className="border border-[#2a2d35] rounded-xl p-3 space-y-2">
+          {/* Cafe24 상품 셀렉터 — 단일 / 다중(카테고리) 모드 토글 */}
+          <div className="border border-[#2a2d35] rounded-xl p-3 space-y-3">
             <div className="flex items-center gap-2">
               <Store size={13} className={isCafe24Connected ? 'text-emerald-400' : 'text-gray-600'} />
               <span className="text-xs font-medium text-gray-300">Cafe24 상품 연결</span>
@@ -1806,18 +1966,78 @@ function CampaignsSection() {
                 <span className="text-[10px] px-1.5 py-0.5 bg-gray-500/20 text-gray-400 rounded ml-auto">수정 불가 (쿠폰 발급 완료)</span>
               )}
             </div>
+
             {editingCampaignId !== null ? (
               <div className="px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-xs text-gray-500">
-                {form.cafe24_product_name ? `연결됨: ${form.cafe24_product_name}` : '연결된 Cafe24 상품 없음'}
+                {form.cafe24_category_name
+                  ? `비공개 카테고리: ${form.cafe24_category_name} (${(form.cafe24_product_meta?.length ?? form.cafe24_product_nos?.length ?? 0)}개 상품)`
+                  : form.cafe24_product_name
+                  ? `연결된 상품: ${form.cafe24_product_name}`
+                  : '연결된 Cafe24 상품 없음'}
               </div>
             ) : (
-              <Cafe24ProductSelector
-                selectedNo={form.cafe24_product_no}
-                selectedName={form.cafe24_product_name}
-                disabled={!isCafe24Connected}
-                onSelect={(no, name) => setForm({ ...form, cafe24_product_no: no, cafe24_product_name: name, product: name })}
-                onClear={() => setForm({ ...form, cafe24_product_no: undefined, cafe24_product_name: undefined })}
-              />
+              <>
+                {/* 모드 토글 */}
+                <div className="flex p-1 bg-[#141516] border border-[#2a2d35] rounded-lg gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setForm({ ...form, auto_create_category: false, cafe24_product_nos: undefined, cafe24_product_meta: undefined, cafe24_category_name: undefined })}
+                    className={`flex-1 py-1.5 text-[11px] rounded-md font-medium transition-all ${
+                      !form.auto_create_category
+                        ? 'bg-emerald-600 text-white shadow-[0_2px_8px_rgba(16,185,129,0.3)]'
+                        : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    단일 상품
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setForm({ ...form, auto_create_category: true, cafe24_product_no: undefined, cafe24_product_name: undefined })}
+                    disabled={!isCafe24Connected}
+                    className={`flex-1 py-1.5 text-[11px] rounded-md font-medium transition-all disabled:opacity-50 ${
+                      form.auto_create_category
+                        ? 'bg-violet-600 text-white shadow-[0_2px_8px_rgba(139,92,246,0.3)]'
+                        : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    비공개 카테고리 (다중 상품)
+                  </button>
+                </div>
+
+                {!form.auto_create_category ? (
+                  <Cafe24ProductSelector
+                    selectedNo={form.cafe24_product_no}
+                    selectedName={form.cafe24_product_name}
+                    disabled={!isCafe24Connected}
+                    onSelect={(no, name) => setForm({ ...form, cafe24_product_no: no, cafe24_product_name: name, product: name })}
+                    onClear={() => setForm({ ...form, cafe24_product_no: undefined, cafe24_product_name: undefined })}
+                  />
+                ) : (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-[11px] text-gray-400">카테고리명 (선택, 비워두면 캠페인명 사용)</label>
+                      <input
+                        value={form.cafe24_category_name ?? ''}
+                        onChange={e => setForm({ ...form, cafe24_category_name: e.target.value })}
+                        placeholder={`예: [비공개] ${form.name || '캠페인명'}`}
+                        className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-violet-500/50"
+                      />
+                      <p className="text-[10px] text-gray-500 mt-1">
+                        카페24에 진열되지 않는 비공개 카테고리가 자동 생성됩니다. 인플루언서는 링크로만 접근 가능.
+                      </p>
+                    </div>
+                    <Cafe24MultiProductSelector
+                      selected={form.cafe24_product_meta ?? []}
+                      disabled={!isCafe24Connected}
+                      onChange={list => setForm({
+                        ...form,
+                        cafe24_product_meta: list,
+                        cafe24_product_nos: list.map(p => p.no),
+                      })}
+                    />
+                  </div>
+                )}
+              </>
             )}
           </div>
 
@@ -1957,6 +2177,11 @@ function CampaignsSection() {
                       <span className={`text-[10px] px-2 py-0.5 rounded ${campaignStatusBadge(c.status)}`}>
                         {campaignStatusLabel(c.status)}
                       </span>
+                      {c.cafe24_category_no && (
+                        <span className="text-[10px] px-2 py-0.5 bg-violet-500/20 text-violet-300 border border-violet-500/30 rounded flex items-center gap-1">
+                          <Store size={9} /> 비공개 카테고리 #{c.cafe24_category_no}
+                        </span>
+                      )}
                       {c.cafe24_coupon_code && (
                         <span className="text-[10px] px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded flex items-center gap-1">
                           <Tag size={9} /> {c.cafe24_coupon_code}
@@ -1964,7 +2189,9 @@ function CampaignsSection() {
                       )}
                     </div>
                     <p className="text-xs text-gray-500 mt-0.5">
-                      {c.cafe24_product_name ?? c.product} · {c.commission_type === 'percentage' ? `${c.commission_rate}%` : `₩${fmt(c.commission_rate)}/건`}
+                      {c.cafe24_category_name
+                        ? `${c.cafe24_category_name} · ${c.commission_type === 'percentage' ? `${c.commission_rate}%` : `₩${fmt(c.commission_rate)}/건`}`
+                        : `${c.cafe24_product_name ?? c.product} · ${c.commission_type === 'percentage' ? `${c.commission_rate}%` : `₩${fmt(c.commission_rate)}/건`}`}
                     </p>
                   </div>
                 </div>

@@ -57,10 +57,15 @@ class CampaignCreate(BaseModel):
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
     landing_url: Optional[str] = None
-    # Cafe24 상품/쿠폰 연결 (Phase 2)
+    # Cafe24 단일 상품 연결 (Phase 2 — 백워드 호환)
     cafe24_product_no: Optional[int] = None
     discount_type: Optional[str] = None   # percentage | fixed | shipping
     discount_value: Optional[float] = None
+    # Phase 6 — 다중 상품 + 비공개 카테고리 자동 생성
+    cafe24_product_nos: Optional[List[int]] = None
+    auto_create_category: bool = False
+    cafe24_category_name: Optional[str] = None
+    cafe24_category_parent_no: Optional[int] = 1
 
 
 class CampaignUpdate(BaseModel):
@@ -75,6 +80,7 @@ class CampaignUpdate(BaseModel):
     landing_url: Optional[str] = None
     discount_type: Optional[str] = None
     discount_value: Optional[float] = None
+    cafe24_product_nos: Optional[List[int]] = None  # 카테고리 상품 재구성용
 
 
 class PartnerCreate(BaseModel):
@@ -154,11 +160,22 @@ async def create_campaign(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Create a new affiliate campaign. Cafe24 상품 연결 시 쿠폰 자동 발급."""
+    """
+    어필리에이트 캠페인 생성.
+
+    분기:
+      A) cafe24_product_no 단독: Phase 2 단일상품 캠페인 (백워드 호환)
+      B) cafe24_product_nos[] + auto_create_category: Phase 6 비공개 카테고리 캠페인
+         - 카테고리 자동 생성 → 상품들 attach → 카테고리 단위 쿠폰 발급
+    """
     import app.services.cafe24 as cafe24_svc
 
     data = payload.model_dump()
     cafe24_product_no = data.pop("cafe24_product_no", None)
+    cafe24_product_nos = data.pop("cafe24_product_nos", None) or []
+    auto_create_category = data.pop("auto_create_category", False)
+    cafe24_category_name = data.pop("cafe24_category_name", None)
+    cafe24_category_parent_no = data.pop("cafe24_category_parent_no", 1) or 1
     discount_type = data.pop("discount_type", None)
     discount_value = data.pop("discount_value", None)
 
@@ -168,14 +185,104 @@ async def create_campaign(
             data[key] = data[key].replace(tzinfo=None)
 
     coupon_warning: Optional[str] = None
+    category_warning: Optional[str] = None
 
-    if cafe24_product_no:
-        # Cafe24 공유 유저 resolve (현재 유저 토큰 없으면 공유 유저 사용)
+    # 다중 상품 모드 판정: product_nos가 1개여도 auto_create_category=True면 카테고리 모드
+    use_category_mode = bool(auto_create_category and cafe24_product_nos)
+
+    if use_category_mode:
+        # ─── B) 비공개 카테고리 캠페인 ────────────────────────────────────────
+        cafe24_user = await _resolve_cafe24_user(current_user, db)
+        domain = _cafe24_store_domain(cafe24_user)
+
+        # 1) 첫 번째 상품 정보로 대표 이미지/이름 — 표시용
+        first_product_no = int(cafe24_product_nos[0])
+        try:
+            first_product = await cafe24_svc.get_product(cafe24_user, db, first_product_no)
+        except Exception as e:
+            logger.warning(f"[Campaign] 첫 상품 조회 실패: {e}")
+            first_product = {}
+
+        # 2) 비공개 카테고리 생성
+        cat_name = cafe24_category_name or f"[비공개] {payload.name}"
+        try:
+            cat = await cafe24_svc.create_category(
+                cafe24_user, db,
+                category_name=cat_name,
+                parent_category_no=cafe24_category_parent_no,
+                display=False,
+                use_main=False,
+            )
+            category_no = cat.get("category_no")
+            if not category_no:
+                raise RuntimeError("category_no 없음")
+        except Exception as e:
+            logger.error(f"[Campaign] 카테고리 생성 실패: {e}")
+            raise HTTPException(
+                status_code=502,
+                detail=(
+                    f"Cafe24 카테고리 생성 실패: {str(e)[:200]}. "
+                    "OAuth scope에 mall.write_category 가 포함됐는지 확인 후 재연결하세요."
+                ),
+            )
+
+        # 3) 상품들 카테고리에 attach
+        try:
+            attach_result = await cafe24_svc.attach_products_to_category(
+                cafe24_user, db,
+                category_no=int(category_no),
+                product_nos=[int(p) for p in cafe24_product_nos],
+            )
+            logger.info(
+                f"[Campaign] 카테고리 {category_no}에 상품 "
+                f"{attach_result.get('attached', 0)}/{len(cafe24_product_nos)} 추가"
+            )
+        except Exception as e:
+            logger.warning(f"[Campaign] 상품 attach 실패: {e}")
+            category_warning = f"상품 일부 attach 실패: {str(e)[:200]}"
+
+        # 4) 카테고리 URL 빌드
+        category_url = cafe24_svc.category_storefront_url(domain, int(category_no))
+
+        # DB 저장 필드
+        data["cafe24_product_no"] = first_product_no  # 백워드 호환
+        data["cafe24_product_name"] = first_product.get("product_name", "")
+        data["cafe24_product_image"] = first_product.get("list_image", "")
+        data["discount_type"] = discount_type
+        data["discount_value"] = discount_value
+        data["cafe24_category_no"] = int(category_no)
+        data["cafe24_category_name"] = cat_name
+        data["cafe24_category_url"] = category_url
+        data["cafe24_product_nos"] = json.dumps([int(p) for p in cafe24_product_nos])
+        data["base_product_url"] = category_url
+        if not data.get("landing_url"):
+            data["landing_url"] = category_url
+
+        # 5) 카테고리 단위 쿠폰 발급 (할인이 설정된 경우만)
+        if discount_type and discount_value is not None:
+            try:
+                benefit_type_map = {"percentage": "A", "fixed": "B", "shipping": "D"}
+                benefit_type = benefit_type_map.get(discount_type, "A")
+                coupon_result = await cafe24_svc.create_coupon(
+                    cafe24_user, db,
+                    coupon_name=f"[{payload.name}] 할인쿠폰",
+                    benefit_type=benefit_type,
+                    benefit_percentage=discount_value if discount_type == "percentage" else None,
+                    benefit_price=discount_value if discount_type == "fixed" else None,
+                    category_no=int(category_no),
+                )
+                data["cafe24_coupon_code"] = coupon_result.get("coupon_code")
+                data["cafe24_coupon_no"] = coupon_result.get("coupon_no")
+            except Exception as e:
+                logger.warning(f"[Campaign] 카테고리 쿠폰 발급 실패: {e}")
+                data["cafe24_coupon_code"] = None
+                data["cafe24_coupon_no"] = None
+                coupon_warning = f"쿠폰 발급 실패: {str(e)[:200]}"
+
+    elif cafe24_product_no:
+        # ─── A) 단일 상품 캠페인 (백워드 호환) ────────────────────────────────
         cafe24_user = await _resolve_cafe24_user(current_user, db)
 
-        mall_id = cafe24_user.cafe24_mall_id
-
-        # 상품 정보 조회
         try:
             product = await cafe24_svc.get_product(cafe24_user, db, cafe24_product_no)
         except Exception as e:
@@ -188,12 +295,10 @@ async def create_campaign(
         data["discount_type"] = discount_type
         data["discount_value"] = discount_value
 
-        # 외부 공개 도메인 사용 (nuldam.com 등)
         domain = _cafe24_store_domain(cafe24_user)
         base_url = f"https://{domain}/product/detail.html?product_no={cafe24_product_no}"
         data["base_product_url"] = base_url
 
-        # 실제 스토어프론트에 접근 가능한지 검증 (index로 302되는 상품 차단)
         accessible = await cafe24_svc.verify_storefront_url(base_url)
         if not accessible:
             raise HTTPException(
@@ -207,7 +312,6 @@ async def create_campaign(
         if not data.get("landing_url"):
             data["landing_url"] = base_url
 
-        # 쿠폰 발급
         try:
             benefit_type_map = {"percentage": "A", "fixed": "B", "shipping": "D"}
             benefit_type = benefit_type_map.get(discount_type or "percentage", "A")
@@ -239,6 +343,8 @@ async def create_campaign(
     resp["referral_link"] = _build_referral_link(campaign, campaign.referral_code, current_user) if campaign.referral_code else None
     if coupon_warning:
         resp["warning"] = coupon_warning
+    if category_warning:
+        resp["category_warning"] = category_warning
     return resp
 
 
@@ -366,6 +472,17 @@ async def delete_campaign(
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
 
+    # 카페24 카테고리 cleanup (best-effort — 실패해도 캠페인 삭제는 진행)
+    cafe24_category_no = campaign.cafe24_category_no
+    if cafe24_category_no:
+        try:
+            import app.services.cafe24 as cafe24_svc
+            cafe24_user = await _resolve_cafe24_user(current_user, db)
+            await cafe24_svc.delete_category(cafe24_user, db, category_no=int(cafe24_category_no))
+            logger.info(f"[Affiliate] Cafe24 카테고리 {cafe24_category_no} 삭제 시도")
+        except Exception as e:
+            logger.warning(f"[Affiliate] Cafe24 카테고리 {cafe24_category_no} 삭제 실패 (무시): {e}")
+
     # FK 정리
     # 1) partner_campaigns 조인 테이블 행 삭제
     await db.execute(delete(PartnerCampaign).where(PartnerCampaign.campaign_id == campaign_id))
@@ -452,15 +569,37 @@ def _cafe24_store_domain(user: Optional[User]) -> str:
 
 
 def _build_destination_url(campaign: Optional[AffiliateCampaign], user: Optional[User]) -> Optional[str]:
-    """Cafe24 실제 스토어프론트 도착 URL (쿠폰 포함)."""
+    """
+    Cafe24 실제 스토어프론트 도착 URL.
+
+    우선순위:
+      1) 비공개 카테고리 캠페인 (cafe24_category_no) → 카테고리 페이지 + 쿠폰 query
+      2) 단일 상품 캠페인 (cafe24_product_no) → 상품 상세 + 쿠폰 query
+      3) landing_url
+      4) mall 도메인 루트
+    """
     if not campaign:
         return None
     domain = _cafe24_store_domain(user)
+
+    # 1) 카테고리 캠페인 우선
+    if campaign.cafe24_category_no and domain:
+        url = (
+            campaign.cafe24_category_url
+            or f"https://{domain}/category/cat-no/{campaign.cafe24_category_no}/category.html"
+        )
+        if campaign.cafe24_coupon_code:
+            sep = "&" if "?" in url else "?"
+            url = f"{url}{sep}coupon={campaign.cafe24_coupon_code}"
+        return url
+
+    # 2) 단일 상품 캠페인
     if campaign.cafe24_product_no and domain:
         url = f"https://{domain}/product/detail.html?product_no={campaign.cafe24_product_no}"
         if campaign.cafe24_coupon_code:
             url += f"&coupon={campaign.cafe24_coupon_code}"
         return url
+
     return campaign.landing_url or (f"https://{domain}" if domain else None)
 
 

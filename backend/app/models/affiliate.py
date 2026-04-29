@@ -50,6 +50,14 @@ class AffiliateCampaign(Base):
     discount_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # percentage | fixed | shipping
     discount_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     base_product_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    # Phase 6 — 비공개 카테고리 기반 다중 상품 캠페인
+    # 카페24 자동 생성 비공개 카테고리. 다중 상품을 한 인플루언서/캠페인에 묶기 위함.
+    cafe24_category_no: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
+    cafe24_category_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    # 카테고리에 묶인 상품번호 목록 (JSON array string). attribution 매칭용.
+    cafe24_product_nos: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # 카테고리 페이지 URL (랜딩 우선순위: category_url > base_product_url > landing_url)
+    cafe24_category_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     # 캠페인 자체 레퍼럴 코드 (파트너 없이도 공유 가능)
     referral_code: Mapped[Optional[str]] = mapped_column(String(50), unique=True, nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

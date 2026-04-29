@@ -309,6 +309,35 @@ async def init_db():
     except Exception:
         pass
 
+    # Phase 6 — 비공개 카테고리 기반 다중 상품 캠페인 컬럼
+    campaign_category_cols = [
+        ("cafe24_category_no", "INTEGER"),
+        ("cafe24_category_name", "VARCHAR(255)"),
+        ("cafe24_product_nos", "TEXT"),
+        ("cafe24_category_url", "VARCHAR(500)"),
+    ]
+    for col, col_type in campaign_category_cols:
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(
+                    __import__('sqlalchemy').text(
+                        f"ALTER TABLE affiliate_campaigns ADD COLUMN IF NOT EXISTS {col} {col_type}"
+                    )
+                )
+            logger.info(f"[init_db] affiliate_campaigns.{col} ensured")
+        except Exception as e:
+            logger.warning(f"[init_db] affiliate_campaigns.{col} skipped: {e}")
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(
+                __import__('sqlalchemy').text(
+                    "CREATE INDEX IF NOT EXISTS ix_affiliate_campaigns_cafe24_category_no "
+                    "ON affiliate_campaigns(cafe24_category_no)"
+                )
+            )
+    except Exception:
+        pass
+
     # affiliate_partners deleted_at (soft delete)
     try:
         async with engine.begin() as conn:

@@ -209,12 +209,34 @@ async def _process_order(db, order: dict) -> dict:
 
         if product_nos:
             # 매칭 캠페인 찾기
+            # 1) 단일 product_no 매칭 (Phase 2 캠페인)
+            # 2) cafe24_product_nos JSON 리스트에 포함되는 캠페인 (Phase 6 카테고리 캠페인)
+            from sqlalchemy import or_ as _or
             camp_r = await db.execute(
                 select(AffiliateCampaign).where(
                     AffiliateCampaign.cafe24_product_no.in_(list(product_nos))
                 )
             )
             candidates = list(camp_r.scalars().all())
+
+            # Phase 6: cafe24_product_nos JSON 리스트로 추가 매칭
+            multi_camp_r = await db.execute(
+                select(AffiliateCampaign).where(
+                    AffiliateCampaign.cafe24_product_nos.isnot(None),
+                    AffiliateCampaign.cafe24_product_nos != "",
+                )
+            )
+            existing_ids = {c.id for c in candidates}
+            import json as _json
+            for cand in multi_camp_r.scalars().all():
+                if cand.id in existing_ids:
+                    continue
+                try:
+                    nos = _json.loads(cand.cafe24_product_nos or "[]")
+                    if isinstance(nos, list) and any(int(n) in product_nos for n in nos if n is not None):
+                        candidates.append(cand)
+                except (ValueError, TypeError):
+                    continue
             # 주문 시각 ± 2시간 — 시각을 모르면 매칭 스킵 (잘못된 귀속 방지)
             best_click = None
             if order_dt_utc is None:

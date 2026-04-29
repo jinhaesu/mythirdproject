@@ -116,15 +116,25 @@ async def cafe24_status(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Cafe24 연결 상태 반환 (전체 계정 공유)."""
+    """Cafe24 연결 상태 반환 (전체 계정 공유). 누락 scope 진단 포함."""
     # 현재 유저 토큰 없으면 공유 유저 fallback
     cafe24_user = current_user if current_user.cafe24_access_token else await get_shared_cafe24_user(db)
     connected = bool(cafe24_user and cafe24_user.cafe24_access_token)
+
+    # 설정된 필수 scope vs 토큰이 실제로 가진 scope 비교
+    required = {s.strip() for s in (settings.CAFE24_SCOPES or "").split(",") if s.strip()}
+    granted_raw = (cafe24_user.cafe24_scopes if cafe24_user else "") or ""
+    granted = {s.strip() for s in granted_raw.split(",") if s.strip()}
+    missing_scopes = sorted(required - granted) if connected else []
+
     return {
         "connected": connected,
         "mall_id": cafe24_user.cafe24_mall_id if cafe24_user else None,
         "scopes": cafe24_user.cafe24_scopes if cafe24_user else None,
         "token_expires_at": cafe24_user.cafe24_token_expires_at if cafe24_user else None,
+        "required_scopes": sorted(required),
+        "missing_scopes": missing_scopes,
+        "needs_reauth": bool(missing_scopes),
     }
 
 
@@ -166,3 +176,24 @@ async def cafe24_list_products(
         raise HTTPException(status_code=502, detail=f"Cafe24 API 오류: {str(e)}")
 
     return {"products": products}
+
+
+@router.get("/categories")
+async def cafe24_list_categories(
+    parent_category_no: int | None = Query(None, description="부모 카테고리 번호 (없으면 전체)"),
+    depth: int | None = Query(None, description="카테고리 깊이 필터"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Cafe24 카테고리 목록 조회 (전체 계정 공유). 비공개 카테고리 부모 선택용."""
+    shared_user = await _resolve_cafe24_user(current_user, db)
+    try:
+        categories = await cafe24_svc.list_categories(
+            shared_user, db,
+            parent_category_no=parent_category_no,
+            depth=depth,
+        )
+    except Exception as e:
+        logger.error(f"[Cafe24] list_categories failed: {e}")
+        raise HTTPException(status_code=502, detail=f"Cafe24 API 오류: {str(e)}")
+    return {"categories": categories}

@@ -379,6 +379,117 @@ async def verify_storefront_url(url: str) -> bool:
         return True
 
 
+async def list_categories(
+    user, db, *, parent_category_no: Optional[int] = None, depth: Optional[int] = None,
+) -> list:
+    """
+    Cafe24 카테고리 목록 조회. parent 선택용.
+    Cafe24 응답: { categories: [{ category_no, category_name, parent_category_no, category_depth, display, ... }] }
+    """
+    params: dict = {"limit": 200}
+    if parent_category_no is not None:
+        params["parent_category_no"] = parent_category_no
+    if depth is not None:
+        params["category_depth"] = depth
+    data = await api_request(user, db, "GET", "/api/v2/admin/categories", params=params)
+    cats = data.get("categories", [])
+    return [
+        {
+            "category_no": c.get("category_no"),
+            "category_name": c.get("category_name"),
+            "parent_category_no": c.get("parent_category_no"),
+            "category_depth": c.get("category_depth"),
+            "display": c.get("display"),
+        }
+        for c in cats
+    ]
+
+
+async def create_category(
+    user,
+    db,
+    *,
+    category_name: str,
+    parent_category_no: int = 1,
+    display: bool = False,
+    use_main: bool = False,
+) -> dict:
+    """
+    카페24 카테고리 생성.
+
+    - parent_category_no=1: 루트 아래 1단(대분류). 0 또는 1을 보통 사용.
+    - display=False: 카테고리 자체는 PC/모바일에서 진열되지 않음 → 메뉴에 노출 안 됨.
+      단, URL 직접 입력 시 페이지는 열림 (카페24 정책. 진짜 비공개는 회원그룹 게이팅 필요).
+    - use_main=False: 메인 분류에서도 숨김.
+
+    응답: { category: { category_no, ... } } → category_no 반환.
+    """
+    display_yn = "T" if display else "F"
+    use_main_yn = "T" if use_main else "F"
+    body = {
+        "shop_no": 1,
+        "request": {
+            "category_name": category_name,
+            "parent_category_no": parent_category_no,
+            "display_order": 0,
+            "use_display": display_yn,
+            "display_pc_yn": display_yn,
+            "display_mobile_yn": display_yn,
+            "use_main_category": use_main_yn,
+        },
+    }
+    data = await api_request(user, db, "POST", "/api/v2/admin/categories", json=body)
+    cat = data.get("category", {}) or {}
+    return {
+        "category_no": cat.get("category_no"),
+        "category_name": cat.get("category_name") or category_name,
+        "display": cat.get("display") or display_yn,
+    }
+
+
+async def attach_products_to_category(
+    user, db, *, category_no: int, product_nos: list[int],
+) -> dict:
+    """
+    상품들을 카테고리에 일괄 추가.
+    카페24 API: POST /api/v2/admin/categories/{category_no}/products
+    body: { shop_no, requests: [{ product_no, sort_no? }] }
+    """
+    requests_payload = [
+        {"product_no": int(pn), "sort_no": idx + 1}
+        for idx, pn in enumerate(product_nos)
+        if pn
+    ]
+    if not requests_payload:
+        return {"attached": 0}
+    body = {"shop_no": 1, "requests": requests_payload}
+    data = await api_request(
+        user, db, "POST",
+        f"/api/v2/admin/categories/{category_no}/products",
+        json=body,
+    )
+    products = data.get("products") or []
+    return {"attached": len(products), "raw": products}
+
+
+async def delete_category(user, db, *, category_no: int) -> dict:
+    """카테고리 삭제. 캠페인 삭제 시 cleanup용."""
+    try:
+        data = await api_request(
+            user, db, "DELETE", f"/api/v2/admin/categories/{category_no}",
+        )
+        return {"success": True, "raw": data}
+    except Exception as e:
+        logger.warning(f"[Cafe24] delete_category {category_no} failed: {e}")
+        return {"success": False, "error": str(e)}
+
+
+def category_storefront_url(domain: str, category_no: int) -> str:
+    """카페24 카테고리 페이지 URL — 일반 스토어프론트 패턴."""
+    domain = (domain or "").replace("https://", "").replace("http://", "").rstrip("/")
+    return f"https://{domain}/category/cat-no/{category_no}/category.html"
+
+
 async def create_coupon(
     user,
     db,
@@ -387,10 +498,19 @@ async def create_coupon(
     benefit_type: str,
     benefit_percentage: Optional[float],
     benefit_price: Optional[float],
-    product_no: int,
+    product_no: Optional[int] = None,
+    product_nos: Optional[list[int]] = None,
+    category_no: Optional[int] = None,
     period_days: int = 365,
 ) -> dict:
-    """Cafe24 쿠폰 발급. coupon_no, coupon_code 반환."""
+    """
+    Cafe24 쿠폰 발급. coupon_no, coupon_code 반환.
+
+    범위 우선순위:
+      - category_no 주어지면 → 카테고리 단위 쿠폰 (available_category=U)
+      - product_nos / product_no 주어지면 → 상품 단위 (available_product=U)
+      - 둘 다 없으면 전체 적용
+    """
     from datetime import timezone as tz
 
     # 쿠폰 유효기간: 지금부터 period_days 일 동안
@@ -409,15 +529,31 @@ async def create_coupon(
         "available_period_type": "F",
         "available_begin_datetime": begin,
         "available_end_datetime": end,
-        "available_product": "U",
-        "available_product_list": [product_no],
-        "available_category": "A",
         "available_coupon_count_by_order": "N",
     }
     if benefit_type == "A" and benefit_percentage is not None:
         request_body["benefit_percentage"] = benefit_percentage
     elif benefit_type == "B" and benefit_price is not None:
         request_body["benefit_price"] = benefit_price
+
+    # 적용 범위 결정
+    if category_no is not None:
+        request_body["available_category"] = "U"
+        request_body["available_category_list"] = [int(category_no)]
+        request_body["available_product"] = "A"
+    else:
+        nos: list[int] = []
+        if product_nos:
+            nos.extend(int(p) for p in product_nos if p)
+        if product_no and product_no not in nos:
+            nos.append(int(product_no))
+        if nos:
+            request_body["available_product"] = "U"
+            request_body["available_product_list"] = nos
+            request_body["available_category"] = "A"
+        else:
+            request_body["available_product"] = "A"
+            request_body["available_category"] = "A"
 
     data = await api_request(
         user, db, "POST", "/api/v2/admin/coupons",
