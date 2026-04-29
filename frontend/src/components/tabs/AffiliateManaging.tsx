@@ -1842,11 +1842,24 @@ interface Cafe24DebugInfo {
     error?: string;
     category_no?: number;
     category_name?: string;
+    use_display?: string;
+    display_type?: string;
+    use_main?: string;
+    access_authority?: string;
     display_pc_yn?: string;
     display_mobile_yn?: string;
-    use_main_category?: string;
-    use_display?: string;
+    all_keys?: string[];
+    computed_display_ok?: boolean;
   } | null;
+  storefront_probes?: Array<{
+    url: string;
+    ok?: boolean;
+    redirected_to_home?: boolean;
+    final_url?: string;
+    final_status?: number;
+    chain?: Array<{ url: string; status: number; location?: string | null }>;
+    error?: string;
+  }>;
   simulated_destination: string | null;
   recommendation: string | null;
 }
@@ -1886,9 +1899,9 @@ function CampaignDebugPanel({
   }
 
   const live = data.live_category;
-  const liveOk = !!live?.exists && live?.display_pc_yn === 'T';
-  // 카테고리 모드인데 display_pc_yn이 T가 아닌 모든 케이스(undefined/F/empty)에서 republish 권장
+  const liveOk = !!live?.exists && live?.computed_display_ok === true;
   const needsRepublish = data.mode === 'category' && !liveOk;
+  const workingProbe = data.storefront_probes?.find(p => p.ok);
 
   return (
     <div className="mt-2 px-3 py-3 bg-[#141516] border border-violet-500/30 rounded-lg space-y-2 text-[11px]">
@@ -1914,21 +1927,56 @@ function CampaignDebugPanel({
 
       {live ? (
         <div className="border-t border-[#2a2d35] pt-2">
-          <p className="font-medium text-gray-300 mb-1">카페24 라이브 상태</p>
+          <p className="font-medium text-gray-300 mb-1">카페24 라이브 상태 (PUT/GET 결과)</p>
           {live.exists === false ? (
             <p className="text-red-300">카테고리가 카페24에 존재하지 않음 — {live.error}</p>
           ) : (
-            <div className="grid grid-cols-2 gap-x-3 gap-y-1">
-              <div>display_pc_yn: <code className={live.display_pc_yn === 'T' ? 'text-emerald-300' : 'text-red-300'}>{live.display_pc_yn ?? '?'}</code></div>
-              <div>display_mobile_yn: <code className={live.display_mobile_yn === 'T' ? 'text-emerald-300' : 'text-amber-300'}>{live.display_mobile_yn ?? '?'}</code></div>
-              <div>use_main_category: <code className="text-gray-300">{live.use_main_category ?? '?'}</code></div>
-              <div>category_depth: <code className="text-gray-300">{String((live as Record<string, unknown>).category_depth ?? '?')}</code></div>
-            </div>
+            <>
+              <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                <div>use_display: <code className={live.use_display === 'T' ? 'text-emerald-300' : 'text-red-300'}>{live.use_display ?? '?'}</code></div>
+                <div>display_type: <code className="text-gray-300">{live.display_type ?? '?'}</code></div>
+                <div>use_main: <code className="text-gray-300">{live.use_main ?? '?'}</code></div>
+                <div>access_authority: <code className={live.access_authority === 'A' || !live.access_authority ? 'text-emerald-300' : 'text-amber-300'}>{live.access_authority ?? '?'}</code></div>
+                <div>display_pc_yn(legacy): <code className="text-gray-500">{live.display_pc_yn ?? 'null'}</code></div>
+                <div>display_mobile_yn(legacy): <code className="text-gray-500">{live.display_mobile_yn ?? 'null'}</code></div>
+              </div>
+              {live.all_keys && live.all_keys.length > 0 && (
+                <details className="mt-2">
+                  <summary className="text-gray-500 cursor-pointer">카페24 응답 전체 키 ({live.all_keys.length}개)</summary>
+                  <code className="block mt-1 text-[10px] text-gray-400 break-all">{live.all_keys.join(', ')}</code>
+                </details>
+              )}
+            </>
           )}
         </div>
       ) : data.mode === 'category' ? (
         <p className="text-amber-300">cafe24_category_no는 있는데 라이브 조회 실패</p>
       ) : null}
+
+      {data.storefront_probes && data.storefront_probes.length > 0 && (
+        <div className="border-t border-[#2a2d35] pt-2">
+          <p className="font-medium text-gray-300 mb-1">URL 패턴별 실제 응답 테스트</p>
+          <div className="space-y-1">
+            {data.storefront_probes.map((p, i) => (
+              <div key={i} className="flex items-start gap-2 text-[10px]">
+                <span className={`px-1.5 py-0.5 rounded font-mono shrink-0 ${
+                  p.ok ? 'bg-emerald-500/20 text-emerald-300'
+                  : p.redirected_to_home ? 'bg-red-500/20 text-red-300'
+                  : 'bg-amber-500/20 text-amber-300'
+                }`}>
+                  {p.ok ? '✓ OK' : p.redirected_to_home ? '✗ 홈리다이렉트' : `${p.final_status ?? '?'}`}
+                </span>
+                <code className="text-gray-300 break-all flex-1">{p.url}</code>
+              </div>
+            ))}
+          </div>
+          {workingProbe && (
+            <p className="text-[10px] text-emerald-300 mt-1">
+              → 동작하는 URL 패턴이 있습니다. 코드가 자동으로 이 패턴을 사용하도록 갱신됩니다.
+            </p>
+          )}
+        </div>
+      )}
 
       <div className="border-t border-[#2a2d35] pt-2">
         <span className="text-gray-500">실제 리다이렉트 목적지:</span>

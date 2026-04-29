@@ -379,6 +379,54 @@ async def verify_storefront_url(url: str) -> bool:
         return True
 
 
+async def probe_category_url(url: str) -> dict:
+    """
+    카테고리 URL을 GET하고 리다이렉트 체인 + 최종 응답 코드를 반환 (진단용).
+    Cafe24가 홈으로 302시키는지 직접 확인.
+    """
+    try:
+        async with httpx.AsyncClient(
+            timeout=10, follow_redirects=False,
+            headers={"User-Agent": "Mozilla/5.0 (compatible; affiliate-debug)"}
+        ) as client:
+            chain = []
+            current = url
+            for _ in range(5):
+                resp = await client.get(current)
+                chain.append({
+                    "url": current,
+                    "status": resp.status_code,
+                    "location": resp.headers.get("location"),
+                })
+                if resp.status_code in (301, 302, 303, 307, 308) and resp.headers.get("location"):
+                    loc = resp.headers["location"]
+                    # 절대/상대 URL 처리
+                    if loc.startswith("http"):
+                        current = loc
+                    else:
+                        from urllib.parse import urljoin as _uj
+                        current = _uj(current, loc)
+                else:
+                    break
+            final = chain[-1]
+            redirected_to_home = (
+                final["status"] in (200, 301, 302) and
+                ("index" in (final.get("url") or "") or
+                 (final.get("url") or "").rstrip("/").endswith(".com") or
+                 (final.get("url") or "").rstrip("/").endswith(".kr"))
+            )
+            return {
+                "ok": not redirected_to_home and final["status"] == 200,
+                "redirected_to_home": redirected_to_home,
+                "chain": chain,
+                "final_url": final.get("url"),
+                "final_status": final.get("status"),
+            }
+    except Exception as e:
+        logger.warning(f"[Cafe24] probe_category_url failed for {url}: {e}")
+        return {"ok": False, "error": str(e), "chain": []}
+
+
 async def list_categories(
     user, db, *, parent_category_no: Optional[int] = None, depth: Optional[int] = None,
 ) -> list:
@@ -482,20 +530,25 @@ async def get_category(user, db, *, category_no: int) -> dict:
             cat = first
     if not cat:
         return {"error": "카테고리 정보 파싱 실패", "raw_keys": list(data.keys()), "exists": False}
+    # 카페24 카테고리 API 핵심 필드 값들 모두 노출 (진단용)
     return {
         "exists": True,
         "category_no": cat.get("category_no"),
         "category_name": cat.get("category_name"),
-        # 카페24가 응답에 따라 display / display_pc_yn / display_yn 중 하나만 줄 수 있어 모두 노출
-        "display_pc_yn": cat.get("display_pc_yn") or cat.get("display") or cat.get("display_yn"),
-        "display_mobile_yn": cat.get("display_mobile_yn"),
-        "display_raw": cat.get("display"),
-        "display_yn_raw": cat.get("display_yn"),
-        "use_main_category": cat.get("use_main_category"),
-        "use_display": cat.get("use_display"),
         "category_depth": cat.get("category_depth"),
         "parent_category_no": cat.get("parent_category_no"),
+        # 진열/접근 핵심 필드
+        "use_display": cat.get("use_display"),
+        "display_type": cat.get("display_type"),
+        "use_main": cat.get("use_main"),
+        "access_authority": cat.get("access_authority"),
+        # legacy 필드들 — 일부 카페24 버전이 사용
+        "display_pc_yn": cat.get("display_pc_yn"),
+        "display_mobile_yn": cat.get("display_mobile_yn"),
+        "display_raw": cat.get("display"),
         "all_keys": list(cat.keys()),
+        # 진단 편의용 — display_pc_yn 호환 (UI 코드가 이 필드를 보고 needsRepublish 결정)
+        "computed_display_ok": (cat.get("use_display") == "T") and (cat.get("access_authority") in ("A", None)),
     }
 
 
@@ -503,22 +556,26 @@ async def update_category_visibility(
     user, db, *, category_no: int, display: bool = True, use_main: bool = False,
 ) -> dict:
     """
-    기존 카테고리 진열 설정 업데이트 — 비공개(display=F) 카테고리를 URL 접근 가능 상태로.
+    카테고리 진열 + 접근권한 설정 업데이트 — 인플루언서 링크가 동작하도록.
 
-    카페24 PUT /api/v2/admin/categories/{N} — 필드 변형 모두 채워서 호환성 확보:
-    display_pc_yn / display_mobile_yn / use_display / display_yn
+    카페24 카테고리 API 실제 필드 (응답 키에서 확인):
+    - use_display: T/F (대표 진열 ON/OFF)
+    - display_type: 진열 방식 (P=PC, M=Mobile, B=Both — 추정)
+    - use_main: T/F (메인분류 진열 ON/OFF — `use_main_category`가 아니라 `use_main`)
+    - access_authority: 접근 권한 (A=전체, M=회원, ... — URL 차단 의심 키)
     """
     display_yn = "T" if display else "F"
     use_main_yn = "T" if use_main else "F"
     body = {
         "shop_no": 1,
         "request": {
-            "use_display": "T",
-            "display": display_yn,
-            "display_yn": display_yn,
+            "use_display": display_yn,
+            "display_type": "B",  # PC + Mobile 둘 다 진열
+            "use_main": use_main_yn,
+            "access_authority": "A",  # 모든 방문자 접근 허용 (회원 게이트 해제)
+            # 일부 카페24 버전은 여전히 _yn 필드를 받는 경우가 있어 같이 보냄
             "display_pc_yn": display_yn,
             "display_mobile_yn": display_yn,
-            "use_main_category": use_main_yn,
         },
     }
     logger.info(
@@ -534,16 +591,23 @@ async def update_category_visibility(
         first = data["categories"][0]
         if isinstance(first, dict):
             cat = first
+    # 핵심 필드 값들 모두 로그로 덤프 — 카페24가 무엇을 저장했는지 확인
+    important_fields = [
+        "use_display", "display_type", "use_main", "access_authority",
+        "display_pc_yn", "display_mobile_yn", "display",
+    ]
+    field_values = {k: cat.get(k) for k in important_fields}
     logger.info(
-        f"[Cafe24] update_category_visibility 응답 category={category_no} "
-        f"keys={list(data.keys())} cat_keys={list(cat.keys()) if cat else []} "
-        f"display_pc_yn={cat.get('display_pc_yn')} display={cat.get('display')}"
+        f"[Cafe24] update_category_visibility 응답 category={category_no} field_values={field_values}"
     )
     return {
         "category_no": cat.get("category_no") or category_no,
-        "display_pc_yn": cat.get("display_pc_yn") or cat.get("display") or display_yn,
-        "display_mobile_yn": cat.get("display_mobile_yn") or display_yn,
+        "use_display": cat.get("use_display"),
+        "display_type": cat.get("display_type"),
+        "use_main": cat.get("use_main"),
+        "access_authority": cat.get("access_authority"),
         "raw_response_keys": list(data.keys()),
+        "cat_keys": list(cat.keys()) if cat else [],
     }
 
 

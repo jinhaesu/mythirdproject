@@ -2130,25 +2130,57 @@ async def cafe24_debug_campaign(
     # /r/{code} 가 실제로 어디로 보낼지 시뮬레이션
     simulated_destination = _build_destination_url(campaign, cafe24_user)
 
+    # 카테고리 URL 후보 여러 개를 직접 HEAD/GET으로 프로브 — 어떤 패턴이 동작하는지 확인
+    storefront_probes = []
+    if campaign.cafe24_category_no and domain:
+        cat_no = int(campaign.cafe24_category_no)
+        url_candidates = [
+            f"https://{domain}/category/cat-no/{cat_no}/category.html",
+            f"https://{domain}/product/list.html?cate_no={cat_no}",
+            f"https://{domain}/category/{cat_no}/",
+        ]
+        for u in url_candidates:
+            probe = await cafe24_svc.probe_category_url(u)
+            storefront_probes.append({"url": u, **probe})
+
     # 추천 조치
     recommendation = None
     if mode == "category":
         if live_category and live_category.get("exists") is False:
             recommendation = (
-                "카페24에서 이 카테고리(no={no})를 찾을 수 없습니다. "
+                f"카페24에서 카테고리(no={campaign.cafe24_category_no})를 찾을 수 없습니다. "
                 "캠페인을 삭제하고 새로 만드세요."
-            ).format(no=campaign.cafe24_category_no)
-        elif live_category and live_category.get("display_pc_yn") != "T":
-            recommendation = (
-                "카테고리 진열이 OFF(display_pc_yn={d})이라 카페24가 홈으로 302시킵니다. "
-                "POST /campaigns/{id}/republish-category 호출하세요."
-            ).format(d=live_category.get("display_pc_yn"), id=campaign.id)
+            )
+        else:
+            use_disp = live_category.get("use_display") if live_category else None
+            access = live_category.get("access_authority") if live_category else None
+            working_probe = next((p for p in storefront_probes if p.get("ok")), None)
+            if working_probe:
+                recommendation = (
+                    f"동작하는 URL 패턴 발견: {working_probe['url']}. "
+                    "이 URL로 cafe24_category_url을 갱신하세요."
+                )
+            elif use_disp != "T":
+                recommendation = (
+                    f"카테고리 use_display={use_disp}. POST /campaigns/{campaign.id}/republish-category로 T 갱신 필요."
+                )
+            elif access and access != "A":
+                recommendation = (
+                    f"카테고리 access_authority={access} (회원 등급 제한). "
+                    "전체 공개로 변경하려면 카페24 관리자에서 '접근 권한'을 '전체회원'으로 설정하거나 "
+                    "republish-category 재호출."
+                )
+            else:
+                recommendation = (
+                    "use_display=T, access_authority=A인데도 모든 URL 패턴이 홈으로 302됩니다. "
+                    "카페24 관리자(상품→상품분류 관리)에서 카테고리 #" + str(campaign.cafe24_category_no) +
+                    "의 '진열함', 'PC쇼핑몰 진열', '모바일쇼핑몰 진열'을 직접 확인하세요. "
+                    "또는 카테고리 페이지에 진열할 상품이 0개일 수 있습니다."
+                )
     elif mode == "none_or_legacy":
         recommendation = (
             "이 캠페인은 카페24 카테고리/상품이 연결돼 있지 않아 홈으로 폴백됩니다. "
-            "캠페인을 삭제 후 '비공개 카테고리(다중 상품)' 모드로 다시 만드세요. "
-            "create_category 호출이 실패했을 가능성도 있으니 Railway 로그에서 "
-            "[Cafe24] create_category 항목을 확인하세요."
+            "캠페인을 삭제 후 '비공개 카테고리(다중 상품)' 모드로 다시 만드세요."
         )
 
     return {
@@ -2156,6 +2188,7 @@ async def cafe24_debug_campaign(
         "domain": domain,
         "db_state": db_state,
         "live_category": live_category,
+        "storefront_probes": storefront_probes,
         "simulated_destination": simulated_destination,
         "recommendation": recommendation,
     }
