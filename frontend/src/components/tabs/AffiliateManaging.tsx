@@ -2158,11 +2158,19 @@ function CampaignsSection() {
 
   const reattachMutation = useMutation({
     mutationFn: (id: number) => affiliateApi.reattachCampaignProducts(id),
-    onSuccess: (data: { live_count_after?: number; expected_count?: number }) => {
+    onSuccess: (data: { live_count_after?: number; expected_count?: number; errors?: Array<{ product_no: number; error: string }> }) => {
       qc.invalidateQueries({ queryKey: ['affiliate', 'campaign-cafe24-debug'] });
-      toast.success(
-        `상품 재첨부 완료: 카테고리에 ${data?.live_count_after ?? '?'}/${data?.expected_count ?? '?'}개`,
-      );
+      const errCount = data?.errors?.length ?? 0;
+      if (errCount > 0) {
+        toast.error(
+          `재첨부 부분 성공: ${data?.live_count_after}/${data?.expected_count}개. ${errCount}개 실패 — 진단 로그 확인.`,
+          { duration: 6000 },
+        );
+      } else {
+        toast.success(
+          `상품 재첨부 완료: 카테고리에 ${data?.live_count_after ?? '?'}/${data?.expected_count ?? '?'}개`,
+        );
+      }
     },
     onError: (e: { response?: { data?: { detail?: string } } }) => {
       toast.error(e?.response?.data?.detail || '상품 재첨부에 실패했습니다');

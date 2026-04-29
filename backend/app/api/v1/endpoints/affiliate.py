@@ -2278,11 +2278,14 @@ async def reattach_campaign_products(
     live_after = await cafe24_svc.list_category_products(
         cafe24_user, db, category_no=int(campaign.cafe24_category_no),
     )
+    errors = (result or {}).get("errors") or []
     return {
         "success": True,
         "category_no": campaign.cafe24_category_no,
         "expected_count": len(product_nos),
+        "attached_count": (result or {}).get("attached", 0),
         "live_count_after": len(live_after),
+        "errors": errors,
         "attach_result": result,
     }
 

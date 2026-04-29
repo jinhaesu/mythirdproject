@@ -614,36 +614,50 @@ async def attach_products_to_category(
     user, db, *, category_no: int, product_nos: list[int],
 ) -> dict:
     """
-    상품들을 카테고리에 일괄 추가.
+    상품들을 카테고리에 추가.
 
-    카페24 API: POST /api/v2/admin/categories/{category_no}/products
-    body: { shop_no, requests: [{ product_no, display_order }] }
+    카페24의 bulk 엔드포인트(POST /categories/{N}/products)가 422로 까다로워
+    상품별 PUT /products/{product_no}로 add_category_no 처리하는 방식 사용.
+    각 PUT 호출이 독립이라 일부 실패해도 나머지는 성공.
 
-    sort_no 대신 display_order 사용 (카페24가 sort_no는 무시함).
+    PUT body: { shop_no: 1, request: { add_category_no: [{category_no, recommend, new}] } }
     """
-    requests_payload = [
-        {"product_no": int(pn), "display_order": idx + 1}
-        for idx, pn in enumerate(product_nos)
-        if pn
-    ]
-    if not requests_payload:
-        return {"attached": 0}
-    body = {"shop_no": 1, "requests": requests_payload}
+    if not product_nos:
+        return {"attached": 0, "errors": []}
+
+    success_count = 0
+    errors: list[dict] = []
+    for pn in product_nos:
+        if not pn:
+            continue
+        try:
+            await api_request(
+                user, db, "PUT", f"/api/v2/admin/products/{int(pn)}",
+                json={
+                    "shop_no": 1,
+                    "request": {
+                        "add_category_no": [
+                            {"category_no": int(category_no), "recommend": "F", "new": "F"}
+                        ],
+                    },
+                },
+            )
+            success_count += 1
+        except Exception as e:
+            err_msg = str(e)[:300]
+            # 이미 카테고리에 속한 상품은 카페24가 에러 반환할 수 있음 — 성공으로 간주
+            if "already" in err_msg.lower() or "exists" in err_msg.lower() or "duplicate" in err_msg.lower():
+                success_count += 1
+                logger.info(f"[Cafe24] product {pn} already in category {category_no}")
+            else:
+                errors.append({"product_no": int(pn), "error": err_msg})
+                logger.warning(f"[Cafe24] add product {pn} to category {category_no} failed: {err_msg}")
+
     logger.info(
         f"[Cafe24] attach_products_to_category category={category_no} "
-        f"products={len(requests_payload)} body_preview={requests_payload[:3]}"
+        f"success={success_count}/{len(product_nos)} errors={len(errors)}"
     )
-    data = await api_request(
-        user, db, "POST",
-        f"/api/v2/admin/categories/{category_no}/products",
-        json=body,
-    )
-    products = data.get("products") or []
-    logger.info(
-        f"[Cafe24] attach_products_to_category 응답 category={category_no} "
-        f"keys={list(data.keys())} attached={len(products)}"
-    )
-    return {"attached": len(products), "raw_keys": list(data.keys())}
+    return {"attached": success_count, "errors": errors, "total_attempted": len(product_nos)}
 
 
 async def list_category_products(
