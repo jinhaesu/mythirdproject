@@ -566,16 +566,15 @@ async def update_category_visibility(
     """
     display_yn = "T" if display else "F"
     use_main_yn = "T" if use_main else "F"
+    # 카페24 422 에러로 검증됨 — display_type="B"는 invalid. 카페24가 자체적으로 갖는 값("A")이
+    # 이미 PC+Mobile 모두 진열 의미이므로 굳이 PUT으로 바꾸지 않음. display_pc_yn/_mobile_yn도
+    # 응답에 없는 필드라 PUT에서 제거.
     body = {
         "shop_no": 1,
         "request": {
             "use_display": display_yn,
-            "display_type": "B",  # PC + Mobile 둘 다 진열
             "use_main": use_main_yn,
-            "access_authority": "A",  # 모든 방문자 접근 허용 (회원 게이트 해제)
-            # 일부 카페24 버전은 여전히 _yn 필드를 받는 경우가 있어 같이 보냄
-            "display_pc_yn": display_yn,
-            "display_mobile_yn": display_yn,
+            "access_authority": "A",  # 모든 방문자 접근 허용 (회원 게이트 해제 시도)
         },
     }
     logger.info(
@@ -649,9 +648,15 @@ async def delete_category(user, db, *, category_no: int) -> dict:
 
 
 def category_storefront_url(domain: str, category_no: int) -> str:
-    """카페24 카테고리 페이지 URL — 일반 스토어프론트 패턴."""
+    """
+    카페24 카테고리 페이지 URL.
+
+    실제 동작 확인: /product/list.html?cate_no={N} 패턴이 동작.
+    /category/cat-no/{N}/category.html 패턴은 nuldam.com 같은 SmartDesign 테마에서
+    홈으로 302됨 (URL probe로 확인됨).
+    """
     domain = (domain or "").replace("https://", "").replace("http://", "").rstrip("/")
-    return f"https://{domain}/category/cat-no/{category_no}/category.html"
+    return f"https://{domain}/product/list.html?cate_no={category_no}"
 
 
 async def create_coupon(

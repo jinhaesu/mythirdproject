@@ -578,17 +578,18 @@ def _build_destination_url(campaign: Optional[AffiliateCampaign], user: Optional
       2) 단일 상품 캠페인 (cafe24_product_no) → 상품 상세 + 쿠폰 query
       3) landing_url
       4) mall 도메인 루트
+
+    카테고리 URL은 항상 최신 패턴(/product/list.html?cate_no=N)으로 재빌드 —
+    DB의 cafe24_category_url에 옛 패턴이 캐시돼 있을 수 있어 무시.
     """
     if not campaign:
         return None
     domain = _cafe24_store_domain(user)
 
-    # 1) 카테고리 캠페인 우선
+    # 1) 카테고리 캠페인 우선 — 항상 최신 패턴으로 재빌드
     if campaign.cafe24_category_no and domain:
-        url = (
-            campaign.cafe24_category_url
-            or f"https://{domain}/category/cat-no/{campaign.cafe24_category_no}/category.html"
-        )
+        import app.services.cafe24 as _cafe24_svc
+        url = _cafe24_svc.category_storefront_url(domain, int(campaign.cafe24_category_no))
         if campaign.cafe24_coupon_code:
             sep = "&" if "?" in url else "?"
             url = f"{url}{sep}coupon={campaign.cafe24_coupon_code}"
@@ -2222,29 +2223,42 @@ async def republish_campaign_category(
         )
 
     cafe24_user = await _resolve_cafe24_user(current_user, db)
+    domain = _cafe24_store_domain(cafe24_user)
+
+    # 카테고리 진열/접근 권한 갱신 (best-effort)
+    update_result = None
+    update_error = None
     try:
-        result = await cafe24_svc.update_category_visibility(
+        update_result = await cafe24_svc.update_category_visibility(
             cafe24_user, db,
             category_no=int(campaign.cafe24_category_no),
             display=True,
             use_main=False,
         )
     except Exception as e:
-        logger.error(f"[Republish] category {campaign.cafe24_category_no} update failed: {e}")
-        raise HTTPException(
-            status_code=502,
-            detail=f"카페24 카테고리 갱신 실패: {str(e)[:200]}",
-        )
+        logger.warning(f"[Republish] category {campaign.cafe24_category_no} update failed: {e}")
+        update_error = str(e)[:200]
+
+    # DB의 cafe24_category_url을 동작하는 새 URL 패턴으로 갱신
+    new_url = cafe24_svc.category_storefront_url(domain, int(campaign.cafe24_category_no))
+    campaign.cafe24_category_url = new_url
+    campaign.base_product_url = new_url
+    if not campaign.landing_url or "/category/cat-no/" in (campaign.landing_url or ""):
+        campaign.landing_url = new_url
+    await db.commit()
+    await db.refresh(campaign)
+
     logger.info(
         f"[Republish] campaign={campaign_id} category={campaign.cafe24_category_no} "
-        f"-> display_pc_yn={result.get('display_pc_yn')}"
+        f"-> updated url={new_url} use_display={(update_result or {}).get('use_display')}"
     )
     return {
         "success": True,
         "campaign_id": campaign_id,
         "category_no": campaign.cafe24_category_no,
-        "result": result,
-        "category_url": campaign.cafe24_category_url,
+        "category_url": new_url,
+        "update_result": update_result,
+        "update_error": update_error,
     }
 
 
