@@ -2384,6 +2384,107 @@ async def republish_campaign_category(
     }
 
 
+@router.get("/partners/{partner_id}/timeseries")
+async def get_partner_timeseries(
+    partner_id: int,
+    days: int = Query(30, ge=1, le=365),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    파트너 일별 성과 시계열 — 일별 매출/전환/환불/취소/클릭/커미션 집계.
+
+    카페24 실주문 일자(converted_at) 기준. 데이터가 없는 날도 0으로 채워서 전기간 반환.
+    파트너 상세 모달의 일별 매출 트래킹 차트/로그용.
+    """
+    # 파트너 존재 검증
+    p_r = await db.execute(
+        select(AffiliatePartner).where(AffiliatePartner.id == partner_id)
+    )
+    if not p_r.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Partner not found")
+
+    today = datetime.utcnow().date()
+    start_date = today - timedelta(days=days - 1)
+    start_dt = datetime.combine(start_date, datetime.min.time())
+
+    # 일별 클릭
+    click_rows = await db.execute(
+        select(
+            func.date(ReferralClick.clicked_at).label("d"),
+            func.count(ReferralClick.id).label("clicks"),
+        )
+        .where(
+            ReferralClick.partner_id == partner_id,
+            ReferralClick.clicked_at >= start_dt,
+        )
+        .group_by(func.date(ReferralClick.clicked_at))
+    )
+    clicks_map: dict[str, int] = {}
+    for row in click_rows.all():
+        d = row[0]
+        key = d.isoformat() if hasattr(d, "isoformat") else str(d)
+        clicks_map[key] = int(row[1])
+
+    # 일별 status별 집계 (paid/refunded/cancelled 모두 별개로)
+    conv_rows = await db.execute(
+        select(
+            func.date(ReferralConversion.converted_at).label("d"),
+            ReferralConversion.status,
+            func.count(ReferralConversion.id).label("cnt"),
+            func.coalesce(func.sum(ReferralConversion.order_amount), 0).label("amt"),
+            func.coalesce(func.sum(ReferralConversion.commission_amount), 0).label("comm"),
+        )
+        .where(
+            ReferralConversion.partner_id == partner_id,
+            ReferralConversion.converted_at >= start_dt,
+        )
+        .group_by(func.date(ReferralConversion.converted_at), ReferralConversion.status)
+    )
+    conv_map: dict[str, dict] = {}
+    for row in conv_rows.all():
+        d = row[0]
+        key = d.isoformat() if hasattr(d, "isoformat") else str(d)
+        st = (row[1] or "").strip().lower()
+        cnt = int(row[2])
+        amt = float(row[3])
+        comm = float(row[4])
+        bucket = conv_map.setdefault(key, {
+            "conversions": 0, "sales": 0.0, "commission": 0.0,
+            "refunded_count": 0, "refunded_amount": 0.0,
+            "cancelled_count": 0, "cancelled_amount": 0.0,
+        })
+        if st == "paid":
+            bucket["conversions"] = cnt
+            bucket["sales"] = amt
+            bucket["commission"] = comm
+        elif st == "refunded":
+            bucket["refunded_count"] = cnt
+            bucket["refunded_amount"] = amt
+        elif st == "cancelled":
+            bucket["cancelled_count"] = cnt
+            bucket["cancelled_amount"] = amt
+
+    # 모든 날짜를 채워서 반환
+    series = []
+    for i in range(days):
+        d = (start_date + timedelta(days=i)).isoformat()
+        c = conv_map.get(d, {})
+        series.append({
+            "date": d,
+            "clicks": clicks_map.get(d, 0),
+            "conversions": c.get("conversions", 0),
+            "sales": c.get("sales", 0.0),
+            "commission": c.get("commission", 0.0),
+            "refunded_count": c.get("refunded_count", 0),
+            "refunded_amount": c.get("refunded_amount", 0.0),
+            "cancelled_count": c.get("cancelled_count", 0),
+            "cancelled_amount": c.get("cancelled_amount", 0.0),
+        })
+
+    return series
+
+
 @router.get("/partners/{partner_id}/audit")
 async def audit_partner_conversions(
     partner_id: int,

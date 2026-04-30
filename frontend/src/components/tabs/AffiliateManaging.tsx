@@ -2664,13 +2664,333 @@ interface PartnerAuditResponse {
   partner: { id: number; name: string; phone: string | null; email: string | null };
   summary: { net_sales_paid_only: number; gross_sales_all_status: number; diff: number };
   status_breakdown: Array<{ status_raw: string | null; status_normalized: string; count: number; order_amount_sum: number; commission_sum: number }>;
-  conversions_recent_200: Array<{ id: number; campaign_id: number | null; cafe24_order_id: string | null; order_amount: number; status: string | null; created_at: string | null }>;
+  conversions_recent_200: Array<{ id: number; campaign_id: number | null; cafe24_order_id: string | null; order_amount: number; commission_amount?: number; status: string | null; created_at?: string | null; converted_at?: string | null; refunded_amount?: number; refunded_at?: string | null }>;
+}
+
+interface PartnerTimeseriesPoint {
+  date: string;
+  clicks: number;
+  conversions: number;
+  sales: number;
+  commission: number;
+  refunded_count: number;
+  refunded_amount: number;
+  cancelled_count: number;
+  cancelled_amount: number;
+}
+
+// ─── 파트너 일별 매출 시계열 차트 ─────────────────────────────────────────────
+
+function PartnerTimeseriesChart({
+  data,
+  loading,
+  days,
+  onChangeDays,
+}: {
+  data: PartnerTimeseriesPoint[];
+  loading: boolean;
+  days: 7 | 30 | 90;
+  onChangeDays: (d: 7 | 30 | 90) => void;
+}) {
+  const totals = useMemo(
+    () =>
+      data.reduce(
+        (acc, d) => ({
+          sales: acc.sales + d.sales,
+          conversions: acc.conversions + d.conversions,
+          clicks: acc.clicks + d.clicks,
+          refunded: acc.refunded + d.refunded_amount,
+          cancelled: acc.cancelled + d.cancelled_amount,
+        }),
+        { sales: 0, conversions: 0, clicks: 0, refunded: 0, cancelled: 0 },
+      ),
+    [data],
+  );
+  const peakDay = useMemo(() => {
+    if (!data || data.length === 0) return null;
+    const max = data.reduce((best, d) => (d.sales > (best?.sales ?? -1) ? d : best), data[0]);
+    return max.sales > 0 ? max : null;
+  }, [data]);
+
+  return (
+    <div className="rounded-xl border border-[#2a2d35] bg-[#141516] p-4 space-y-3">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+          <TrendingUp size={14} className="text-emerald-400" /> 파트너 일별 매출 추이
+        </h3>
+        <div className="flex items-center gap-1 bg-[#0F1011] border border-[#2a2d35] rounded-lg p-0.5">
+          {([7, 30, 90] as const).map(d => (
+            <button
+              key={d}
+              onClick={() => onChangeDays(d)}
+              className={`px-2.5 py-1 text-[11px] rounded transition-colors ${
+                days === d
+                  ? 'bg-emerald-600 text-white'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              {d}일
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 요약 KPI 라인 */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-[11px]">
+        <div className="bg-[#0F1011] rounded-lg px-2.5 py-1.5">
+          <p className="text-gray-500">기간 매출</p>
+          <p className="text-emerald-300 font-bold tabular-nums">₩{fmt(totals.sales)}</p>
+        </div>
+        <div className="bg-[#0F1011] rounded-lg px-2.5 py-1.5">
+          <p className="text-gray-500">전환</p>
+          <p className="text-cyan-300 font-bold tabular-nums">{fmt(totals.conversions)}건</p>
+        </div>
+        <div className="bg-[#0F1011] rounded-lg px-2.5 py-1.5">
+          <p className="text-gray-500">클릭</p>
+          <p className="text-white font-bold tabular-nums">{fmt(totals.clicks)}</p>
+        </div>
+        <div className="bg-[#0F1011] rounded-lg px-2.5 py-1.5">
+          <p className="text-gray-500">환불·취소</p>
+          <p className="text-rose-300 font-bold tabular-nums">₩{fmt(totals.refunded + totals.cancelled)}</p>
+        </div>
+        <div className="bg-[#0F1011] rounded-lg px-2.5 py-1.5">
+          <p className="text-gray-500">최고 매출일</p>
+          <p className="text-amber-300 font-bold tabular-nums">
+            {peakDay ? `${peakDay.date.slice(5)} (₩${fmt(peakDay.sales)})` : '—'}
+          </p>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center h-48">
+          <Loader2 size={18} className="text-emerald-400 animate-spin" />
+        </div>
+      ) : totals.clicks === 0 && totals.sales === 0 ? (
+        <div className="flex flex-col items-center justify-center h-48 gap-2 text-gray-500">
+          <BarChart2 size={24} />
+          <p className="text-xs">기간 내 활동 데이터가 없습니다</p>
+        </div>
+      ) : (
+        <div className="h-56 -ml-2">
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={data} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
+              <defs>
+                <linearGradient id="salesGradPartner" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#10B981" stopOpacity={0.5} />
+                  <stop offset="100%" stopColor="#10B981" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#23252A" vertical={false} />
+              <XAxis
+                dataKey="date"
+                tickFormatter={(v: string) => v.slice(5)}
+                stroke="#5a5d65"
+                tick={{ fontSize: 10 }}
+                tickLine={false}
+                axisLine={false}
+                minTickGap={20}
+              />
+              <YAxis
+                yAxisId="left"
+                stroke="#5a5d65"
+                tick={{ fontSize: 10 }}
+                tickFormatter={(v: number) =>
+                  v >= 10000 ? `${(v / 10000).toFixed(0)}만` : `${v}`
+                }
+                tickLine={false}
+                axisLine={false}
+                width={48}
+              />
+              <YAxis
+                yAxisId="right"
+                orientation="right"
+                stroke="#5a5d65"
+                tick={{ fontSize: 10 }}
+                tickFormatter={(v: number) => `${v}`}
+                tickLine={false}
+                axisLine={false}
+                width={28}
+              />
+              <Tooltip
+                contentStyle={DARK_TOOLTIP_STYLE}
+                labelStyle={{ color: '#8A8F98', fontSize: 11 }}
+                formatter={(value: number, name: string) => {
+                  if (name === '매출' || name === '환불' || name === '취소') return [`₩${fmt(value)}`, name];
+                  return [fmt(value), name];
+                }}
+              />
+              <Area
+                yAxisId="left"
+                type="monotone"
+                dataKey="sales"
+                name="매출"
+                stroke="#10B981"
+                strokeWidth={2}
+                fill="url(#salesGradPartner)"
+              />
+              <Bar yAxisId="right" dataKey="conversions" name="전환" fill="#06B6D4" opacity={0.6} radius={[2, 2, 0, 0]} />
+              <Bar yAxisId="right" dataKey="refunded_count" name="환불" fill="#F43F5E" opacity={0.6} radius={[2, 2, 0, 0]} />
+              <Bar yAxisId="right" dataKey="cancelled_count" name="취소" fill="#F59E0B" opacity={0.6} radius={[2, 2, 0, 0]} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── 일별 주문 로그 ───────────────────────────────────────────────────────────
+
+function PartnerDailyLog({
+  audit,
+  loading,
+  isOpen,
+  onToggle,
+  campaigns,
+}: {
+  audit?: PartnerAuditResponse;
+  loading: boolean;
+  isOpen: boolean;
+  onToggle: () => void;
+  campaigns: AffiliateCampaign[];
+}) {
+  const campaignNameById = useMemo(
+    () => new Map(campaigns.map(c => [c.id, c.name])),
+    [campaigns],
+  );
+
+  // conversions를 일자별로 group
+  const grouped = useMemo(() => {
+    const list = audit?.conversions_recent_200 ?? [];
+    const map = new Map<string, typeof list>();
+    for (const c of list) {
+      const dt = c.converted_at || c.created_at || '';
+      const day = dt.slice(0, 10) || '미상';
+      const arr = map.get(day) ?? [];
+      arr.push(c);
+      map.set(day, arr);
+    }
+    // 일자 내림차순
+    return Array.from(map.entries()).sort((a, b) => b[0].localeCompare(a[0]));
+  }, [audit]);
+
+  const totalCount = audit?.conversions_recent_200?.length ?? 0;
+
+  return (
+    <div className="rounded-xl border border-[#2a2d35] bg-[#141516]">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="w-full flex items-center justify-between p-4 hover:bg-white/[0.02] transition-colors"
+      >
+        <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+          <BarChart2 size={14} className="text-cyan-400" />
+          일자별 주문 로그
+          {audit && totalCount > 0 && (
+            <span className="text-[10px] px-1.5 py-0.5 bg-cyan-500/20 text-cyan-300 rounded">
+              최근 {totalCount}건
+            </span>
+          )}
+        </h3>
+        <ChevronDown
+          size={16}
+          className={`text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+        />
+      </button>
+
+      {isOpen && (
+        <div className="p-4 pt-0">
+          {loading || !audit ? (
+            <div className="flex items-center justify-center py-6">
+              <Loader2 size={16} className="text-cyan-400 animate-spin" />
+            </div>
+          ) : grouped.length === 0 ? (
+            <p className="text-xs text-gray-500 text-center py-4">
+              주문 데이터가 없습니다
+            </p>
+          ) : (
+            <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
+              {grouped.map(([day, items]) => {
+                const dayPaid = items.filter(i => (i.status || '').toLowerCase() === 'paid');
+                const dayRefunded = items.filter(i => (i.status || '').toLowerCase() === 'refunded');
+                const dayCancelled = items.filter(i => (i.status || '').toLowerCase() === 'cancelled');
+                const dayPaidSum = dayPaid.reduce((s, i) => s + (i.order_amount || 0), 0);
+                return (
+                  <div key={day} className="rounded-lg border border-[#2a2d35] overflow-hidden">
+                    <div className="flex items-center justify-between bg-[#0F1011] px-3 py-2 text-[11px]">
+                      <span className="font-mono text-gray-300 font-medium">{day}</span>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-emerald-300">매출 ₩{fmt(dayPaidSum)}</span>
+                        <span className="text-cyan-300">{dayPaid.length}건</span>
+                        {dayRefunded.length > 0 && (
+                          <span className="text-rose-300">환불 {dayRefunded.length}</span>
+                        )}
+                        {dayCancelled.length > 0 && (
+                          <span className="text-amber-300">취소 {dayCancelled.length}</span>
+                        )}
+                      </div>
+                    </div>
+                    <table className="w-full text-[11px]">
+                      <thead>
+                        <tr className="bg-[#141516] text-gray-500 border-b border-[#2a2d35]">
+                          <th className="text-left py-1.5 px-3">시각</th>
+                          <th className="text-left py-1.5 px-3">주문번호</th>
+                          <th className="text-left py-1.5 px-3">캠페인</th>
+                          <th className="text-right py-1.5 px-3">주문액</th>
+                          <th className="text-right py-1.5 px-3">커미션</th>
+                          <th className="text-right py-1.5 px-3">상태</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {items.map(c => {
+                          const st = (c.status || '').toLowerCase();
+                          const dt = c.converted_at || c.created_at || '';
+                          const time = dt.length >= 19 ? dt.slice(11, 16) : '—';
+                          const cname = c.campaign_id ? (campaignNameById.get(c.campaign_id) || `#${c.campaign_id}`) : '—';
+                          return (
+                            <tr key={c.id} className="border-b border-[#2a2d35]/50 text-gray-300 hover:bg-white/[0.02]">
+                              <td className="py-1.5 px-3 font-mono text-gray-500">{time}</td>
+                              <td className="py-1.5 px-3 font-mono text-gray-400 truncate max-w-[120px]" title={c.cafe24_order_id || ''}>
+                                {c.cafe24_order_id || '—'}
+                              </td>
+                              <td className="py-1.5 px-3 truncate max-w-[140px]" title={cname}>{cname}</td>
+                              <td className="py-1.5 px-3 text-right text-emerald-300 tabular-nums">₩{fmt(c.order_amount)}</td>
+                              <td className="py-1.5 px-3 text-right text-yellow-300 tabular-nums">₩{fmt(c.commission_amount || 0)}</td>
+                              <td className="py-1.5 px-3 text-right">
+                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                                  st === 'paid' ? 'bg-emerald-500/20 text-emerald-300'
+                                  : st === 'refunded' ? 'bg-rose-500/20 text-rose-300'
+                                  : st === 'cancelled' ? 'bg-amber-500/20 text-amber-300'
+                                  : 'bg-gray-500/20 text-gray-400'
+                                }`}>
+                                  {st || '—'}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <p className="text-[10px] text-gray-500 mt-2">
+            카페24 실주문 기준 (cafe24_order_id) · 최근 200건 표시 · status: paid=정상, refunded=환불, cancelled=취소
+          </p>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalProps) {
   const qc = useQueryClient();
   const [selectedCampaignId, setSelectedCampaignId] = useState<number>(0);
   const [showAudit, setShowAudit] = useState(false);
+  const [tsDays, setTsDays] = useState<7 | 30 | 90>(30);
+  const [showDailyLog, setShowDailyLog] = useState(false);
 
   const { data: performance = [], isLoading: perfLoading } = useQuery<PartnerPerformanceRow[]>({
     queryKey: ['affiliate', 'partner-performance', partner.id],
@@ -2678,10 +2998,17 @@ function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalP
     retry: 1,
   });
 
+  const { data: timeseries = [], isLoading: tsLoading } = useQuery<PartnerTimeseriesPoint[]>({
+    queryKey: ['affiliate', 'partner-timeseries', partner.id, tsDays],
+    queryFn: () => affiliateApi.getPartnerTimeseries(partner.id, tsDays),
+    retry: 1,
+    staleTime: 30_000,
+  });
+
   const { data: audit, isLoading: auditLoading, isError: auditError, error: auditErrObj, refetch: refetchAudit } = useQuery<PartnerAuditResponse>({
     queryKey: ['affiliate', 'partner-audit', partner.id],
     queryFn: () => affiliateApi.auditPartner(partner.id),
-    enabled: showAudit,
+    enabled: showAudit || showDailyLog,
     retry: 0,
   });
 
@@ -2722,7 +3049,7 @@ function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalP
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
       <div
-        className="w-full max-w-2xl bg-[#1a1b1e] rounded-2xl border border-[#2a2d35] shadow-2xl max-h-[90vh] overflow-y-auto"
+        className="w-full max-w-4xl bg-[#1a1b1e] rounded-2xl border border-[#2a2d35] shadow-2xl max-h-[90vh] overflow-y-auto"
         onClick={e => e.stopPropagation()}
       >
         {/* 헤더 */}
@@ -2745,6 +3072,23 @@ function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalP
         </div>
 
         <div className="p-5 space-y-5">
+          {/* 일별 매출 시계열 차트 */}
+          <PartnerTimeseriesChart
+            data={timeseries}
+            loading={tsLoading}
+            days={tsDays}
+            onChangeDays={setTsDays}
+          />
+
+          {/* 일별 주문 로그 (audit endpoint의 conversions 200건 기반) */}
+          <PartnerDailyLog
+            audit={audit}
+            loading={auditLoading}
+            isOpen={showDailyLog}
+            onToggle={() => setShowDailyLog(v => !v)}
+            campaigns={campaigns}
+          />
+
           {/* 퍼포먼스 테이블 */}
           <div>
             <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
