@@ -79,13 +79,29 @@ partnerApi.interceptors.request.use((config) => {
   return config;
 });
 
+// 401 처리 — passive cleanup. window.location.href = '/partner' 강제 navigate가
+// 무한 새로고침 루프의 원인이었음 (만료된 ?token=URL 접속 → verify 401 → navigate
+// → URL의 ?token= 그대로 → 다시 verify → 무한). 토큰만 제거하고 URL의 token 파라미터도
+// 같이 정리. 컴포넌트가 partner state null 감지하면 자연스럽게 LoginView 렌더.
+let _partner_last401At = 0;
 partnerApi.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('partner_token');
-        window.location.href = '/partner';
+    if (error.response?.status === 401 && typeof window !== 'undefined') {
+      const now = Date.now();
+      if (now - _partner_last401At > 500) {
+        _partner_last401At = now;
+        try {
+          localStorage.removeItem('partner_token');
+          if (window.location.search.includes('token=')) {
+            const u = new URL(window.location.href);
+            u.searchParams.delete('token');
+            window.history.replaceState({}, '', u.pathname + (u.search || ''));
+          }
+          // 컴포넌트에 인증 만료 알림 — DashboardView 등이 이미 마운트된 상태에서
+          // 401이 떨어지면 setPartner(null)로 LoginView로 자연스럽게 전환
+          window.dispatchEvent(new CustomEvent('partner-auth-expired'));
+        } catch { /* ignore */ }
       }
     }
     return Promise.reject(error);

@@ -28,10 +28,23 @@ import {
 import { AICommandCenter } from '@/components/chat/AICommandCenter';
 import toast from 'react-hot-toast';
 
+// React strict mode의 effect double-invoke 방어용 — 동일 매직링크 토큰은 1회만 verify
+const _verifiedMagicTokens = new Set<string>();
+
 export default function Home() {
-  const { isAuthenticated, setAuth } = useAuthStore();
+  const { isAuthenticated, setAuth, logout } = useAuthStore();
   const { activeTab, activePlatform, naverActiveTab } = useAppStore();
   const [verifying, setVerifying] = useState(false);
+
+  // 인터셉터의 401 발생 알림을 받아 로그아웃 처리 — 강제 reload 대신
+  useEffect(() => {
+    const onExpired = () => {
+      logout();
+      toast.error('로그인이 만료되었습니다. 다시 로그인해 주세요.');
+    };
+    window.addEventListener('auth-expired', onExpired);
+    return () => window.removeEventListener('auth-expired', onExpired);
+  }, [logout]);
 
   // Handle magic link token from URL + cafe24 callback query
   useEffect(() => {
@@ -64,6 +77,15 @@ export default function Home() {
     }
 
     if (token && !isAuthenticated) {
+      // 같은 토큰 두 번 verify 방지 (strict mode/뒤로가기 등)
+      if (_verifiedMagicTokens.has(token)) {
+        window.history.replaceState({}, '', '/');
+        return;
+      }
+      _verifiedMagicTokens.add(token);
+      // URL에서 token 즉시 제거 — verify 실패해도 같은 토큰으로 재시도되지 않게 차단
+      window.history.replaceState({}, '', '/');
+
       setVerifying(true);
       const pendingRef = localStorage.getItem('pending_ref') ?? undefined;
       authApi.verifyMagicLink(token, pendingRef)
@@ -72,15 +94,14 @@ export default function Home() {
           localStorage.removeItem('pending_ref');
           const user = await authApi.getMe();
           setAuth(user, data.access_token);
-          window.history.replaceState({}, '', '/');
           toast.success('로그인 성공!');
         })
         .catch(() => {
           toast.error('로그인 링크가 만료되었거나 유효하지 않습니다.');
-          window.history.replaceState({}, '', '/');
         })
         .finally(() => setVerifying(false));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Refresh user info on page load (meta_connected status 등 갱신)

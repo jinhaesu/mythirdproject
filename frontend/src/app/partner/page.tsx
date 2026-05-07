@@ -877,6 +877,10 @@ function VerifyingView() {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+// React strict mode의 effect double-invoke를 견디기 위한 module-level 플래그
+// (verify 매직링크가 단일 토큰이라 두 번 호출되면 두 번째는 무조건 실패)
+const _verifiedTokens = new Set<string>();
+
 export default function PartnerPage() {
   const [partner, setPartner] = useState<PartnerInfo | null>(null);
   const [verifying, setVerifying] = useState(false);
@@ -888,6 +892,18 @@ export default function PartnerPage() {
     window.history.replaceState({}, '', '/partner');
   }, []);
 
+  // 인터셉터가 401 발생 시 발사하는 이벤트 — DashboardView가 이미 마운트된 상태에서
+  // 토큰이 만료되면 partner state를 null로 만들어 LoginView로 전환
+  useEffect(() => {
+    const onExpired = () => {
+      setPartner(null);
+      setVerifying(false);
+      toast.error('로그인이 만료되었습니다. 다시 로그인해 주세요.');
+    };
+    window.addEventListener('partner-auth-expired', onExpired);
+    return () => window.removeEventListener('partner-auth-expired', onExpired);
+  }, []);
+
   // URL ?token= 처리 또는 기존 localStorage 토큰 복원
   useEffect(() => {
     const init = async () => {
@@ -895,17 +911,25 @@ export default function PartnerPage() {
       const urlToken = params.get('token');
 
       if (urlToken) {
-        // URL 매직링크 토큰 검증
+        // 같은 토큰을 두 번 verify 시도 방지 (strict mode/뒤로가기 등)
+        if (_verifiedTokens.has(urlToken)) {
+          window.history.replaceState({}, '', '/partner');
+          setInitialized(true);
+          return;
+        }
+        _verifiedTokens.add(urlToken);
+        // URL에서 token을 즉시 제거 — verify 실패하더라도 새로고침 시 같은 토큰으로 또
+        // 시도하지 않게 차단
+        window.history.replaceState({}, '', '/partner');
+
         setVerifying(true);
         try {
           const res = await partnerAuthApi.verify(urlToken);
           localStorage.setItem('partner_token', res.access_token);
           setPartner(res.partner);
-          window.history.replaceState({}, '', '/partner');
           toast.success('로그인 되었습니다');
         } catch {
-          toast.error('로그인이 만료되었습니다');
-          window.history.replaceState({}, '', '/partner');
+          toast.error('로그인 링크가 만료되었거나 유효하지 않습니다.');
         } finally {
           setVerifying(false);
         }

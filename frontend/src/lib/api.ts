@@ -50,13 +50,47 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Handle 401 — token expired → clear and redirect to login
+// Handle 401 — passive cleanup only. Navigation/reload was causing infinite
+// loops when 매직링크 verify가 401일 때 인터셉터가 reload → 같은 URL의 ?token=
+// 으로 다시 verify → 401 → reload ... 무한 반복.
+// 인증 상태는 zustand store(auth-storage)와 localStorage 'token' 양쪽에 있어
+// 둘 다 정리. 컴포넌트가 isAuthenticated=false 감지하면 자연스럽게 LoginPage 렌더.
+let _last401At = 0;
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      window.location.reload();
+      // 짧은 시간 내 다중 401(여러 in-flight 요청이 동시에 401)을 1회로 합침
+      const now = Date.now();
+      if (now - _last401At > 500) {
+        _last401At = now;
+        try {
+          localStorage.removeItem('token');
+          // zustand persist도 동기화
+          const raw = localStorage.getItem('auth-storage');
+          if (raw) {
+            try {
+              const parsed = JSON.parse(raw);
+              if (parsed && parsed.state) {
+                parsed.state.user = null;
+                parsed.state.token = null;
+                parsed.state.isAuthenticated = false;
+                localStorage.setItem('auth-storage', JSON.stringify(parsed));
+              }
+            } catch { /* ignore */ }
+          }
+          // 매직링크 토큰이 URL에 남아 있으면 제거 (재시도 루프 방지)
+          if (typeof window !== 'undefined' && window.location.search.includes('token=')) {
+            const u = new URL(window.location.href);
+            u.searchParams.delete('token');
+            window.history.replaceState({}, '', u.pathname + (u.search || ''));
+          }
+          // 컴포넌트에 인증 만료 알림 — Home 컴포넌트가 useAuthStore.logout() 호출
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('auth-expired'));
+          }
+        } catch { /* swallow */ }
+      }
     }
     return Promise.reject(error);
   },
