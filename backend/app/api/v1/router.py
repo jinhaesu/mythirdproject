@@ -2,8 +2,10 @@
 from fastapi import APIRouter
 
 from app.api.v1.endpoints import (
-    auth, benchmark, creative, campaign, analytics, dashboard, campaign_planner, chat
+    auth, benchmark, creative, campaign, analytics, dashboard, campaign_planner, chat, market_keywords,
+    naver_analytics, naver_campaign, affiliate, partner_auth, partner_portal,
 )
+from app.api.v1.endpoints import cafe24, webhooks
 
 api_router = APIRouter()
 
@@ -56,9 +58,65 @@ api_router.include_router(
     tags=["Dashboard & Revenue"]
 )
 
+# Market Keywords (Keyword Monitoring)
+api_router.include_router(
+    market_keywords.router,
+    prefix="/market",
+    tags=["Market Keywords"]
+)
+
 # AI Command Center (Chat)
 api_router.include_router(
     chat.router,
     prefix="/ai",
     tags=["AI Command Center"]
+)
+
+# Naver Advertising Analytics (검색광고 + GFA)
+api_router.include_router(
+    naver_analytics.router,
+    prefix="/naver",
+    tags=["Naver Advertising"]
+)
+
+# Naver Campaign Management (캠페인 위자드, 입찰가 최적화)
+api_router.include_router(
+    naver_campaign.router,
+    prefix="/naver",
+    tags=["Naver Campaign Management"]
+)
+
+# Affiliate Managing
+api_router.include_router(
+    affiliate.router,
+    prefix="/affiliate",
+    tags=["Affiliate Managing"]
+)
+
+# Cafe24 OAuth & Integration
+api_router.include_router(
+    cafe24.router,
+    prefix="/cafe24",
+    tags=["Cafe24"]
+)
+
+# Partner Portal Auth (매직링크 이메일 로그인)
+api_router.include_router(
+    partner_auth.router,
+    prefix="/partner/auth",
+    tags=["Partner Auth"],
+)
+
+# Partner Portal (내 정보, 대시보드, 캠페인 성과)
+api_router.include_router(
+    partner_portal.router,
+    prefix="/partner",
+    tags=["Partner Portal"],
+)
+
+# Webhooks (HMAC protected, no auth)
+api_router.include_router(
+    webhooks.router,
+    prefix="/webhooks",
+    tags=["Webhooks"]
 )

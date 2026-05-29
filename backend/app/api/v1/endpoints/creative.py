@@ -2,10 +2,14 @@
 from typing import List, Optional
 import json
 import uuid
+import os
+import io
+import logging
 
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, UploadFile, File, Form
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from PIL import Image as PILImage
 
 from app.db.database import get_db
 from app.models.user import User
@@ -22,11 +26,432 @@ from app.services.ai import (
     ImageGenerationService, VideoGenerationService
 )
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
+
+# Allowed file extensions and size limits
+ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+ALLOWED_VIDEO_EXTENSIONS = {".mp4", ".mov", ".avi"}
+MAX_IMAGE_SIZE = 30 * 1024 * 1024  # 30MB
+MAX_VIDEO_SIZE = 4 * 1024 * 1024 * 1024  # 4GB
 
 # In-memory job storage (use Redis in production)
 generation_jobs = {}
 
+
+# ──────────────────────────────────────────────
+# File Upload Endpoint
+# ──────────────────────────────────────────────
+
+@router.post("/upload", response_model=CreativeResponse)
+async def upload_creative(
+    file: UploadFile = File(...),
+    name: Optional[str] = Form(None),
+    creative_type: Optional[str] = Form(None),  # IMAGE or VIDEO
+    headline: Optional[str] = Form(None),
+    primary_text: Optional[str] = Form(None),
+    call_to_action: Optional[str] = Form("SHOP_NOW"),
+    link_url: Optional[str] = Form(None),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Upload an image or video file as a creative."""
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="No file provided")
+
+    ext = os.path.splitext(file.filename)[1].lower()
+
+    # Detect creative_type from extension if not provided
+    if not creative_type:
+        if ext in ALLOWED_IMAGE_EXTENSIONS:
+            creative_type = "IMAGE"
+        elif ext in ALLOWED_VIDEO_EXTENSIONS:
+            creative_type = "VIDEO"
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported file extension: {ext}. "
+                       f"Allowed: {', '.join(ALLOWED_IMAGE_EXTENSIONS | ALLOWED_VIDEO_EXTENSIONS)}"
+            )
+    else:
+        creative_type = creative_type.upper()
+
+    # Validate extension matches creative_type
+    if creative_type == "IMAGE" and ext not in ALLOWED_IMAGE_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid image file extension: {ext}. Allowed: {', '.join(ALLOWED_IMAGE_EXTENSIONS)}"
+        )
+    if creative_type == "VIDEO" and ext not in ALLOWED_VIDEO_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid video file extension: {ext}. Allowed: {', '.join(ALLOWED_VIDEO_EXTENSIONS)}"
+        )
+
+    # Read file content
+    file_content = await file.read()
+    file_size = len(file_content)
+
+    # Validate file size
+    if creative_type == "IMAGE" and file_size > MAX_IMAGE_SIZE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Image file too large: {file_size / (1024*1024):.1f}MB. Maximum: 30MB"
+        )
+    if creative_type == "VIDEO" and file_size > MAX_VIDEO_SIZE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Video file too large: {file_size / (1024*1024*1024):.1f}GB. Maximum: 4GB"
+        )
+
+    # Detect format/aspect ratio from image dimensions, then auto-resize if needed
+    format_value = "1:1"  # default
+    img_width: Optional[int] = None
+    img_height: Optional[int] = None
+    if creative_type == "IMAGE":
+        try:
+            img = PILImage.open(io.BytesIO(file_content))
+            width, height = img.size
+            ratio = width / height
+            if 0.9 <= ratio <= 1.1:
+                format_value = "1:1"
+            elif 0.75 <= ratio <= 0.85:
+                format_value = "4:5"
+            elif ratio <= 0.65:
+                format_value = "9:16"
+            elif ratio >= 1.5:
+                format_value = "16:9"
+            else:
+                format_value = "1:1"  # default
+
+            # Auto-resize: upscale if smallest dimension < 400px
+            new_width, new_height = width, height
+            if min(width, height) < 400:
+                scale = 400 / min(width, height)
+                new_width = round(width * scale)
+                new_height = round(height * scale)
+            # Auto-resize: downscale if largest dimension > 4096px
+            elif max(width, height) > 4096:
+                scale = 4096 / max(width, height)
+                new_width = round(width * scale)
+                new_height = round(height * scale)
+
+            if (new_width, new_height) != (width, height):
+                # Convert RGBA to RGB for JPEG compatibility before resizing
+                if img.mode == "RGBA" and ext.lower() in (".jpg", ".jpeg"):
+                    img = img.convert("RGB")
+                img = img.resize((new_width, new_height), PILImage.LANCZOS)
+                buf = io.BytesIO()
+                save_format = img.format or ("JPEG" if ext.lower() in (".jpg", ".jpeg") else "PNG")
+                img.save(buf, format=save_format)
+                file_content = buf.getvalue()
+                logger.info(f"[Upload] Resized {width}x{height} -> {new_width}x{new_height}")
+                img_width, img_height = new_width, new_height
+            else:
+                img_width, img_height = width, height
+        except Exception as e:
+            logger.warning(f"Could not detect image dimensions: {e}")
+            format_value = "1:1"
+
+    # Supabase Storage에 업로드 (설정되어 있으면), 아니면 로컬 저장
+    filename = f"{uuid.uuid4().hex}{ext}"
+    content_type_map = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".gif": "image/gif", ".webp": "image/webp", ".mp4": "video/mp4", ".mov": "video/quicktime"}
+    content_type = content_type_map.get(ext.lower(), "application/octet-stream")
+
+    from app.services.storage import upload_to_supabase
+    supabase_url = await upload_to_supabase(file_content, filename, content_type)
+
+    if supabase_url:
+        file_url = supabase_url
+    else:
+        # Fallback: 로컬 저장
+        upload_dir = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))),
+            "uploads"
+        )
+        os.makedirs(upload_dir, exist_ok=True)
+        filepath = os.path.join(upload_dir, filename)
+        with open(filepath, "wb") as f:
+            f.write(file_content)
+        file_url = f"/uploads/{filename}"
+
+    # Use original filename as name if not provided
+    creative_name = name or os.path.splitext(file.filename)[0]
+
+    # Create Creative record in database
+    creative = Creative(
+        user_id=current_user.id,
+        name=creative_name,
+        creative_type=CreativeType(creative_type),
+        format=CreativeFormat(format_value),
+        file_url=file_url,
+        thumbnail_url=file_url,
+        headline=headline,
+        primary_text=primary_text,
+        call_to_action=call_to_action,
+        width=img_width,
+        height=img_height,
+    )
+    db.add(creative)
+    await db.commit()
+    await db.refresh(creative)
+
+    return CreativeResponse(
+        id=creative.id,
+        user_id=creative.user_id,
+        name=creative.name,
+        creative_type=creative.creative_type,
+        format=creative.format,
+        headline=creative.headline,
+        primary_text=creative.primary_text,
+        call_to_action=creative.call_to_action,
+        file_url=creative.file_url,
+        thumbnail_url=creative.file_url,
+        created_at=creative.created_at,
+        updated_at=creative.updated_at,
+    )
+
+
+# ──────────────────────────────────────────────
+# Creative Validation Endpoint
+# ──────────────────────────────────────────────
+
+@router.post("/validate-specs")
+async def validate_creative_specs(
+    creative_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Validate creative against Meta ad specifications."""
+    result = await db.execute(
+        select(Creative)
+        .where(Creative.id == creative_id, Creative.user_id == current_user.id)
+    )
+    creative = result.scalar_one_or_none()
+
+    if not creative:
+        raise HTTPException(status_code=404, detail="Creative not found")
+
+    warnings = []
+    errors = []
+    recommendations = []
+
+    # Text validations
+    if creative.primary_text:
+        if len(creative.primary_text) > 2200:
+            errors.append("Primary text exceeds maximum 2200 characters")
+        elif len(creative.primary_text) > 125:
+            warnings.append(
+                f"Primary text is {len(creative.primary_text)} chars "
+                "(recommended: 125 or fewer for full visibility)"
+            )
+
+    if creative.headline:
+        if len(creative.headline) > 255:
+            errors.append("Headline exceeds maximum 255 characters")
+        elif len(creative.headline) > 40:
+            warnings.append(
+                f"Headline is {len(creative.headline)} chars "
+                "(recommended: 40 or fewer)"
+            )
+
+    # File-based validations
+    if creative.file_url and creative.file_url.startswith("/uploads/"):
+        upload_dir = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
+            "uploads"
+        )
+        filename = creative.file_url.replace("/uploads/", "")
+        filepath = os.path.join(upload_dir, filename)
+
+        if os.path.exists(filepath):
+            file_size = os.path.getsize(filepath)
+            ext = os.path.splitext(filename)[1].lower()
+
+            if creative.creative_type == CreativeType.IMAGE:
+                # File size check
+                if file_size > MAX_IMAGE_SIZE:
+                    errors.append(
+                        f"Image file size ({file_size / (1024*1024):.1f}MB) exceeds 30MB limit"
+                    )
+
+                # Format check
+                if ext not in {".jpg", ".jpeg", ".png"}:
+                    warnings.append(
+                        f"File format ({ext}) may not be optimal. JPG and PNG are recommended"
+                    )
+
+                # Resolution check
+                try:
+                    img = PILImage.open(filepath)
+                    width, height = img.size
+
+                    if width < 600 or height < 600:
+                        errors.append(
+                            f"Image resolution too low ({width}x{height}). "
+                            "Minimum: 600x600 pixels"
+                        )
+                    elif width < 1080 or height < 1080:
+                        warnings.append(
+                            f"Image resolution ({width}x{height}) is below recommended. "
+                            "Use 1080x1080 or higher for best quality"
+                        )
+
+                    # Aspect ratio recommendations
+                    ratio = width / height
+                    if 0.9 <= ratio <= 1.1:
+                        recommendations.append("1:1 format - optimal for Feed placement")
+                    elif 0.75 <= ratio <= 0.85:
+                        recommendations.append("4:5 format - optimal for Feed (more vertical space)")
+                    elif ratio <= 0.65:
+                        recommendations.append("9:16 format - optimal for Stories and Reels")
+                    elif ratio >= 1.5:
+                        recommendations.append(
+                            "16:9 format - consider cropping to 1:1 or 4:5 for better Feed performance"
+                        )
+
+                    recommendations.append("Use 1080x1080 for best feed performance")
+
+                except Exception as e:
+                    warnings.append(f"Could not analyze image dimensions: {str(e)}")
+
+            elif creative.creative_type == CreativeType.VIDEO:
+                # File size check
+                if file_size > MAX_VIDEO_SIZE:
+                    errors.append(
+                        f"Video file size ({file_size / (1024*1024*1024):.1f}GB) exceeds 4GB limit"
+                    )
+
+                # Format check
+                if ext not in {".mp4", ".mov"}:
+                    warnings.append(
+                        f"Video format ({ext}) may not be optimal. MP4 and MOV are recommended"
+                    )
+
+                recommendations.append("Recommended: 1:1 or 4:5 for Feed, 9:16 for Stories/Reels")
+                recommendations.append("Keep videos under 15 seconds for Stories")
+                recommendations.append("Minimum resolution: 1080x1080")
+
+    elif creative.creative_type == CreativeType.CAROUSEL:
+        recommendations.append("Carousel ads support 2-10 cards")
+        recommendations.append("Each card should use 1:1 aspect ratio for consistency")
+        recommendations.append("Use 1080x1080 resolution for each card")
+
+    valid = len(errors) == 0
+
+    return {
+        "valid": valid,
+        "warnings": warnings,
+        "errors": errors,
+        "recommendations": recommendations,
+        "meta_specs": {
+            "feed": {"recommended_size": "1080x1080", "aspect_ratio": "1:1"},
+            "stories": {"recommended_size": "1080x1920", "aspect_ratio": "9:16"},
+            "reels": {"recommended_size": "1080x1920", "aspect_ratio": "9:16"},
+        }
+    }
+
+
+# ──────────────────────────────────────────────
+# Meta Creative Guidelines Endpoint
+# ──────────────────────────────────────────────
+
+@router.get("/meta-guidelines")
+async def get_meta_creative_guidelines():
+    """Return Meta's recommended creative specifications and best practices."""
+    return {
+        "placements": {
+            "feed": {
+                "image": {
+                    "recommended_size": "1080 x 1080 px",
+                    "aspect_ratio": "1:1",
+                    "min_size": "600 x 600 px",
+                    "max_file_size": "30MB",
+                    "formats": ["JPG", "PNG"],
+                },
+                "video": {
+                    "recommended_size": "1080 x 1080 px",
+                    "aspect_ratio": "1:1 또는 4:5",
+                    "min_resolution": "1080 x 1080 px",
+                    "max_file_size": "4GB",
+                    "duration": "1~240초 (15초 권장)",
+                    "formats": ["MP4", "MOV"],
+                },
+            },
+            "stories_reels": {
+                "image": {
+                    "recommended_size": "1080 x 1920 px",
+                    "aspect_ratio": "9:16",
+                    "min_size": "600 x 1067 px",
+                    "max_file_size": "30MB",
+                    "formats": ["JPG", "PNG"],
+                },
+                "video": {
+                    "recommended_size": "1080 x 1920 px",
+                    "aspect_ratio": "9:16",
+                    "min_resolution": "1080 x 1920 px",
+                    "max_file_size": "4GB",
+                    "duration": "1~60초 (15초 권장)",
+                    "formats": ["MP4", "MOV"],
+                },
+            },
+            "right_column": {
+                "image": {
+                    "recommended_size": "1200 x 628 px",
+                    "aspect_ratio": "1.91:1",
+                    "min_size": "600 x 315 px",
+                    "max_file_size": "30MB",
+                },
+            },
+        },
+        "text_guidelines": {
+            "primary_text": {
+                "max_length": 2200,
+                "recommended_length": 125,
+                "description": "광고 본문 텍스트 (125자 이내 권장, 초과 시 더보기로 숨김)",
+            },
+            "headline": {
+                "max_length": 255,
+                "recommended_length": 40,
+                "description": "광고 제목 (40자 이내 권장)",
+            },
+            "description": {
+                "max_length": 255,
+                "recommended_length": 30,
+                "description": "추가 설명 (뉴스피드 링크 광고에만 표시)",
+            },
+        },
+        "call_to_action_options": [
+            {"value": "SHOP_NOW", "label": "지금 쇼핑하기"},
+            {"value": "LEARN_MORE", "label": "자세히 알아보기"},
+            {"value": "SIGN_UP", "label": "가입하기"},
+            {"value": "CONTACT_US", "label": "문의하기"},
+            {"value": "GET_OFFER", "label": "혜택 받기"},
+            {"value": "ORDER_NOW", "label": "지금 주문하기"},
+            {"value": "BOOK_NOW", "label": "지금 예약하기"},
+            {"value": "APPLY_NOW", "label": "지금 신청하기"},
+            {"value": "SUBSCRIBE", "label": "구독하기"},
+            {"value": "DOWNLOAD", "label": "다운로드"},
+            {"value": "WATCH_MORE", "label": "더 보기"},
+            {"value": "BUY_NOW", "label": "지금 구매"},
+        ],
+        "best_practices": [
+            "소재 내 텍스트 비율 20% 이하 유지 (이미지의 20% 이상 텍스트 시 도달 감소)",
+            "첫 3초 내에 브랜드/제품을 노출",
+            "모바일 최적화: 세로형(4:5, 9:16) 소재 우선 사용",
+            "소재 3개 이상 등록하여 Meta AI 최적화 활용",
+            "정기적으로 소재 교체 (2~3주 주기)",
+            "A/B 테스트: 동일 타겟에 다른 소재로 비교",
+            "동영상: 자막 필수 (85%가 무음 시청)",
+            "CTA(행동유도) 버튼과 소재 메시지 일관성 유지",
+        ],
+    }
+
+
+# ──────────────────────────────────────────────
+# AI Generation Endpoints
+# ──────────────────────────────────────────────
 
 @router.post("/generate/image", response_model=GenerationJobResponse)
 async def generate_images(

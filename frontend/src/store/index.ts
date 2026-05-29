@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { User, StyleExtraction, Creative, Campaign } from '@/types';
+import type { User, StyleExtraction, Creative, Campaign, AutoPlanResponse, PerformanceFeedback, CampaignStatusType, PublishOptions } from '@/types';
 
 interface AuthState {
   user: User | null;
@@ -35,6 +35,18 @@ interface AppState {
   activeTab: number;
   setActiveTab: (tab: number) => void;
 
+  // Platform switcher (Meta vs Naver vs Affiliate)
+  activePlatform: 'meta' | 'naver' | 'affiliate';
+  setActivePlatform: (platform: 'meta' | 'naver' | 'affiliate') => void;
+
+  // Naver internal tab
+  naverActiveTab: number;
+  setNaverActiveTab: (tab: number) => void;
+
+  // Affiliate internal tab
+  affiliateActiveTab: number;
+  setAffiliateActiveTab: (tab: number) => void;
+
   // Style from TAB 1 to pass to TAB 2
   selectedStyle: StyleExtraction | null;
   stylePrompt: string | null;
@@ -50,11 +62,36 @@ interface AppState {
   // Campaign for TAB 4
   selectedCampaign: Campaign | null;
   setSelectedCampaign: (campaign: Campaign | null) => void;
+
+  // Auto Plan result from CampaignPlanner → AdsController
+  autoPlanResult: AutoPlanResponse | null;
+  setAutoPlanResult: (result: AutoPlanResponse | null) => void;
+
+  // Performance feedback cache
+  performanceFeedbacks: Record<string, PerformanceFeedback>;
+  setPerformanceFeedback: (campaignId: string, feedback: PerformanceFeedback) => void;
+
+  // Campaign filter
+  campaignStatusFilter: CampaignStatusType | 'ALL';
+  setCampaignStatusFilter: (filter: CampaignStatusType | 'ALL') => void;
+
+  // Publishing options
+  publishOptions: PublishOptions;
+  setPublishOptions: (options: Partial<PublishOptions>) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
   activeTab: 0,
   setActiveTab: (tab) => set({ activeTab: tab }),
+
+  activePlatform: 'meta',
+  setActivePlatform: (platform) => set({ activePlatform: platform }),
+
+  naverActiveTab: 0,
+  setNaverActiveTab: (tab) => set({ naverActiveTab: tab }),
+
+  affiliateActiveTab: 0,
+  setAffiliateActiveTab: (tab) => set({ affiliateActiveTab: tab }),
 
   selectedStyle: null,
   stylePrompt: null,
@@ -76,4 +113,30 @@ export const useAppStore = create<AppState>((set) => ({
 
   selectedCampaign: null,
   setSelectedCampaign: (campaign) => set({ selectedCampaign: campaign }),
+
+  autoPlanResult: null,
+  setAutoPlanResult: (result) => set({ autoPlanResult: result }),
+
+  performanceFeedbacks: {},
+  setPerformanceFeedback: (campaignId, feedback) =>
+    set((state) => ({
+      performanceFeedbacks: { ...state.performanceFeedbacks, [campaignId]: feedback },
+    })),
+
+  campaignStatusFilter: 'ALL',
+  setCampaignStatusFilter: (filter) => set({ campaignStatusFilter: filter }),
+
+  publishOptions: {
+    campaign_id: 0,
+    launch_immediately: true,
+    budget_type: 'DAILY',
+    advantage_plus: false,
+    advantage_plus_audience: false,
+    advantage_plus_creative: false,
+    currency: 'KRW',
+  },
+  setPublishOptions: (options) =>
+    set((state) => ({
+      publishOptions: { ...state.publishOptions, ...options },
+    })),
 }));

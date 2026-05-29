@@ -8,15 +8,36 @@ interface CardProps extends HTMLAttributes<HTMLDivElement> {
   padding?: 'none' | 'sm' | 'md' | 'lg';
 }
 
+/**
+ * Linear-style card/panel component.
+ *
+ * Variant mapping:
+ *   default   → bg #0F1011, border #23252A  (main panel surface)
+ *   bordered  → same as default (border is always present in Linear panels)
+ *   elevated  → bg #1C1C1F, border #34343A  (secondary / stronger container)
+ *
+ * All variants share the same medium shadow token from the Linear spec:
+ *   0px 3px 12px rgba(0,0,0,0.09)
+ */
 export const Card = forwardRef<HTMLDivElement, CardProps>(
   ({ className, variant = 'default', padding = 'md', children, ...props }, ref) => {
-    const variants = {
-      default: 'bg-white',
-      bordered: 'bg-white border border-gray-200',
-      elevated: 'bg-white shadow-lg',
+    const variants: Record<NonNullable<CardProps['variant']>, string> = {
+      default:
+        'bg-[#0F1011] border border-[#23252A] text-[#F7F8F8] ' +
+        'shadow-[0px_3px_12px_rgba(0,0,0,0.09)]',
+
+      // bordered keeps the same surface as default — border is always visible
+      bordered:
+        'bg-[#0F1011] border border-[#23252A] text-[#F7F8F8] ' +
+        'shadow-[0px_3px_12px_rgba(0,0,0,0.09)]',
+
+      // elevated: one step up in the Linear surface hierarchy
+      elevated:
+        'bg-[#1C1C1F] border border-[#34343A] text-[#F7F8F8] ' +
+        'shadow-[0px_3px_12px_rgba(0,0,0,0.09)]',
     };
 
-    const paddings = {
+    const paddings: Record<NonNullable<CardProps['padding']>, string> = {
       none: '',
       sm: 'p-3',
       md: 'p-4',
@@ -26,12 +47,7 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(
     return (
       <div
         ref={ref}
-        className={clsx(
-          'rounded-xl',
-          variants[variant],
-          paddings[padding],
-          className
-        )}
+        className={clsx('rounded-2xl', variants[variant], paddings[padding], className)}
         {...props}
       >
         {children}
@@ -42,17 +58,33 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(
 
 Card.displayName = 'Card';
 
+/**
+ * Divides the card header section from the body with a subtle Linear-spec border.
+ */
 export const CardHeader = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={clsx('pb-4 border-b border-gray-100', className)} {...props} />
+    <div
+      ref={ref}
+      className={clsx('pb-4 border-b border-[#23252A]', className)}
+      {...props}
+    />
   )
 );
 
 CardHeader.displayName = 'CardHeader';
 
+/**
+ * Card title — 24px / weight 590 to match Linear's card title type token.
+ * font-weight 590 applied inline since Tailwind has no utility for it.
+ */
 export const CardTitle = forwardRef<HTMLHeadingElement, HTMLAttributes<HTMLHeadingElement>>(
-  ({ className, ...props }, ref) => (
-    <h3 ref={ref} className={clsx('text-lg font-semibold text-gray-900', className)} {...props} />
+  ({ className, style, ...props }, ref) => (
+    <h3
+      ref={ref}
+      className={clsx('text-2xl tracking-[-0.012em] text-[#F7F8F8]', className)}
+      style={{ fontWeight: 590, ...style }}
+      {...props}
+    />
   )
 );
 

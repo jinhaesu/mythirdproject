@@ -43,16 +43,86 @@ router = APIRouter()
 # ──────────────────────────────────────────────
 
 def _parse_json_response(text: str) -> dict:
-    """Extract and parse JSON from Claude's text response."""
+    """Extract and parse JSON from Claude's text response with robust error recovery."""
+    import logging
+    _logger = logging.getLogger(__name__)
+
+    # 1. Try extracting from ```json ... ``` block first
+    if "```json" in text:
+        block = text.split("```json")[1].split("```")[0].strip()
+        try:
+            return json.loads(block)
+        except json.JSONDecodeError:
+            pass
+    elif "```" in text:
+        parts = text.split("```")
+        if len(parts) >= 3:
+            block = parts[1].strip()
+            if block.startswith("json"):
+                block = block[4:].strip()
+            try:
+                return json.loads(block)
+            except json.JSONDecodeError:
+                pass
+
+    # 2. Balanced brace matching for nested JSON
     start = text.find("{")
-    end = text.rfind("}") + 1
+    if start >= 0:
+        depth = 0
+        in_string = False
+        escape = False
+        for i in range(start, len(text)):
+            c = text[i]
+            if escape:
+                escape = False
+                continue
+            if c == '\\':
+                escape = True
+                continue
+            if c == '"' and not escape:
+                in_string = not in_string
+                continue
+            if in_string:
+                continue
+            if c == '{':
+                depth += 1
+            elif c == '}':
+                depth -= 1
+                if depth == 0:
+                    try:
+                        return json.loads(text[start:i + 1])
+                    except json.JSONDecodeError:
+                        break
+
+    # 3. Aggressive cleanup: fix common JSON issues from AI
+    cleaned = text
+    # Remove markdown
+    for prefix in ["```json", "```"]:
+        cleaned = cleaned.replace(prefix, "")
+    cleaned = cleaned.strip()
+
+    start = cleaned.find("{")
+    end = cleaned.rfind("}") + 1
     if start >= 0 and end > start:
-        return json.loads(text[start:end])
-    # Try to find a JSON array
+        json_str = cleaned[start:end]
+        # Fix trailing commas before } or ]
+        json_str = re.sub(r',\s*([}\]])', r'\1', json_str)
+        # Fix unquoted keys (simple cases)
+        json_str = re.sub(r'(?<=\{|,)\s*(\w+)\s*:', r' "\1":', json_str)
+        try:
+            return json.loads(json_str)
+        except json.JSONDecodeError as e:
+            _logger.warning(f"JSON parse after cleanup failed: {e}")
+
+    # 4. Try array
     start = text.find("[")
     end = text.rfind("]") + 1
     if start >= 0 and end > start:
-        return json.loads(text[start:end])
+        try:
+            return json.loads(text[start:end])
+        except json.JSONDecodeError:
+            pass
+
     raise ValueError("JSON을 파싱할 수 없습니다.")
 
 
@@ -765,15 +835,27 @@ class AutoPlanResponse(BaseModel):
     utm_links: List[dict] = []
     overall_strategy: str
     meta_recommendations: Optional[str] = None
+    creative_recommendation: Optional[dict] = None
 
 
 async def _scrape_product_info(url: str) -> dict:
     """Scrape product info from URL."""
+    import logging
+    logger = logging.getLogger(__name__)
     try:
-        async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=15.0, follow_redirects=True, verify=True) as client:
             resp = await client.get(url, headers={
-                "User-Agent": "Mozilla/5.0 (compatible; MetaCommander/1.0)"
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+                "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
+                "Accept-Encoding": "gzip, deflate, br",
+                "Sec-Fetch-Dest": "document",
+                "Sec-Fetch-Mode": "navigate",
+                "Sec-Fetch-Site": "none",
+                "Sec-Fetch-User": "?1",
+                "Upgrade-Insecure-Requests": "1",
             })
+            logger.info(f"Scrape {url}: status={resp.status_code}")
             html = resp.text[:80000]
 
             def extract_meta(property_name: str) -> Optional[str]:
@@ -795,9 +877,34 @@ async def _scrape_product_info(url: str) -> dict:
             description = extract_meta("description") or ""
             image = extract_meta("image") or ""
 
-            # Try to find price
-            price_match = re.search(r'[\₩\$][\s]?([\d,]+)', html)
-            price = price_match.group(1).replace(",", "") if price_match else None
+            # Try to find price - multiple patterns for Korean e-commerce
+            price = None
+            # 1. product:price meta tag (Naver Shopping, Coupang, etc.)
+            price_meta = extract_meta("product:price:amount")
+            if not price_meta:
+                # og:price:amount
+                price_meta = extract_meta("price:amount")
+            if price_meta:
+                price = re.sub(r'[^\d.]', '', price_meta)
+            else:
+                # 2. JSON-LD structured data (Schema.org)
+                ld_match = re.search(r'"price"\s*:\s*"?([\d,]+(?:\.\d+)?)"?', html)
+                if ld_match:
+                    price = ld_match.group(1).replace(",", "")
+                else:
+                    # 3. Korean patterns: 39,900원, 가격: 39,900, ₩39,900, $39.99
+                    price_patterns = [
+                        r'([\d,]+)\s*원',                          # 39,900원
+                        r'[\₩]\s?([\d,]+)',                        # ₩39,900
+                        r'[\$]\s?([\d,.]+)',                        # $39.99
+                        r'(?:price|가격)["\s:]*?([\d,]+)',         # price: 39900
+                        r'class="[^"]*price[^"]*"[^>]*>([\d,]+)',  # <span class="price">39900</span>
+                    ]
+                    for pat in price_patterns:
+                        pm = re.search(pat, html, re.IGNORECASE)
+                        if pm:
+                            price = pm.group(1).replace(",", "")
+                            break
 
             return {
                 "name": title,
@@ -806,8 +913,15 @@ async def _scrape_product_info(url: str) -> dict:
                 "price": float(price) if price else None,
                 "source_url": url,
             }
-    except Exception:
-        return {"name": "", "description": "", "source_url": url}
+    except httpx.ConnectError as e:
+        logger.warning(f"Scrape connect error for {url}: {e}")
+        return {"name": "", "description": "", "source_url": url, "scrape_error": "연결 실패"}
+    except httpx.TimeoutException as e:
+        logger.warning(f"Scrape timeout for {url}: {e}")
+        return {"name": "", "description": "", "source_url": url, "scrape_error": "시간 초과"}
+    except Exception as e:
+        logger.warning(f"Scrape failed for {url}: {e}")
+        return {"name": "", "description": "", "source_url": url, "scrape_error": str(e)}
 
 
 @router.post("/auto-plan", response_model=AutoPlanResponse)
@@ -840,7 +954,7 @@ async def auto_plan_campaign(
         raise HTTPException(status_code=400, detail="제품 정보를 확인할 수 없습니다. 제품명을 직접 입력해주세요.")
 
     # Step 2: Get deep Meta context if available
-    svc = MetaAdsService(current_user)
+    svc = await MetaAdsService.create(current_user, db)
     meta_context_text = ""
     if svc.connected:
         try:
@@ -865,7 +979,7 @@ async def auto_plan_campaign(
 
 {f'[사용자 Meta 계정 정보] {meta_context_text}' if meta_context_text else ''}
 
-다음 4가지를 한 번에 생성하세요:
+다음 5가지를 한 번에 생성하세요:
 
 JSON 형식으로 응답:
 {{
@@ -919,24 +1033,64 @@ JSON 형식으로 응답:
             }}
         ]
     }},
+    "creative_recommendation": {{
+        "recommended_type": "short_form_video 또는 image 또는 carousel 중 하나",
+        "reason": "추천 이유를 한국어로 설명",
+        "video_plan": {{
+            "concept": "영상 컨셉 설명",
+            "scenes": ["씬1 설명", "씬2 설명", "씬3 설명"],
+            "script": "나레이션 스크립트 전문",
+            "duration_seconds": 15,
+            "music_mood": "energetic/calm/emotional 중 하나"
+        }},
+        "image_guidelines": {{
+            "style": "이미지 스타일 설명",
+            "key_elements": ["핵심 요소1", "핵심 요소2"],
+            "text_overlay": "텍스트 오버레이 내용"
+        }}
+    }},
     "meta_recommendations": "Meta 광고 계정 데이터 기반 추가 추천 사항 (있는 경우)"
 }}
+
+creative_recommendation 규칙:
+- recommended_type이 "short_form_video"인 경우 video_plan을 반드시 포함하고, image_guidelines는 null로 설정
+- recommended_type이 "image"인 경우 image_guidelines를 반드시 포함하고, video_plan은 null로 설정
+- recommended_type이 "carousel"인 경우 image_guidelines를 포함하고 video_plan은 null로 설정
+- 제품 특성과 타겟에 맞는 최적의 소재 유형을 추천하세요
 
 실무에서 바로 사용 가능한 수준으로 구체적으로 작성해주세요.
 카피는 최소 3개 변형을 생성하세요.
 JSON만 출력하세요."""
 
-    try:
-        response = claude.client.messages.create(
-            model=claude.model,
-            max_tokens=4096,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        result = _parse_json_response(response.content[0].text)
-    except (json.JSONDecodeError, ValueError, IndexError) as e:
-        raise HTTPException(status_code=500, detail=f"AI 응답 파싱 실패: {str(e)}")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"AI 서비스 오류: {str(e)}")
+    import logging as _logging
+    _log = _logging.getLogger(__name__)
+    result = None
+    last_error = None
+
+    # Try with primary model, then fallback with smaller prompt if parsing fails
+    models_to_try = [claude.model, "claude-sonnet-4-6"]
+    for model_id in models_to_try:
+        try:
+            response = claude.client.messages.create(
+                model=model_id,
+                max_tokens=8192,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            raw_text = response.content[0].text
+            _log.info(f"Campaign plan AI response length: {len(raw_text)} chars, model: {model_id}")
+            result = _parse_json_response(raw_text)
+            break
+        except (json.JSONDecodeError, ValueError) as e:
+            last_error = e
+            _log.warning(f"JSON parse failed with {model_id}: {e}, raw[:500]={raw_text[:500] if 'raw_text' in dir() else 'N/A'}")
+            continue
+        except Exception as e:
+            last_error = e
+            _log.error(f"AI call failed with {model_id}: {e}")
+            continue
+
+    if result is None:
+        raise HTTPException(status_code=500, detail=f"AI 응답 파싱 실패: {str(last_error)}")
 
     return AutoPlanResponse(
         product_info=product_info,
@@ -946,4 +1100,5 @@ JSON만 출력하세요."""
         utm_links=result.get("utm", {}).get("links", []),
         overall_strategy=result.get("campaign_structure", {}).get("overall_strategy", ""),
         meta_recommendations=result.get("meta_recommendations"),
+        creative_recommendation=result.get("creative_recommendation"),
     )

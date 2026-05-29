@@ -1,5 +1,6 @@
 """Ads Controller endpoints (TAB 3)."""
 from typing import List, Optional
+from datetime import datetime, timezone, timedelta
 import json
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -13,20 +14,34 @@ from app.models.creative import Creative
 from app.schemas.campaign import (
     CampaignCreate, CampaignUpdate, CampaignResponse,
     AdCreate, AdResponse,
-    StrategyRecommendation, TargetingConfig,
+    StrategyRecommendation, TargetingConfig, InterestTargeting, GeoTargeting,
     PublishRequest, PublishResponse
 )
-from app.api.v1.endpoints.auth import get_current_user
-from app.services.meta import MetaMarketingAPI
+from app.api.v1.endpoints.auth import get_current_user, get_shared_meta_credentials
+from app.services.meta import MetaMarketingAPI, convert_budget_to_api_units
 from app.services.ai import ClaudeService
 
+import logging
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
+
+
+def _parse_targeting_segments(raw: str | None) -> list | None:
+    """Campaign의 targeting_segments JSON 문자열을 list로 파싱."""
+    if not raw:
+        return None
+    try:
+        parsed = json.loads(raw)
+        return parsed if isinstance(parsed, list) else None
+    except Exception:
+        return None
 
 
 @router.post("/strategy", response_model=StrategyRecommendation)
 async def get_strategy_recommendation(
     budget: float,
-    creative_ids: List[int],
+    creative_ids: List[int] = [],
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -41,9 +56,6 @@ async def get_strategy_recommendation(
         .where(Creative.id.in_(creative_ids), Creative.user_id == current_user.id)
     )
     creatives = result.scalars().all()
-
-    if not creatives:
-        raise HTTPException(status_code=400, detail="No valid creatives found")
 
     # Prepare creative data for AI
     creative_data = [
@@ -97,20 +109,44 @@ async def create_campaign(
     """
     Create a new campaign (draft mode).
     """
-    # Validate creatives exist
-    result = await db.execute(
-        select(Creative)
-        .where(Creative.id.in_(campaign_data.creative_ids), Creative.user_id == current_user.id)
-    )
-    creatives = result.scalars().all()
+    try:
+        return await _create_campaign_impl(campaign_data, current_user, db)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Campaign creation error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"캠페인 생성 중 오류: {str(e)}")
 
-    if len(creatives) != len(campaign_data.creative_ids):
-        raise HTTPException(status_code=400, detail="Some creatives not found")
+
+async def _create_campaign_impl(
+    campaign_data: CampaignCreate,
+    current_user: User,
+    db: AsyncSession
+):
+    # Validate creatives exist
+    creatives = []
+    if campaign_data.creative_ids:
+        result = await db.execute(
+            select(Creative)
+            .where(Creative.id.in_(campaign_data.creative_ids), Creative.user_id == current_user.id)
+        )
+        creatives = list(result.scalars().all())
+
+        if len(creatives) != len(campaign_data.creative_ids):
+            raise HTTPException(status_code=400, detail="Some creatives not found")
 
     # Create campaign
     targeting_json = None
     if campaign_data.targeting:
         targeting_json = campaign_data.targeting.model_dump_json()
+
+    targeting_segments_json = None
+    if campaign_data.targeting_segments:
+        targeting_segments_json = json.dumps(campaign_data.targeting_segments, ensure_ascii=False)
+
+    # timezone-aware → naive 변환 (PostgreSQL TIMESTAMP WITHOUT TIME ZONE 호환)
+    start_dt = campaign_data.start_date.replace(tzinfo=None) if campaign_data.start_date and campaign_data.start_date.tzinfo else campaign_data.start_date
+    end_dt = campaign_data.end_date.replace(tzinfo=None) if campaign_data.end_date and campaign_data.end_date.tzinfo else campaign_data.end_date
 
     campaign = Campaign(
         user_id=current_user.id,
@@ -119,9 +155,14 @@ async def create_campaign(
         status=CampaignStatus.DRAFT,
         total_budget=campaign_data.total_budget,
         daily_budget=campaign_data.daily_budget,
+        budget_type=campaign_data.budget_type,
         targeting=targeting_json,
-        start_date=campaign_data.start_date,
-        end_date=campaign_data.end_date
+        targeting_segments=targeting_segments_json,
+        start_date=start_dt,
+        end_date=end_dt,
+        advantage_plus=campaign_data.advantage_plus,
+        dataset_id=campaign_data.dataset_id,
+        pixel_id=campaign_data.pixel_id,
     )
     db.add(campaign)
     await db.commit()
@@ -129,6 +170,24 @@ async def create_campaign(
 
     # Create ads for each creative
     ads = []
+    if not creatives:
+        targeting_response = None
+        if campaign.targeting:
+            targeting_response = TargetingConfig.model_validate_json(campaign.targeting)
+        return CampaignResponse(
+            id=campaign.id, user_id=campaign.user_id, name=campaign.name,
+            objective=campaign.objective, status=campaign.status,
+            total_budget=campaign.total_budget, daily_budget=campaign.daily_budget,
+            spent_amount=campaign.spent_amount, targeting=targeting_response,
+            targeting_segments=_parse_targeting_segments(campaign.targeting_segments),
+            budget_type=campaign.budget_type,
+            advantage_plus=campaign.advantage_plus,
+            dataset_id=campaign.dataset_id,
+            pixel_id=campaign.pixel_id,
+            start_date=campaign.start_date, end_date=campaign.end_date,
+            ads=[], meta_campaign_id=campaign.meta_campaign_id,
+            created_at=campaign.created_at, updated_at=campaign.updated_at,
+        )
     budget_per_ad = 100.0 / len(creatives)
     for creative in creatives:
         ad = Ad(
@@ -156,7 +215,12 @@ async def create_campaign(
         total_budget=campaign.total_budget,
         daily_budget=campaign.daily_budget,
         spent_amount=campaign.spent_amount,
+        budget_type=campaign.budget_type,
+        advantage_plus=campaign.advantage_plus,
+        dataset_id=campaign.dataset_id,
+        pixel_id=campaign.pixel_id,
         targeting=targeting_response,
+        targeting_segments=_parse_targeting_segments(campaign.targeting_segments),
         start_date=campaign.start_date,
         end_date=campaign.end_date,
         ads=[
@@ -187,11 +251,33 @@ async def publish_campaign(
     Publish campaign to Meta Ads.
 
     Uploads campaign, adset, and ads to Meta Marketing API.
+
+    Features:
+    - Duplicate campaign prevention (checks meta_campaign_id and searches by name)
+    - Campaign Budget Optimization (CBO): budget at campaign level, not adset
+    - Currency-aware budget conversion (KRW sent as-is, USD * 100)
+    - Proper promoted_object for conversion/lead campaigns
+    - Rollback cleanup on partial failure
     """
-    if not current_user.meta_access_token or not current_user.meta_ad_account_id:
-        raise HTTPException(
-            status_code=400,
-            detail="Meta account not fully connected. Need access token and ad account ID."
+    # 공유 Meta 인증 사용
+    meta_user = current_user
+    logger.info(f"[Publish] user={current_user.id}, has_token={bool(current_user.meta_access_token)}, ad_account={current_user.meta_ad_account_id}")
+    if not meta_user.meta_access_token:
+        shared = await get_shared_meta_credentials(db)
+        if shared:
+            meta_user = shared
+            logger.info(f"[Publish] Using shared credentials from user={shared.id}, ad_account={shared.meta_ad_account_id}")
+        else:
+            logger.warning("[Publish] No shared credentials found")
+
+    if not meta_user.meta_access_token or not meta_user.meta_ad_account_id:
+        logger.error(f"[Publish] Missing credentials: token={bool(meta_user.meta_access_token)}, ad_account={meta_user.meta_ad_account_id}")
+        return PublishResponse(
+            success=False,
+            meta_campaign_id=None,
+            meta_adset_id=None,
+            status="FAILED",
+            message="Meta 계정이 연동되지 않았습니다. 설정에서 Meta를 연동해주세요."
         )
 
     # Get campaign
@@ -202,10 +288,16 @@ async def publish_campaign(
     campaign = result.scalar_one_or_none()
 
     if not campaign:
-        raise HTTPException(status_code=404, detail="Campaign not found")
+        return PublishResponse(
+            success=False, meta_campaign_id=None, meta_adset_id=None,
+            status="FAILED", message="캠페인을 찾을 수 없습니다."
+        )
 
     if campaign.status not in [CampaignStatus.DRAFT, CampaignStatus.PAUSED]:
-        raise HTTPException(status_code=400, detail="Campaign cannot be published in current status")
+        return PublishResponse(
+            success=False, meta_campaign_id=None, meta_adset_id=None,
+            status="FAILED", message=f"현재 상태({campaign.status.value})에서는 발행할 수 없습니다."
+        )
 
     # Get ads
     ads_result = await db.execute(
@@ -214,94 +306,945 @@ async def publish_campaign(
     ads = ads_result.scalars().all()
 
     meta_api = MetaMarketingAPI(
-        current_user.meta_access_token,
-        current_user.meta_ad_account_id
+        meta_user.meta_access_token,
+        meta_user.meta_ad_account_id
     )
+    logger.info(f"[Publish] Meta API init: ad_account={meta_api.ad_account_id}, campaign='{campaign.name}', ads={len(ads)}")
+
+    # Determine currency from request (default KRW)
+    currency = request.currency or campaign.currency or "KRW"
+    use_cbo = request.use_cbo
+    budget_type = request.budget_type  # "DAILY" or "LIFETIME"
+    advantage_plus = request.advantage_plus or campaign.advantage_plus
+    advantage_plus_audience = getattr(request, 'advantage_plus_audience', False)
+    advantage_plus_creative = request.advantage_plus_creative or advantage_plus
+    bid_strategy = request.bid_strategy or None  # 빈 문자열 → None
+    bid_amount = request.bid_amount
+    # bid_amount 필수 전략인데 값 없으면 자동 입찰로 폴백
+    if bid_strategy in ("LOWEST_COST_WITH_BID_CAP", "COST_CAP", "MINIMUM_ROAS") and not bid_amount:
+        logger.warning(f"[Publish] bid_strategy={bid_strategy} but no bid_amount → fallback to auto")
+        bid_strategy = None
+
+    # Track created Meta resources for cleanup on failure
+    created_meta_campaign_id = None
+    created_adset_ids = []
+    created_ad_ids = []
 
     try:
-        # 1. Create Campaign on Meta
-        campaign_result = await meta_api.create_campaign(
-            name=campaign.name,
-            objective=campaign.objective,
-            status="PAUSED"
+        # 0. Page ID / Pixel ID 확보
+        page_id = meta_user.meta_page_id
+        # Pixel: prefer user-specified in request, then campaign-level, then auto-fetch
+        pixel_id = request.pixel_id or campaign.pixel_id or meta_user.meta_pixel_id
+        dataset_id = request.dataset_id or campaign.dataset_id
+        # 데이터셋 ID가 'cafe24', 'smartstore' 같은 별칭이면 Meta에서 실제 ID 조회
+        if dataset_id and not dataset_id.isdigit():
+            logger.info(f"[Publish] Dataset alias '{dataset_id}' -> fetching real dataset/pixel from Meta")
+            try:
+                # 1) 데이터셋(픽셀) 목록 조회
+                datasets = await meta_api._request(
+                    "GET", f"{meta_api.ad_account_id}/adspixels",
+                    params={"fields": "id,name"}
+                )
+                ds_list = datasets.get("data", [])
+                matched_ds = None
+                matched_pixel = None
+                alias_lower = dataset_id.lower()
+                for ds in ds_list:
+                    ds_name = (ds.get("name", "") or "").lower()
+                    if alias_lower in ds_name or ds_name in alias_lower:
+                        matched_ds = ds.get("id")
+                        matched_pixel = ds.get("id")  # 픽셀 ID = 데이터셋 ID
+                        logger.info(f"[Publish] Dataset/Pixel matched: '{dataset_id}' -> '{ds.get('name')}' (ID: {matched_ds})")
+                        break
+                if matched_ds:
+                    dataset_id = matched_ds
+                    # 매칭된 데이터셋의 픽셀로 pixel_id도 업데이트
+                    if matched_pixel:
+                        logger.info(f"[Publish] Overriding pixel_id: {pixel_id} -> {matched_pixel} (matched from '{dataset_id}' alias)")
+                        pixel_id = matched_pixel
+                else:
+                    ds_names = [f"{d.get('name')} ({d.get('id')})" for d in ds_list]
+                    logger.warning(f"[Publish] No dataset matched for '{dataset_id}'. Available pixels: {ds_names}")
+                    # 별칭 매칭 실패 시 dataset_id 유지 (사용자가 직접 입력한 pixel_id 사용)
+                    dataset_id = None
+            except Exception as ds_err:
+                logger.warning(f"[Publish] Dataset lookup failed: {ds_err}")
+                dataset_id = None
+
+        if not page_id:
+            pages = await meta_api.get_pages()
+            if pages:
+                page_id = pages[0].get("id")
+                meta_user.meta_page_id = page_id
+                logger.info(f"[Publish] Fetched page_id: {page_id}")
+
+        if not pixel_id:
+            pixels = await meta_api.get_pixels()
+            if pixels:
+                pixel_id = pixels[0].get("id")
+                meta_user.meta_pixel_id = pixel_id
+                logger.info(f"[Publish] Fetched pixel_id: {pixel_id}")
+
+        if not page_id:
+            return PublishResponse(
+                success=False, meta_campaign_id=None, meta_adset_id=None,
+                status="FAILED",
+                message="Facebook 페이지가 없습니다. Meta Business Suite에서 페이지를 생성한 후 다시 시도해주세요."
+            )
+
+        # Store pixel/dataset on campaign for future reference
+        if pixel_id and not campaign.pixel_id:
+            campaign.pixel_id = pixel_id
+        if dataset_id and not campaign.dataset_id:
+            campaign.dataset_id = dataset_id
+
+        await db.commit()  # page_id, pixel_id 저장
+        logger.info(f"[Publish] page_id={page_id}, pixel_id={pixel_id}, dataset_id={dataset_id}, currency={currency}, use_cbo={use_cbo}, budget_type={budget_type}")
+
+        # ──────────────────────────────────────────────
+        # 1. Duplicate Campaign Prevention
+        # ──────────────────────────────────────────────
+        meta_campaign_id = None
+
+        if campaign.meta_campaign_id:
+            # Already published before -- check if the Meta campaign still exists
+            existing = await meta_api.get_campaign_by_id(campaign.meta_campaign_id)
+            if existing and existing.get("id"):
+                meta_campaign_id = existing["id"]
+                logger.info(f"[Publish] Reusing existing Meta campaign: {meta_campaign_id}")
+            else:
+                # Meta campaign was deleted/archived; clear stale reference
+                logger.warning(f"[Publish] Stale meta_campaign_id={campaign.meta_campaign_id}, will create new")
+                campaign.meta_campaign_id = None
+
+        if not meta_campaign_id and not request.force_create:
+            # Check for duplicate campaigns by name on Meta (last 24 hours)
+            duplicates = await meta_api.find_campaigns_by_name(campaign.name)
+            if duplicates:
+                now = datetime.now(timezone.utc)
+                recent_dupes = []
+                for dupe in duplicates:
+                    # Exact name match only
+                    if dupe.get("name") != campaign.name:
+                        continue
+                    created_time_str = dupe.get("created_time", "")
+                    try:
+                        created_time = datetime.fromisoformat(created_time_str.replace("+0000", "+00:00"))
+                        if (now - created_time) < timedelta(hours=24):
+                            recent_dupes.append(dupe)
+                    except (ValueError, TypeError):
+                        continue
+
+                if recent_dupes:
+                    dupe_ids = ", ".join(d["id"] for d in recent_dupes)
+                    logger.warning(f"[Publish] Duplicate campaigns found: {dupe_ids}")
+                    return PublishResponse(
+                        success=False,
+                        meta_campaign_id=None,
+                        meta_adset_id=None,
+                        status="FAILED",
+                        message=(
+                            f"동일한 이름의 캠페인이 최근 24시간 내에 이미 존재합니다 "
+                            f"(Meta ID: {dupe_ids}). "
+                            f"강제 생성하려면 force_create=true를 사용하세요."
+                        )
+                    )
+
+        # ──────────────────────────────────────────────
+        # 2. Budget Calculation (currency-aware)
+        # ──────────────────────────────────────────────
+        # Calculate daily budget from total_budget if not explicitly set.
+        # Example: 200,000 KRW for 3 days -> daily_budget = 66,667 KRW
+        if campaign.daily_budget:
+            raw_daily_budget = campaign.daily_budget
+        elif campaign.total_budget and campaign.start_date and campaign.end_date:
+            duration_days = max((campaign.end_date - campaign.start_date).days, 1)
+            raw_daily_budget = campaign.total_budget / duration_days
+        elif campaign.total_budget:
+            raw_daily_budget = campaign.total_budget / 7  # default 7 days
+        else:
+            raw_daily_budget = 10000  # fallback minimum
+
+        # Convert to Meta API units using currency-aware function
+        # KRW 66,667 -> 66667 (no cents), USD 50.00 -> 5000 (cents)
+        api_daily_budget = convert_budget_to_api_units(raw_daily_budget, currency)
+        api_lifetime_budget = convert_budget_to_api_units(campaign.total_budget, currency) if campaign.total_budget else None
+
+        logger.info(
+            f"[Publish] Budget: raw_daily={raw_daily_budget}, api_daily={api_daily_budget}, "
+            f"total={campaign.total_budget}, api_lifetime={api_lifetime_budget}, currency={currency}"
         )
-        meta_campaign_id = campaign_result.get("id")
+
+        meta_objective = meta_api._map_objective(campaign.objective)
+
+        # ──────────────────────────────────────────────
+        # 3. Create or Update Campaign on Meta (with CBO support)
+        # ──────────────────────────────────────────────
+        if not meta_campaign_id:
+            logger.info(f"[Publish] Creating new campaign '{campaign.name}' on Meta...")
+
+            # Build campaign creation kwargs
+            campaign_kwargs = {
+                "name": campaign.name,
+                "objective": campaign.objective,
+                "status": "PAUSED",
+                "use_cbo": use_cbo,
+                "special_ad_categories": request.special_ad_categories,
+                "start_time": campaign.start_date,
+                "end_time": campaign.end_date,
+                "bid_strategy": bid_strategy or "LOWEST_COST_WITHOUT_CAP",
+            }
+
+            # CBO: set budget at campaign level
+            if use_cbo:
+                if budget_type == "LIFETIME" and api_lifetime_budget:
+                    campaign_kwargs["lifetime_budget"] = api_lifetime_budget
+                else:
+                    campaign_kwargs["daily_budget"] = api_daily_budget
+
+            campaign_result = await meta_api.create_campaign(**campaign_kwargs)
+            meta_campaign_id = campaign_result.get("id")
+            if not meta_campaign_id:
+                raise Exception(f"Meta 캠페인 생성 실패: {campaign_result}")
+            created_meta_campaign_id = meta_campaign_id
+            logger.info(f"[Publish] Meta campaign created: {meta_campaign_id}, objective={meta_objective}, cbo={use_cbo}")
+        else:
+            logger.info(f"[Publish] Using existing Meta campaign: {meta_campaign_id}")
+
         campaign.meta_campaign_id = meta_campaign_id
 
-        # 2. Create AdSet
-        targeting = TargetingConfig()
-        if campaign.targeting:
-            targeting = TargetingConfig.model_validate_json(campaign.targeting)
+        # ──────────────────────────────────────────────
+        # 4. Create AdSets (with CBO-aware budget handling)
+        # ──────────────────────────────────────────────
+        adset_ids = []
+        skipped_segments = []
+        segments = []
+        if campaign.targeting_segments:
+            try:
+                segments = json.loads(campaign.targeting_segments)
+            except Exception:
+                pass
 
-        daily_budget_cents = int((campaign.daily_budget or campaign.total_budget / 7) * 100)
-
-        adset_result = await meta_api.create_adset(
-            campaign_id=meta_campaign_id,
-            name=f"{campaign.name} - AdSet",
-            daily_budget=daily_budget_cents,
-            targeting=targeting,
-            start_time=campaign.start_date,
-            end_time=campaign.end_date
-        )
-        meta_adset_id = adset_result.get("id")
-        campaign.meta_adset_id = meta_adset_id
-
-        # 3. Create Ads for each creative
-        for ad in ads:
-            # Get creative
-            creative_result = await db.execute(
-                select(Creative).where(Creative.id == ad.creative_id)
-            )
-            creative = creative_result.scalar_one_or_none()
-
-            if creative and creative.file_url:
-                # Upload image/video to Meta
-                if creative.creative_type.value == "VIDEO":
-                    media_result = await meta_api.upload_video(creative.file_url)
-                    video_id = media_result.get("id")
-                    creative_result = await meta_api.create_ad_creative(
-                        name=creative.name,
-                        page_id=current_user.meta_user_id,  # Simplified
-                        video_id=video_id,
-                        message=creative.primary_text or ""
+        if segments and len(segments) > 0:
+            # ── Segment-based ad sets (Broad / Retarget / Interest) ──
+            for seg in segments:
+                seg_targeting = TargetingConfig()
+                if seg.get('age_range'):
+                    ages = seg['age_range'].replace('세', '').split('-')
+                    if len(ages) == 2:
+                        seg_targeting.age_range.min_age = max(int(ages[0].strip()), 13)
+                        seg_targeting.age_range.max_age = min(int(ages[1].strip()), 65)
+                if seg.get('targeting') and isinstance(seg['targeting'], dict):
+                    try:
+                        seg_targeting = TargetingConfig.model_validate(seg['targeting'])
+                        logger.info(f"[Publish] Targeting parsed OK: age={seg_targeting.age_range.min_age}-{seg_targeting.age_range.max_age}, genders={seg_targeting.genders}, geo={seg_targeting.geo.countries}")
+                    except Exception as e:
+                        logger.error(f"[Publish] TargetingConfig.model_validate failed: {e}, raw={seg['targeting']}")
+                        # Manual fallback parsing
+                        tgt = seg['targeting']
+                        try:
+                            if 'age_range' in tgt and isinstance(tgt['age_range'], dict):
+                                seg_targeting.age_range.min_age = max(int(tgt['age_range'].get('min_age', 18)), 13)
+                                seg_targeting.age_range.max_age = min(int(tgt['age_range'].get('max_age', 65)), 65)
+                            if 'genders' in tgt and isinstance(tgt['genders'], list):
+                                seg_targeting.genders = tgt['genders']
+                            if 'geo' in tgt and isinstance(tgt['geo'], dict):
+                                seg_targeting.geo.countries = tgt['geo'].get('countries', ['KR'])
+                                if tgt['geo'].get('cities'):
+                                    seg_targeting.geo.cities = tgt['geo']['cities']
+                            if 'interests' in tgt and tgt['interests'] and isinstance(tgt['interests'], dict):
+                                seg_targeting.interests = InterestTargeting(
+                                    interests=tgt['interests'].get('interests', []),
+                                    behaviors=tgt['interests'].get('behaviors')
+                                )
+                            if 'custom_audiences' in tgt and isinstance(tgt['custom_audiences'], list):
+                                seg_targeting.custom_audiences = tgt['custom_audiences']
+                            if 'excluded_audiences' in tgt and isinstance(tgt['excluded_audiences'], list):
+                                seg_targeting.excluded_audiences = tgt['excluded_audiences']
+                            if 'advantage_plus_audience' in tgt:
+                                seg_targeting.advantage_plus_audience = bool(tgt['advantage_plus_audience'])
+                            logger.info(f"[Publish] Manual targeting parse OK: age={seg_targeting.age_range.min_age}-{seg_targeting.age_range.max_age}")
+                        except Exception as manual_err:
+                            logger.error(f"[Publish] Manual targeting parse also failed: {manual_err}")
+                if seg.get('interests'):
+                    seg_targeting.interests = InterestTargeting(
+                        interests=seg['interests'] if isinstance(seg['interests'], list) else []
                     )
+
+                # 관심사 텍스트 → Meta Interest ID 변환
+                if seg_targeting.interests and seg_targeting.interests.interests:
+                    resolved_ids = []
+                    for item in seg_targeting.interests.interests:
+                        s = str(item).strip()
+                        if s.isdigit():
+                            resolved_ids.append(s)
+                        elif s:
+                            try:
+                                search_result = await meta_api.get_interest_suggestions(s, limit=1)
+                                suggestions = search_result.get("data", [])
+                                if suggestions:
+                                    resolved_ids.append(str(suggestions[0].get("id")))
+                                    logger.info(f"[Publish] Interest '{s}' -> ID {suggestions[0].get('id')} ({suggestions[0].get('name')})")
+                                else:
+                                    logger.warning(f"[Publish] No Meta interest found for '{s}'")
+                            except Exception as ie:
+                                logger.warning(f"[Publish] Interest search failed for '{s}': {ie}")
+                    seg_targeting.interests.interests = resolved_ids
+                    logger.info(f"[Publish] Resolved interests: {resolved_ids}")
+
+                if seg.get('custom_audiences'):
+                    seg_targeting.custom_audiences = (
+                        seg['custom_audiences'] if isinstance(seg['custom_audiences'], list) else []
+                    )
+                # Frontend uses 'exclusion_audiences', backend schema uses 'excluded_audiences'
+                excl = seg.get('excluded_audiences') or seg.get('exclusion_audiences')
+                if excl and isinstance(excl, list):
+                    seg_targeting.excluded_audiences = excl
+
+                # Segment type determines targeting strategy
+                seg_type_raw = seg.get('type', seg.get('name', f'세그먼트 {len(adset_ids) + 1}'))
+                seg_name = seg.get('name', seg_type_raw)
+
+                # Normalize segment type for targeting differentiation
+                seg_type_lower = seg_type_raw.lower()
+                if seg_type_lower in ('broad', '브로드'):
+                    segment_type = 'broad'
+                elif seg_type_lower in ('retarget', '리타겟', '리타겟팅', 'retargeting'):
+                    segment_type = 'retarget'
+                elif seg_type_lower in ('interest', '관심사'):
+                    segment_type = 'interest'
                 else:
-                    creative_result = await meta_api.create_ad_creative(
-                        name=creative.name,
-                        page_id=current_user.meta_user_id,
-                        image_url=creative.file_url,
-                        message=creative.primary_text or ""
-                    )
+                    segment_type = seg_type_lower if seg_type_lower else None
 
-                meta_creative_id = creative_result.get("id")
+                # 세그먼트별 일정 파싱 헬퍼
+                def _parse_date(val):
+                    if not val:
+                        return None
+                    if isinstance(val, datetime):
+                        return val.replace(tzinfo=None) if val.tzinfo else val
+                    s = str(val).strip()
+                    for fmt in ("%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+                        try:
+                            return datetime.strptime(s[:26].split('+')[0].split('Z')[0], fmt)
+                        except ValueError:
+                            continue
+                    return None
 
-                # Create ad
-                ad_result = await meta_api.create_ad(
-                    name=ad.name,
-                    adset_id=meta_adset_id,
-                    creative_id=meta_creative_id
+                # 세그먼트 > schedule > 캠페인 순으로 날짜 탐색
+                sched = seg.get('schedule', {}) or {}
+                seg_start = (
+                    _parse_date(seg.get('start_date'))
+                    or _parse_date(sched.get('start_date'))
+                    or (campaign.start_date.replace(tzinfo=None) if campaign.start_date and hasattr(campaign.start_date, 'replace') else campaign.start_date)
                 )
-                ad.meta_ad_id = ad_result.get("id")
-                ad.meta_creative_id = meta_creative_id
-                ad.status = "PENDING_REVIEW"
+                seg_end = (
+                    _parse_date(seg.get('end_date'))
+                    or _parse_date(sched.get('end_date'))
+                    or (campaign.end_date.replace(tzinfo=None) if campaign.end_date and hasattr(campaign.end_date, 'replace') else campaign.end_date)
+                )
 
-        campaign.status = CampaignStatus.PENDING_REVIEW
+                logger.info(f"[Publish] Segment '{seg_name}': start={seg_start}, end={seg_end}, interests={seg_targeting.interests}")
+
+                # 리타겟: 커스텀 오디언스 없으면 일반 타겟팅으로 생성 (스킵하지 않음)
+                if segment_type == 'retarget':
+                    has_audiences = bool(seg_targeting.custom_audiences) or bool(seg.get('custom_audiences'))
+                    if not has_audiences:
+                        logger.info(f"[Publish] Retarget segment '{seg_name}' has no custom audiences, creating as general targeting")
+
+                logger.info(
+                    f"[Publish] Segment '{seg_name}' audiences: "
+                    f"custom={seg_targeting.custom_audiences}, "
+                    f"excluded={seg_targeting.excluded_audiences}, "
+                    f"seg_custom={seg.get('custom_audiences')}, "
+                    f"seg_excl={seg.get('exclusion_audiences')}"
+                )
+
+                # Build adset kwargs
+                adset_kwargs = {
+                    "campaign_id": meta_campaign_id,
+                    "name": seg_name,
+                    "targeting": seg_targeting,
+                    "objective": meta_objective,
+                    "use_cbo": use_cbo,
+                    "page_id": page_id,
+                    "pixel_id": pixel_id,
+                    "segment_type": segment_type,
+                    "custom_audiences": seg_targeting.custom_audiences,
+                    "excluded_audiences": seg_targeting.excluded_audiences,
+                    "advantage_plus_audience": (
+                        advantage_plus or advantage_plus_audience or seg_targeting.advantage_plus_audience
+                    ),
+                    "start_time": seg_start,
+                    "end_time": seg_end,
+                    "bid_strategy": bid_strategy if not use_cbo else None,
+                    "bid_amount": bid_amount if not use_cbo else None,
+                }
+
+                # Advantage+ targeting optimization
+                if advantage_plus or (segment_type == 'broad'):
+                    adset_kwargs["targeting_optimization"] = "EXPANSION_ALL"
+                else:
+                    adset_kwargs["targeting_optimization"] = "NONE"
+
+                # When NOT using CBO, set budget at adset level
+                if not use_cbo:
+                    seg_ratio = float(seg.get('ratio', 100 / len(segments))) / 100
+                    seg_budget = raw_daily_budget * seg_ratio
+                    api_seg_budget = max(convert_budget_to_api_units(seg_budget, currency), 1)
+                    if budget_type == "LIFETIME" and api_lifetime_budget:
+                        adset_kwargs["lifetime_budget"] = max(
+                            convert_budget_to_api_units(campaign.total_budget * seg_ratio, currency), 1
+                        )
+                    else:
+                        adset_kwargs["daily_budget"] = api_seg_budget
+
+                try:
+                    adset_result = await meta_api.create_adset(**adset_kwargs)
+                    adset_id = adset_result.get("id")
+                    if adset_id:
+                        adset_ids.append(adset_id)
+                        created_adset_ids.append(adset_id)
+                        logger.info(f"[Publish] AdSet created: {seg_name} ({adset_id}) segment_type={segment_type}")
+                    else:
+                        raise Exception(f"AdSet 생성 실패 ({seg_name}): {adset_result}")
+                except Exception as adset_err:
+                    error_str = str(adset_err)
+                    logger.error(f"[Publish] AdSet creation failed for {seg_name}: {adset_err}")
+                    # Custom Audience 에러 (TOS 미동의 또는 삭제된 오디언스) → 커스텀 오디언스 제거 후 재시도
+                    if "1870090" in error_str or "customaudiences/tos" in error_str or "3858527" in error_str or "더 이상 사용할 수 없습니다" in error_str:
+                        logger.warning(f"[Publish] TOS error for '{seg_name}', retrying without custom audiences")
+                        retry_kwargs = {**adset_kwargs}
+                        retry_kwargs.pop("custom_audiences", None)
+                        retry_kwargs.pop("excluded_audiences", None)
+                        # segment_type을 broad로 변경하여 커스텀 오디언스 없이 생성
+                        retry_kwargs["segment_type"] = "broad"
+                        # targeting spec에서 custom_audiences 제거
+                        retry_targeting = TargetingConfig(
+                            age_range=seg_targeting.age_range,
+                            genders=seg_targeting.genders,
+                            geo=seg_targeting.geo,
+                            interests=seg_targeting.interests,
+                        )
+                        retry_kwargs["targeting"] = retry_targeting
+                        try:
+                            adset_result = await meta_api.create_adset(**retry_kwargs)
+                            adset_id = adset_result.get("id")
+                            if adset_id:
+                                adset_ids.append(adset_id)
+                                created_adset_ids.append(adset_id)
+                                logger.info(f"[Publish] AdSet created on retry (without custom audiences): {seg_name} ({adset_id})")
+                                skipped_segments.append(f"{seg_name}(커스텀 오디언스 제외됨)")
+                            else:
+                                skipped_segments.append(seg_name)
+                        except Exception as retry_err:
+                            logger.error(f"[Publish] Retry also failed for {seg_name}: {retry_err}")
+                            skipped_segments.append(seg_name)
+                        continue
+                    raise Exception(f"광고세트 '{seg_name}' 생성 실패: {adset_err}")
+        else:
+            # Single adset
+            targeting = TargetingConfig()
+            if campaign.targeting:
+                try:
+                    targeting = TargetingConfig.model_validate_json(campaign.targeting)
+                except Exception:
+                    pass
+
+            adset_kwargs = {
+                "campaign_id": meta_campaign_id,
+                "name": "기본",
+                "targeting": targeting,
+                "objective": meta_objective,
+                "use_cbo": use_cbo,
+                "page_id": page_id,
+                "pixel_id": pixel_id,
+                "advantage_plus_audience": advantage_plus or advantage_plus_audience or targeting.advantage_plus_audience,
+                "start_time": campaign.start_date,
+                "end_time": campaign.end_date,
+                "bid_strategy": bid_strategy,
+                "bid_amount": bid_amount,
+            }
+
+            if advantage_plus:
+                adset_kwargs["targeting_optimization"] = "EXPANSION_ALL"
+
+            # When NOT using CBO, set budget at adset level
+            if not use_cbo:
+                if budget_type == "LIFETIME" and api_lifetime_budget:
+                    adset_kwargs["lifetime_budget"] = api_lifetime_budget
+                else:
+                    adset_kwargs["daily_budget"] = api_daily_budget
+
+            adset_result = await meta_api.create_adset(**adset_kwargs)
+            adset_id = adset_result.get("id")
+            if not adset_id:
+                raise Exception(f"광고세트 생성 실패: {adset_result}")
+            adset_ids.append(adset_id)
+            created_adset_ids.append(adset_id)
+
+        meta_adset_id = adset_ids[0] if adset_ids else None
+        campaign.meta_adset_id = meta_adset_id
+        campaign.meta_adset_ids = json.dumps(adset_ids) if len(adset_ids) > 1 else None
+        campaign.budget_type = budget_type
+        campaign.currency = currency
+        logger.info(f"[Publish] Created {len(adset_ids)} ad set(s): {adset_ids}")
+
+        # ──────────────────────────────────────────────
+        # 5. Create Ads (per-adset creative assignments or round-robin fallback)
+        # ──────────────────────────────────────────────
+
+        # Helper: create a single Meta ad from creative + settings
+        async def _create_meta_ad(
+            creative: Creative,
+            target_adset_id: str,
+            ad_name: str,
+            primary_text: Optional[str] = None,
+            headline: Optional[str] = None,
+            description: Optional[str] = None,
+            call_to_action: Optional[str] = None,
+            link_url: Optional[str] = None,
+            display_link: Optional[str] = None,
+            url_params: Optional[str] = None,
+            ad_setting: Optional[dict] = None,
+        ) -> Optional[str]:
+            """Create Meta creative + ad, return meta_ad_id or None."""
+            # standard_enhancements는 Meta에서 지원 중단 (subcode=3858504)
+            # 개별 기능 설정으로 전환하거나 None으로 보내야 함
+            degrees_of_freedom_spec = None
+
+            message = primary_text or creative.primary_text or ""
+            cta = call_to_action or "LEARN_MORE"
+            link = link_url or None
+            ad_format = (ad_setting or {}).get("format", "")
+            partnership_page = (ad_setting or {}).get("partner_page_id") if (ad_setting or {}).get("partnership_enabled") else None
+
+            # Resolve relative file_url to absolute public URL for Meta access
+            resolved_file_url = creative.file_url
+            if resolved_file_url and resolved_file_url.startswith('/'):
+                from app.core.config import get_settings
+                _settings = get_settings()
+                backend_base = _settings.BACKEND_URL
+                if not backend_base:
+                    # Fallback: derive from FRONTEND_URL
+                    backend_base = _settings.FRONTEND_URL.rstrip('/')
+                    # If frontend is on :3000, backend is likely on :8000
+                    if ':3000' in backend_base:
+                        backend_base = backend_base.replace(':3000', ':8000')
+                resolved_file_url = f"{backend_base.rstrip('/')}{resolved_file_url}"
+                logger.info(f"[Publish] Resolved file_url: {creative.file_url} -> {resolved_file_url}")
+
+            # ── Format branching ──
+            if ad_format == "carousel" and (ad_setting or {}).get("carousel_cards"):
+                # Upload each card's image and build card list
+                raw_cards = ad_setting["carousel_cards"]
+                uploaded_cards = []
+                for card in raw_cards:
+                    card_image_url = card.get("image_url") or resolved_file_url
+                    card_hash = card.get("image_hash")
+                    if not card_hash and card_image_url:
+                        try:
+                            img_result = await meta_api.upload_image(card_image_url)
+                            images = img_result.get("images", {})
+                            if images:
+                                first_key = next(iter(images))
+                                card_hash = images[first_key].get("hash")
+                                logger.info(f"[Publish] Carousel card image uploaded, hash={card_hash}")
+                        except Exception as img_err:
+                            logger.error(f"[Publish] Carousel card image upload failed: {img_err}")
+                    uploaded_cards.append({
+                        "image_hash": card_hash,
+                        "headline": card.get("headline", headline or ""),
+                        "description": card.get("description", description or ""),
+                        "link_url": card.get("link_url") or link,
+                    })
+                cr_result = await meta_api.create_carousel_creative(
+                    name=ad_name,
+                    page_id=page_id,
+                    cards=uploaded_cards,
+                    message=message,
+                    link=link,
+                    call_to_action=cta,
+                )
+
+            elif (ad_setting or {}).get("advantage_catalog") and (ad_setting or {}).get("catalog_id"):
+                # Catalog creative — no image upload needed; Meta pulls from catalog
+                catalog_id = ad_setting["catalog_id"]
+                product_set_id = ad_setting.get("product_set_id")
+                object_story_spec: dict = {
+                    "page_id": page_id,
+                    "template_data": {
+                        "message": message,
+                        "link": link or "https://example.com",
+                        "call_to_action": {"type": cta},
+                        "child_attachments": [
+                            {
+                                "link": "{{product.url}}",
+                                "name": headline or "{{product.name}}",
+                                "description": description or "{{product.description}}",
+                                "image_hash": "{{product.image_url}}",
+                            }
+                        ],
+                        "multi_share_end_card": False,
+                    }
+                }
+                template_url_spec = {
+                    "web": {
+                        "url": link or "https://example.com",
+                        "parameter": url_params or "",
+                    }
+                }
+                catalog_data: dict = {
+                    "name": ad_name,
+                    "object_story_spec": object_story_spec,
+                    "product_set_id": product_set_id or catalog_id,
+                    "template_url_spec": template_url_spec,
+                }
+                cr_result = await meta_api._request(
+                    "POST",
+                    f"{meta_api.ad_account_id}/adcreatives",
+                    data=catalog_data,
+                )
+
+            elif creative.creative_type.value == "VIDEO":
+                media_result = await meta_api.upload_video(resolved_file_url)
+                video_id = media_result.get("id")
+                if not video_id:
+                    raise Exception(f"비디오 업로드 실패: {media_result}")
+                cr_result = await meta_api.create_ad_creative(
+                    name=ad_name,
+                    page_id=page_id,
+                    video_id=video_id,
+                    message=message,
+                    link=link,
+                    call_to_action=cta,
+                    degrees_of_freedom_spec=degrees_of_freedom_spec,
+                    headline=headline,
+                    description=description,
+                    display_link=display_link,
+                    url_params=url_params,
+                    branded_content_sponsor_page_id=partnership_page,
+                )
+            else:
+                # Upload image to Meta first, then use hash
+                image_hash = None
+                try:
+                    img_result = await meta_api.upload_image(resolved_file_url)
+                    images = img_result.get("images", {})
+                    if images:
+                        first_key = next(iter(images))
+                        image_hash = images[first_key].get("hash")
+                        logger.info(f"[Publish] Image uploaded to Meta, hash={image_hash}")
+                except Exception as img_err:
+                    logger.error(f"[Publish] Image upload to Meta failed: {img_err}")
+
+                if not image_hash:
+                    raise Exception(f"이미지를 Meta에 업로드할 수 없습니다. 소재를 다시 업로드해주세요. ({resolved_file_url})")
+
+                cr_result = await meta_api.create_ad_creative(
+                    name=ad_name,
+                    page_id=page_id,
+                    image_hash=image_hash,
+                    message=message,
+                    link=link,
+                    call_to_action=cta,
+                    degrees_of_freedom_spec=degrees_of_freedom_spec,
+                    headline=headline,
+                    description=description,
+                    display_link=display_link,
+                    url_params=url_params,
+                    branded_content_sponsor_page_id=partnership_page,
+                )
+
+            meta_creative_id = cr_result.get("id")
+            if not meta_creative_id:
+                raise Exception(f"크리에이티브 생성 실패: {cr_result}")
+
+            # Tracking data from ad_setting
+            # Convert pixel_events to Meta tracking_specs format
+            pixel_events = (ad_setting or {}).get("pixel_events")
+            if pixel_events and pixel_id:
+                tracking_specs = [{
+                    "action.type": ["offsite_conversion"],
+                    "fb_pixel": [pixel_id],
+                }]
+            else:
+                tracking_specs = (ad_setting or {}).get("tracking_specs") or None
+
+            view_tags = (ad_setting or {}).get("view_tags") or None
+
+            ad_result = await meta_api.create_ad(
+                name=ad_name,
+                adset_id=target_adset_id,
+                creative_id=meta_creative_id,
+                tracking_specs=tracking_specs,
+                view_tags=view_tags,
+            )
+            meta_ad_id = ad_result.get("id")
+            if not meta_ad_id:
+                raise Exception(f"광고 생성 실패: {ad_result}")
+
+            created_ad_ids.append(meta_ad_id)
+            logger.info(f"[Publish] Ad created: {ad_name} ({meta_ad_id}) -> adset {target_adset_id}")
+            return meta_ad_id
+
+        # Check if segments have per-adset creative assignments
+        # 세그먼트 → adset_id 매핑 (스킵된 세그먼트 제외)
+        seg_to_adset = {}
+        adset_idx = 0
+        if segments and adset_ids:
+            for seg_idx, seg in enumerate(segments):
+                seg_was_skipped = any(
+                    seg.get('name', '') in sk for sk in skipped_segments
+                )
+                if not seg_was_skipped and adset_idx < len(adset_ids):
+                    seg_to_adset[seg_idx] = adset_ids[adset_idx]
+                    adset_idx += 1
+
+        has_per_adset_ads = False
+        if segments and adset_ids:
+            for seg in segments:
+                if seg.get("ads") and len(seg["ads"]) > 0:
+                    has_per_adset_ads = True
+                    break
+
+        if has_per_adset_ads and segments and adset_ids:
+            # ── Per-adset creative assignments from segment['ads'] ──
+            for seg_idx, seg in enumerate(segments):
+                if seg_idx not in seg_to_adset:
+                    continue
+                target_adset_id = seg_to_adset[seg_idx]
+                seg_ads = seg.get("ads", [])
+                seg_name = seg.get("name", f"Segment {seg_idx + 1}")
+
+                for ad_setting in seg_ads:
+                    creative_id = ad_setting.get("creative_id")
+                    if not creative_id:
+                        continue
+
+                    creative_result = await db.execute(
+                        select(Creative).where(Creative.id == creative_id)
+                    )
+                    creative = creative_result.scalar_one_or_none()
+                    if not creative or not creative.file_url:
+                        logger.warning(f"[Publish] Creative {creative_id} not found or no file_url, skipping")
+                        continue
+
+                    ad_name = ad_setting.get("ad_name") or f"{seg_name} - {creative.name}"
+                    try:
+                        await _create_meta_ad(
+                            creative=creative,
+                            target_adset_id=target_adset_id,
+                            ad_name=ad_name,
+                            primary_text=ad_setting.get("primary_text"),
+                            headline=ad_setting.get("headline"),
+                            description=ad_setting.get("description"),
+                            call_to_action=ad_setting.get("call_to_action"),
+                            ad_setting=ad_setting,
+                            link_url=ad_setting.get("link_url"),
+                            display_link=ad_setting.get("display_link"),
+                            url_params=ad_setting.get("url_params"),
+                        )
+                    except Exception as ad_err:
+                        logger.error(f"[Publish] Ad creation failed for {ad_name}: {ad_err}")
+
+        elif adset_ids:
+            # ── Fallback: campaign ads 또는 creative_ids로 크리에이티브 생성 ──
+            creatives_to_publish = []
+
+            # 1차: campaign ads 테이블에서
+            if ads:
+                for ad in ads:
+                    cr = await db.execute(select(Creative).where(Creative.id == ad.creative_id))
+                    creative = cr.scalar_one_or_none()
+                    if creative and creative.file_url:
+                        creatives_to_publish.append((creative, ad.name))
+
+            # 2차: ads가 비어있으면 campaign에 연결된 creative_ids에서 직접 가져옴
+            if not creatives_to_publish:
+                all_creative_ids = set()
+                if segments:
+                    for seg in segments:
+                        for sa in (seg.get("ads") or []):
+                            cid = sa.get("creative_id")
+                            if cid:
+                                all_creative_ids.add(cid)
+                if all_creative_ids:
+                    for cid in all_creative_ids:
+                        cr = await db.execute(select(Creative).where(Creative.id == cid))
+                        creative = cr.scalar_one_or_none()
+                        if creative and creative.file_url:
+                            creatives_to_publish.append((creative, creative.name or f"Ad-{cid}"))
+
+            for idx, (creative, ad_name) in enumerate(creatives_to_publish):
+                target_adset_id = adset_ids[idx % len(adset_ids)]
+                try:
+                    meta_ad_id = await _create_meta_ad(
+                        creative=creative,
+                        target_adset_id=target_adset_id,
+                        ad_name=ad_name,
+                        ad_setting={},
+                    )
+                    if meta_ad_id and ads:
+                        for ad in ads:
+                            if ad.creative_id == creative.id:
+                                ad.meta_ad_id = meta_ad_id
+                                ad.status = "PENDING_REVIEW"
+                                break
+                except Exception as ad_err:
+                    logger.error(f"[Publish] Ad creation failed for {ad_name}: {ad_err}")
+
+        # ──────────────────────────────────────────────
+        # 6. Activate if launch_immediately
+        # ──────────────────────────────────────────────
+        if request.launch_immediately:
+            try:
+                await meta_api.update_campaign_status(meta_campaign_id, "ACTIVE")
+                # Also activate all ad sets
+                for asid in adset_ids:
+                    try:
+                        await meta_api.update_adset_status(asid, "ACTIVE")
+                    except Exception as e:
+                        logger.warning(f"[Publish] Failed to activate adset {asid}: {e}")
+                # Also activate all created ads
+                for ad_id in created_ad_ids:
+                    try:
+                        await meta_api.update_ad_status(ad_id, "ACTIVE")
+                    except Exception as e:
+                        logger.warning(f"[Publish] Failed to activate ad {ad_id}: {e}")
+                campaign.status = CampaignStatus.ACTIVE
+                logger.info(f"[Publish] Campaign {meta_campaign_id} activated immediately")
+            except Exception as e:
+                logger.warning(f"[Publish] Failed to activate campaign immediately: {e}")
+                campaign.status = CampaignStatus.PENDING_REVIEW
+        else:
+            campaign.status = CampaignStatus.PENDING_REVIEW
+
+        # Store advantage_plus flag
+        if advantage_plus:
+            campaign.advantage_plus = True
+
         await db.commit()
+
+        # Build success message
+        # If ALL segments were skipped due to TOS, treat as failure
+        if skipped_segments and not adset_ids:
+            ad_account_raw = meta_api.ad_account_id.replace("act_", "")
+            tos_url = f"https://business.facebook.com/ads/manage/customaudiences/tos/?act={ad_account_raw}"
+            raise Exception(
+                f"모든 광고세트 생성이 실패했습니다. 맞춤 타겟 약관 동의가 필요합니다. "
+                f"아래 링크에서 약관에 동의한 후 다시 시도하세요:\n{tos_url}"
+            )
+
+        adset_msg = f"{len(adset_ids)}개 광고세트" if len(adset_ids) > 1 else "1개 광고세트"
+        ad_success_count = len(created_ad_ids)
+        budget_msg = (
+            f"일일예산: {raw_daily_budget:,.0f}{currency}"
+            if budget_type == "DAILY"
+            else f"총예산: {campaign.total_budget:,.0f}{currency}"
+        )
+        cbo_msg = " (CBO 적용)" if use_cbo else ""
+        status_msg = "ACTIVE" if (request.launch_immediately and campaign.status == CampaignStatus.ACTIVE) else "PENDING_REVIEW"
+        skipped_msg = f" (스킵: {', '.join(skipped_segments)} - 맞춤타겟 약관 동의 필요)" if skipped_segments else ""
 
         return PublishResponse(
             success=True,
             meta_campaign_id=meta_campaign_id,
             meta_adset_id=meta_adset_id,
-            status="PENDING_REVIEW",
-            message=f"Campaign published successfully. Meta Campaign ID: {meta_campaign_id}"
+            meta_adset_ids=adset_ids if len(adset_ids) > 1 else None,
+            status=status_msg,
+            message=(
+                f"Meta 발행 완료! 캠페인 ID: {meta_campaign_id} "
+                f"({adset_msg}, 광고 {ad_success_count}개 생성, {budget_msg}{cbo_msg}){skipped_msg}"
+            )
         )
 
     except Exception as e:
+        logger.error(f"[Publish] Campaign publish failed: {e}", exc_info=True)
+        error_msg = str(e)
+
+        # ──────────────────────────────────────────────
+        # 6. Cleanup on failure: delete created Meta resources
+        # ──────────────────────────────────────────────
+        cleanup_errors = []
+
+        # Clean up ads
+        for ad_id in created_ad_ids:
+            try:
+                await meta_api.update_ad_status(ad_id, "DELETED")
+                logger.info(f"[Publish] Cleanup: deleted ad {ad_id}")
+            except Exception as cleanup_err:
+                cleanup_errors.append(f"ad {ad_id}: {cleanup_err}")
+
+        # Clean up adsets
+        for adset_id in created_adset_ids:
+            try:
+                await meta_api.update_adset_status(adset_id, "DELETED")
+                logger.info(f"[Publish] Cleanup: deleted adset {adset_id}")
+            except Exception as cleanup_err:
+                cleanup_errors.append(f"adset {adset_id}: {cleanup_err}")
+
+        # Clean up campaign (only if we created it in this run)
+        if created_meta_campaign_id:
+            try:
+                await meta_api.update_campaign_status(created_meta_campaign_id, "DELETED")
+                logger.info(f"[Publish] Cleanup: deleted campaign {created_meta_campaign_id}")
+                campaign.meta_campaign_id = None
+            except Exception as cleanup_err:
+                cleanup_errors.append(f"campaign {created_meta_campaign_id}: {cleanup_err}")
+
+        if cleanup_errors:
+            logger.warning(f"[Publish] Cleanup errors: {cleanup_errors}")
+
+        # Reset campaign status to DRAFT so user can retry
+        campaign.status = CampaignStatus.DRAFT
+        campaign.meta_adset_id = None
+        campaign.meta_adset_ids = None
+        await db.commit()
+
         return PublishResponse(
             success=False,
+            meta_campaign_id=campaign.meta_campaign_id,
+            meta_adset_id=None,
             status="FAILED",
-            message=f"Failed to publish: {str(e)}"
+            message=f"발행 실패: {error_msg}"
         )
+
+
+# ──────────────────────────────────────────────
+# Catalog endpoints
+# ──────────────────────────────────────────────
+
+@router.get("/catalogs")
+async def get_catalogs(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return product catalogs accessible by the ad account."""
+    meta_user = current_user
+    if not meta_user.meta_access_token:
+        meta_user = await get_shared_meta_credentials(db)
+    if not meta_user or not meta_user.meta_access_token or not meta_user.meta_ad_account_id:
+        raise HTTPException(status_code=400, detail="Meta 인증 정보가 없습니다.")
+    meta_api = MetaMarketingAPI(meta_user.meta_access_token, meta_user.meta_ad_account_id)
+    catalogs = await meta_api.get_product_catalogs()
+    return {"catalogs": catalogs}
+
+
+@router.get("/catalogs/{catalog_id}/product-sets")
+async def get_product_sets(
+    catalog_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return product sets for the given catalog."""
+    meta_user = current_user
+    if not meta_user.meta_access_token:
+        meta_user = await get_shared_meta_credentials(db)
+    if not meta_user or not meta_user.meta_access_token or not meta_user.meta_ad_account_id:
+        raise HTTPException(status_code=400, detail="Meta 인증 정보가 없습니다.")
+    meta_api = MetaMarketingAPI(meta_user.meta_access_token, meta_user.meta_ad_account_id)
+    product_sets = await meta_api.get_product_sets(catalog_id)
+    return {"product_sets": product_sets}
 
 
 @router.get("", response_model=List[CampaignResponse])
@@ -343,8 +1286,15 @@ async def list_campaigns(
             total_budget=campaign.total_budget,
             daily_budget=campaign.daily_budget,
             spent_amount=campaign.spent_amount,
+            budget_type=campaign.budget_type,
+            currency=campaign.currency,
             targeting=targeting,
+            targeting_segments=_parse_targeting_segments(campaign.targeting_segments),
             meta_campaign_id=campaign.meta_campaign_id,
+            meta_adset_ids=campaign.meta_adset_ids,
+            advantage_plus=campaign.advantage_plus,
+            dataset_id=campaign.dataset_id,
+            pixel_id=campaign.pixel_id,
             start_date=campaign.start_date,
             end_date=campaign.end_date,
             ads=[
@@ -367,6 +1317,50 @@ async def list_campaigns(
     return responses
 
 
+@router.delete("/{campaign_id}")
+async def delete_campaign(
+    campaign_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """캠페인 삭제 — 모든 상태에서 가능. Meta에도 삭제 요청."""
+    result = await db.execute(
+        select(Campaign)
+        .where(Campaign.id == campaign_id, Campaign.user_id == current_user.id)
+    )
+    campaign = result.scalar_one_or_none()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="캠페인을 찾을 수 없습니다.")
+
+    # Meta에서도 삭제 시도
+    if campaign.meta_campaign_id:
+        meta_user = current_user
+        if not meta_user.meta_access_token:
+            shared = await get_shared_meta_credentials(db)
+            if shared:
+                meta_user = shared
+        if meta_user.meta_access_token and meta_user.meta_ad_account_id:
+            try:
+                meta_api = MetaMarketingAPI(meta_user.meta_access_token, meta_user.meta_ad_account_id)
+                await meta_api.update_campaign_status(campaign.meta_campaign_id, "DELETED")
+                logger.info(f"[Delete] Meta campaign {campaign.meta_campaign_id} deleted")
+            except Exception as e:
+                logger.warning(f"[Delete] Meta campaign deletion failed (may already be deleted): {e}")
+
+    # Delete associated ads first
+    ads_result = await db.execute(
+        select(Ad).where(Ad.campaign_id == campaign.id)
+    )
+    ads = ads_result.scalars().all()
+    for ad in ads:
+        await db.delete(ad)
+
+    await db.delete(campaign)
+    await db.commit()
+
+    return {"success": True, "message": "캠페인이 삭제되었습니다."}
+
+
 @router.patch("/{campaign_id}", response_model=CampaignResponse)
 async def update_campaign(
     campaign_id: int,
@@ -384,16 +1378,32 @@ async def update_campaign(
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
 
-    if update_data.name:
+    if update_data.name is not None:
         campaign.name = update_data.name
-    if update_data.total_budget:
+    if update_data.objective is not None:
+        campaign.objective = CampaignObjective(update_data.objective.value)
+    if update_data.total_budget is not None:
         campaign.total_budget = update_data.total_budget
-    if update_data.daily_budget:
+    if update_data.daily_budget is not None:
         campaign.daily_budget = update_data.daily_budget
-    if update_data.targeting:
+    if update_data.budget_type is not None:
+        campaign.budget_type = update_data.budget_type
+    if update_data.targeting is not None:
         campaign.targeting = update_data.targeting.model_dump_json()
-    if update_data.status:
+    if update_data.targeting_segments is not None:
+        campaign.targeting_segments = json.dumps(update_data.targeting_segments, ensure_ascii=False)
+    if update_data.status is not None:
         campaign.status = CampaignStatus(update_data.status.value)
+    if update_data.start_date is not None:
+        campaign.start_date = update_data.start_date.replace(tzinfo=None) if update_data.start_date.tzinfo else update_data.start_date
+    if update_data.end_date is not None:
+        campaign.end_date = update_data.end_date.replace(tzinfo=None) if update_data.end_date.tzinfo else update_data.end_date
+    if update_data.advantage_plus is not None:
+        campaign.advantage_plus = update_data.advantage_plus
+    if update_data.dataset_id is not None:
+        campaign.dataset_id = update_data.dataset_id
+    if update_data.pixel_id is not None:
+        campaign.pixel_id = update_data.pixel_id
 
     await db.commit()
     await db.refresh(campaign)
@@ -417,8 +1427,15 @@ async def update_campaign(
         total_budget=campaign.total_budget,
         daily_budget=campaign.daily_budget,
         spent_amount=campaign.spent_amount,
+        budget_type=campaign.budget_type,
+        currency=campaign.currency,
         targeting=targeting,
+        targeting_segments=_parse_targeting_segments(campaign.targeting_segments),
         meta_campaign_id=campaign.meta_campaign_id,
+        meta_adset_ids=campaign.meta_adset_ids,
+        advantage_plus=campaign.advantage_plus,
+        dataset_id=campaign.dataset_id,
+        pixel_id=campaign.pixel_id,
         start_date=campaign.start_date,
         end_date=campaign.end_date,
         ads=[
@@ -437,6 +1454,52 @@ async def update_campaign(
         created_at=campaign.created_at,
         updated_at=campaign.updated_at
     )
+
+
+@router.get("/debug-segments/{campaign_id}")
+async def debug_campaign_segments(
+    campaign_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """캠페인에 저장된 세그먼트 데이터를 디버그용으로 반환."""
+    result = await db.execute(
+        select(Campaign).where(Campaign.id == campaign_id, Campaign.user_id == current_user.id)
+    )
+    campaign = result.scalar_one_or_none()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="캠페인 없음")
+    segments = []
+    if campaign.targeting_segments:
+        try:
+            segments = json.loads(campaign.targeting_segments)
+        except Exception:
+            pass
+    # 각 세그먼트에서 핵심 필드 추출
+    debug = []
+    for seg in segments:
+        t = seg.get('targeting', {})
+        debug.append({
+            "name": seg.get("name"),
+            "type": seg.get("type"),
+            "start_date": seg.get("start_date"),
+            "end_date": seg.get("end_date"),
+            "schedule": seg.get("schedule"),
+            "interests_root": seg.get("interests"),
+            "interests_in_targeting": t.get("interests") if isinstance(t, dict) else None,
+            "custom_audiences": seg.get("custom_audiences"),
+            "ads_count": len(seg.get("ads", [])),
+            "ads_creative_ids": [a.get("creative_id") for a in seg.get("ads", [])],
+        })
+    return {
+        "campaign_id": campaign_id,
+        "campaign_name": campaign.name,
+        "campaign_start_date": str(campaign.start_date),
+        "campaign_end_date": str(campaign.end_date),
+        "dataset_id": campaign.dataset_id,
+        "segments_count": len(segments),
+        "segments": debug,
+    }
 
 
 @router.get("/interests/suggest")
@@ -458,6 +1521,26 @@ async def suggest_interests(
         return suggestions
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/custom-audiences")
+async def get_custom_audiences(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Meta 광고 계정의 커스텀 오디언스 목록 조회 (리타겟팅용)."""
+    meta_user = current_user if current_user.meta_access_token else await get_shared_meta_credentials(db)
+
+    if not meta_user or not meta_user.meta_access_token or not meta_user.meta_ad_account_id:
+        logger.warning("[CustomAudiences] No Meta credentials found")
+        return {"audiences": [], "error": "Meta 계정이 연결되지 않았습니다"}
+
+    logger.info(f"[CustomAudiences] Fetching for ad_account={meta_user.meta_ad_account_id}")
+    meta_api = MetaMarketingAPI(meta_user.meta_access_token, meta_user.meta_ad_account_id)
+
+    result = await meta_api.get_custom_audiences()
+    logger.info(f"[CustomAudiences] Result: {len(result.get('audiences', []))} audiences, error={result.get('error')}")
+    return result
 
 
 # ──────────────────────────────────────────────
@@ -482,16 +1565,39 @@ async def activate_campaign(
     if campaign.status not in [CampaignStatus.PAUSED, CampaignStatus.PENDING_REVIEW]:
         raise HTTPException(status_code=400, detail=f"현재 상태({campaign.status.value})에서는 활성화할 수 없습니다.")
 
-    # Update Meta if connected
-    if campaign.meta_campaign_id and current_user.meta_access_token:
+    # 공유 Meta 인증 사용
+    meta_user = current_user
+    if not meta_user.meta_access_token:
+        shared = await get_shared_meta_credentials(db)
+        if shared:
+            meta_user = shared
+
+    if campaign.meta_campaign_id and meta_user.meta_access_token:
         meta_api = MetaMarketingAPI(
-            current_user.meta_access_token,
-            current_user.meta_ad_account_id
+            meta_user.meta_access_token,
+            meta_user.meta_ad_account_id
         )
         try:
             await meta_api.update_campaign_status(campaign.meta_campaign_id, "ACTIVE")
+            # Also activate all ad sets
+            if campaign.meta_adset_ids:
+                try:
+                    asids = json.loads(campaign.meta_adset_ids)
+                    for asid in asids:
+                        await meta_api.update_adset_status(asid, "ACTIVE")
+                except Exception as e:
+                    logger.warning(f"Failed to activate some adsets: {e}")
+            elif campaign.meta_adset_id:
+                try:
+                    await meta_api.update_adset_status(campaign.meta_adset_id, "ACTIVE")
+                except Exception as e:
+                    logger.warning(f"Failed to activate adset: {e}")
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Meta 캠페인 활성화 실패: {str(e)}")
+            error_str = str(e)
+            if "does not exist" in error_str.lower() or "unknown" in error_str.lower():
+                campaign.meta_campaign_id = None
+            else:
+                raise HTTPException(status_code=500, detail=f"Meta 캠페인 활성화 실패: {error_str}")
 
     campaign.status = CampaignStatus.ACTIVE
     await db.commit()
@@ -514,18 +1620,47 @@ async def pause_campaign(
     if not campaign:
         raise HTTPException(status_code=404, detail="캠페인을 찾을 수 없습니다.")
 
-    if campaign.status != CampaignStatus.ACTIVE:
+    if campaign.status not in [CampaignStatus.ACTIVE, CampaignStatus.PENDING_REVIEW]:
         raise HTTPException(status_code=400, detail=f"현재 상태({campaign.status.value})에서는 일시정지할 수 없습니다.")
 
-    if campaign.meta_campaign_id and current_user.meta_access_token:
+    # 공유 Meta 인증 사용
+    meta_user = current_user
+    if not meta_user.meta_access_token:
+        shared = await get_shared_meta_credentials(db)
+        if shared:
+            meta_user = shared
+
+    if campaign.meta_campaign_id and meta_user.meta_access_token:
         meta_api = MetaMarketingAPI(
-            current_user.meta_access_token,
-            current_user.meta_ad_account_id
+            meta_user.meta_access_token,
+            meta_user.meta_ad_account_id
         )
         try:
             await meta_api.update_campaign_status(campaign.meta_campaign_id, "PAUSED")
+            # Also pause all ad sets
+            if campaign.meta_adset_ids:
+                try:
+                    asids = json.loads(campaign.meta_adset_ids)
+                    for asid in asids:
+                        await meta_api.update_adset_status(asid, "PAUSED")
+                except Exception as e:
+                    logger.warning(f"Failed to pause some adsets: {e}")
+            elif campaign.meta_adset_id:
+                try:
+                    await meta_api.update_adset_status(campaign.meta_adset_id, "PAUSED")
+                except Exception as e:
+                    logger.warning(f"Failed to pause adset: {e}")
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Meta 캠페인 일시정지 실패: {str(e)}")
+            error_str = str(e)
+            logger.warning(f"[Pause] Meta API error: {error_str}")
+            # Meta에서 이미 삭제/보관된 캠페인이면 로컬만 업데이트
+            if "does not exist" in error_str.lower() or "unknown" in error_str.lower() or "100" in error_str:
+                logger.info(f"[Pause] Campaign {campaign.meta_campaign_id} not found on Meta, updating local only")
+                campaign.meta_campaign_id = None
+                campaign.meta_adset_id = None
+                campaign.meta_adset_ids = None
+            else:
+                raise HTTPException(status_code=500, detail=f"Meta 캠페인 일시정지 실패: {error_str}")
 
     campaign.status = CampaignStatus.PAUSED
     await db.commit()
@@ -567,9 +1702,10 @@ async def update_campaign_budget(
                 current_user.meta_ad_account_id
             )
             try:
+                currency = campaign.currency or "KRW"
                 await meta_api.update_adset_budget(
                     campaign.meta_adset_id,
-                    int(daily_budget * 100)  # Convert to cents
+                    daily_budget=convert_budget_to_api_units(daily_budget, currency),
                 )
                 changes.append("Meta AdSet 예산 반영 완료")
             except Exception as e:
@@ -623,14 +1759,14 @@ async def toggle_ad_status(
 
     new_status = "ACTIVE" if action == "activate" else "PAUSED"
 
-    # Update Meta ad status if connected
+    # Update Meta ad status if connected -- use dedicated update_ad_status method
     if ad.meta_ad_id and current_user.meta_access_token:
         meta_api = MetaMarketingAPI(
             current_user.meta_access_token,
             current_user.meta_ad_account_id
         )
         try:
-            await meta_api.update_campaign_status(ad.meta_ad_id, new_status)
+            await meta_api.update_ad_status(ad.meta_ad_id, new_status)
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Meta 광고 상태 변경 실패: {str(e)}")
 
@@ -662,15 +1798,56 @@ async def sync_campaign_insights(
     if not campaign:
         raise HTTPException(status_code=404, detail="캠페인을 찾을 수 없습니다.")
 
-    if not campaign.meta_campaign_id or not current_user.meta_access_token:
+    if not campaign.meta_campaign_id:
         raise HTTPException(status_code=400, detail="Meta 캠페인이 연결되지 않았습니다.")
 
+    # 공유 Meta 인증 사용
+    meta_user = current_user
+    if not meta_user.meta_access_token:
+        shared = await get_shared_meta_credentials(db)
+        if shared:
+            meta_user = shared
+    if not meta_user.meta_access_token:
+        raise HTTPException(status_code=400, detail="Meta 계정이 연결되지 않았습니다.")
+
     meta_api = MetaMarketingAPI(
-        current_user.meta_access_token,
-        current_user.meta_ad_account_id
+        meta_user.meta_access_token,
+        meta_user.meta_ad_account_id
     )
 
     try:
+        # 먼저 Meta에서 캠페인 존재 여부 확인
+        meta_campaign = await meta_api.get_campaign_by_id(campaign.meta_campaign_id)
+        if not meta_campaign or not meta_campaign.get("id"):
+            # Meta에서 삭제된 캠페인 → 로컬 상태 업데이트
+            campaign.status = CampaignStatus.COMPLETED
+            campaign.meta_campaign_id = None
+            campaign.meta_adset_id = None
+            campaign.meta_adset_ids = None
+            await db.commit()
+            return {
+                "success": False,
+                "campaign_id": campaign_id,
+                "message": "Meta에서 해당 캠페인이 삭제/보관되었습니다. 로컬 상태를 업데이트했습니다."
+            }
+
+        # Meta 캠페인 상태 동기화
+        meta_status = meta_campaign.get("status", "").upper()
+        if meta_status == "ACTIVE" and campaign.status != CampaignStatus.ACTIVE:
+            campaign.status = CampaignStatus.ACTIVE
+        elif meta_status == "PAUSED" and campaign.status != CampaignStatus.PAUSED:
+            campaign.status = CampaignStatus.PAUSED
+        elif meta_status in ("DELETED", "ARCHIVED"):
+            campaign.status = CampaignStatus.COMPLETED
+            campaign.meta_campaign_id = None
+            await db.commit()
+            return {
+                "success": False,
+                "campaign_id": campaign_id,
+                "message": f"Meta에서 캠페인이 {meta_status} 상태입니다. 로컬 상태를 업데이트했습니다."
+            }
+        await db.commit()
+
         insights = await meta_api.get_campaign_insights(
             campaign.meta_campaign_id,
             date_preset=date_preset

@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = "sqlite+aiosqlite:///./meta_commander.db"
 
+    # Supabase Storage
+    SUPABASE_URL: str = ""          # https://xxx.supabase.co
+    SUPABASE_SERVICE_KEY: str = ""  # service_role key
+
     # Meta API
     META_APP_ID: str = ""
     META_APP_SECRET: str = ""
@@ -28,19 +32,59 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
     REPLICATE_API_TOKEN: str = ""
 
+    # Market Intelligence APIs
+    YOUTUBE_API_KEY: str = ""
+    NAVER_CLIENT_ID: str = ""
+    NAVER_CLIENT_SECRET: str = ""
+
+    # Naver Search Ads API (검색광고)
+    NAVER_ADS_API_KEY: str = ""
+    NAVER_ADS_SECRET_KEY: str = ""
+    NAVER_ADS_CUSTOMER_ID: str = ""
+
+    # Naver GFA API (성과형 디스플레이 광고)
+    NAVER_GFA_API_KEY: str = ""
+    NAVER_GFA_SECRET_KEY: str = ""
+    NAVER_GFA_CUSTOMER_ID: str = ""
+
+    # Naver Commerce API (스마트스토어 판매자 API)
+    NAVER_COMMERCE_CLIENT_ID: str = ""
+    NAVER_COMMERCE_CLIENT_SECRET: str = ""
+
     # Resend (Email)
     RESEND_API_KEY: str = ""
     RESEND_FROM_EMAIL: str = "onboarding@resend.dev"
     FRONTEND_URL: str = "http://localhost:3000"
+    BACKEND_URL: str = ""  # Public backend URL for external access (e.g., https://xxx.up.railway.app)
+
+    # Solapi SMS
+    SOLAPI_API_KEY: str = ""
+    SOLAPI_API_SECRET: str = ""
+    SOLAPI_SENDER: str = ""  # 사전 등록된 발신번호 (Solapi 콘솔에서 등록 필수)
+
+    # Cafe24 OAuth 2.0
+    CAFE24_CLIENT_ID: str = ""
+    CAFE24_CLIENT_SECRET: str = ""
+    CAFE24_REDIRECT_URI: str = ""  # e.g. https://backend.railway.app/api/v1/cafe24/auth/callback
+    CAFE24_WEBHOOK_SECRET: str = ""
+    # 콤마 구분 scope 목록. 개발자센터에 등록된 권한과 일치해야 함.
+    # mall.write_category — Phase 6 비공개 카테고리 자동 생성 필요 (B안)
+    CAFE24_SCOPES: str = "mall.read_product,mall.write_product,mall.read_category,mall.write_category,mall.write_promotion,mall.read_order,mall.read_customer"
+    # 외부 노출 도메인 (nuldam.com 등 실제 스토어프론트 도메인). 없으면 mall_id.cafe24.com 사용.
+    CAFE24_PUBLIC_DOMAIN: str = ""
 
     # Allowed emails (comma-separated, empty = allow all)
     ALLOWED_EMAILS: str = ""
 
     @property
     def allowed_emails_list(self) -> List[str]:
-        if not self.ALLOWED_EMAILS.strip():
+        raw = self.ALLOWED_EMAILS.strip().strip('\ufeff').replace('\r', '').replace('\n', ',')
+        if not raw:
             return []
-        return [e.strip().lower() for e in self.ALLOWED_EMAILS.split(",")]
+        # Support both comma and semicolon separators
+        import re
+        emails = re.split(r'[,;]+', raw)
+        return [e.strip().lower() for e in emails if e.strip()]
 
     # Chroma Vector DB (로컬 실행, API 키 불필요)
     CHROMA_PERSIST_DIRECTORY: str = "./chroma_data"
@@ -49,13 +93,13 @@ class Settings(BaseSettings):
     # JWT Authentication
     JWT_SECRET_KEY: str = "your-secret-key-change-in-production"
     JWT_ALGORITHM: str = "HS256"
-    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 10080  # 7 days
 
     # Server
     PORT: int = 8000
 
     # CORS
-    CORS_ORIGINS: str = "http://localhost:3000"
+    CORS_ORIGINS: str = "*"
 
     @property
     def cors_origins_list(self) -> List[str]:

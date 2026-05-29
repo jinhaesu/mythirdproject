@@ -138,20 +138,148 @@ export interface GenerationJob {
   error_message?: string;
 }
 
+// Campaign Objective & Budget types
+export type CampaignObjective = 'TRAFFIC' | 'CONVERSIONS' | 'PURCHASE' | 'LEAD_GENERATION' | 'AWARENESS' | 'ENGAGEMENT' | 'APP_PROMOTION';
+
+export type BudgetType = 'DAILY' | 'LIFETIME';
+
+export type CampaignStatusType = 'ACTIVE' | 'PAUSED' | 'PENDING_REVIEW' | 'ARCHIVED' | 'DELETED';
+
+export interface PublishOptions {
+  campaign_id: number;
+  launch_immediately: boolean;
+  budget_type: BudgetType;
+  advantage_plus: boolean;
+  advantage_plus_audience: boolean;
+  advantage_plus_creative: boolean;
+  dataset_id?: string;
+  pixel_id?: string;
+  currency: string;
+  bid_strategy?: string;
+  bid_amount?: number;
+  use_cbo?: boolean;
+}
+
+// Per-creative settings within an ad set (maps to Meta Ad level)
+export interface AdSetCreative {
+  creative_id: number;
+  creative?: Creative;        // reference for thumbnail/name display
+  // 1. 광고 이름
+  ad_name: string;
+  // 2. 대표 계정
+  page_id?: string;           // Facebook 페이지 ID
+  instagram_account_id?: string; // Instagram 계정 ID
+  // 3. 광고 크리에이티브 설정
+  media_source: 'manual' | 'advantage_catalog'; // 미디어 설정
+  format: 'single' | 'carousel';               // 형식
+  multi_advertiser_ads: boolean;
+  // 4. 광고 문구
+  primary_text: string;       // 기본 문구 (300자)
+  headline: string;           // 제목 (40자)
+  description: string;        // 설명
+  call_to_action: string;     // CTA
+  // 5. 어드밴티지+ 카탈로그
+  advantage_catalog: boolean;
+  catalog_id?: string;        // 카탈로그 ID
+  product_set_id?: string;    // 제품 세트 ID
+  // 6. 랜딩 페이지
+  landing_type: 'website' | 'app' | 'messenger' | 'instant_form';
+  link_url: string;           // 랜딩 URL
+  utm_label?: string;         // UTM 구분값 (예: 260323_promotion)
+  use_display_link: boolean;
+  display_link?: string;
+  url_params?: string;        // 자동 생성된 UTM 파라미터
+  // 7. 어드밴티지+ 크리에이티브
+  advantage_plus_creative: boolean;
+  // 8. 캐러셀 / 픽셀 / 파트너십
+  carousel_cards?: Array<{headline?: string; description?: string; link_url?: string; image_url?: string; image_hash?: string}>;
+  pixel_events?: string[];
+  view_tags?: string[];
+  partnership_enabled?: boolean;
+  partner_page_id?: string;
+}
+
+export interface TargetingSegment {
+  type: 'BROAD' | 'RETARGET' | 'INTEREST' | 'CUSTOM';
+  name: string;
+  enabled: boolean;
+  ratio: number;  // percentage 0-100
+  targeting: TargetingConfig;
+  ads?: AdSetCreative[];      // 광고세트별 소재+설정
+  schedule?: {
+    start_date?: string;
+    end_date?: string;
+  };
+  daily_budget?: number;
+  age_range?: string;
+  gender?: string;
+  interests?: string[];
+  description?: string;
+  custom_audiences?: string[];
+  exclusion_audiences?: string[];
+  start_date?: string;
+  end_date?: string;
+}
+
+// Campaign Draft (임시 저장)
+export interface CampaignDraft {
+  id: string;
+  name: string;
+  savedAt: string;
+  formData: {
+    campaignName: string;
+    objective: CampaignObjective;
+    budget: string;
+    budgetType: BudgetType;
+    startDate: string;
+    endDate: string;
+    budgetLevel: 'campaign' | 'adset';
+    advantagePlus: boolean;
+    advantagePlusAudience: boolean;
+    advantagePlusCreative: boolean;
+    datasetOption: string;
+    customDatasetId: string;
+    pixelOption: string;
+    customPixelId: string;
+    launchImmediately: boolean;
+    bidStrategy: string;
+    bidAmount: string;
+    segments: TargetingSegment[];
+    showTargeting: boolean;
+    ageMin: number;
+    ageMax: number;
+    genders: string[];
+    countries: string[];
+    interests: string[];
+    primaryText: string;
+    headline: string;
+    callToAction: string;
+    linkUrl: string;
+    activeStep: 1 | 2 | 3;
+    selectedCreativeIds: number[];
+  };
+}
+
 // Campaign types
 export interface Campaign {
   id: number;
   user_id: number;
   name: string;
-  objective: 'TRAFFIC' | 'CONVERSIONS' | 'LEAD_GENERATION';
+  objective: CampaignObjective;
   status: 'DRAFT' | 'PENDING_REVIEW' | 'ACTIVE' | 'PAUSED' | 'COMPLETED';
   total_budget: number;
   daily_budget?: number;
   spent_amount: number;
   targeting?: TargetingConfig;
+  targeting_segments?: TargetingSegment[];
   meta_campaign_id?: string;
   start_date?: string;
   end_date?: string;
+  budget_type?: BudgetType;
+  advantage_plus?: boolean;
+  advantage_plus_audience?: boolean;
+  dataset_id?: string;
+  pixel_id?: string;
   ads: Ad[];
   created_at: string;
   updated_at: string;
@@ -275,6 +403,7 @@ export interface AutoPlanResponse {
   utm_links: Record<string, any>[];
   overall_strategy: string;
   meta_recommendations?: string;
+  creative_recommendation?: Record<string, any>;
 }
 
 // Meta Campaign (from API)
@@ -290,8 +419,246 @@ export interface MetaCampaign {
   insights?: Record<string, any>;
 }
 
+// Campaign Metrics & Performance Feedback types
+export interface CampaignMetrics {
+  campaign_id: string;
+  campaign_name: string;
+  status: CampaignStatusType;
+  objective: string;
+
+  // Budget
+  daily_budget?: number;
+  lifetime_budget?: number;
+  currency: string;
+
+  // Basic metrics
+  impressions: number;
+  clicks: number;
+  spend: number;
+  reach: number;
+
+  // Cost metrics
+  cpm: number;
+  cpc: number;
+  ctr: number;
+  frequency: number;
+
+  // Conversion metrics
+  website_purchase_conversions: number;
+  website_purchase_value: number;
+  website_content_views: number;
+  cost_per_result: number;
+  roas: number;
+
+  // Creative info
+  active_ad_count: number;
+}
+
+export interface ConversionAnalysis {
+  current_roas: number;
+  previous_roas: number;
+  roas_change_pct: number;
+  current_cpm: number;
+  previous_cpm: number;
+  cpm_change_pct: number;
+  current_cpa: number;
+  avg_order_value: number;
+  status: 'INCREASE_BUDGET' | 'EXPAND_TARGET' | 'CHECK_CPA' | 'MAINTAIN';
+  recommendation: string;
+}
+
+export interface ClickAnalysis {
+  link_click_ctr: number;
+  overall_ctr: number;
+  ctr_gap_warning: boolean;
+  current_cpc: number;
+  previous_cpc: number;
+  cpc_trend: 'UP' | 'DOWN' | 'STABLE';
+  landing_page_view_rate: number;
+  landing_status: 'GOOD' | 'WARNING' | 'CRITICAL';
+  recommendation: string;
+}
+
+export interface ImpressionAnalysis {
+  current_frequency: number;
+  frequency_warning: boolean;
+  cpm_trend: 'UP' | 'DOWN' | 'STABLE';
+  ctr_trend: 'UP' | 'DOWN' | 'STABLE';
+  fatigue_detected: boolean;
+  weekly_cpc_trend: number[];  // 4 weeks
+  cpc_upward_trend: boolean;
+  recommendation: string;
+}
+
+export interface CreativeAnalysis {
+  active_ad_count: number;
+  total_ad_count: number;
+  diversity_score: number;  // 0-100
+  creative_performances: Array<{
+    ad_id: string;
+    ad_name: string;
+    status: string;
+    ctr: number;
+    cpc: number;
+    spend: number;
+    trend: 'IMPROVING' | 'DECLINING' | 'STABLE';
+  }>;
+  recommendation: string;
+}
+
+export interface PerformanceFeedback {
+  campaign_id: string;
+  campaign_name?: string;
+  currency?: string;
+  period?: { current: string; previous: string };
+  current_metrics?: Record<string, number>;
+  previous_metrics?: Record<string, number>;
+  changes?: Record<string, number | null>;
+  conversion_analysis: ConversionAnalysis;
+  click_analysis: ClickAnalysis;
+  impression_analysis: ImpressionAnalysis;
+  creative_analysis?: CreativeAnalysis;
+  creative_fatigue_analysis?: any;
+  recommendations?: string[];
+  risk_level?: 'LOW' | 'MEDIUM' | 'HIGH';
+}
+
+// Status filter type for campaign list
+export type CampaignStatusFilter = 'ALL' | 'ACTIVE' | 'PAUSED' | 'PENDING_REVIEW' | 'ARCHIVED';
+
 // Chat types
 export interface ChatResponse {
   reply: string;
   suggested_questions: string[];
 }
+
+// ═══ Naver Types ═══
+export type NaverCampaignType = 'WEB_SITE' | 'SHOPPING' | 'BRAND_SEARCH' | 'PERFORMANCE_MAX';
+export type NaverAdGroupStatus = 'ELIGIBLE' | 'PAUSED' | 'DELETED';
+
+export interface NaverSearchCampaign {
+  nccCampaignId: string;
+  name: string;
+  campaignTp: NaverCampaignType;
+  deliveryMethod: string;
+  dailyBudget: number;
+  status: string;
+  statusReason: string;
+  // Performance
+  impressions?: number;
+  clicks?: number;
+  spend?: number;
+  conversions?: number;
+  conversionValue?: number;
+  ctr?: number;
+  cpc?: number;
+  roas?: number;
+}
+
+export interface NaverAdGroup {
+  nccAdgroupId: string;
+  nccCampaignId: string;
+  name: string;
+  status: string;
+  bidAmt: number;
+  dailyBudget?: number;
+  targets?: NaverTarget[];
+  // Performance
+  impressions?: number;
+  clicks?: number;
+  spend?: number;
+  ctr?: number;
+  cpc?: number;
+}
+
+export interface NaverTarget {
+  tp: string; // LOCATION, TIME, AGE, GENDER, DEVICE, MEDIA, etc.
+  values: string[];
+}
+
+export interface NaverKeyword {
+  nccKeywordId: string;
+  nccAdgroupId: string;
+  keyword: string;
+  bidAmt: number;
+  useGroupBidAmt: boolean;
+  status: string;
+  qualityIndex?: number;
+  // Performance
+  impressions?: number;
+  clicks?: number;
+  spend?: number;
+  ctr?: number;
+  cpc?: number;
+  avgPosition?: number;
+}
+
+export interface NaverAd {
+  nccAdId: string;
+  nccAdgroupId: string;
+  type: string; // TEXT_45, IMAGE_BANNER, etc.
+  headline?: string;
+  description?: string;
+  url?: string;
+  status: string;
+  impressions?: number;
+  clicks?: number;
+  spend?: number;
+}
+
+export interface NaverGFACampaign {
+  campaignId: string;
+  name: string;
+  objective: string; // WEBSITE_TRAFFIC, CONVERSION, VIDEO_VIEW, REACH
+  status: string;
+  dailyBudget: number;
+  totalBudget?: number;
+  startDate?: string;
+  endDate?: string;
+  // Performance
+  impressions?: number;
+  clicks?: number;
+  spend?: number;
+  conversions?: number;
+  conversionValue?: number;
+  ctr?: number;
+  cpc?: number;
+  cpm?: number;
+  roas?: number;
+}
+
+export interface NaverGFAAdGroup {
+  adGroupId: string;
+  campaignId: string;
+  name: string;
+  status: string;
+  bidStrategy: string;
+  bidAmount?: number;
+  targeting?: {
+    age?: string[];
+    gender?: string[];
+    interests?: string[];
+    placements?: string[];
+    devices?: string[];
+  };
+  impressions?: number;
+  clicks?: number;
+  spend?: number;
+}
+
+export interface NaverGFACreative {
+  creativeId: string;
+  adGroupId: string;
+  type: string; // IMAGE, VIDEO, NATIVE
+  title?: string;
+  description?: string;
+  imageUrl?: string;
+  landingUrl?: string;
+  status: string;
+  impressions?: number;
+  clicks?: number;
+  spend?: number;
+  ctr?: number;
+}
+
+export type NaverPlatformType = 'search_ads' | 'gfa';

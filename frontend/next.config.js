@@ -11,6 +11,10 @@ const nextConfig = {
         source: '/api/:path*',
         destination: `${baseUrl}/api/:path*`,
       },
+      {
+        source: '/uploads/:path*',
+        destination: `${baseUrl}/uploads/:path*`,
+      },
     ]
   },
   output: 'standalone',

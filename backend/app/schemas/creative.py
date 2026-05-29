@@ -37,6 +37,10 @@ class ImageGenerationRequest(BaseModel):
     highlight_text: Optional[str] = None  # Promo text to include
     format: CreativeFormat = CreativeFormat.SQUARE
     variations: int = Field(default=4, le=8)
+    reference_url: Optional[str] = None  # Reference image/ad URL
+    product_url: Optional[str] = None  # Product page URL
+    product_image_url: Optional[str] = None  # Uploaded product image URL
+    description: Optional[str] = None  # Optional text description
 
 
 class VideoGenerationRequest(BaseModel):
@@ -48,6 +52,10 @@ class VideoGenerationRequest(BaseModel):
     voice_style: VoiceStyle = VoiceStyle.CALM
     include_subtitles: bool = True
     duration_seconds: int = Field(default=15, le=60)
+    reference_url: Optional[str] = None  # Reference video/ad URL
+    product_url: Optional[str] = None  # Product page URL
+    product_image_url: Optional[str] = None  # Uploaded product image URL
+    description: Optional[str] = None  # Optional text description
 
 
 class TextRewriteRequest(BaseModel):
@@ -96,6 +104,8 @@ class CreativeResponse(CreativeBase):
     user_id: int
     file_url: Optional[str]
     thumbnail_url: Optional[str]
+    width: Optional[int] = None
+    height: Optional[int] = None
     created_at: datetime
     updated_at: datetime
 

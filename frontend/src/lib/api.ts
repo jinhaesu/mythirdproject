@@ -14,9 +14,25 @@ import type {
   AutoPlanRequest,
   AutoPlanResponse,
   ChatResponse,
+  PublishOptions,
+  TargetingSegment,
+  PerformanceFeedback,
 } from '@/types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api/v1';
+
+// Resolve media URLs (e.g. /uploads/file.jpg -> http://backend:8000/uploads/file.jpg)
+export function resolveMediaUrl(url?: string | null): string {
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) return url;
+  // Extract backend host from API_BASE (remove /api/v1 suffix)
+  const backendHost = API_BASE.replace(/\/api\/v1\/?$/, '');
+  if (backendHost && backendHost !== '/api/v1' && backendHost !== '') {
+    return `${backendHost}${url.startsWith('/') ? url : `/${url}`}`;
+  }
+  // Fallback: use relative path (handled by Next.js rewrites)
+  return url.startsWith('/') ? url : `/${url}`;
+}
 
 const api = axios.create({
   baseURL: API_BASE,
@@ -34,6 +50,52 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Handle 401 — passive cleanup only. Navigation/reload was causing infinite
+// loops when 매직링크 verify가 401일 때 인터셉터가 reload → 같은 URL의 ?token=
+// 으로 다시 verify → 401 → reload ... 무한 반복.
+// 인증 상태는 zustand store(auth-storage)와 localStorage 'token' 양쪽에 있어
+// 둘 다 정리. 컴포넌트가 isAuthenticated=false 감지하면 자연스럽게 LoginPage 렌더.
+let _last401At = 0;
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      // 짧은 시간 내 다중 401(여러 in-flight 요청이 동시에 401)을 1회로 합침
+      const now = Date.now();
+      if (now - _last401At > 500) {
+        _last401At = now;
+        try {
+          localStorage.removeItem('token');
+          // zustand persist도 동기화
+          const raw = localStorage.getItem('auth-storage');
+          if (raw) {
+            try {
+              const parsed = JSON.parse(raw);
+              if (parsed && parsed.state) {
+                parsed.state.user = null;
+                parsed.state.token = null;
+                parsed.state.isAuthenticated = false;
+                localStorage.setItem('auth-storage', JSON.stringify(parsed));
+              }
+            } catch { /* ignore */ }
+          }
+          // 매직링크 토큰이 URL에 남아 있으면 제거 (재시도 루프 방지)
+          if (typeof window !== 'undefined' && window.location.search.includes('token=')) {
+            const u = new URL(window.location.href);
+            u.searchParams.delete('token');
+            window.history.replaceState({}, '', u.pathname + (u.search || ''));
+          }
+          // 컴포넌트에 인증 만료 알림 — Home 컴포넌트가 useAuthStore.logout() 호출
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('auth-expired'));
+          }
+        } catch { /* swallow */ }
+      }
+    }
+    return Promise.reject(error);
+  },
+);
+
 // Auth API
 export const authApi = {
   sendMagicLink: async (email: string) => {
@@ -41,8 +103,8 @@ export const authApi = {
     return data;
   },
 
-  verifyMagicLink: async (token: string) => {
-    const { data } = await api.post<{ access_token: string; token_type: string }>('/auth/verify-magic-link', { token });
+  verifyMagicLink: async (token: string, ref?: string) => {
+    const { data } = await api.post<{ access_token: string; token_type: string }>('/auth/verify-magic-link', { token, ref });
     return data;
   },
 
@@ -80,7 +142,28 @@ export const authApi = {
     const { data } = await api.get('/auth/meta/status');
     return data;
   },
+
+  disconnectMeta: async () => {
+    const { data } = await api.post('/auth/meta/disconnect');
+    return data;
+  },
+
+  updateMetaSettings: async (settings: { page_id?: string; instagram_account_id?: string }) => {
+    const { data } = await api.put('/auth/meta/settings', settings);
+    return data;
+  },
+
+  getConnectionsStatus: async (): Promise<ConnectionsStatus> => {
+    const { data } = await api.get<ConnectionsStatus>('/auth/connections-status');
+    return data;
+  },
 };
+
+export interface ConnectionsStatus {
+  cafe24: { connected: boolean; mall_id?: string | null; expires_at?: string | null; expiring_soon?: boolean };
+  meta: { connected: boolean; user_id?: string | null; ad_account_id?: string | null };
+  naver: { connected: boolean; search_ads: boolean; gfa: boolean };
+}
 
 // Benchmark API (TAB 1)
 export const benchmarkApi = {
@@ -122,6 +205,10 @@ export const creativeApi = {
     highlight_text?: string;
     format?: string;
     variations?: number;
+    reference_url?: string;
+    product_url?: string;
+    product_image_url?: string;
+    description?: string;
   }) => {
     const { data } = await api.post<GenerationJob>('/creative/generate/image', request);
     return data;
@@ -134,6 +221,10 @@ export const creativeApi = {
     voice_style?: string;
     include_subtitles?: boolean;
     duration_seconds?: number;
+    reference_url?: string;
+    product_url?: string;
+    product_image_url?: string;
+    description?: string;
   }) => {
     const { data } = await api.post<GenerationJob>('/creative/generate/video', request);
     return data;
@@ -172,6 +263,36 @@ export const creativeApi = {
     const { data } = await api.delete(`/creative/${creativeId}`);
     return data;
   },
+
+  upload: async (file: File, options?: {
+    name?: string;
+    headline?: string;
+    primary_text?: string;
+    call_to_action?: string;
+    link_url?: string;
+  }) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (options?.name) formData.append('name', options.name);
+    if (options?.headline) formData.append('headline', options.headline);
+    if (options?.primary_text) formData.append('primary_text', options.primary_text);
+    if (options?.call_to_action) formData.append('call_to_action', options.call_to_action);
+    if (options?.link_url) formData.append('link_url', options.link_url);
+    const { data } = await api.post<Creative>('/creative/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return data;
+  },
+
+  getMetaGuidelines: async () => {
+    const { data } = await api.get('/creative/meta-guidelines');
+    return data;
+  },
+
+  validateSpecs: async (creativeId: number) => {
+    const { data } = await api.post('/creative/validate-specs', { creative_id: creativeId });
+    return data;
+  },
 };
 
 // Campaign API (TAB 3)
@@ -188,22 +309,41 @@ export const campaignApi = {
     objective: string;
     total_budget: number;
     daily_budget?: number;
+    budget_type?: string;
     targeting?: any;
+    targeting_segments?: TargetingSegment[];
     creative_ids: number[];
     start_date?: string;
     end_date?: string;
+    advantage_plus?: boolean;
+    advantage_plus_audience?: boolean;
+    advantage_plus_creative?: boolean;
+    dataset_id?: string;
+    pixel_id?: string;
+    primary_text?: string;
+    headline?: string;
+    call_to_action?: string;
+    link_url?: string;
   }) => {
     const { data } = await api.post<Campaign>('/campaign', campaignData);
     return data;
   },
 
-  publish: async (campaignId: number) => {
+  delete: async (campaignId: number) => {
+    const { data } = await api.delete(`/campaign/${campaignId}`);
+    return data;
+  },
+
+  publish: async (campaignId: number, options?: Partial<PublishOptions>) => {
     const { data } = await api.post<{
       success: boolean;
       meta_campaign_id?: string;
       status: string;
       message: string;
-    }>('/campaign/publish', { campaign_id: campaignId });
+    }>('/campaign/publish', {
+      campaign_id: campaignId,
+      ...options,
+    });
     return data;
   },
 
@@ -254,12 +394,34 @@ export const campaignApi = {
     });
     return data;
   },
+
+  getCustomAudiences: async () => {
+    const { data } = await api.get<{ audiences: Array<{ id: string; name: string; subtype?: string; approximate_count_lower_bound?: number; approximate_count_upper_bound?: number }>; error?: string }>('/campaign/custom-audiences');
+    return data;
+  },
+
+  getCatalogs: async () => {
+    const { data } = await api.get<Array<{ id: string; name: string }>>('/campaign/catalogs');
+    return data;
+  },
+
+  getProductSets: async (catalogId: string) => {
+    const { data } = await api.get<Array<{ id: string; name: string }>>(`/campaign/catalogs/${catalogId}/product-sets`);
+    return data;
+  },
 };
 
 // Analytics API (TAB 4)
 export const analyticsApi = {
-  getAccountOverview: async (datePreset = 'last_7d') => {
-    const { data } = await api.get('/analytics/account-overview', { params: { date_preset: datePreset } });
+  getAccountOverview: async (datePreset = 'last_7d', since?: string, until?: string) => {
+    const params: any = { date_preset: datePreset };
+    if (since && until) { params.since = since; params.until = until; }
+    const { data } = await api.get('/analytics/account-overview', { params });
+    return data;
+  },
+
+  getCampaignAdsets: async (campaignId: string, datePreset = 'last_7d') => {
+    const { data } = await api.get(`/analytics/campaign/${campaignId}/adsets`, { params: { date_preset: datePreset } });
     return data;
   },
 
@@ -268,8 +430,15 @@ export const analyticsApi = {
     return data;
   },
 
-  getAIAnalysis: async (datePreset = 'last_7d', overviewData?: any) => {
-    const { data } = await api.post('/analytics/ai-analysis', { overview_data: overviewData || null }, { params: { date_preset: datePreset } });
+  getAIAnalysis: async (datePreset = 'last_7d', overviewData?: any, statusFilter?: string) => {
+    const cacheKey = `ai-analysis_${datePreset}_${statusFilter || 'ALL'}`;
+    const cached = getCachedData(cacheKey);
+    if (cached) return cached;
+    const { data } = await api.post('/analytics/ai-analysis', {
+      overview_data: overviewData || null,
+      status_filter: statusFilter || null,
+    }, { params: { date_preset: datePreset } });
+    setCachedData(cacheKey, data);
     return data;
   },
 
@@ -285,8 +454,10 @@ export const analyticsApi = {
     return data;
   },
 
-  getAccountTrend: async (days = 30) => {
-    const { data } = await api.get('/analytics/account-trend', { params: { days } });
+  getAccountTrend: async (days = 30, since?: string, until?: string, timeIncrement = 1) => {
+    const params: any = { days, time_increment: timeIncrement };
+    if (since && until) { params.since = since; params.until = until; }
+    const { data } = await api.get('/analytics/account-trend', { params });
     return data;
   },
 
@@ -318,8 +489,14 @@ export const analyticsApi = {
     start_date: string;
     end_date: string;
     email: string;
+    report_data?: any;
   }) => {
     const { data } = await api.post('/analytics/report/email', request);
+    return data;
+  },
+
+  testEmail: async () => {
+    const { data } = await api.post('/analytics/report/email/test');
     return data;
   },
 
@@ -342,6 +519,101 @@ export const analyticsApi = {
 
   getSummary: async (days = 30) => {
     const { data } = await api.get('/analytics/summary', { params: { days } });
+    return data;
+  },
+
+  // 자동 관리 룰
+  getRules: async () => {
+    const { data } = await api.get('/analytics/rules');
+    return data;
+  },
+  createRule: async (ruleData: any) => {
+    const { data } = await api.post('/analytics/rules', ruleData);
+    return data;
+  },
+  updateRule: async (ruleId: string, ruleData: any) => {
+    const { data } = await api.put(`/analytics/rules/${ruleId}`, ruleData);
+    return data;
+  },
+  deleteRule: async (ruleId: string) => {
+    const { data } = await api.delete(`/analytics/rules/${ruleId}`);
+    return data;
+  },
+  executeRules: async () => {
+    const { data } = await api.post('/analytics/rules/execute');
+    return data;
+  },
+  getRuleLogs: async (limit = 50) => {
+    const { data } = await api.get('/analytics/rules/logs', { params: { limit } });
+    return data;
+  },
+  aiRecommendRules: async (overviewData?: any) => {
+    const { data } = await api.post('/analytics/rules/ai-recommend', { overview_data: overviewData || null });
+    return data;
+  },
+
+  // 스케줄 리포트
+  getSchedules: async () => {
+    const { data } = await api.get('/analytics/schedules');
+    return data;
+  },
+  createSchedule: async (schedData: any) => {
+    const { data } = await api.post('/analytics/schedules', schedData);
+    return data;
+  },
+  updateSchedule: async (schedId: string, schedData: any) => {
+    const { data } = await api.put(`/analytics/schedules/${schedId}`, schedData);
+    return data;
+  },
+  deleteSchedule: async (schedId: string) => {
+    const { data } = await api.delete(`/analytics/schedules/${schedId}`);
+    return data;
+  },
+  runScheduleNow: async (schedId: string) => {
+    const { data } = await api.post(`/analytics/schedules/${schedId}/run-now`);
+    return data;
+  },
+  getSchedulerStatus: async () => {
+    // scheduler/status is at root level, not under /api/v1
+    const backendBase = API_BASE.replace(/\/api\/v1\/?$/, '');
+    const url = backendBase ? `${backendBase}/scheduler/status` : '/scheduler/status';
+    const { data } = await axios.get(url);
+    return data;
+  },
+
+  // 성과 피드백 API
+  getPerformanceFeedback: async (campaignId: string, datePreset = 'last_7d') => {
+    const cacheKey = `perf-feedback_${campaignId}_${datePreset}`;
+    const cached = getCachedData<any>(cacheKey);
+    // Only use cache if it has valid feedback data
+    if (cached) {
+      const fb = cached?.feedback || cached;
+      if (fb?.conversion_analysis) return cached;
+      // Invalid cache — remove it
+      localStorage.removeItem(CACHE_PREFIX + cacheKey);
+    }
+    const { data } = await api.post<PerformanceFeedback>('/analytics/performance-feedback', {
+      campaign_id: campaignId,
+      date_preset: datePreset,
+    });
+    setCachedData(cacheKey, data);
+    return data;
+  },
+
+  // 광고 댓글 관리
+  getAdComments: async (adId: string, limit = 100) => {
+    const { data } = await api.get(`/analytics/ad/${adId}/comments`, { params: { limit } });
+    return data;
+  },
+
+  getAdPostInfo: async (adId: string) => {
+    const { data } = await api.get(`/analytics/ad/${adId}/post-info`);
+    return data;
+  },
+
+  // 소재별 일별 트렌드
+  getAdTrend: async (adId: string, days = 7) => {
+    const { data } = await api.get(`/analytics/ad/${adId}/trend`, { params: { days } });
     return data;
   },
 };
@@ -413,6 +685,250 @@ export const campaignPlannerApi = {
   },
 };
 
+// Market Keywords API (TAB 1 - Keyword Monitoring)
+export const marketApi = {
+  registerKeyword: async (keyword: string) => {
+    const { data } = await api.post('/market/keywords', { keyword });
+    return data;
+  },
+
+  listKeywords: async () => {
+    const { data } = await api.get('/market/keywords');
+    return data;
+  },
+
+  removeKeyword: async (keywordId: string) => {
+    await api.delete(`/market/keywords/${keywordId}`);
+  },
+
+  analyzeKeyword: async (keywordId: string, days?: number) => {
+    const { data } = await api.post(`/market/keywords/${keywordId}/analyze`, days ? { days } : undefined);
+    return data;
+  },
+
+  compareKeywords: async (keywordIds: string[]) => {
+    const { data } = await api.post('/market/keywords/compare', { keyword_ids: keywordIds });
+    return data;
+  },
+
+  // 키워드 순위 체크
+  checkKeywordRanks: async (keywordIds?: string[], brandName = '널담') => {
+    const { data } = await api.post('/market/keywords/rank-check', {
+      keyword_ids: keywordIds || null,
+      brand_name: brandName,
+    });
+    return data;
+  },
+
+  // 순위 스케줄 CRUD
+  createRankSchedule: async (scheduleData: {
+    name?: string;
+    brand_name?: string;
+    keyword_filter?: string;
+    schedule_type: string;
+    day_of_week?: number;
+    day_of_month?: number;
+    send_hour?: number;
+    send_minute?: number;
+    email_to: string;
+  }) => {
+    const { data } = await api.post('/market/keywords/rank-schedule', scheduleData);
+    return data;
+  },
+
+  listRankSchedules: async () => {
+    const { data } = await api.get('/market/keywords/rank-schedules');
+    return data;
+  },
+
+  deleteRankSchedule: async (scheduleId: string) => {
+    await api.delete(`/market/keywords/rank-schedule/${scheduleId}`);
+  },
+
+  runRankScheduleNow: async (scheduleId: string) => {
+    const { data } = await api.post(`/market/keywords/rank-schedule/${scheduleId}/run-now`);
+    return data;
+  },
+};
+
+// ─── Affiliate types ──────────────────────────────────────────────────────────
+
+export type AffiliateChannelKey =
+  | 'instagram'
+  | 'youtube'
+  | 'tiktok'
+  | 'blog'
+  | 'facebook'
+  | 'x'
+  | 'kakao'
+  | 'other';
+
+export interface PartnerCampaignLink {
+  pc_id: number;
+  campaign_id: number;
+  campaign_name: string;
+  referral_code: string;
+  referral_link: string;
+}
+
+export interface AffiliatePartner {
+  id: number;
+  name: string;
+  email: string;
+  /** @deprecated prefer channels[] */
+  channel: string;
+  /** 다중 채널 (백엔드 JSON 파싱 후 반환) */
+  channels?: string[];
+  phone?: string | null;
+  followers: number;
+  status: 'pending' | 'approved' | 'rejected';
+  total_sales: number;
+  total_commission: number;
+  unpaid_commission: number;
+  /** 파트너에 연결된 캠페인별 링크 목록 (list_partners 응답) */
+  campaign_links?: PartnerCampaignLink[];
+  referral_link: string;
+  click_count: number;
+  conversion_count: number;
+  joined_date: string;
+  campaign_ids?: number[];
+  memo?: string;
+}
+
+export interface AffiliateTimeseriesPoint {
+  date: string;
+  revenue: number;
+  commission: number;
+  clicks: number;
+  conversions: number;
+  refunded_count?: number;
+  refunded_amount?: number;
+  cancelled_count?: number;
+  cancelled_amount?: number;
+}
+
+export interface AffiliateByCampaign {
+  campaign_id: number;
+  campaign_name: string;
+  revenue: number;
+  commission: number;
+  clicks: number;
+  conversions: number;
+  partners: number;
+}
+
+export interface HourlyConversion {
+  hour: number;
+  day_of_week: number;
+  conversions: number;
+  revenue: number;
+}
+
+export interface TopProduct {
+  product_no: number;
+  product_name: string;
+  product_image?: string | null;
+  campaign_count: number;
+  conversions: number;
+  revenue: number;
+  commission: number;
+}
+
+// Affiliate API (TAB: 어필리에이트 관리)
+export const affiliateApi = {
+  getDashboard: async () => { const { data } = await api.get('/affiliate/dashboard'); return data; },
+  getCampaigns: async () => { const { data } = await api.get('/affiliate/campaigns'); return data; },
+  createCampaign: async (d: any) => { const { data } = await api.post('/affiliate/campaigns', d); return data; },
+  updateCampaign: async (id: number, d: any) => { const { data } = await api.put(`/affiliate/campaigns/${id}`, d); return data; },
+  deleteCampaign: async (id: number, options?: { skipCafe24?: boolean }) => {
+    const qs = options?.skipCafe24 ? '?skip_cafe24=true' : '';
+    const { data } = await api.delete(`/affiliate/campaigns/${id}${qs}`);
+    return data;
+  },
+  getPartners: async (): Promise<AffiliatePartner[]> => { const { data } = await api.get('/affiliate/partners'); return data; },
+  createPartner: async (d: any) => { const { data } = await api.post('/affiliate/partners', d); return data; },
+  approvePartner: async (id: number) => { const { data } = await api.post(`/affiliate/partners/${id}/approve`); return data; },
+  rejectPartner: async (id: number) => { const { data } = await api.post(`/affiliate/partners/${id}/reject`); return data; },
+  deletePartner: async (id: number) => { await api.delete(`/affiliate/partners/${id}`); },
+  listTrashedPartners: async (): Promise<AffiliatePartner[]> => {
+    const { data } = await api.get('/affiliate/partners/trash');
+    return Array.isArray(data) ? data : [];
+  },
+  restorePartner: async (id: number) => {
+    const { data } = await api.post(`/affiliate/partners/${id}/restore`);
+    return data;
+  },
+  permanentDeletePartner: async (id: number) => {
+    await api.delete(`/affiliate/partners/${id}/permanent`);
+  },
+  getSettlements: async () => { const { data } = await api.get('/affiliate/settlements'); return data; },
+  createSettlement: async (d: any) => { const { data } = await api.post('/affiliate/settlements', d); return data; },
+  paySettlement: async (id: number) => { const { data } = await api.post(`/affiliate/settlements/${id}/pay`); return data; },
+  getReferralPrograms: async () => { const { data } = await api.get('/affiliate/referral-programs'); return data; },
+  createReferralProgram: async (d: any) => { const { data } = await api.post('/affiliate/referral-programs', d); return data; },
+  updateReferralProgram: async (id: number, d: any) => { const { data } = await api.put(`/affiliate/referral-programs/${id}`, d); return data; },
+  getMyPoints: async () => { const { data } = await api.get('/affiliate/my-points'); return data; },
+  getMyReferralCode: async () => { const { data } = await api.get('/affiliate/my-referral-code'); return data; },
+  createPartnerMulti: async (d: {
+    name: string;
+    email?: string;
+    phone?: string | null;
+    channel: string;
+    channels: string[];
+    followers: number;
+    campaign_ids: number[];
+    memo?: string;
+  }) => { const { data } = await api.post('/affiliate/partners', d); return data; },
+  updatePartner: async (id: number, d: Record<string, unknown>) => { const { data } = await api.put(`/affiliate/partners/${id}`, d); return data; },
+  addPartnerCampaign: async (partnerId: number, campaignId: number) => { const { data } = await api.post(`/affiliate/partners/${partnerId}/campaigns`, { campaign_id: campaignId }); return data; },
+  removePartnerCampaign: async (partnerId: number, pcId: number) => { await api.delete(`/affiliate/partners/${partnerId}/campaigns/${pcId}`); },
+  getPartnerPerformance: async (partnerId: number) => { const { data } = await api.get(`/affiliate/partners/${partnerId}/performance`); return data; },
+  auditPartner: async (partnerId: number) => { const { data } = await api.get(`/affiliate/partners/${partnerId}/audit`); return data; },
+  getPartnerTimeseries: async (partnerId: number, days = 30) => {
+    const { data } = await api.get(`/affiliate/partners/${partnerId}/timeseries`, { params: { days } });
+    return data;
+  },
+  republishCampaignCategory: async (campaignId: number) => {
+    const { data } = await api.post(`/affiliate/campaigns/${campaignId}/republish-category`);
+    return data;
+  },
+  cafe24DebugCampaign: async (campaignId: number) => {
+    const { data } = await api.get(`/affiliate/campaigns/${campaignId}/cafe24-debug`);
+    return data;
+  },
+  reattachCampaignProducts: async (campaignId: number) => {
+    const { data } = await api.post(`/affiliate/campaigns/${campaignId}/reattach-products`);
+    return data;
+  },
+  getDashboardTimeseries: async (days = 30): Promise<AffiliateTimeseriesPoint[]> => {
+    const { data } = await api.get('/affiliate/dashboard/timeseries', { params: { days } });
+    return data;
+  },
+  getDashboardByCampaign: async (): Promise<AffiliateByCampaign[]> => {
+    const { data } = await api.get('/affiliate/dashboard/by-campaign');
+    return data;
+  },
+  getDashboardHourly: async (days = 30): Promise<HourlyConversion[]> => {
+    const { data } = await api.get('/affiliate/dashboard/hourly', { params: { days } });
+    return data;
+  },
+  getTopProducts: async (limit = 10): Promise<TopProduct[]> => {
+    const { data } = await api.get('/affiliate/dashboard/top-products', { params: { limit } });
+    return data;
+  },
+};
+
+// Cafe24 API
+export const cafe24Api = {
+  getStatus: async () => { const { data } = await api.get('/cafe24/status'); return data; },
+  startAuth: async (mallId: string) => { const { data } = await api.get('/cafe24/auth/start', { params: { mall_id: mallId } }); return data; },
+  disconnect: async () => { const { data } = await api.post('/cafe24/disconnect'); return data; },
+  listProducts: async (q?: string, limit = 50) => {
+    const { data } = await api.get('/cafe24/products', { params: { q, limit } });
+    return Array.isArray(data) ? data : (data?.products ?? []);
+  },
+};
+
 // AI Chat API
 export const chatApi = {
   send: async (message: string, history: { role: string; content: string }[] = []) => {
@@ -420,5 +936,59 @@ export const chatApi = {
     return data;
   },
 };
+
+// ─── localStorage cache helpers (survives F5 / tab switch) ───
+const CACHE_PREFIX = 'mc_cache_';
+const THREE_HOURS_MS = 3 * 60 * 60 * 1000;
+
+function getCachedData<T>(key: string): T | null {
+  try {
+    const raw = localStorage.getItem(CACHE_PREFIX + key);
+    if (!raw) return null;
+    const { data, ts } = JSON.parse(raw);
+    if (Date.now() - ts > THREE_HOURS_MS) {
+      localStorage.removeItem(CACHE_PREFIX + key);
+      return null;
+    }
+    return data as T;
+  } catch { return null; }
+}
+
+function setCachedData(key: string, data: unknown): void {
+  try {
+    localStorage.setItem(CACHE_PREFIX + key, JSON.stringify({ data, ts: Date.now() }));
+  } catch { /* quota exceeded — ignore */ }
+}
+
+export function clearAnalysisCache(datePreset?: string): void {
+  try {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(CACHE_PREFIX)) {
+        if (!datePreset || key.includes(datePreset)) {
+          keysToRemove.push(key);
+        }
+      }
+    }
+    keysToRemove.forEach(k => localStorage.removeItem(k));
+  } catch { /* ignore */ }
+}
+
+// Currency & number formatting utilities
+export function formatCurrency(amount: number, currency: string = 'KRW'): string {
+  if (currency === 'KRW') {
+    return `₩${Math.round(amount).toLocaleString('ko-KR')}`;
+  }
+  return `$${amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
+}
+
+export function formatNumber(num: number, decimals: number = 0): string {
+  return num.toFixed(decimals).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
+export function formatPercent(num: number, decimals: number = 2): string {
+  return `${num.toFixed(decimals)}%`;
+}
 
 export default api;

@@ -1,0 +1,2697 @@
+"""Naver advertising analytics and management endpoints.
+
+Covers:
+  - Search Ads (검색광고): overview, campaigns, adgroups, keywords, trends, AI analysis
+  - GFA (성과형 디스플레이): overview, campaigns, adgroups, trends, AI analysis
+  - Campaign/keyword management: create, update, bid changes
+  - Reports: generate, email
+  - Auto-rules: CRUD + execution
+"""
+import asyncio
+import json
+import logging
+import uuid
+from datetime import date, datetime, timedelta
+from typing import Any, Dict, List, Optional
+
+import httpx
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.v1.endpoints.auth import get_current_user
+from app.core.config import get_settings
+from app.db.database import get_db
+from app.models.ad_platform import PlatformConnection
+from app.models.auto_rule import AutoRule, AutoRuleLog
+from app.models.user import User
+from app.services.naver import NaverSearchAdsAPI, NaverGFAAPI
+
+logger = logging.getLogger(__name__)
+router = APIRouter()
+settings = get_settings()
+
+
+# ─── Pydantic request/response models ───────────────────────
+
+
+class NaverCampaignCreate(BaseModel):
+    name: str
+    campaign_tp: str = "WEB_SITE"
+    daily_budget: int = 10000
+    delivery_method: str = "STANDARD"
+
+
+class NaverCampaignUpdate(BaseModel):
+    name: Optional[str] = None
+    daily_budget: Optional[int] = None
+    user_lock: Optional[bool] = None
+    delivery_method: Optional[str] = None
+
+
+class NaverAdGroupCreate(BaseModel):
+    name: str
+    bid_amt: int = 70
+    daily_budget: Optional[int] = None
+    targets: Optional[dict] = None
+
+
+class NaverKeywordCreate(BaseModel):
+    adgroup_id: str
+    keywords: List[dict]  # [{"keyword": "...", "bidAmt": 100}, ...]
+
+
+class NaverKeywordBidUpdate(BaseModel):
+    bid_amt: int
+
+
+class GFACampaignCreate(BaseModel):
+    name: str
+    objective: str = "TRAFFIC"
+    daily_budget: int = 10000
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+
+
+class GFACampaignUpdate(BaseModel):
+    name: Optional[str] = None
+    daily_budget: Optional[int] = None
+    status: Optional[str] = None
+
+
+class AIAnalysisRequest(BaseModel):
+    date_range: Optional[str] = "last_7_days"
+    start_date: Optional[str] = None  # Custom start date (YYYY-MM-DD)
+    end_date: Optional[str] = None  # Custom end date (YYYY-MM-DD)
+    focus: Optional[str] = None  # "cost", "conversion", "keyword", etc.
+    custom_prompt: Optional[str] = None
+
+
+class AutoRuleCreate(BaseModel):
+    name: str
+    platform: str = "NAVER_SEARCH"  # NAVER_SEARCH | NAVER_GFA
+    metric: str  # cpc, ctr, roas, spend, etc.
+    operator: str  # gt, lt, gte, lte
+    threshold: float
+    action: str  # pause, increase_budget, decrease_budget, increase_bid, decrease_bid
+    action_value: Optional[float] = None
+    target_type: str = "campaign"
+    target_id: Optional[str] = None
+    target_name: Optional[str] = None
+    duration_type: str = "any"
+    duration_value: Optional[int] = None
+    secondary_metric: Optional[str] = None
+    secondary_operator: Optional[str] = None
+    secondary_threshold: Optional[float] = None
+
+
+class AutoRuleUpdate(BaseModel):
+    name: Optional[str] = None
+    enabled: Optional[bool] = None
+    metric: Optional[str] = None
+    operator: Optional[str] = None
+    threshold: Optional[float] = None
+    action: Optional[str] = None
+    action_value: Optional[float] = None
+
+
+class ReportEmailRequest(BaseModel):
+    recipient_email: str
+    report_type: str = "weekly"  # daily, weekly, monthly
+    platforms: List[str] = ["NAVER_SEARCH", "NAVER_GFA"]
+    date_range: Optional[str] = "last_7_days"
+    start_date: Optional[str] = None  # Custom start date (YYYY-MM-DD)
+    end_date: Optional[str] = None  # Custom end date (YYYY-MM-DD)
+
+
+# ─── Helpers ─────────────────────────────────────────────────
+
+
+async def _get_naver_search_api(
+    current_user: User,
+    db: AsyncSession,
+) -> NaverSearchAdsAPI:
+    """Resolve Naver Search Ads credentials and return API client.
+    Priority: env vars FIRST (most reliable), then PlatformConnection DB (전체 공유).
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    # 1) Prefer global env-var settings (always correct on Railway)
+    if settings.NAVER_ADS_API_KEY and settings.NAVER_ADS_CUSTOMER_ID:
+        logger.info(
+            "Using env-var Naver credentials (customer_id=%s)",
+            settings.NAVER_ADS_CUSTOMER_ID,
+        )
+        return NaverSearchAdsAPI(
+            api_key=settings.NAVER_ADS_API_KEY,
+            secret_key=settings.NAVER_ADS_SECRET_KEY,
+            customer_id=settings.NAVER_ADS_CUSTOMER_ID,
+        )
+
+    # 2) Fallback: PlatformConnection from DB (전체 공유 — user_id 필터 없음)
+    result = await db.execute(
+        select(PlatformConnection).where(
+            PlatformConnection.platform == "NAVER",
+            PlatformConnection.is_active == True,  # noqa: E712
+        ).limit(1)
+    )
+    conn = result.scalar_one_or_none()
+
+    if conn and conn.access_token and conn.account_id:
+        logger.info(
+            "Using DB PlatformConnection Naver credentials (account_id=%s)",
+            conn.account_id,
+        )
+        return NaverSearchAdsAPI(
+            api_key=conn.access_token,
+            secret_key=conn.refresh_token or settings.NAVER_ADS_SECRET_KEY,
+            customer_id=conn.account_id,
+        )
+
+    raise HTTPException(
+        status_code=400,
+        detail="네이버 검색광고 계정이 연결되지 않았습니다. 설정에서 연결해주세요.",
+    )
+
+
+async def _get_naver_gfa_api(
+    current_user: User,
+    db: AsyncSession,
+) -> NaverGFAAPI:
+    """Resolve Naver GFA credentials and return API client (전체 공유)."""
+    result = await db.execute(
+        select(PlatformConnection).where(
+            PlatformConnection.platform == "NAVER",
+            PlatformConnection.is_active == True,  # noqa: E712
+        ).limit(1)
+    )
+    conn = result.scalar_one_or_none()
+
+    # Check for GFA-specific settings first, then fallback
+    gfa_api_key = settings.NAVER_GFA_API_KEY
+    gfa_secret = settings.NAVER_GFA_SECRET_KEY
+    gfa_customer = settings.NAVER_GFA_CUSTOMER_ID
+
+    if gfa_api_key and gfa_customer:
+        return NaverGFAAPI(
+            api_key=gfa_api_key,
+            secret_key=gfa_secret,
+            customer_id=gfa_customer,
+        )
+
+    if conn and conn.access_token and conn.account_id:
+        return NaverGFAAPI(
+            api_key=conn.access_token,
+            secret_key=conn.refresh_token or "",
+            customer_id=conn.account_id,
+        )
+
+    raise HTTPException(
+        status_code=400,
+        detail="네이버 GFA 계정이 연결되지 않았습니다. 설정에서 연결해주세요.",
+    )
+
+
+def _date_range_to_dates(date_range: str, start_date: Optional[str] = None, end_date: Optional[str] = None):
+    """Convert date range preset to (start_date, end_date) strings."""
+    if date_range == "custom" and start_date and end_date:
+        return start_date, end_date
+    today = date.today()
+    presets = {
+        "today": (today, today),
+        "yesterday": (today - timedelta(days=1), today - timedelta(days=1)),
+        "last_7_days": (today - timedelta(days=7), today),
+        "last_14_days": (today - timedelta(days=14), today),
+        "last_30_days": (today - timedelta(days=30), today),
+        "this_month": (today.replace(day=1), today),
+    }
+    start, end = presets.get(date_range, (today - timedelta(days=7), today))
+    return start.isoformat(), end.isoformat()
+
+
+# ═══════════════════════════════════════════════════════════════
+#  SEARCH ADS ENDPOINTS (검색광고)
+# ═══════════════════════════════════════════════════════════════
+
+
+@router.get("/search-ads/env-check")
+async def search_ads_env_check():
+    """검색광고 env vars 설정 상태 (인증 불필요)."""
+    return {
+        "NAVER_ADS_API_KEY_set": bool(settings.NAVER_ADS_API_KEY),
+        "NAVER_ADS_SECRET_KEY_set": bool(settings.NAVER_ADS_SECRET_KEY),
+        "NAVER_ADS_CUSTOMER_ID_set": bool(settings.NAVER_ADS_CUSTOMER_ID),
+        "NAVER_ADS_CUSTOMER_ID_value": settings.NAVER_ADS_CUSTOMER_ID or "(empty)",
+        "NAVER_ADS_API_KEY_prefix": settings.NAVER_ADS_API_KEY[:8] + "***" if settings.NAVER_ADS_API_KEY else "(empty)",
+        "NAVER_CLIENT_ID_set": bool(settings.NAVER_CLIENT_ID),
+        "NAVER_CLIENT_SECRET_set": bool(settings.NAVER_CLIENT_SECRET),
+    }
+
+
+@router.get("/search-ads/debug")
+async def search_ads_debug(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """검색광고 API 연결 디버그 (인증 정보 확인)."""
+    # Show which credential source will be used
+    env_available = bool(settings.NAVER_ADS_API_KEY and settings.NAVER_ADS_CUSTOMER_ID)
+
+    result_db = await db.execute(
+        select(PlatformConnection).where(
+            PlatformConnection.platform == "NAVER",
+            PlatformConnection.is_active == True,  # noqa: E712
+        ).limit(1)
+    )
+    db_conn = result_db.scalar_one_or_none()
+    db_available = bool(db_conn and db_conn.access_token and db_conn.account_id)
+
+    api = await _get_naver_search_api(current_user, db)
+    debug_info = {
+        "credential_source": "env_vars" if env_available else ("db_platform_connection" if db_available else "none"),
+        "env_vars_set": env_available,
+        "db_connection_exists": db_available,
+        "db_account_id": db_conn.account_id if db_conn else None,
+        "env_customer_id": settings.NAVER_ADS_CUSTOMER_ID if env_available else None,
+        "resolved_customer_id": api.customer_id,
+        "api_key_length": len(api.api_key) if api.api_key else 0,
+        "secret_key_length": len(api.secret_key) if api.secret_key else 0,
+        "api_key_prefix": api.api_key[:4] + "***" if api.api_key else "",
+    }
+    try:
+        campaigns = await api.get_campaigns()
+        debug_info["status"] = "OK"
+        debug_info["campaigns_count"] = len(campaigns)
+    except Exception as e:
+        debug_info["status"] = "ERROR"
+        debug_info["error"] = str(e)
+    return debug_info
+
+
+@router.get("/search-ads/overview")
+async def search_ads_overview(
+    date_range: str = Query(default="last_7_days"),
+    start_date: Optional[str] = Query(default=None, description="Custom start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(default=None, description="Custom end date (YYYY-MM-DD)"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """검색광고 계정 전체 성과 개요."""
+    api = await _get_naver_search_api(current_user, db)
+    start_date_val, end_date_val = _date_range_to_dates(date_range, start_date, end_date)
+
+    # Fetch campaigns + stats
+    try:
+        campaigns = await api.get_campaigns()
+    except Exception as e:
+        logger.error("Naver Search Ads get_campaigns failed: %s", e)
+        raise HTTPException(status_code=502, detail=f"네이버 검색광고 API 연결 실패: {str(e)}")
+    campaign_ids = [c.get("nccCampaignId") for c in campaigns if c.get("nccCampaignId")]
+
+    stats = []
+    stat_error = None
+    if campaign_ids:
+        try:
+            stats = await api.get_stat_report(
+                ids=campaign_ids,
+                date_preset="custom",
+                start_date=start_date_val,
+                end_date=end_date_val,
+                time_increment="allDays",
+            )
+            logger.info("Naver stat_report returned %d items for %d campaigns", len(stats), len(campaign_ids))
+        except Exception as e:
+            stat_error = str(e)
+            logger.warning("Naver Search Ads get_stat_report failed: %s", e)
+
+    # Aggregate totals
+    totals = {
+        "impressions": 0,
+        "clicks": 0,
+        "spend": 0,
+        "conversions": 0,
+        "revenue": 0,
+    }
+    avg_rnk_sum = 0.0
+    avg_rnk_count = 0
+    for s in stats:
+        totals["impressions"] += int(s.get("impCnt", 0))
+        totals["clicks"] += int(s.get("clkCnt", 0))
+        totals["spend"] += float(s.get("salesAmt", 0))
+        totals["conversions"] += int(s.get("ccnt", 0))
+        totals["revenue"] += float(s.get("convAmt", 0))
+        rnk = s.get("avgRnk")
+        if rnk and float(rnk) > 0:
+            avg_rnk_sum += float(rnk)
+            avg_rnk_count += 1
+
+    imp = totals["impressions"]
+    clk = totals["clicks"]
+    spend = totals["spend"]
+    rev = totals["revenue"]
+
+    totals["ctr"] = (clk / imp * 100) if imp > 0 else 0
+    totals["cpc"] = (spend / clk) if clk > 0 else 0
+    totals["roas"] = (rev / spend * 100) if spend > 0 else 0
+    totals["avg_rank"] = round(avg_rnk_sum / avg_rnk_count, 1) if avg_rnk_count > 0 else None
+
+    return {
+        "platform": "NAVER_SEARCH",
+        "date_range": date_range,
+        "start_date": start_date_val,
+        "end_date": end_date_val,
+        "total_campaigns": len(campaigns),
+        "active_campaigns": len([c for c in campaigns if not c.get("userLock")]),
+        "totals": totals,
+        "currency": "KRW",
+        "_debug_stat_count": len(stats),
+        "_debug_stat_error": stat_error,
+    }
+
+
+@router.get("/search-ads/campaigns")
+async def search_ads_campaigns(
+    date_range: str = Query(default="last_7_days"),
+    start_date: Optional[str] = Query(default=None, description="Custom start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(default=None, description="Custom end date (YYYY-MM-DD)"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """캠페인 목록 + 성과 데이터."""
+    api = await _get_naver_search_api(current_user, db)
+    start_date_val, end_date_val = _date_range_to_dates(date_range, start_date, end_date)
+
+    try:
+        campaigns = await api.get_campaigns()
+    except Exception as e:
+        logger.error("Naver Search Ads get_campaigns failed: %s", e)
+        raise HTTPException(status_code=502, detail=f"네이버 검색광고 API 연결 실패: {str(e)}")
+    campaign_ids = [c.get("nccCampaignId") for c in campaigns if c.get("nccCampaignId")]
+
+    stats_map = {}
+    if campaign_ids:
+        try:
+            stats = await api.get_stat_report(
+                ids=campaign_ids,
+                date_preset="custom",
+                start_date=start_date_val,
+                end_date=end_date_val,
+                time_increment="allDays",
+            )
+        except Exception as e:
+            logger.warning("Naver Search Ads get_stat_report failed for campaigns: %s", e)
+            stats = []
+        for s in stats:
+            stats_map[s.get("id")] = s
+
+    result = []
+    for c in campaigns:
+        cid = c.get("nccCampaignId")
+        s = stats_map.get(cid, {})
+        imp = int(s.get("impCnt", 0))
+        clk = int(s.get("clkCnt", 0))
+        spend = float(s.get("salesAmt", 0))
+        conv = int(s.get("ccnt", 0))
+        rev = float(s.get("convAmt", 0))
+        avg_rnk = float(s.get("avgRnk", 0)) if s.get("avgRnk") else None
+
+        result.append({
+            "campaign_id": cid,
+            "name": c.get("name"),
+            "campaign_tp": c.get("campaignTp"),
+            "status": "PAUSED" if c.get("userLock") else "ACTIVE",
+            "daily_budget": c.get("dailyBudget"),
+            "delivery_method": c.get("deliveryMethod"),
+            "impressions": imp,
+            "clicks": clk,
+            "spend": spend,
+            "conversions": conv,
+            "revenue": rev,
+            "ctr": (clk / imp * 100) if imp > 0 else 0,
+            "cpc": (spend / clk) if clk > 0 else 0,
+            "roas": (rev / spend * 100) if spend > 0 else 0,
+            "avg_rank": round(avg_rnk, 1) if avg_rnk else None,
+        })
+
+    return {
+        "platform": "NAVER_SEARCH",
+        "date_range": date_range,
+        "campaigns": result,
+    }
+
+
+@router.get("/search-ads/campaign/{campaign_id}/adgroups")
+async def search_ads_adgroups(
+    campaign_id: str,
+    date_range: str = Query(default="last_7_days"),
+    start_date: Optional[str] = Query(default=None, description="Custom start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(default=None, description="Custom end date (YYYY-MM-DD)"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """캠페인 내 광고그룹 목록 + 성과 데이터."""
+    api = await _get_naver_search_api(current_user, db)
+    start_date_val, end_date_val = _date_range_to_dates(date_range, start_date, end_date)
+    adgroups = await api.get_adgroups(campaign_id=campaign_id)
+
+    # Fetch stats for adgroups
+    ag_ids = [ag.get("nccAdgroupId") for ag in adgroups if ag.get("nccAdgroupId")]
+    stats_map = {}
+    if ag_ids:
+        try:
+            stats = await api.get_stat_report(
+                ids=ag_ids, date_preset="custom",
+                start_date=start_date_val, end_date=end_date_val,
+                time_increment="allDays",
+            )
+            for s in stats:
+                stats_map[s.get("id")] = s
+        except Exception as e:
+            logger.warning("Adgroup stats failed: %s", e)
+
+    result = []
+    for ag in adgroups:
+        ag_id = ag.get("nccAdgroupId")
+        s = stats_map.get(ag_id, {})
+        imp = int(s.get("impCnt", 0))
+        clk = int(s.get("clkCnt", 0))
+        spend = float(s.get("salesAmt", 0))
+        conv_amt = float(s.get("convAmt", 0))
+        avg_rnk = float(s.get("avgRnk", 0)) if s.get("avgRnk") else None
+        roas = round(conv_amt / spend * 100, 1) if spend > 0 and conv_amt > 0 else None
+        is_paused = ag.get("userLock", False)
+        ag_status = ag.get("status", "")
+        status = "PAUSED" if is_paused or ag_status in ("PAUSED",) else "ACTIVE"
+
+        result.append({
+            "nccAdgroupId": ag_id,
+            "name": ag.get("name"),
+            "status": status,
+            "bidAmt": ag.get("bidAmt", 0),
+            "spend": spend,
+            "clicks": clk,
+            "impressions": imp,
+            "ctr": (clk / imp * 100) if imp > 0 else 0,
+            "cpc": (spend / clk) if clk > 0 else 0,
+            "conv_amt": conv_amt,
+            "roas": roas,
+            "avg_rank": round(avg_rnk, 1) if avg_rnk else None,
+        })
+
+    return {"campaign_id": campaign_id, "adgroups": result}
+
+
+@router.get("/search-ads/campaign/{campaign_id}/keywords")
+async def search_ads_keywords(
+    campaign_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """캠페인 내 키워드 목록 + 입찰가."""
+    api = await _get_naver_search_api(current_user, db)
+    adgroups = await api.get_adgroups(campaign_id=campaign_id)
+
+    all_keywords = []
+    for ag in adgroups:
+        ag_id = ag.get("nccAdgroupId")
+        if not ag_id:
+            continue
+        keywords = await api.get_keywords(ag_id)
+        for kw in keywords:
+            kw["adgroupName"] = ag.get("name")
+        all_keywords.extend(keywords)
+
+    return {
+        "campaign_id": campaign_id,
+        "total_keywords": len(all_keywords),
+        "keywords": all_keywords,
+    }
+
+
+def _extract_search_terms_from_adgroup_name(name: str) -> List[str]:
+    """광고그룹 이름에서 검색어 추출.
+
+    예: "자사키워드(쿠키)" → ["쿠키"]
+        "자사키워드(마카롱&뚱카롱)" → ["마카롱", "뚱카롱"]
+        "🍪[스스] 자사키워드_스콘" → ["스콘"]
+    """
+    import re
+    terms = []
+    # 괄호 안 내용 추출: (쿠키), (마카롱&뚱카롱)
+    paren_match = re.findall(r'[（(]([^)）]+)[)）]', name)
+    for m in paren_match:
+        for part in re.split(r'[&,/·]', m):
+            t = part.strip()
+            if t and t not in ("자사키워드", "키워드"):
+                terms.append(t)
+    # 언더스코어 뒤 내용 추출: _스콘, _식빵
+    underscore_match = re.findall(r'_([^_\s(）)]+)', name)
+    for m in underscore_match:
+        t = m.strip()
+        if t and t not in ("외", "자사키워드") and t not in terms:
+            terms.append(t)
+    return terms
+
+
+async def _search_naver_shopping(keyword_text: str, brand: str) -> dict:
+    """네이버 쇼핑 검색 API로 브랜드 상품 랭킹 조회."""
+    shopping_rank = None
+    shopping_error = None
+    total_results = 0
+    matched_product = None
+
+    if not settings.NAVER_CLIENT_ID or not settings.NAVER_CLIENT_SECRET:
+        return {"shopping_rank": None, "shopping_error": "NAVER_CLIENT_ID/SECRET 미설정",
+                "shopping_total": 0, "matched_product": None}
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                "https://openapi.naver.com/v1/search/shop.json",
+                params={"query": keyword_text, "display": 40},
+                headers={
+                    "X-Naver-Client-Id": settings.NAVER_CLIENT_ID,
+                    "X-Naver-Client-Secret": settings.NAVER_CLIENT_SECRET,
+                },
+            )
+            if resp.status_code == 200:
+                resp_json = resp.json()
+                items = resp_json.get("items", [])
+                total_results = resp_json.get("total", 0)
+                for idx, item in enumerate(items):
+                    title_clean = item.get("title", "").replace("<b>", "").replace("</b>", "")
+                    mall_name = item.get("mallName", "")
+                    brand_name = item.get("brand", "")
+                    if brand in title_clean or brand in mall_name or brand in brand_name:
+                        shopping_rank = idx + 1
+                        matched_product = {
+                            "title": title_clean,
+                            "price": item.get("lprice"),
+                            "mallName": mall_name,
+                            "image": item.get("image"),
+                        }
+                        break
+            else:
+                shopping_error = f"HTTP {resp.status_code}"
+    except Exception as e:
+        shopping_error = str(e)
+        logger.warning("Shopping search failed for '%s': %s", keyword_text, e)
+
+    return {
+        "shopping_rank": shopping_rank,
+        "shopping_error": shopping_error,
+        "shopping_total": total_results,
+        "matched_product": matched_product,
+    }
+
+
+@router.get("/search-ads/campaign/{campaign_id}/keyword-rankings")
+async def search_ads_keyword_rankings(
+    campaign_id: str,
+    brand: str = Query(default="널담"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """캠페인 키워드별 품질지수 + 네이버 쇼핑 검색 랭킹 조회.
+
+    WEB_SITE 캠페인: 광고그룹 → 키워드(품질지수) → 쇼핑 랭킹
+    SHOPPING 캠페인: 광고그룹 이름에서 검색어 추출 → 쇼핑 랭킹
+    """
+    api = await _get_naver_search_api(current_user, db)
+
+    # 0) 캠페인 타입 확인
+    campaign_type = None
+    try:
+        campaign_info = await api.get_campaign(campaign_id)
+        campaign_type = campaign_info.get("campaignTp", "")
+    except Exception as e:
+        logger.warning("get_campaign failed for %s: %s", campaign_id, e)
+
+    # 1) 광고그룹 조회
+    try:
+        adgroups = await api.get_adgroups(campaign_id=campaign_id)
+    except Exception as e:
+        logger.error("get_adgroups failed for campaign %s: %s", campaign_id, e)
+        return {
+            "campaign_id": campaign_id, "campaign_type": campaign_type,
+            "total_keywords": 0, "checked_keywords": 0,
+            "rankings": [], "ads": [],
+            "_debug": f"광고그룹 조회 실패: {e}", "_adgroup_count": 0,
+        }
+
+    if not adgroups:
+        return {
+            "campaign_id": campaign_id, "campaign_type": campaign_type,
+            "total_keywords": 0, "checked_keywords": 0,
+            "rankings": [], "ads": [],
+            "_debug": "이 캠페인에 광고그룹이 없습니다.", "_adgroup_count": 0,
+        }
+
+    # 2) 소재(광고) 수집 — 모든 캠페인 타입 공통
+    all_ads = []
+    for ag in adgroups:
+        ag_id = ag.get("nccAdgroupId")
+        if not ag_id:
+            continue
+        ag_name = ag.get("name", "")
+        try:
+            ads = await api.get_ads(ag_id)
+            for ad in ads:
+                pc = ad.get("ad", {}).get("pc", ad.get("pc", {})) or {}
+                mobile = ad.get("ad", {}).get("mobile", ad.get("mobile", {})) or {}
+                all_ads.append({
+                    "nccAdId": ad.get("nccAdId"),
+                    "adgroupName": ag_name,
+                    "type": ad.get("type"),
+                    "status": ad.get("status"),
+                    "inspectStatus": ad.get("inspectStatus"),
+                    "title": pc.get("subject") or mobile.get("subject") or ad.get("subject") or "",
+                    "description": pc.get("description") or mobile.get("description") or "",
+                })
+        except Exception as e:
+            logger.warning("get_ads failed for adgroup %s: %s", ag_id, e)
+
+    # 3) 키워드 수집 방식 분기
+    is_shopping = campaign_type in ("SHOPPING",)
+    all_keywords = []
+    keyword_errors = []
+
+    if is_shopping:
+        # 쇼핑검색 캠페인: 광고그룹 이름에서 검색어 추출
+        seen_terms = set()
+        for ag in adgroups:
+            ag_name = ag.get("name", "")
+            ag_status = ag.get("status", "")
+            ag_paused = ag.get("userLock", False) or ag_status in ("PAUSED", "DELETED")
+            bid_amt = ag.get("bidAmt", 0)
+            terms = _extract_search_terms_from_adgroup_name(ag_name)
+            for term in terms:
+                if term.lower() not in seen_terms:
+                    seen_terms.add(term.lower())
+                    all_keywords.append({
+                        "keyword": term,
+                        "adgroupName": ag_name,
+                        "bidAmt": bid_amt,
+                        "qualityIndex": None,  # 쇼핑캠페인은 품질지수 없음
+                        "status": ag_status,
+                        "userLock": ag_paused,
+                        "source": "adgroup_name",
+                    })
+    else:
+        # WEB_SITE / 기타 캠페인: API 키워드 조회
+        for ag in adgroups:
+            ag_id = ag.get("nccAdgroupId")
+            if not ag_id:
+                continue
+            ag_name = ag.get("name", "")
+            try:
+                keywords = await api.get_keywords(ag_id)
+                for kw in keywords:
+                    kw["adgroupName"] = ag_name
+                    kw["adgroupBidAmt"] = ag.get("bidAmt", 0)
+                all_keywords.extend(keywords)
+            except Exception as e:
+                keyword_errors.append(f"{ag_name}: {e}")
+                logger.warning("get_keywords failed for adgroup %s: %s", ag_id, e)
+
+    if not all_keywords:
+        debug_msg = "이 캠페인에 등록된 키워드가 없습니다."
+        if is_shopping:
+            debug_msg = "광고그룹 이름에서 검색어를 추출할 수 없습니다."
+        if keyword_errors:
+            debug_msg += f" 오류: {'; '.join(keyword_errors)}"
+        return {
+            "campaign_id": campaign_id, "campaign_type": campaign_type,
+            "total_keywords": 0, "checked_keywords": 0,
+            "rankings": [], "ads": all_ads,
+            "_debug": debug_msg,
+            "_adgroup_count": len(adgroups),
+            "_adgroup_names": [ag.get("name") for ag in adgroups],
+        }
+
+    # 4) 키워드별 네이버 쇼핑 검색 순위 조회 (최대 20개)
+    ranking_results = []
+    checked_keywords = all_keywords[:20]
+
+    for kw in checked_keywords:
+        keyword_text = kw.get("keyword", "")
+        if not keyword_text:
+            continue
+
+        bid_amt = kw.get("bidAmt") or kw.get("adgroupBidAmt") or 0
+        quality_index = kw.get("qualityIndex")
+        kw_status = kw.get("status", "")
+        is_paused = kw.get("userLock", False) or kw_status in ("PAUSED", "DELETED")
+
+        shop = await _search_naver_shopping(keyword_text, brand)
+
+        ranking_results.append({
+            "keyword": keyword_text,
+            "nccKeywordId": kw.get("nccKeywordId"),
+            "adgroupName": kw.get("adgroupName"),
+            "bidAmt": bid_amt,
+            "qualityIndex": quality_index,
+            "status": "중지" if is_paused else "활성",
+            "shopping_rank": shop["shopping_rank"],
+            "shopping_rank_label": f"{shop['shopping_rank']}위" if shop["shopping_rank"] else "미노출",
+            "shopping_total": shop["shopping_total"],
+            "shopping_error": shop["shopping_error"],
+            "matched_product": shop["matched_product"],
+            "source": kw.get("source", "api"),
+        })
+
+    return {
+        "campaign_id": campaign_id,
+        "campaign_type": campaign_type,
+        "total_keywords": len(all_keywords),
+        "checked_keywords": len(ranking_results),
+        "rankings": ranking_results,
+        "ads": all_ads,
+        "_adgroup_count": len(adgroups),
+        "_keyword_errors": keyword_errors if keyword_errors else None,
+    }
+
+
+@router.get("/search-ads/trend")
+async def search_ads_trend(
+    date_range: str = Query(default="last_7_days"),
+    start_date: Optional[str] = Query(default=None, description="Custom start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(default=None, description="Custom end date (YYYY-MM-DD)"),
+    campaign_id: Optional[str] = Query(default=None),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """일별 성과 추이."""
+    api = await _get_naver_search_api(current_user, db)
+    start_date_val, end_date_val = _date_range_to_dates(date_range, start_date, end_date)
+
+    if campaign_id:
+        ids = [campaign_id]
+    else:
+        ids = await api.get_campaign_ids()
+
+    if not ids:
+        return {"trend": [], "date_range": date_range}
+
+    daily_stats = await api.get_stat_report(
+        ids=ids,
+        date_preset="custom",
+        start_date=start_date_val,
+        end_date=end_date_val,
+        time_increment="1",  # daily
+    )
+
+    # Group by date
+    date_map: dict = {}
+    for s in daily_stats:
+        dt = s.get("statDt", "")
+        if dt not in date_map:
+            date_map[dt] = {
+                "date": dt,
+                "impressions": 0,
+                "clicks": 0,
+                "spend": 0,
+                "conversions": 0,
+                "revenue": 0,
+            }
+        date_map[dt]["impressions"] += int(s.get("impCnt", 0))
+        date_map[dt]["clicks"] += int(s.get("clkCnt", 0))
+        date_map[dt]["spend"] += float(s.get("salesAmt", 0))
+        date_map[dt]["conversions"] += int(s.get("ccnt", 0))
+        date_map[dt]["revenue"] += float(s.get("convAmt", 0))
+
+    trend = []
+    for dt_data in sorted(date_map.values(), key=lambda x: x["date"]):
+        imp = dt_data["impressions"]
+        clk = dt_data["clicks"]
+        sp = dt_data["spend"]
+        rv = dt_data["revenue"]
+        dt_data["ctr"] = (clk / imp * 100) if imp > 0 else 0
+        dt_data["cpc"] = (sp / clk) if clk > 0 else 0
+        dt_data["roas"] = (rv / sp * 100) if sp > 0 else 0
+        trend.append(dt_data)
+
+    return {"date_range": date_range, "trend": trend}
+
+
+@router.post("/search-ads/ai-analysis")
+async def search_ads_ai_analysis(
+    request: AIAnalysisRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """검색광고 AI 분석 (Claude) — 집계된 데이터 기반, 구조화된 JSON 응답."""
+    # 1) Check ANTHROPIC_API_KEY first
+    if not settings.ANTHROPIC_API_KEY:
+        raise HTTPException(500, detail="ANTHROPIC_API_KEY 환경변수가 설정되지 않았습니다.")
+
+    # 2) Fetch Naver data
+    try:
+        api = await _get_naver_search_api(current_user, db)
+        start_date_val, end_date_val = _date_range_to_dates(request.date_range or "last_7_days", request.start_date, request.end_date)
+        campaigns = await api.get_campaigns()
+
+        # Filter to ACTIVE campaigns only (userLock=False or None means active)
+        active_campaigns = [c for c in campaigns if not c.get("userLock")]
+        active_ids = [c.get("nccCampaignId") for c in active_campaigns if c.get("nccCampaignId")]
+
+        stats = []
+        if active_ids:
+            try:
+                stats = await api.get_stat_report(
+                    ids=active_ids,
+                    date_preset="custom",
+                    start_date=start_date_val,
+                    end_date=end_date_val,
+                    time_increment="allDays",
+                )
+            except Exception as e:
+                logger.warning("Stats fetch failed, continuing without stats: %s", e)
+    except Exception as e:
+        logger.error("Naver data fetch failed for AI analysis: %s", e, exc_info=True)
+        raise HTTPException(500, detail=f"네이버 데이터 조회 실패: {e}")
+
+    # 3) Aggregate totals (same logic as overview endpoint)
+    totals = {
+        "impressions": 0,
+        "clicks": 0,
+        "spend": 0,
+        "conversions": 0,
+        "revenue": 0,
+    }
+    avg_rnk_sum = 0.0
+    avg_rnk_count = 0
+    for s in stats:
+        totals["impressions"] += int(s.get("impCnt", 0))
+        totals["clicks"] += int(s.get("clkCnt", 0))
+        totals["spend"] += float(s.get("salesAmt", 0))
+        totals["conversions"] += int(s.get("ccnt", 0))
+        totals["revenue"] += float(s.get("convAmt", 0))
+        rnk = s.get("avgRnk")
+        if rnk and float(rnk) > 0:
+            avg_rnk_sum += float(rnk)
+            avg_rnk_count += 1
+
+    imp = totals["impressions"]
+    clk = totals["clicks"]
+    spend = totals["spend"]
+    rev = totals["revenue"]
+    totals["ctr"] = round((clk / imp * 100), 2) if imp > 0 else 0
+    totals["cpc"] = round((spend / clk), 0) if clk > 0 else 0
+    totals["roas"] = round((rev / spend * 100), 1) if spend > 0 else 0
+    totals["avg_rank"] = round(avg_rnk_sum / avg_rnk_count, 1) if avg_rnk_count > 0 else None
+
+    # 4) Build per-campaign aggregated data
+    stats_map = {}
+    for s in stats:
+        stats_map[s.get("id")] = s
+
+    per_campaign_data = []
+    for c in active_campaigns:
+        cid = c.get("nccCampaignId")
+        s = stats_map.get(cid, {})
+        c_imp = int(s.get("impCnt", 0))
+        c_clk = int(s.get("clkCnt", 0))
+        c_spend = float(s.get("salesAmt", 0))
+        c_conv = int(s.get("ccnt", 0))
+        c_rev = float(s.get("convAmt", 0))
+        c_avg_rnk = float(s.get("avgRnk", 0)) if s.get("avgRnk") else None
+
+        per_campaign_data.append({
+            "name": c.get("name"),
+            "type": c.get("campaignTp"),
+            "daily_budget": c.get("dailyBudget"),
+            "impressions": c_imp,
+            "clicks": c_clk,
+            "spend": c_spend,
+            "conversions": c_conv,
+            "revenue": c_rev,
+            "ctr": round((c_clk / c_imp * 100), 2) if c_imp > 0 else 0,
+            "cpc": round((c_spend / c_clk), 0) if c_clk > 0 else 0,
+            "roas": round((c_rev / c_spend * 100), 1) if c_spend > 0 else 0,
+            "avg_rank": round(c_avg_rnk, 1) if c_avg_rnk else None,
+        })
+
+    # 5) Build context for AI with aggregated data
+    context = {
+        "platform": "네이버 검색광고 (Naver Search Ads)",
+        "date_range": f"{start_date_val} ~ {end_date_val}",
+        "total_campaigns": len(campaigns),
+        "active_campaigns": len(active_campaigns),
+        "paused_campaigns": len(campaigns) - len(active_campaigns),
+        "totals": {
+            "impressions": totals["impressions"],
+            "clicks": totals["clicks"],
+            "spend": f"{totals['spend']:,.0f}원",
+            "conversions": totals["conversions"],
+            "revenue": f"{totals['revenue']:,.0f}원",
+            "ctr": f"{totals['ctr']}%",
+            "cpc": f"{totals['cpc']:,.0f}원",
+            "roas": f"{totals['roas']}%",
+            "avg_rank": totals["avg_rank"],
+        },
+        "campaigns": per_campaign_data,
+    }
+
+    focus_prompt = ""
+    if request.focus:
+        focus_prompt = f"\n특히 '{request.focus}' 관점에서 심층 분석해주세요."
+    if request.custom_prompt:
+        focus_prompt += f"\n{request.custom_prompt}"
+
+    prompt = f"""네이버 검색광고 성과 데이터를 분석해주세요.
+{focus_prompt}
+
+아래는 활성 캠페인만 필터링하여 집계한 실제 성과 데이터입니다:
+
+{json.dumps(context, ensure_ascii=False, default=str)}
+
+반드시 아래 JSON 형식으로만 응답해주세요. JSON 외 다른 텍스트는 출력하지 마세요:
+```json
+{{
+  "summary": "전체 성과에 대한 2-3문장 요약 (핵심 KPI 수치 포함)",
+  "kpi_highlights": [
+    {{"metric": "지표명", "value": "수치", "evaluation": "평가 (좋음/보통/개선필요)", "detail": "설명"}}
+  ],
+  "insights": [
+    {{"type": "positive|negative|neutral|warning", "priority": "high|medium|low", "title": "인사이트 제목", "detail": "상세 설명 1-2문장"}}
+  ],
+  "recommendations": [
+    {{"priority": "high|medium|low", "title": "제안 제목", "detail": "구체적인 실행 방법", "expected_impact": "예상 효과"}}
+  ],
+  "action_items": [
+    "즉시 실행 가능한 구체적 액션 1",
+    "즉시 실행 가능한 구체적 액션 2"
+  ],
+  "active_campaigns_analysis": [
+    {{"campaign_name": "캠페인명", "grade": "A/B/C/D/F", "summary": "ROAS 중심 1-2문장 평가", "kpi_highlight": "ROAS 150% | CPC ₩500 | 전환 10건"}}
+  ],
+  "overall_grade": "A/B/C/D/F",
+  "grade_reason": "등급 부여 사유 1-2문장"
+}}
+```
+
+중요 규칙:
+- 분석의 핵심 기준은 ROAS(매출/광고비)이며, CTR은 보조 지표로만 활용
+- kpi_highlights: 4~6개 필수 (노출, 클릭, 광고비, 전환, 매출, ROAS, CTR, CPC 중 주요 지표)
+- insights: 3~5개 필수. type은 "positive"/"negative"/"neutral"/"warning" 중 택1
+- recommendations: 3~5개 필수. ROAS 개선 중심으로 정렬
+- action_items: 3~5개 필수. 즉시 실행 가능한 구체적 행동
+- active_campaigns_analysis: 활성 캠페인별 성과 평가 (최대 10개)
+- overall_grade: 전체 계정 성과 등급 (A/B/C/D/F)
+- 모든 금액은 ₩ 원화만 사용 ($ 달러 금지)
+- 위에 제공한 집계 데이터의 실제 수치를 정확히 인용하세요
+- JSON 외 다른 텍스트 출력 금지"""
+
+    # 6) Call AI with fallback models
+    from anthropic import Anthropic
+    try:
+        client = Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+    except Exception as e:
+        logger.error("Anthropic client init failed: %s", e)
+        raise HTTPException(500, detail=f"AI 클라이언트 초기화 실패: {e}")
+
+    models_to_try = [
+        "claude-sonnet-4-20250514",
+        "claude-3-7-sonnet-20250219",
+        "claude-3-5-sonnet-20241022",
+        "claude-3-5-haiku-20241022",
+    ]
+    raw_response = None
+    last_error = None
+    for model_id in models_to_try:
+        try:
+            response = client.messages.create(
+                model=model_id,
+                max_tokens=4000,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            raw_response = response.content[0].text.strip()
+            logger.info("AI analysis succeeded with model: %s (len=%d)", model_id, len(raw_response))
+            break
+        except Exception as model_err:
+            last_error = str(model_err)
+            logger.warning("AI model %s failed: %s", model_id, model_err)
+
+    if not raw_response:
+        raise HTTPException(500, detail=f"사용 가능한 AI 모델이 없습니다. 마지막 오류: {last_error}")
+
+    # 7) Parse structured JSON from AI response
+    import re as _re
+    parsed_json = None
+
+    # Method 1: ```json block
+    if "```json" in raw_response:
+        block = raw_response.split("```json")[1].split("```")[0].strip()
+        try:
+            parsed_json = json.loads(block)
+        except json.JSONDecodeError:
+            pass
+
+    # Method 2: ``` block
+    if not parsed_json and "```" in raw_response:
+        parts = raw_response.split("```")
+        if len(parts) >= 3:
+            block = parts[1].strip()
+            if block.startswith("json"):
+                block = block[4:].strip()
+            try:
+                parsed_json = json.loads(block)
+            except json.JSONDecodeError:
+                pass
+
+    # Method 3: Find balanced braces
+    if not parsed_json:
+        start_idx = raw_response.find("{")
+        if start_idx >= 0:
+            depth = 0
+            in_str = False
+            esc = False
+            for idx in range(start_idx, len(raw_response)):
+                c = raw_response[idx]
+                if esc:
+                    esc = False
+                    continue
+                if c == '\\':
+                    esc = True
+                    continue
+                if c == '"':
+                    in_str = not in_str
+                    continue
+                if in_str:
+                    continue
+                if c == '{':
+                    depth += 1
+                elif c == '}':
+                    depth -= 1
+                    if depth == 0:
+                        json_str = raw_response[start_idx:idx + 1]
+                        json_str = _re.sub(r',\s*([}\]])', r'\1', json_str)
+                        try:
+                            parsed_json = json.loads(json_str)
+                        except json.JSONDecodeError:
+                            pass
+                        break
+
+    # 8) Build structured response
+    if not parsed_json:
+        logger.warning("AI analysis JSON parse failed, returning raw text as summary")
+        parsed_json = {
+            "summary": raw_response[:500],
+            "parse_error": True,
+        }
+
+    data_summary = {
+        "total_campaigns": len(campaigns),
+        "active_campaigns": len(active_campaigns),
+        "paused_campaigns": len(campaigns) - len(active_campaigns),
+        "stats_records": len(stats),
+        "totals": totals,
+    }
+
+    return {
+        "platform": "NAVER_SEARCH",
+        "date_range": request.date_range,
+        "summary": parsed_json.get("summary"),
+        "analysis": parsed_json,
+        "kpi_highlights": parsed_json.get("kpi_highlights", []),
+        "insights": parsed_json.get("insights", []),
+        "recommendations": parsed_json.get("recommendations", []),
+        "action_items": parsed_json.get("action_items", []),
+        "active_campaigns_analysis": parsed_json.get("active_campaigns_analysis", []),
+        "overall_grade": parsed_json.get("overall_grade"),
+        "grade_reason": parsed_json.get("grade_reason"),
+        "data_summary": data_summary,
+    }
+
+
+# ═══════════════════════════════════════════════════════════════
+#  GFA ENDPOINTS (성과형 디스플레이 광고)
+# ═══════════════════════════════════════════════════════════════
+
+
+@router.get("/gfa/overview")
+async def gfa_overview(
+    date_range: str = Query(default="last_7_days"),
+    start_date: Optional[str] = Query(default=None, description="Custom start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(default=None, description="Custom end date (YYYY-MM-DD)"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """GFA 계정 전체 성과 개요."""
+    api = await _get_naver_gfa_api(current_user, db)
+    start_date_val, end_date_val = _date_range_to_dates(date_range, start_date, end_date)
+
+    campaigns = await api.get_campaigns()
+    campaign_ids = [c.get("id") for c in campaigns if c.get("id")]
+
+    report = []
+    if campaign_ids:
+        report = await api.get_performance_report(
+            campaign_ids=campaign_ids,
+            start_date=start_date_val,
+            end_date=end_date_val,
+            time_increment="TOTAL",
+        )
+
+    totals = {
+        "impressions": 0,
+        "clicks": 0,
+        "spend": 0,
+        "conversions": 0,
+        "revenue": 0,
+    }
+    for r in report:
+        totals["impressions"] += int(r.get("impressions", 0))
+        totals["clicks"] += int(r.get("clicks", 0))
+        totals["spend"] += float(r.get("spend", 0))
+        totals["conversions"] += int(r.get("conversions", 0))
+        totals["revenue"] += float(r.get("revenue", 0))
+
+    imp = totals["impressions"]
+    clk = totals["clicks"]
+    spend = totals["spend"]
+    rev = totals["revenue"]
+
+    totals["ctr"] = (clk / imp * 100) if imp > 0 else 0
+    totals["cpc"] = (spend / clk) if clk > 0 else 0
+    totals["roas"] = (rev / spend * 100) if spend > 0 else 0
+
+    return {
+        "platform": "NAVER_GFA",
+        "date_range": date_range,
+        "start_date": start_date_val,
+        "end_date": end_date_val,
+        "total_campaigns": len(campaigns),
+        "active_campaigns": len([c for c in campaigns if c.get("status") == "ACTIVE"]),
+        "totals": totals,
+        "currency": "KRW",
+    }
+
+
+@router.get("/gfa/campaigns")
+async def gfa_campaigns(
+    date_range: str = Query(default="last_7_days"),
+    start_date: Optional[str] = Query(default=None, description="Custom start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(default=None, description="Custom end date (YYYY-MM-DD)"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """GFA 캠페인 목록 + 성과."""
+    api = await _get_naver_gfa_api(current_user, db)
+    start_date_val, end_date_val = _date_range_to_dates(date_range, start_date, end_date)
+
+    campaigns = await api.get_campaigns()
+
+    campaign_ids = [c.get("id") for c in campaigns if c.get("id")]
+    stats_map = {}
+    if campaign_ids:
+        report = await api.get_performance_report(
+            campaign_ids=campaign_ids,
+            start_date=start_date_val,
+            end_date=end_date_val,
+            time_increment="TOTAL",
+        )
+        for r in report:
+            stats_map[r.get("campaignId")] = r
+
+    result = []
+    for c in campaigns:
+        cid = c.get("id")
+        s = stats_map.get(cid, {})
+        imp = int(s.get("impressions", 0))
+        clk = int(s.get("clicks", 0))
+        spend = float(s.get("spend", 0))
+        conv = int(s.get("conversions", 0))
+        rev = float(s.get("revenue", 0))
+
+        result.append({
+            "campaign_id": cid,
+            "name": c.get("name"),
+            "objective": c.get("objective"),
+            "status": c.get("status"),
+            "daily_budget": c.get("dailyBudget"),
+            "impressions": imp,
+            "clicks": clk,
+            "spend": spend,
+            "conversions": conv,
+            "revenue": rev,
+            "ctr": (clk / imp * 100) if imp > 0 else 0,
+            "cpc": (spend / clk) if clk > 0 else 0,
+            "roas": (rev / spend * 100) if spend > 0 else 0,
+        })
+
+    return {
+        "platform": "NAVER_GFA",
+        "date_range": date_range,
+        "campaigns": result,
+    }
+
+
+@router.get("/gfa/campaign/{campaign_id}/adgroups")
+async def gfa_adgroups(
+    campaign_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """GFA 캠페인 내 광고그룹 목록."""
+    api = await _get_naver_gfa_api(current_user, db)
+    adgroups = await api.get_adgroups(campaign_id=campaign_id)
+    return {"campaign_id": campaign_id, "adgroups": adgroups}
+
+
+@router.get("/gfa/trend")
+async def gfa_trend(
+    date_range: str = Query(default="last_7_days"),
+    start_date: Optional[str] = Query(default=None, description="Custom start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(default=None, description="Custom end date (YYYY-MM-DD)"),
+    campaign_id: Optional[str] = Query(default=None),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """GFA 일별 성과 추이."""
+    api = await _get_naver_gfa_api(current_user, db)
+    start_date_val, end_date_val = _date_range_to_dates(date_range, start_date, end_date)
+
+    campaign_ids = [campaign_id] if campaign_id else None
+    if not campaign_ids:
+        campaigns = await api.get_campaigns()
+        campaign_ids = [c.get("id") for c in campaigns if c.get("id")]
+
+    if not campaign_ids:
+        return {"trend": [], "date_range": date_range}
+
+    daily_report = await api.get_performance_report(
+        campaign_ids=campaign_ids,
+        start_date=start_date_val,
+        end_date=end_date_val,
+        time_increment="DAILY",
+    )
+
+    date_map: dict = {}
+    for r in daily_report:
+        dt = r.get("date", "")
+        if dt not in date_map:
+            date_map[dt] = {
+                "date": dt,
+                "impressions": 0,
+                "clicks": 0,
+                "spend": 0,
+                "conversions": 0,
+                "revenue": 0,
+            }
+        date_map[dt]["impressions"] += int(r.get("impressions", 0))
+        date_map[dt]["clicks"] += int(r.get("clicks", 0))
+        date_map[dt]["spend"] += float(r.get("spend", 0))
+        date_map[dt]["conversions"] += int(r.get("conversions", 0))
+        date_map[dt]["revenue"] += float(r.get("revenue", 0))
+
+    trend = []
+    for dt_data in sorted(date_map.values(), key=lambda x: x["date"]):
+        imp = dt_data["impressions"]
+        clk = dt_data["clicks"]
+        sp = dt_data["spend"]
+        rv = dt_data["revenue"]
+        dt_data["ctr"] = (clk / imp * 100) if imp > 0 else 0
+        dt_data["cpc"] = (sp / clk) if clk > 0 else 0
+        dt_data["roas"] = (rv / sp * 100) if sp > 0 else 0
+        trend.append(dt_data)
+
+    return {"date_range": date_range, "trend": trend}
+
+
+@router.post("/gfa/ai-analysis")
+async def gfa_ai_analysis(
+    request: AIAnalysisRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """GFA AI 분석 (Claude)."""
+    from app.services.ai import ClaudeService
+
+    api = await _get_naver_gfa_api(current_user, db)
+    start_date_val, end_date_val = _date_range_to_dates(request.date_range or "last_7_days", request.start_date, request.end_date)
+
+    campaigns = await api.get_campaigns()
+    campaign_ids = [c.get("id") for c in campaigns if c.get("id")]
+
+    report = []
+    if campaign_ids:
+        report = await api.get_performance_report(
+            campaign_ids=campaign_ids,
+            start_date=start_date_val,
+            end_date=end_date_val,
+            time_increment="DAILY",
+        )
+
+    context = {
+        "platform": "Naver GFA (네이버 성과형 디스플레이 광고)",
+        "date_range": f"{start_date_val} ~ {end_date_val}",
+        "total_campaigns": len(campaigns),
+        "campaigns": [
+            {"name": c.get("name"), "objective": c.get("objective"), "budget": c.get("dailyBudget")}
+            for c in campaigns[:20]
+        ],
+        "daily_stats_sample": report[:30],
+    }
+
+    focus_prompt = ""
+    if request.focus:
+        focus_prompt = f"\n특히 '{request.focus}' 관점에서 분석해주세요."
+    if request.custom_prompt:
+        focus_prompt += f"\n{request.custom_prompt}"
+
+    prompt = f"""네이버 GFA(성과형 디스플레이 광고) 성과 데이터를 분석해주세요.
+{focus_prompt}
+
+데이터:
+{json.dumps(context, ensure_ascii=False, default=str)}
+
+다음 형식으로 한국어로 답변해주세요:
+1. 핵심 성과 요약 (KPI 수치 포함)
+2. 주요 인사이트 (3-5개)
+3. 개선 제안 (타겟팅, 소재, 게재위치 등 구체적인 액션 아이템)
+4. 주의 필요 사항
+"""
+
+    if not settings.ANTHROPIC_API_KEY:
+        raise HTTPException(500, detail="ANTHROPIC_API_KEY 환경변수가 설정되지 않았습니다.")
+
+    try:
+        from anthropic import Anthropic
+        client = Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+        models_to_try = [
+            "claude-sonnet-4-20250514",
+            "claude-3-7-sonnet-20250219",
+            "claude-3-5-sonnet-20241022",
+            "claude-3-5-haiku-20241022",
+        ]
+        analysis = None
+        last_error = None
+        for model_id in models_to_try:
+            try:
+                response = client.messages.create(
+                    model=model_id,
+                    max_tokens=3000,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                analysis = response.content[0].text
+                logger.info("GFA AI analysis succeeded with model: %s", model_id)
+                break
+            except Exception as model_err:
+                last_error = str(model_err)
+                logger.warning("GFA AI model %s failed: %s", model_id, model_err)
+
+        if not analysis:
+            raise HTTPException(500, detail=f"사용 가능한 AI 모델이 없습니다. 마지막 오류: {last_error}")
+
+        return {
+            "platform": "NAVER_GFA",
+            "date_range": request.date_range,
+            "analysis": analysis,
+            "data_summary": {
+                "total_campaigns": len(campaigns),
+                "stats_records": len(report),
+            },
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("GFA AI analysis error: %s", e, exc_info=True)
+        raise HTTPException(500, detail=f"AI 분석 실패: {e}")
+
+
+# ═══════════════════════════════════════════════════════════════
+#  CAMPAIGN MANAGEMENT (검색광고)
+# ═══════════════════════════════════════════════════════════════
+
+
+@router.post("/search-ads/campaign")
+async def create_search_campaign(
+    request: NaverCampaignCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """검색광고 캠페인 생성."""
+    api = await _get_naver_search_api(current_user, db)
+    result = await api.create_campaign(
+        name=request.name,
+        campaign_tp=request.campaign_tp,
+        daily_budget=request.daily_budget,
+        delivery_method=request.delivery_method,
+    )
+    return {"success": True, "campaign": result}
+
+
+@router.put("/search-ads/campaign/{campaign_id}")
+async def update_search_campaign(
+    campaign_id: str,
+    request: NaverCampaignUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """검색광고 캠페인 수정."""
+    api = await _get_naver_search_api(current_user, db)
+    fields = {k: v for k, v in request.model_dump().items() if v is not None}
+    # Convert snake_case to camelCase for API
+    field_map = {
+        "name": "name",
+        "daily_budget": "dailyBudget",
+        "user_lock": "userLock",
+        "delivery_method": "deliveryMethod",
+    }
+    api_fields = {}
+    for k, v in fields.items():
+        api_key = field_map.get(k, k)
+        api_fields[api_key] = v
+
+    result = await api.update_campaign(campaign_id, api_fields)
+    return {"success": True, "campaign": result}
+
+
+@router.post("/search-ads/campaign/{campaign_id}/adgroup")
+async def create_search_adgroup(
+    campaign_id: str,
+    request: NaverAdGroupCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """검색광고 광고그룹 생성."""
+    api = await _get_naver_search_api(current_user, db)
+    result = await api.create_adgroup(
+        campaign_id=campaign_id,
+        name=request.name,
+        bid_amt=request.bid_amt,
+        daily_budget=request.daily_budget,
+        targets=request.targets,
+    )
+    return {"success": True, "adgroup": result}
+
+
+@router.post("/search-ads/keywords")
+async def add_search_keywords(
+    request: NaverKeywordCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """키워드 추가."""
+    api = await _get_naver_search_api(current_user, db)
+    result = await api.create_keywords(
+        adgroup_id=request.adgroup_id,
+        keywords=request.keywords,
+    )
+    return {"success": True, "keywords": result}
+
+
+@router.put("/search-ads/keyword/{keyword_id}/bid")
+async def update_keyword_bid(
+    keyword_id: str,
+    request: NaverKeywordBidUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """키워드 입찰가 변경."""
+    api = await _get_naver_search_api(current_user, db)
+    result = await api.update_keyword_bid(keyword_id, request.bid_amt)
+    return {"success": True, "keyword": result}
+
+
+# ═══════════════════════════════════════════════════════════════
+#  GFA CAMPAIGN MANAGEMENT
+# ═══════════════════════════════════════════════════════════════
+
+
+@router.post("/gfa/campaign")
+async def create_gfa_campaign(
+    request: GFACampaignCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """GFA 캠페인 생성."""
+    api = await _get_naver_gfa_api(current_user, db)
+    result = await api.create_campaign(
+        name=request.name,
+        objective=request.objective,
+        daily_budget=request.daily_budget,
+        start_date=request.start_date,
+        end_date=request.end_date,
+    )
+    return {"success": True, "campaign": result}
+
+
+@router.put("/gfa/campaign/{campaign_id}")
+async def update_gfa_campaign(
+    campaign_id: str,
+    request: GFACampaignUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """GFA 캠페인 수정."""
+    api = await _get_naver_gfa_api(current_user, db)
+    fields = {k: v for k, v in request.model_dump().items() if v is not None}
+    field_map = {
+        "name": "name",
+        "daily_budget": "dailyBudget",
+        "status": "status",
+    }
+    api_fields = {}
+    for k, v in fields.items():
+        api_key = field_map.get(k, k)
+        api_fields[api_key] = v
+
+    result = await api.update_campaign(campaign_id, api_fields)
+    return {"success": True, "campaign": result}
+
+
+# ═══════════════════════════════════════════════════════════════
+#  REPORTS
+# ═══════════════════════════════════════════════════════════════
+
+
+@router.get("/report/generate")
+async def generate_report(
+    report_type: str = Query(default="weekly"),
+    platforms: str = Query(default="NAVER_SEARCH,NAVER_GFA"),
+    date_range: str = Query(default="last_7_days"),
+    start_date: Optional[str] = Query(default=None, description="Custom start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(default=None, description="Custom end date (YYYY-MM-DD)"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """네이버 광고 리포트 생성."""
+    start_date_val, end_date_val = _date_range_to_dates(date_range, start_date, end_date)
+    platform_list = [p.strip() for p in platforms.split(",")]
+
+    report_data: dict = {
+        "report_type": report_type,
+        "date_range": date_range,
+        "start_date": start_date_val,
+        "end_date": end_date_val,
+        "generated_at": datetime.utcnow().isoformat(),
+        "platforms": {},
+    }
+
+    if "NAVER_SEARCH" in platform_list:
+        try:
+            api = await _get_naver_search_api(current_user, db)
+            campaigns = await api.get_campaigns()
+            cids = [c.get("nccCampaignId") for c in campaigns if c.get("nccCampaignId")]
+            stats = []
+            if cids:
+                stats = await api.get_stat_report(
+                    ids=cids,
+                    date_preset="custom",
+                    start_date=start_date_val,
+                    end_date=end_date_val,
+                    time_increment="1",
+                )
+            report_data["platforms"]["NAVER_SEARCH"] = {
+                "total_campaigns": len(campaigns),
+                "daily_stats": stats,
+            }
+        except HTTPException:
+            report_data["platforms"]["NAVER_SEARCH"] = {"error": "계정 미연결"}
+
+    if "NAVER_GFA" in platform_list:
+        try:
+            api = await _get_naver_gfa_api(current_user, db)
+            campaigns = await api.get_campaigns()
+            cids = [c.get("id") for c in campaigns if c.get("id")]
+            report = []
+            if cids:
+                report = await api.get_performance_report(
+                    campaign_ids=cids,
+                    start_date=start_date_val,
+                    end_date=end_date_val,
+                    time_increment="DAILY",
+                )
+            report_data["platforms"]["NAVER_GFA"] = {
+                "total_campaigns": len(campaigns),
+                "daily_stats": report,
+            }
+        except HTTPException:
+            report_data["platforms"]["NAVER_GFA"] = {"error": "계정 미연결"}
+
+    return report_data
+
+
+@router.post("/report/email")
+async def email_report(
+    request: ReportEmailRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """리포트 이메일 발송."""
+    import resend
+
+    # Generate report first
+    start_date_val, end_date_val = _date_range_to_dates(request.date_range or "last_7_days", request.start_date, request.end_date)
+
+    report_sections = []
+    for platform in request.platforms:
+        if platform == "NAVER_SEARCH":
+            try:
+                api = await _get_naver_search_api(current_user, db)
+                campaigns = await api.get_campaigns()
+                cids = [c.get("nccCampaignId") for c in campaigns if c.get("nccCampaignId")]
+                stats = []
+                if cids:
+                    stats = await api.get_stat_report(
+                        ids=cids, date_preset="custom",
+                        start_date=start_date_val, end_date=end_date_val,
+                        time_increment="allDays",
+                    )
+                total_spend = sum(float(s.get("salesAmt", 0)) for s in stats)
+                total_clicks = sum(int(s.get("clkCnt", 0)) for s in stats)
+                total_imp = sum(int(s.get("impCnt", 0)) for s in stats)
+                report_sections.append(
+                    f"<h3>네이버 검색광고</h3>"
+                    f"<p>캠페인 수: {len(campaigns)} | "
+                    f"노출: {total_imp:,} | "
+                    f"클릭: {total_clicks:,} | "
+                    f"비용: {total_spend:,.0f}원</p>"
+                )
+            except Exception:
+                report_sections.append("<h3>네이버 검색광고</h3><p>데이터 조회 실패</p>")
+
+        elif platform == "NAVER_GFA":
+            try:
+                api = await _get_naver_gfa_api(current_user, db)
+                campaigns = await api.get_campaigns()
+                cids = [c.get("id") for c in campaigns if c.get("id")]
+                report = []
+                if cids:
+                    report = await api.get_performance_report(
+                        campaign_ids=cids, start_date=start_date_val,
+                        end_date=end_date_val, time_increment="TOTAL",
+                    )
+                total_spend = sum(float(r.get("spend", 0)) for r in report)
+                total_clicks = sum(int(r.get("clicks", 0)) for r in report)
+                total_imp = sum(int(r.get("impressions", 0)) for r in report)
+                report_sections.append(
+                    f"<h3>네이버 GFA</h3>"
+                    f"<p>캠페인 수: {len(campaigns)} | "
+                    f"노출: {total_imp:,} | "
+                    f"클릭: {total_clicks:,} | "
+                    f"비용: {total_spend:,.0f}원</p>"
+                )
+            except Exception:
+                report_sections.append("<h3>네이버 GFA</h3><p>데이터 조회 실패</p>")
+
+    html_body = f"""
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2>네이버 광고 성과 리포트</h2>
+        <p>기간: {start_date_val} ~ {end_date_val}</p>
+        <hr>
+        {"".join(report_sections)}
+        <hr>
+        <p style="color: #999; font-size: 12px;">Meta-Commander에서 자동 발송된 리포트입니다.</p>
+    </div>
+    """
+
+    try:
+        resend.api_key = settings.RESEND_API_KEY
+        from_email = settings.RESEND_FROM_EMAIL or "onboarding@resend.dev"
+        if "<" not in from_email:
+            from_email = f"Meta-Commander <{from_email}>"
+
+        resend.Emails.send({
+            "from": from_email,
+            "to": [request.recipient_email],
+            "subject": f"네이버 광고 {request.report_type} 리포트 ({start_date_val} ~ {end_date_val})",
+            "html": html_body,
+        })
+        return {"success": True, "message": f"리포트가 {request.recipient_email}로 발송되었습니다."}
+    except Exception as e:
+        logger.error("Failed to send report email: %s", e)
+        raise HTTPException(status_code=500, detail=f"이메일 발송 실패: {str(e)}")
+
+
+# ═══════════════════════════════════════════════════════════════
+#  AUTO-RULES (자동관리 룰)
+# ═══════════════════════════════════════════════════════════════
+
+
+@router.post("/auto-rules")
+async def create_auto_rule(
+    request: AutoRuleCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """자동관리 룰 생성."""
+    rule = AutoRule(
+        id=str(uuid.uuid4()),
+        user_id=str(current_user.id),
+        name=request.name,
+        metric=request.metric,
+        operator=request.operator,
+        threshold=request.threshold,
+        action=request.action,
+        action_value=request.action_value,
+        target_type=request.target_type,
+        target_id=request.target_id,
+        target_name=request.target_name,
+        duration_type=request.duration_type,
+        duration_value=request.duration_value,
+        secondary_metric=request.secondary_metric,
+        secondary_operator=request.secondary_operator,
+        secondary_threshold=request.secondary_threshold,
+        enabled=True,
+    )
+    db.add(rule)
+    await db.commit()
+    await db.refresh(rule)
+
+    return {
+        "success": True,
+        "rule": {
+            "id": rule.id,
+            "name": rule.name,
+            "metric": rule.metric,
+            "operator": rule.operator,
+            "threshold": rule.threshold,
+            "action": rule.action,
+            "enabled": rule.enabled,
+        },
+    }
+
+
+@router.get("/auto-rules")
+async def list_auto_rules(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """자동관리 룰 목록 조회."""
+    result = await db.execute(
+        select(AutoRule).where(AutoRule.user_id == str(current_user.id))
+    )
+    rules = result.scalars().all()
+    return {
+        "rules": [
+            {
+                "id": r.id,
+                "name": r.name,
+                "metric": r.metric,
+                "operator": r.operator,
+                "threshold": r.threshold,
+                "action": r.action,
+                "action_value": r.action_value,
+                "target_type": r.target_type,
+                "target_id": r.target_id,
+                "target_name": r.target_name,
+                "enabled": r.enabled,
+                "times_triggered": r.times_triggered,
+                "last_checked_at": r.last_checked_at.isoformat() if r.last_checked_at else None,
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+            }
+            for r in rules
+        ],
+    }
+
+
+@router.put("/auto-rules/{rule_id}")
+async def update_auto_rule(
+    rule_id: str,
+    request: AutoRuleUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """자동관리 룰 수정."""
+    result = await db.execute(
+        select(AutoRule).where(
+            AutoRule.id == rule_id,
+            AutoRule.user_id == str(current_user.id),
+        )
+    )
+    rule = result.scalar_one_or_none()
+    if not rule:
+        raise HTTPException(status_code=404, detail="룰을 찾을 수 없습니다.")
+
+    updates = {k: v for k, v in request.model_dump().items() if v is not None}
+    for k, v in updates.items():
+        setattr(rule, k, v)
+
+    await db.commit()
+    await db.refresh(rule)
+
+    return {"success": True, "rule_id": rule.id}
+
+
+@router.delete("/auto-rules/{rule_id}")
+async def delete_auto_rule(
+    rule_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """자동관리 룰 삭제."""
+    result = await db.execute(
+        select(AutoRule).where(
+            AutoRule.id == rule_id,
+            AutoRule.user_id == str(current_user.id),
+        )
+    )
+    rule = result.scalar_one_or_none()
+    if not rule:
+        raise HTTPException(status_code=404, detail="룰을 찾을 수 없습니다.")
+
+    await db.delete(rule)
+    await db.commit()
+
+    return {"success": True, "message": "룰이 삭제되었습니다."}
+
+
+@router.post("/auto-rules/execute")
+async def execute_auto_rules(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """활성화된 자동관리 룰 실행.
+
+    각 룰의 조건을 평가하고, 조건 충족 시 액션을 수행합니다.
+    """
+    result = await db.execute(
+        select(AutoRule).where(
+            AutoRule.user_id == str(current_user.id),
+            AutoRule.enabled == True,  # noqa: E712
+        )
+    )
+    rules = result.scalars().all()
+
+    if not rules:
+        return {"success": True, "message": "활성화된 룰이 없습니다.", "executed": 0, "triggered": 0}
+
+    # Attempt to get Search Ads API (may fail if not connected)
+    search_api = None
+    try:
+        search_api = await _get_naver_search_api(current_user, db)
+    except HTTPException:
+        pass
+
+    executed = 0
+    triggered = 0
+    logs = []
+
+    for rule in rules:
+        executed += 1
+        rule.last_checked_at = datetime.utcnow()
+
+        if not search_api:
+            continue
+
+        try:
+            # Get campaign stats for evaluation
+            campaign_ids = await search_api.get_campaign_ids()
+            if not campaign_ids:
+                continue
+
+            today = date.today()
+            start = (today - timedelta(days=7)).isoformat()
+            end = today.isoformat()
+
+            stats = await search_api.get_stat_report(
+                ids=campaign_ids,
+                date_preset="custom",
+                start_date=start,
+                end_date=end,
+                time_increment="allDays",
+            )
+
+            for s in stats:
+                metric_value = _extract_naver_metric(s, rule.metric)
+                if metric_value is None:
+                    continue
+
+                if _compare(metric_value, rule.operator, rule.threshold):
+                    # Check secondary condition if present
+                    if rule.secondary_metric:
+                        sec_val = _extract_naver_metric(s, rule.secondary_metric)
+                        if sec_val is None or not _compare(
+                            sec_val, rule.secondary_operator or "gt", rule.secondary_threshold or 0
+                        ):
+                            continue
+
+                    triggered += 1
+                    rule.times_triggered = (rule.times_triggered or 0) + 1
+
+                    target_id = rule.target_id or s.get("id", "")
+                    action_log = {
+                        "rule_id": rule.id,
+                        "rule_name": rule.name,
+                        "target_id": target_id,
+                        "metric": rule.metric,
+                        "metric_value": metric_value,
+                        "threshold": rule.threshold,
+                        "action": rule.action,
+                    }
+
+                    # Execute action
+                    try:
+                        if rule.action == "pause" and target_id:
+                            await search_api.pause_campaign(target_id)
+                            action_log["result"] = "캠페인 중지됨"
+                        elif rule.action == "increase_budget" and target_id and rule.action_value:
+                            campaign = await search_api.get_campaign(target_id)
+                            current_budget = campaign.get("dailyBudget", 0)
+                            new_budget = int(current_budget * (1 + rule.action_value / 100))
+                            await search_api.update_campaign(target_id, {"dailyBudget": new_budget})
+                            action_log["result"] = f"예산 {current_budget} -> {new_budget}"
+                        elif rule.action == "decrease_budget" and target_id and rule.action_value:
+                            campaign = await search_api.get_campaign(target_id)
+                            current_budget = campaign.get("dailyBudget", 0)
+                            new_budget = max(1000, int(current_budget * (1 - rule.action_value / 100)))
+                            await search_api.update_campaign(target_id, {"dailyBudget": new_budget})
+                            action_log["result"] = f"예산 {current_budget} -> {new_budget}"
+                    except Exception as e:
+                        action_log["error"] = str(e)
+
+                    logs.append(action_log)
+
+                    # Save log to DB
+                    log_entry = AutoRuleLog(
+                        id=str(uuid.uuid4()),
+                        rule_id=rule.id,
+                        user_id=str(current_user.id),
+                        action_taken=rule.action,
+                        target_type=rule.target_type,
+                        target_id=target_id,
+                        target_name=rule.target_name or "",
+                        metric_name=rule.metric,
+                        metric_value=metric_value,
+                        threshold_value=rule.threshold,
+                        details=action_log,
+                    )
+                    db.add(log_entry)
+                    break  # One trigger per rule per execution
+
+        except Exception as e:
+            logger.error("Error evaluating rule %s: %s", rule.id, e)
+
+    await db.commit()
+
+    return {
+        "success": True,
+        "executed": executed,
+        "triggered": triggered,
+        "logs": logs,
+    }
+
+
+# ─── Helper functions for rule engine ────────────────────────
+
+
+def _extract_naver_metric(stat: dict, metric: str):
+    """Extract a metric value from a Naver stat record."""
+    mapping = {
+        "impressions": "impCnt",
+        "clicks": "clkCnt",
+        "spend": "salesAmt",
+        "ctr": "ctr",
+        "cpc": "cpc",
+        "conversions": "ccnt",
+        "revenue": "convAmt",
+    }
+    key = mapping.get(metric, metric)
+    val = stat.get(key)
+    if val is not None:
+        try:
+            return float(val)
+        except (ValueError, TypeError):
+            return None
+
+    # Compute derived metrics
+    imp = float(stat.get("impCnt", 0) or 0)
+    clk = float(stat.get("clkCnt", 0) or 0)
+    spend = float(stat.get("salesAmt", 0) or 0)
+    rev = float(stat.get("convAmt", 0) or 0)
+    conv = float(stat.get("ccnt", 0) or 0)
+
+    if metric == "roas":
+        return (rev / spend * 100) if spend > 0 else None
+    if metric == "cvr":
+        return (conv / clk * 100) if clk > 0 else None
+    if metric == "cpm":
+        return (spend / imp * 1000) if imp > 0 else None
+    return None
+
+
+def _compare(value: float, operator: str, threshold: float) -> bool:
+    """Compare a value against a threshold with the given operator."""
+    ops = {
+        "gt": value > threshold,
+        "lt": value < threshold,
+        "gte": value >= threshold,
+        "lte": value <= threshold,
+    }
+    return ops.get(operator, False)
+
+
+# ─── Keyword Research / Shopping Ranking ─────────────────────
+
+
+class ShoppingItem(BaseModel):
+    title: str
+    link: str
+    image: str
+    lprice: str
+    hprice: str
+    mall_name: str
+    product_id: str
+    brand: str
+    maker: str
+    category1: str
+    category2: str
+    category3: str
+    category4: str
+
+
+class ShoppingSearchResponse(BaseModel):
+    keyword: str
+    total: int
+    items: List[ShoppingItem]
+
+
+class TrendPoint(BaseModel):
+    period: str
+    ratio: float
+
+
+class KeywordTrendResponse(BaseModel):
+    keyword: str
+    time_unit: str
+    data: List[TrendPoint]
+
+
+class KeywordAnalysisResponse(BaseModel):
+    keyword: str
+    shopping: ShoppingSearchResponse
+    trend: KeywordTrendResponse
+
+
+class ShoppingRankingItem(BaseModel):
+    rank: int
+    title: str
+    price: Optional[int] = None
+    mallName: Optional[str] = None
+
+
+class RankingAIAnalysisRequest(BaseModel):
+    keyword: str
+    brand: str = "널담"
+    shopping_results: List[ShoppingRankingItem]
+
+
+def _calc_start_date(period: str) -> str:
+    """Return ISO start date string from period shorthand (6m/1y/3y)."""
+    today = date.today()
+    if period == "6m":
+        start = today - timedelta(days=183)
+    elif period == "3y":
+        start = today - timedelta(days=1095)
+    else:  # default 1y
+        start = today - timedelta(days=365)
+    return start.strftime("%Y-%m-%d")
+
+
+def _naver_openapi_headers() -> Dict[str, str]:
+    return {
+        "X-Naver-Client-Id": settings.NAVER_CLIENT_ID,
+        "X-Naver-Client-Secret": settings.NAVER_CLIENT_SECRET,
+    }
+
+
+async def _fetch_shopping(keyword: str, display: int) -> ShoppingSearchResponse:
+    url = "https://openapi.naver.com/v1/search/shop.json"
+    params = {"query": keyword, "display": min(display, 100)}
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        resp = await client.get(url, headers=_naver_openapi_headers(), params=params)
+    if resp.status_code != 200:
+        raise HTTPException(
+            status_code=resp.status_code,
+            detail=f"Naver Shopping API error: {resp.text}",
+        )
+    body = resp.json()
+    items: List[ShoppingItem] = []
+    for raw in body.get("items", []):
+        items.append(
+            ShoppingItem(
+                title=raw.get("title", "").replace("<b>", "").replace("</b>", ""),
+                link=raw.get("link", ""),
+                image=raw.get("image", ""),
+                lprice=raw.get("lprice", ""),
+                hprice=raw.get("hprice", ""),
+                mall_name=raw.get("mallName", ""),
+                product_id=raw.get("productId", ""),
+                brand=raw.get("brand", ""),
+                maker=raw.get("maker", ""),
+                category1=raw.get("category1", ""),
+                category2=raw.get("category2", ""),
+                category3=raw.get("category3", ""),
+                category4=raw.get("category4", ""),
+            )
+        )
+    return ShoppingSearchResponse(
+        keyword=keyword,
+        total=body.get("total", 0),
+        items=items,
+    )
+
+
+async def _fetch_trend(keyword: str, time_unit: str, period: str) -> KeywordTrendResponse:
+    url = "https://openapi.naver.com/v1/datalab/search"
+    start_date = _calc_start_date(period)
+    end_date = date.today().strftime("%Y-%m-%d")
+    payload = {
+        "startDate": start_date,
+        "endDate": end_date,
+        "timeUnit": time_unit,
+        "keywordGroups": [
+            {"groupName": keyword, "keywords": [keyword]}
+        ],
+    }
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        resp = await client.post(
+            url,
+            headers={**_naver_openapi_headers(), "Content-Type": "application/json"},
+            json=payload,
+        )
+    if resp.status_code != 200:
+        raise HTTPException(
+            status_code=resp.status_code,
+            detail=f"Naver DataLab API error: {resp.text}",
+        )
+    body = resp.json()
+    data: List[TrendPoint] = []
+    results = body.get("results", [])
+    if results:
+        for point in results[0].get("data", []):
+            data.append(TrendPoint(period=point.get("period", ""), ratio=float(point.get("ratio", 0))))
+    return KeywordTrendResponse(keyword=keyword, time_unit=time_unit, data=data)
+
+
+@router.get("/keyword-research/shopping", response_model=ShoppingSearchResponse)
+async def keyword_research_shopping(
+    keyword: str = Query(..., description="검색할 키워드"),
+    display: int = Query(40, ge=1, le=100, description="반환할 상품 수 (최대 100)"),
+    current_user: User = Depends(get_current_user),
+):
+    """Naver 쇼핑 검색 API를 사용해 키워드에 대한 쇼핑 랭킹 데이터를 반환합니다."""
+    try:
+        return await _fetch_shopping(keyword, display)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("keyword_research_shopping error: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/keyword-research/trend", response_model=KeywordTrendResponse)
+async def keyword_research_trend(
+    keyword: str = Query(..., description="검색할 키워드"),
+    time_unit: str = Query("month", description="시간 단위: date / week / month"),
+    period: str = Query("1y", description="조회 기간: 6m / 1y / 3y"),
+    current_user: User = Depends(get_current_user),
+):
+    """Naver DataLab 검색어 트렌드 API를 사용해 키워드 검색량 추이를 반환합니다."""
+    if time_unit not in ("date", "week", "month"):
+        raise HTTPException(status_code=422, detail="time_unit must be one of: date, week, month")
+    if period not in ("6m", "1y", "3y"):
+        raise HTTPException(status_code=422, detail="period must be one of: 6m, 1y, 3y")
+    try:
+        return await _fetch_trend(keyword, time_unit, period)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("keyword_research_trend error: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/keyword-research/search-volume")
+async def keyword_research_search_volume(
+    keyword: str = Query(..., description="검색할 키워드"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """네이버 검색광고 키워드 도구 API로 절대 월간 검색량 조회.
+
+    Returns monthlyPcQcCnt + monthlyMobileQcCnt for exact keyword.
+    """
+    try:
+        api = await _get_naver_search_api(current_user, db)
+    except HTTPException:
+        return {"keyword": keyword, "available": False, "message": "검색광고 API 미연동", "data": []}
+
+    try:
+        results = await api.get_keyword_search_volume([keyword])
+        # Filter for exact keyword match and related keywords
+        keyword_data = []
+        for item in results:
+            pc = item.get("monthlyPcQcCnt", 0)
+            mobile = item.get("monthlyMobileQcCnt", 0)
+            # Handle "< 10" style values from Naver
+            if isinstance(pc, str):
+                pc = 5 if "< 10" in pc else int(pc) if pc.isdigit() else 0
+            if isinstance(mobile, str):
+                mobile = 5 if "< 10" in mobile else int(mobile) if mobile.isdigit() else 0
+            keyword_data.append({
+                "keyword": item.get("relKeyword", ""),
+                "monthlyPcQcCnt": pc,
+                "monthlyMobileQcCnt": mobile,
+                "monthlyTotalQcCnt": pc + mobile,
+                "compIdx": item.get("compIdx", ""),
+                "plAvgDepth": item.get("plAvgDepth", 0),
+            })
+        # Sort: exact match first, then by total volume
+        keyword_data.sort(
+            key=lambda x: (0 if x["keyword"] == keyword else 1, -x["monthlyTotalQcCnt"])
+        )
+        return {"keyword": keyword, "available": True, "data": keyword_data}
+    except Exception as e:
+        logger.error("keyword_research_search_volume error: %s", e)
+        return {"keyword": keyword, "available": False, "message": str(e), "data": []}
+
+
+@router.get("/keyword-research/analysis", response_model=KeywordAnalysisResponse)
+async def keyword_research_analysis(
+    keyword: str = Query(..., description="분석할 키워드"),
+    current_user: User = Depends(get_current_user),
+):
+    """쇼핑 검색 결과와 검색 트렌드를 동시에 조회해 종합 키워드 분석 데이터를 반환합니다."""
+    try:
+        shopping, trend = await asyncio.gather(
+            _fetch_shopping(keyword, display=40),
+            _fetch_trend(keyword, time_unit="month", period="1y"),
+        )
+        return KeywordAnalysisResponse(keyword=keyword, shopping=shopping, trend=trend)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("keyword_research_analysis error: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/keyword-research/ai-analysis")
+async def keyword_research_ai_analysis(
+    request: RankingAIAnalysisRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """브랜드 쇼핑 랭킹 AI 분석 (Claude). 상위 10개 상품을 분석해 브랜드 순위 개선 전략을 제안합니다."""
+    from app.services.ai import ClaudeService
+
+    ranking_text = "\n".join(
+        f"{item.rank}위: {item.title} | 판매처: {item.mallName or '알 수 없음'} | 가격: {f'₩{item.price:,}' if item.price else '가격 미정'}"
+        for item in request.shopping_results
+    )
+
+    brand_found = any(request.brand in (item.title + (item.mallName or "")) for item in request.shopping_results)
+    brand_status = "랭킹에 등장함" if brand_found else "랭킹 상위 10위 내에 미등장"
+
+    prompt = f"""당신은 네이버 쇼핑 랭킹 전문 마케팅 컨설턴트입니다.
+
+키워드: "{request.keyword}"
+분석 브랜드: "{request.brand}"
+브랜드 현황: {brand_status}
+
+현재 네이버 쇼핑 상위 랭킹 (상위 {len(request.shopping_results)}개):
+{ranking_text}
+
+위 데이터를 바탕으로 "{request.brand}" 브랜드에 대해 다음을 한국어로 분석해주세요:
+
+1. **현재 랭킹 위치 분석**: 브랜드가 랭킹에 있는지, 있다면 몇 위인지, 없다면 왜 상위에 없는지
+2. **경쟁 구도 파악**: 상위 랭킹 상품들의 가격대, 판매처 특징, 제품명 패턴 분석
+3. **랭킹 상승/유지 전략**:
+   - 가격 전략 (경쟁사 대비 적정 가격대)
+   - 상품명 최적화 (검색 노출을 위한 키워드 포함 방법)
+   - 리뷰 관리 전략 (리뷰 수/평점 개선)
+   - 광고 전략 (네이버 쇼핑 광고 활용법)
+4. **즉시 실행 가능한 액션 아이템** (우선순위 순으로 3~5개)
+
+실용적이고 구체적인 조언을 제공해주세요."""
+
+    claude = ClaudeService()
+    response = claude.client.messages.create(
+        model=claude.model,
+        max_tokens=8000,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    analysis = response.content[0].text
+
+    return {"analysis": analysis}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 리뷰 모니터링 (Review Monitoring)
+# ══════════════════════════════════════════════════════════════════════════════
+
+from app.models.review_monitor import MonitoredProduct
+from app.services.review_service import fetch_naver_product_reviews, analyze_reviews, ai_review_analysis, extract_product_id
+
+
+class ProductRegisterRequest(BaseModel):
+    product_name: str
+    product_url: str
+    mall_name: Optional[str] = None
+    image_url: Optional[str] = None
+
+
+@router.post("/review-monitor/products")
+async def register_product(
+    body: ProductRegisterRequest,
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """리뷰 모니터링 제품 등록."""
+    from sqlalchemy import select as sa_select
+
+    # 중복 체크
+    existing = await db.execute(
+        sa_select(MonitoredProduct).where(
+            MonitoredProduct.user_id == current_user.id,
+            MonitoredProduct.product_url == body.product_url,
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="이미 등록된 제품입니다.")
+
+    product = MonitoredProduct(
+        id=str(uuid.uuid4()),
+        user_id=current_user.id,
+        product_name=body.product_name,
+        product_url=body.product_url,
+        product_id=extract_product_id(body.product_url),
+        mall_name=body.mall_name,
+        image_url=body.image_url,
+    )
+    db.add(product)
+    await db.commit()
+    await db.refresh(product)
+    return {
+        "id": product.id,
+        "product_name": product.product_name,
+        "product_url": product.product_url,
+        "product_id": product.product_id,
+        "mall_name": product.mall_name,
+        "created_at": product.created_at.isoformat() if product.created_at else None,
+    }
+
+
+@router.get("/review-monitor/products")
+async def list_monitored_products(
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """등록된 모니터링 제품 목록."""
+    from sqlalchemy import select as sa_select
+
+    result = await db.execute(
+        sa_select(MonitoredProduct)
+        .where(MonitoredProduct.user_id == current_user.id)
+        .order_by(MonitoredProduct.created_at.desc())
+    )
+    products = result.scalars().all()
+    return [
+        {
+            "id": p.id,
+            "product_name": p.product_name,
+            "product_url": p.product_url,
+            "product_id": p.product_id,
+            "mall_name": p.mall_name,
+            "image_url": p.image_url,
+            "created_at": p.created_at.isoformat() if p.created_at else None,
+        }
+        for p in products
+    ]
+
+
+@router.delete("/review-monitor/products/{product_id}")
+async def delete_monitored_product(
+    product_id: str,
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """모니터링 제품 삭제."""
+    from sqlalchemy import select as sa_select, delete as sa_delete
+
+    result = await db.execute(
+        sa_select(MonitoredProduct).where(
+            MonitoredProduct.id == product_id,
+            MonitoredProduct.user_id == current_user.id,
+        )
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="제품을 찾을 수 없습니다.")
+    await db.execute(sa_delete(MonitoredProduct).where(MonitoredProduct.id == product_id))
+    await db.commit()
+    return {"success": True}
+
+
+@router.post("/review-monitor/analyze")
+async def analyze_product_reviews(
+    product_db_id: str = Query(..., description="DB 제품 ID"),
+    star_threshold: int = Query(default=3, ge=1, le=5),
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """제품 리뷰를 수집하고 분석한다."""
+    from sqlalchemy import select as sa_select
+
+    result = await db.execute(
+        sa_select(MonitoredProduct).where(
+            MonitoredProduct.id == product_db_id,
+            MonitoredProduct.user_id == current_user.id,
+        )
+    )
+    product = result.scalar_one_or_none()
+    if not product:
+        raise HTTPException(status_code=404, detail="제품을 찾을 수 없습니다.")
+
+    try:
+        review_data = await fetch_naver_product_reviews(product.product_url, product.product_name)
+
+        if not review_data.get("reviews"):
+            return {
+                "product_name": product.product_name,
+                "stats": {
+                    "total_reviews": 0, "average_rating": 0,
+                    "star_distribution": {1: 0, 2: 0, 3: 0, 4: 0, 5: 0},
+                    "low_star_count_7d": 0, "low_star_count_14d": 0,
+                    "low_star_count_30d": 0, "low_star_total": 0,
+                },
+                "ai_analysis": "",
+                "error": review_data.get("error"),
+            }
+
+        stats = analyze_reviews(review_data["reviews"], star_threshold)
+        ai_text = await ai_review_analysis(product.product_name, stats, stats.get("low_reviews_sample", []))
+
+        return {
+            "product_name": product.product_name,
+            "product_url": product.product_url,
+            "stats": stats,
+            "ai_analysis": ai_text,
+        }
+    except Exception as e:
+        logger.error(f"[ReviewMonitor] error: {e}", exc_info=True)
+        return {
+            "product_name": product.product_name,
+            "stats": {"total_reviews": 0, "average_rating": 0, "star_distribution": {1:0,2:0,3:0,4:0,5:0}, "low_star_count_7d": 0, "low_star_count_14d": 0, "low_star_count_30d": 0, "low_star_total": 0},
+            "ai_analysis": "",
+            "error": str(e),
+        }
+
+
+# ── 리뷰 리포트 스케줄 ──
+
+from app.models.review_monitor import ReviewReportSchedule
+from app.services.review_service import build_review_report_html
+from app.services.scheduled_report_executor import calc_next_run
+
+
+class ReviewAnalyzeRequest(BaseModel):
+    product_name: str
+    reviews: List[Dict[str, Any]] = []
+    star_threshold: int = 3
+
+
+@router.post("/review-monitor/analyze-reviews")
+async def analyze_reviews_from_client(
+    body: ReviewAnalyzeRequest,
+    current_user=Depends(get_current_user),
+):
+    """프론트엔드에서 수집한 리뷰 데이터를 분석한다 (통계 + AI)."""
+    try:
+        if not body.reviews:
+            return {"stats": None, "ai_analysis": "", "error": "리뷰 데이터가 없습니다."}
+
+        stats = analyze_reviews(body.reviews, body.star_threshold)
+        ai_text = await ai_review_analysis(
+            body.product_name, stats, stats.get("low_reviews_sample", [])
+        )
+        return {"stats": stats, "ai_analysis": ai_text}
+    except Exception as e:
+        logger.error(f"[ReviewMonitor] analyze-reviews error: {e}", exc_info=True)
+        return {"stats": None, "ai_analysis": "", "error": str(e)}
+
+
+class ReviewScheduleCreate(BaseModel):
+    name: str = "리뷰 리포트"
+    star_threshold: int = 3
+    days_of_week: List[int] = [1, 2, 3, 4, 5]
+    send_hour: int = 9
+    send_minute: int = 0
+    email_to: str
+
+
+@router.post("/review-monitor/schedule")
+async def create_review_schedule(
+    body: ReviewScheduleCreate,
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """리뷰 리포트 발송 스케줄을 생성한다."""
+    import json as _json
+    sched = ReviewReportSchedule(
+        id=str(uuid.uuid4()),
+        user_id=str(current_user.id),
+        name=body.name,
+        star_threshold=body.star_threshold,
+        days_of_week=_json.dumps(body.days_of_week),
+        send_hour=body.send_hour,
+        send_minute=body.send_minute,
+        email_to=body.email_to,
+    )
+    sched.next_run_at = calc_next_run(sched, datetime.utcnow())
+    db.add(sched)
+    await db.commit()
+    await db.refresh(sched)
+    return {
+        "id": sched.id, "name": sched.name,
+        "days_of_week": body.days_of_week,
+        "send_hour": sched.send_hour, "send_minute": sched.send_minute,
+        "email_to": sched.email_to,
+        "next_run_at": sched.next_run_at.isoformat() if sched.next_run_at else None,
+    }
+
+
+@router.get("/review-monitor/schedules")
+async def list_review_schedules(
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """리뷰 리포트 스케줄 목록."""
+    import json as _json
+    from sqlalchemy import select as sa_select
+    result = await db.execute(
+        sa_select(ReviewReportSchedule)
+        .where(ReviewReportSchedule.user_id == str(current_user.id))
+        .order_by(ReviewReportSchedule.created_at.desc())
+    )
+    return [
+        {
+            "id": s.id, "name": s.name,
+            "star_threshold": s.star_threshold,
+            "days_of_week": _json.loads(s.days_of_week) if s.days_of_week else [],
+            "send_hour": s.send_hour, "send_minute": s.send_minute,
+            "email_to": s.email_to, "enabled": s.enabled,
+            "last_run_at": s.last_run_at.isoformat() if s.last_run_at else None,
+            "next_run_at": s.next_run_at.isoformat() if s.next_run_at else None,
+        }
+        for s in result.scalars().all()
+    ]
+
+
+@router.delete("/review-monitor/schedule/{schedule_id}")
+async def delete_review_schedule(
+    schedule_id: str,
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """리뷰 리포트 스케줄 삭제."""
+    from sqlalchemy import select as sa_select, delete as sa_delete
+    result = await db.execute(
+        sa_select(ReviewReportSchedule).where(
+            ReviewReportSchedule.id == schedule_id,
+            ReviewReportSchedule.user_id == str(current_user.id),
+        )
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="스케줄을 찾을 수 없습니다.")
+    await db.execute(sa_delete(ReviewReportSchedule).where(ReviewReportSchedule.id == schedule_id))
+    await db.commit()
+    return {"success": True}
+
+
+@router.post("/review-monitor/schedule/{schedule_id}/run-now")
+async def run_review_schedule_now(
+    schedule_id: str,
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """리뷰 리포트를 즉시 실행한다 (모든 등록 제품 분석 + 이메일)."""
+    import json as _json
+    import resend
+    from app.core.config import get_settings
+    from sqlalchemy import select as sa_select
+    settings = get_settings()
+
+    result = await db.execute(
+        sa_select(ReviewReportSchedule).where(
+            ReviewReportSchedule.id == schedule_id,
+            ReviewReportSchedule.user_id == str(current_user.id),
+        )
+    )
+    sched = result.scalar_one_or_none()
+    if not sched:
+        raise HTTPException(status_code=404, detail="스케줄을 찾을 수 없습니다.")
+
+    # 모든 등록 제품 분석
+    products_result = await db.execute(
+        sa_select(MonitoredProduct).where(MonitoredProduct.user_id == current_user.id)
+    )
+    products = products_result.scalars().all()
+    if not products:
+        return {"status": "skip", "reason": "등록된 제품이 없습니다."}
+
+    products_data = []
+    for p in products:
+        review_data = await fetch_naver_product_reviews(p.product_url)
+        if review_data.get("reviews"):
+            stats = analyze_reviews(review_data["reviews"], sched.star_threshold or 3)
+            ai_text = await ai_review_analysis(p.product_name, stats, stats.get("low_reviews_sample", []))
+        else:
+            stats = {"total_reviews": 0, "average_rating": 0, "star_distribution": {}, "star_threshold": sched.star_threshold or 3,
+                     "low_star_count_7d": 0, "low_star_count_14d": 0, "low_star_count_30d": 0, "low_star_total": 0}
+            ai_text = f"리뷰를 가져올 수 없습니다: {review_data.get('error', 'URL 확인 필요')}"
+        products_data.append({"product_name": p.product_name, "stats": stats, "ai_analysis": ai_text})
+
+    # 이메일 발송
+    from datetime import timezone, timedelta as td
+    kst = timezone(td(hours=9))
+    check_time = datetime.now(kst).strftime("%Y-%m-%d %H:%M KST")
+
+    email_sent = False
+    if sched.email_to and settings.RESEND_API_KEY:
+        try:
+            html = build_review_report_html(products_data, check_time)
+            resend.api_key = settings.RESEND_API_KEY
+            resend.Emails.send({
+                "from": settings.RESEND_FROM_EMAIL,
+                "to": [sched.email_to],
+                "subject": f"[리뷰 모니터링] 리포트 - {check_time}",
+                "html": html,
+            })
+            email_sent = True
+        except Exception as e:
+            logger.error(f"[ReviewSchedule] Email failed: {e}")
+
+    sched.last_run_at = datetime.utcnow()
+    await db.commit()
+
+    return {
+        "status": "success",
+        "products_analyzed": len(products_data),
+        "email_sent": email_sent,
+        "products_data": products_data,
+    }

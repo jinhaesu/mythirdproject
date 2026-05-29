@@ -2,7 +2,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import String, Boolean, DateTime, Text
+from sqlalchemy import String, Boolean, DateTime, Text, Integer, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.database import Base
@@ -30,9 +30,29 @@ class User(Base):
     meta_user_id: Mapped[Optional[str]] = mapped_column(String(255))
     meta_ad_account_id: Mapped[Optional[str]] = mapped_column(String(255))
     meta_ig_account_id: Mapped[Optional[str]] = mapped_column(String(255))
+    meta_page_id: Mapped[Optional[str]] = mapped_column(String(255))  # Facebook Page ID
+    meta_pixel_id: Mapped[Optional[str]] = mapped_column(String(255))  # Meta Conversion Pixel ID
+    meta_dataset_id: Mapped[Optional[str]] = mapped_column(String(255))  # Default dataset ID (Cafe24, Smart Store, etc.)
+    default_currency: Mapped[str] = mapped_column(String(10), default="KRW")  # Default currency
+
+    # Naver advertising connections
+    naver_search_ads_connected: Mapped[bool] = mapped_column(Boolean, default=False)
+    naver_gfa_connected: Mapped[bool] = mapped_column(Boolean, default=False)
+    naver_ads_customer_id: Mapped[Optional[str]] = mapped_column(String(255))
 
     # Brand settings (JSON stored as text for simplicity)
     brand_settings: Mapped[Optional[str]] = mapped_column(Text)  # JSON: logo, colors, etc.
+
+    # Cafe24 OAuth 연동
+    cafe24_mall_id: Mapped[Optional[str]] = mapped_column(String(100))
+    cafe24_access_token: Mapped[Optional[str]] = mapped_column(Text)
+    cafe24_refresh_token: Mapped[Optional[str]] = mapped_column(Text)
+    cafe24_token_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    cafe24_scopes: Mapped[Optional[str]] = mapped_column(Text)  # comma-separated
+
+    # 친구 추천 (referral)
+    referral_code: Mapped[Optional[str]] = mapped_column(String(20), unique=True, index=True)
+    referred_by_user_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
 
     # Relationships
     campaigns = relationship("Campaign", back_populates="user")

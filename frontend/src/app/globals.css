@@ -2,43 +2,165 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ---------------------------------------------------------------
+   Linear Design System — CSS custom properties & global resets
+   --------------------------------------------------------------- */
+
 :root {
-  --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 249, 250, 251;
-  --background-end-rgb: 255, 255, 255;
+  /* Dark Foundations */
+  --color-bg-level-0:     #08090A;
+  --color-bg-level-1:     #0F1011;
+  --color-bg-level-2:     #141516;
+  --color-bg-secondary:   #1C1C1F;
+  --color-bg-tertiary:    #232326;
+  --color-bg-quaternary:  #28282C;
+  --color-bg-translucent: rgba(255, 255, 255, 0.05);
+  --color-bg-hover:       rgba(255, 255, 255, 0.15);
+
+  /* Text System */
+  --color-text-primary:    #F7F8F8;
+  --color-text-secondary:  #D0D6E0;
+  --color-text-tertiary:   #8A8F98;
+  --color-text-quaternary: #62666D;
+
+  /* Borders */
+  --color-border-primary:   #23252A;
+  --color-border-secondary: #34343A;
+  --color-border-tertiary:  #3E3E44;
+
+  /* Brand & Accent */
+  --color-brand-bg:     #5E6AD2;
+  --color-link-primary: #7070FF;
+  --color-accent-hover: #828FFF;
+
+  /* Functional */
+  --color-blue:   #4EA7FC;
+  --color-teal:   #00B8CC;
+  --color-green:  #27A644;
+  --color-yellow: #F0BF00;
+  --color-orange: #FC7840;
+  --color-red:    #EB5757;
+
+  /* Typography */
+  --font-sans:          "Inter Variable", "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono:          "Berkeley Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --font-serif-display: "Tiempos Headline", Georgia, serif;
+
+  --tracking-tight: -0.022em;
+  --tracking-body:  -0.011em;
+  --tracking-small: -0.013em;
+
+  /* Spacing scale */
+  --space-1:  4px;
+  --space-2:  6px;
+  --space-3:  8px;
+  --space-4:  10px;
+  --space-5:  12px;
+  --space-6:  16px;
+  --space-7:  20px;
+  --space-8:  24px;
+  --space-9:  40px;
+  --space-10: 48px;
+
+  /* Corner radius scale */
+  --radius-4:    4px;
+  --radius-6:    6px;
+  --radius-8:    8px;
+  --radius-12:   12px;
+  --radius-16:   16px;
+  --radius-24:   24px;
+  --radius-32:   32px;
+  --radius-pill: 9999px;
+
+  /* Elevation shadows */
+  --shadow-none:   0px 0px 0px transparent;
+  --shadow-tiny:   0px 1px 1px 0px rgba(0, 0, 0, 0.09);
+  --shadow-low:    0px 1px 4px -1px rgba(0, 0, 0, 0.09);
+  --shadow-medium: 0px 3px 12px rgba(0, 0, 0, 0.09);
+  --shadow-high:   0px 7px 32px rgba(0, 0, 0, 0.35);
+
+  /* Touch targets */
+  --touch-target-min:  40px;
+  --control-height-sm: 24px;
+  --control-height-md: 40px;
+  --control-height-lg: 48px;
+}
+
+/* ---------------------------------------------------------------
+   Base
+   --------------------------------------------------------------- */
+
+html {
+  font-size: 14px;
+  /* Use system font until Inter Variable loads */
+  font-family: var(--font-sans);
+  color-scheme: dark;
 }
 
 body {
-  color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-    to bottom,
-    rgb(var(--background-start-rgb)),
-    rgb(var(--background-end-rgb))
-  );
+  background-color: var(--color-bg-level-0);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.6;
+  letter-spacing: var(--tracking-body);
   min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Custom scrollbar */
+/* ---------------------------------------------------------------
+   Selection
+   --------------------------------------------------------------- */
+
+::selection {
+  background-color: rgba(94, 106, 210, 0.35);
+  color: #F7F8F8;
+}
+
+/* ---------------------------------------------------------------
+   Custom scrollbar — dark Linear style
+   --------------------------------------------------------------- */
+
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 4px;
+  background: var(--color-bg-level-1);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
-  border-radius: 4px;
+  background: var(--color-border-secondary);
+  border-radius: var(--radius-pill);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
+  background: var(--color-border-tertiary);
 }
 
-/* Animation for loading states */
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-secondary) var(--color-bg-level-1);
+}
+
+/* ---------------------------------------------------------------
+   Focus ring — accessible, indigo-tinted
+   --------------------------------------------------------------- */
+
+:focus-visible {
+  outline: 2px solid var(--color-brand-bg);
+  outline-offset: 2px;
+  border-radius: var(--radius-4);
+}
+
+/* ---------------------------------------------------------------
+   Animation for loading states
+   --------------------------------------------------------------- */
+
 @keyframes pulse {
   0%, 100% {
     opacity: 1;
@@ -52,7 +174,10 @@ body {
   animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
-/* Line clamp utility */
+/* ---------------------------------------------------------------
+   Line clamp utilities
+   --------------------------------------------------------------- */
+
 .line-clamp-2 {
   display: -webkit-box;
   -webkit-line-clamp: 2;

@@ -3,7 +3,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 
-from sqlalchemy import String, DateTime, Text, ForeignKey, Enum as SQLEnum
+from sqlalchemy import String, DateTime, Text, Integer, ForeignKey, Enum as SQLEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.database import Base
@@ -42,6 +42,8 @@ class Creative(Base):
     # Content
     file_url: Mapped[Optional[str]] = mapped_column(Text)  # S3/storage URL
     thumbnail_url: Mapped[Optional[str]] = mapped_column(Text)
+    width: Mapped[Optional[int]] = mapped_column(Integer)
+    height: Mapped[Optional[int]] = mapped_column(Integer)
     headline: Mapped[Optional[str]] = mapped_column(String(255))
     primary_text: Mapped[Optional[str]] = mapped_column(Text)
     call_to_action: Mapped[Optional[str]] = mapped_column(String(50))

@@ -1,6 +1,6 @@
 'use client';
 
-import { forwardRef, ButtonHTMLAttributes } from 'react';
+import { forwardRef, ButtonHTMLAttributes, CSSProperties } from 'react';
 import { clsx } from 'clsx';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -9,28 +9,89 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   loading?: boolean;
 }
 
+/**
+ * Linear-style button component.
+ *
+ * font-weight 590 is not a standard Tailwind step, so it is applied via an
+ * inline style object that merges cleanly with any caller-provided `style`.
+ *
+ * Active state: scale(0.97) via Tailwind's `active:scale-[0.97]`.
+ */
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant = 'primary', size = 'md', loading, disabled, children, ...props }, ref) => {
-    const baseStyles = 'inline-flex items-center justify-center font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed';
+  (
+    {
+      className,
+      variant = 'primary',
+      size = 'md',
+      loading,
+      disabled,
+      style,
+      children,
+      ...props
+    },
+    ref
+  ) => {
+    // Base styles shared by every variant
+    const baseStyles =
+      'inline-flex items-center justify-center rounded-full ' +
+      'transition-[background,transform] duration-[150ms,100ms] ease-[ease,ease] ' +
+      'active:scale-[0.97] ' +
+      'focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#08090A] focus:ring-[#5E6AD2] ' +
+      'disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100';
 
-    const variants = {
-      primary: 'bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500',
-      secondary: 'bg-gray-100 text-gray-900 hover:bg-gray-200 focus:ring-gray-500',
-      outline: 'border border-gray-300 text-gray-700 hover:bg-gray-50 focus:ring-primary-500',
-      ghost: 'text-gray-700 hover:bg-gray-100 focus:ring-gray-500',
-      danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500',
+    const variants: Record<NonNullable<ButtonProps['variant']>, string> = {
+      /**
+       * Primary: indigo fill, hover lightens to #828FFF.
+       * Box-shadow gives subtle depth without looking glossy.
+       */
+      primary:
+        'bg-[#5E6AD2] hover:bg-[#828FFF] text-white border border-transparent ' +
+        'shadow-[0px_4px_24px_rgba(0,0,0,0.20)]',
+
+      /**
+       * Secondary: nearly-invisible translucent surface with a fine white border.
+       */
+      secondary:
+        'bg-[rgba(255,255,255,0.03)] hover:bg-[rgba(255,255,255,0.07)] ' +
+        'text-[#F7F8F8] border border-[rgba(255,255,255,0.08)]',
+
+      /**
+       * Outline maps to secondary styling — pill shape, subtle border.
+       * Kept for API compatibility.
+       */
+      outline:
+        'bg-transparent hover:bg-[rgba(255,255,255,0.07)] ' +
+        'text-[#F7F8F8] border border-[#23252A]',
+
+      /**
+       * Ghost: fully transparent, only shows a muted fill on hover.
+       */
+      ghost:
+        'bg-transparent hover:bg-[rgba(255,255,255,0.07)] ' +
+        'text-[#F7F8F8] border border-transparent',
+
+      /**
+       * Danger: Linear red (#EB5757) for destructive actions.
+       */
+      danger:
+        'bg-[#EB5757] hover:bg-[#F07070] text-white border border-transparent ' +
+        'shadow-[0px_4px_24px_rgba(0,0,0,0.20)]',
     };
 
-    const sizes = {
-      sm: 'px-3 py-1.5 text-sm',
-      md: 'px-4 py-2 text-sm',
-      lg: 'px-6 py-3 text-base',
+    const sizes: Record<NonNullable<ButtonProps['size']>, string> = {
+      sm: 'min-h-[32px] px-[14px] text-[13px]',
+      md: 'min-h-[40px] px-[18px] text-[14px]',
+      lg: 'min-h-[48px] px-[24px] text-[15px]',
     };
+
+    // font-weight 590 is not available as a Tailwind utility class — apply inline.
+    const linearFontStyle: CSSProperties = { fontWeight: 590, ...style };
 
     return (
       <button
         ref={ref}
         className={clsx(baseStyles, variants[variant], sizes[size], className)}
+        style={linearFontStyle}
         disabled={disabled || loading}
         {...props}
       >
@@ -41,7 +102,14 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
             fill="none"
             viewBox="0 0 24 24"
           >
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <circle
+              className="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              strokeWidth="4"
+            />
             <path
               className="opacity-75"
               fill="currentColor"
