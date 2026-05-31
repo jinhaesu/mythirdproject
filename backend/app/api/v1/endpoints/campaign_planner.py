@@ -1068,7 +1068,7 @@ JSON만 출력하세요."""
     last_error = None
 
     # Try with primary model, then fallback with smaller prompt if parsing fails
-    models_to_try = [claude.model, "claude-sonnet-4-6"]
+    models_to_try = [claude.model, "claude-opus-4-8"]
     for model_id in models_to_try:
         try:
             response = claude.client.messages.create(

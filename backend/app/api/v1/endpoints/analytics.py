@@ -1149,7 +1149,7 @@ async def generate_report(
 - JSON만 출력하세요"""
 
     # Try primary model, then fallback models
-    models_to_try = ["claude-sonnet-4-20250514", "claude-3-7-sonnet-20250219", "claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022"]
+    models_to_try = ["claude-opus-4-8", "claude-opus-4-8", "claude-opus-4-8", "claude-opus-4-8"]
     ai_resp = None
     try:
         for model_id in models_to_try:
