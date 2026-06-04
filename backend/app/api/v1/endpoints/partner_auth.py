@@ -239,6 +239,31 @@ async def send_sms_link(
     return {"success": True, "message": "로그인 링크를 문자로 전송했습니다."}
 
 
+@router.post("/issue-share-link")
+async def issue_share_link(
+    partner: AffiliatePartner = Depends(get_current_partner),
+):
+    """
+    로그인된 파트너가 자신의 "실시간 매출 확인" 매직링크를 즉시 발급한다.
+
+    파트너가 본인 또는 동료에게 빠르게 링크를 공유할 때 사용 — 기존에는
+    마케팅팀이 알림톡/문자로 직접 발송해야 했던 작업을 파트너 본인이 처리.
+
+    - 발급 토큰 type: 'partner_magic_link' (기존 매직링크와 동일)
+    - 유효 시간: 10분 (보안)
+    - 발송 없음 — URL만 반환하여 파트너가 직접 복사/전달
+    """
+    token = create_access_token(
+        data={"sub": str(partner.id), "type": "partner_magic_link"},
+        expires_delta=timedelta(minutes=10),
+    )
+    magic_link = f"{settings.FRONTEND_URL}/partner?token={token}"
+    return {
+        "magic_link": magic_link,
+        "expires_in": 600,  # seconds
+    }
+
+
 @router.post("/verify")
 async def verify_magic_link(
     request: VerifyMagicLinkRequest,

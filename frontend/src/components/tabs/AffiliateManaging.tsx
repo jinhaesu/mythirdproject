@@ -2248,6 +2248,48 @@ function CampaignsSection() {
     setShowForm(true);
   };
 
+  // 캠페인 복사 — 기존 캠페인의 모든 설정값을 새 캠페인 폼에 자동 채움
+  // 사용자는 캠페인명/진행 기간만 수정하면 즉시 생성 가능
+  const handleDuplicate = (c: AffiliateCampaign) => {
+    setEditingCampaignId(null);  // 생성 모드 (수정 아님 — 새 쿠폰/카테고리가 발급됨)
+    let productNos: number[] | undefined;
+    if (c.cafe24_product_nos) {
+      try {
+        const parsed = JSON.parse(c.cafe24_product_nos);
+        if (Array.isArray(parsed)) productNos = parsed.map(n => Number(n)).filter(Boolean);
+      } catch { /* ignore */ }
+    }
+    // 카테고리 모드면 메타 정보(상품 이미지/이름)는 비워두고 product_no만 유지
+    // → Cafe24 셀렉터가 product_no로 다시 조회해서 채워주거나, 사용자가 다시 선택
+    const productMeta: Array<{ no: number; name: string; image?: string }> | undefined =
+      c.cafe24_category_no && productNos
+        ? productNos.map(no => ({ no, name: `상품 #${no}` }))
+        : undefined;
+
+    setForm({
+      name: `[복사] ${c.name}`,           // 사용자가 변경하기 쉽게 접두사
+      product: c.cafe24_product_name ?? c.product,
+      commission_type: c.commission_type,
+      commission_rate: c.commission_rate,
+      start_date: '',                      // 사용자 입력 필수 (의도적으로 비움)
+      end_date: '',                        // 사용자 입력 (선택)
+      cafe24_product_no: c.cafe24_category_no ? undefined : c.cafe24_product_no,
+      cafe24_product_name: c.cafe24_category_no ? undefined : c.cafe24_product_name,
+      discount_type: c.discount_type ?? 'percentage',
+      discount_value: c.discount_value ?? 0,
+      cafe24_product_nos: productNos,
+      cafe24_product_meta: productMeta,
+      auto_create_category: !!c.cafe24_category_no,
+      cafe24_category_name: c.cafe24_category_name
+        ? `[복사] ${c.cafe24_category_name}`
+        : undefined,
+    });
+    setShowForm(true);
+    toast.success('설정값이 복사되었습니다. 캠페인명과 진행 기간만 수정하세요.', { duration: 4000 });
+    // 폼이 화면 상단에 있을 수 있으므로 스크롤 업
+    setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 50);
+  };
+
   const handleSaveEdit = () => {
     if (!form.name.trim()) { toast.error('캠페인명을 입력하세요'); return; }
     if (!form.start_date) { toast.error('시작일을 입력하세요'); return; }
@@ -2306,6 +2348,15 @@ function CampaignsSection() {
           <h3 className="text-sm font-semibold text-white">
             {editingCampaignId !== null ? '캠페인 수정' : '새 캠페인 만들기'}
           </h3>
+          {editingCampaignId === null && form.name.startsWith('[복사] ') && (
+            <div className="flex items-start gap-2 px-3 py-2 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
+              <Copy size={13} className="text-emerald-400 mt-0.5 shrink-0" />
+              <div className="text-[11px] text-emerald-200 leading-relaxed">
+                기존 캠페인 설정값이 복사되었습니다. <span className="font-semibold">캠페인명</span>과 <span className="font-semibold">진행 기간</span>만 수정한 뒤 생성하세요.
+                상품·할인·커미션 설정은 그대로 유지되며, 새 쿠폰{form.auto_create_category ? '과 새 비공개 카테고리' : ''}이/가 발급됩니다.
+              </div>
+            </div>
+          )}
           <div className="grid md:grid-cols-2 gap-3">
             <div>
               <label className="text-xs text-gray-400">캠페인명 *</label>
@@ -2596,6 +2647,13 @@ function CampaignsSection() {
                     title="캠페인 수정"
                   >
                     <Pencil size={12} />
+                  </button>
+                  <button
+                    onClick={() => handleDuplicate(c)}
+                    className="p-1 text-gray-500 hover:text-emerald-400 transition-colors"
+                    title="이 캠페인 설정으로 새 캠페인 만들기 (복사)"
+                  >
+                    <Copy size={12} />
                   </button>
                   <button
                     onClick={() => {

@@ -568,6 +568,137 @@ function CampaignCard({ campaign }: { campaign: PartnerCampaign }) {
   );
 }
 
+// ─── Share Link Card ──────────────────────────────────────────────────────────
+// 파트너 본인이 "실시간 매출 확인 링크"를 즉시 발급/복사할 수 있는 고정 컴포넌트.
+// 기존엔 마케팅팀이 알림톡/문자로 매번 보내야 했던 작업을 본인이 처리하도록 내재화.
+// 매직링크는 10분 유효이므로 복사 후 즉시 전달하도록 안내.
+
+function ShareLinkCard() {
+  const [link, setLink] = useState<string | null>(null);
+  const [expiresAt, setExpiresAt] = useState<number | null>(null);
+  const [remainingSec, setRemainingSec] = useState<number>(0);
+  const [issuing, setIssuing] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const issue = useCallback(async () => {
+    setIssuing(true);
+    try {
+      const res = await partnerAuthApi.issueShareLink();
+      const exp = Date.now() + res.expires_in * 1000;
+      setLink(res.magic_link);
+      setExpiresAt(exp);
+      setRemainingSec(res.expires_in);
+      toast.success('실시간 매출 링크가 발급되었습니다 (10분 유효)');
+    } catch {
+      toast.error('링크 발급에 실패했습니다');
+    } finally {
+      setIssuing(false);
+    }
+  }, []);
+
+  // 남은 시간 카운트다운 (1초마다)
+  useEffect(() => {
+    if (!expiresAt) return;
+    const tick = () => {
+      const left = Math.max(0, Math.floor((expiresAt - Date.now()) / 1000));
+      setRemainingSec(left);
+      if (left === 0) {
+        setLink(null);
+        setExpiresAt(null);
+      }
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [expiresAt]);
+
+  const handleCopy = async () => {
+    if (!link) return;
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+      toast.success('링크가 복사되었습니다');
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error('복사에 실패했습니다');
+    }
+  };
+
+  const mmss = useMemo(() => {
+    const m = Math.floor(remainingSec / 60);
+    const s = remainingSec % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  }, [remainingSec]);
+
+  return (
+    <div className="rounded-2xl border border-emerald-500/25 bg-gradient-to-br from-emerald-500/[0.08] via-[#0F1011] to-[#0F1011] p-5">
+      <div className="flex items-start justify-between gap-3 mb-4 flex-wrap">
+        <div className="flex items-start gap-3 min-w-0">
+          <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0">
+            <Link2 size={18} className="text-emerald-300" />
+          </div>
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold text-white">실시간 매출 확인 링크</h3>
+            <p className="text-[11px] text-[#8A8F98] mt-0.5 leading-relaxed">
+              본인 또는 동료에게 공유할 1회용 로그인 링크. 발급 후 10분간 유효합니다.
+            </p>
+          </div>
+        </div>
+        {link && remainingSec > 0 && (
+          <span className="text-[11px] font-mono px-2 py-1 bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 rounded-md tabular-nums">
+            {mmss} 남음
+          </span>
+        )}
+      </div>
+
+      {!link ? (
+        <button
+          onClick={issue}
+          disabled={issuing}
+          className="w-full flex items-center justify-center gap-2 py-2.5 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 disabled:opacity-50 text-white text-sm font-semibold rounded-xl transition-all shadow-[0_4px_14px_rgba(16,185,129,0.25)]"
+        >
+          {issuing ? <Loader2 size={14} className="animate-spin" /> : <Link2 size={14} />}
+          실시간 매출 링크 발급
+        </button>
+      ) : (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 bg-[#141516] border border-white/[0.08] rounded-xl px-3 py-2.5">
+            <Link2 size={13} className="text-emerald-400 shrink-0" />
+            <input
+              readOnly
+              value={link}
+              onFocus={(e) => e.currentTarget.select()}
+              className="flex-1 bg-transparent text-[11px] text-[#D0D6E0] outline-none truncate font-mono"
+            />
+            <button
+              onClick={handleCopy}
+              className={`shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
+                copied
+                  ? 'bg-emerald-500/25 text-emerald-200'
+                  : 'bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25'
+              }`}
+            >
+              <Copy size={11} />
+              {copied ? '복사됨' : '링크 복사'}
+            </button>
+            <button
+              onClick={issue}
+              disabled={issuing}
+              title="새 링크 발급 (이전 링크는 만료)"
+              className="shrink-0 p-1.5 text-[#8A8F98] hover:text-white hover:bg-white/5 rounded-md transition-colors disabled:opacity-50"
+            >
+              <RefreshCw size={11} className={issuing ? 'animate-spin' : ''} />
+            </button>
+          </div>
+          <p className="text-[10px] text-[#6a6f78] leading-relaxed pl-1">
+            * 보안을 위해 10분 후 자동 만료됩니다. 복사 후 즉시 전달하세요. 받는 사람이 클릭하면 본인 명의로 매출 대시보드가 열립니다.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 
 function Skeleton({ className = '' }: { className?: string }) {
@@ -760,6 +891,9 @@ function DashboardView({ partner, onLogout }: { partner: PartnerInfo; onLogout: 
             오늘도 멋진 하루 보내세요. 실시간 매출과 커미션 현황을 확인해보세요.
           </p>
         </div>
+
+        {/* 실시간 매출 확인 링크 — 본인/동료 공유용 (마케팅팀 발송 업무 경감) */}
+        <ShareLinkCard />
 
         {/* KPI 카드 */}
         <section>

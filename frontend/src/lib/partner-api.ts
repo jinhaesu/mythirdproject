@@ -123,6 +123,12 @@ export const partnerAuthApi = {
     const { data } = await partnerApi.post('/partner/auth/verify', { token });
     return data;
   },
+  // 로그인된 파트너가 자신의 실시간 매출 확인 매직링크를 즉시 발급
+  // (마케팅팀 발송 업무 경감용 — 본인/동료 공유)
+  issueShareLink: async (): Promise<{ magic_link: string; expires_in: number }> => {
+    const { data } = await partnerApi.post('/partner/auth/issue-share-link', {});
+    return data;
+  },
 };
 
 // ─── Dashboard API ────────────────────────────────────────────────────────────
