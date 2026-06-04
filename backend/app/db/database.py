@@ -382,6 +382,19 @@ async def init_db():
     except Exception:
         pass  # Column already exists
 
+    # affiliate_partners partner_group column — 활동 그룹 분류 (crew/gongu/ad/other)
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(
+                __import__('sqlalchemy').text(
+                    "ALTER TABLE affiliate_partners ADD COLUMN IF NOT EXISTS "
+                    "partner_group VARCHAR(20) DEFAULT 'crew'"
+                )
+            )
+        logger.info("[init_db] affiliate_partners.partner_group ensured")
+    except Exception:
+        pass
+
     # Phase 3 — ReferralConversion cafe24_order_id
     try:
         async with engine.begin() as conn:

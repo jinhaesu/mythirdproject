@@ -93,6 +93,8 @@ class PartnerCreate(BaseModel):
     channels: Optional[List[str]] = None  # multi-channel support
     followers: int = 0
     memo: Optional[str] = None
+    # 활동 그룹 — crew(크루) / gongu(공구) / ad(광고) / other(기타). 기본 crew
+    partner_group: Optional[str] = None
 
 
 class PartnerUpdate(BaseModel):
@@ -105,6 +107,7 @@ class PartnerUpdate(BaseModel):
     followers: Optional[int] = None
     memo: Optional[str] = None
     referral_link: Optional[str] = None
+    partner_group: Optional[str] = None
 
 
 class SettlementCreate(BaseModel):
@@ -694,6 +697,10 @@ async def create_partner(
         # 기존 channel 컬럼은 channels[0] 으로 채움 (하위 호환)
         partner_data["channel"] = payload.channels[0]
     # channel은 payload에서 이미 설정됨 (default "instagram")
+
+    # partner_group이 None이면 모델 default("crew")를 사용하도록 키 제거
+    if partner_data.get("partner_group") is None:
+        partner_data.pop("partner_group", None)
 
     # 관리자가 직접 초대한 파트너는 즉시 승인 — SMS 매직링크가 바로 동작해야 함
     partner_data.setdefault("status", "approved")

@@ -80,6 +80,9 @@ class AffiliatePartner(Base):
     referral_link: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     phone: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     memo: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # 활동 그룹 분류 — crew(크루) / gongu(공구) / ad(광고) / other(기타)
+    # 파트너 탭에서 대분류 필터로 사용. 기본은 crew(가장 일반적).
+    partner_group: Mapped[str] = mapped_column(String(20), default="crew", server_default="crew")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     # Soft delete — 휴지통으로 이동한 시각. NULL이면 활성 파트너.
     deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True, index=True)

@@ -27,7 +27,7 @@ import {
   ComposedChart,
 } from 'recharts';
 import { affiliateApi, authApi, cafe24Api, formatCurrency } from '@/lib/api';
-import type { AffiliatePartner, AffiliateTimeseriesPoint, AffiliateByCampaign, AffiliateChannelKey, HourlyConversion, TopProduct, ConnectionsStatus } from '@/lib/api';
+import type { AffiliatePartner, AffiliateTimeseriesPoint, AffiliateByCampaign, AffiliateChannelKey, HourlyConversion, TopProduct, ConnectionsStatus, PartnerGroupKey } from '@/lib/api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -132,6 +132,8 @@ interface NewPartnerForm {
   followers: number;
   campaign_ids: number[];
   memo: string;
+  /** 활동 그룹 분류 (크루/공구/광고/기타) */
+  partner_group: PartnerGroupKey;
 }
 
 interface NewReferralProgramForm {
@@ -269,6 +271,234 @@ const REASON_LABEL: Record<string, string> = {
 };
 function reasonLabel(reason: string): string {
   return REASON_LABEL[reason] ?? reason;
+}
+
+// ─── Partner group options (활동 그룹 분류) ────────────────────────────────────
+
+interface PartnerGroupOption {
+  key: PartnerGroupKey;
+  label: string;
+  color: string;            // badge color (셀/배지)
+  tabColor: string;         // active tab color
+}
+
+const PARTNER_GROUP_OPTIONS: PartnerGroupOption[] = [
+  { key: 'crew',  label: '크루', color: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30', tabColor: 'border-emerald-400 text-emerald-300' },
+  { key: 'gongu', label: '공구', color: 'bg-sky-500/15 text-sky-300 border-sky-500/30',           tabColor: 'border-sky-400 text-sky-300' },
+  { key: 'ad',    label: '광고', color: 'bg-amber-500/15 text-amber-300 border-amber-500/30',     tabColor: 'border-amber-400 text-amber-300' },
+  { key: 'other', label: '기타', color: 'bg-gray-500/15 text-gray-300 border-gray-500/30',         tabColor: 'border-gray-400 text-gray-300' },
+];
+const PARTNER_GROUP_MAP = Object.fromEntries(PARTNER_GROUP_OPTIONS.map(g => [g.key, g])) as Record<PartnerGroupKey, PartnerGroupOption>;
+function normalizePartnerGroup(g?: string | null): PartnerGroupKey {
+  if (g === 'crew' || g === 'gongu' || g === 'ad' || g === 'other') return g;
+  return 'crew'; // 기본값 — DB default와 동일
+}
+
+// ─── Shared UI: SearchBar / DateRangeFilter / FilterTabs ──────────────────────
+
+function SearchBar({
+  value,
+  onChange,
+  placeholder,
+  hint,
+  width = 'w-64',
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+  hint?: string;
+  width?: string;
+}) {
+  return (
+    <div className={`relative ${width}`}>
+      <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="w-full pl-7 pr-7 py-1.5 bg-[#141516] border border-[#2a2d35] rounded-lg text-xs text-white placeholder:text-gray-600 focus:outline-none focus:border-emerald-500/50"
+      />
+      {value && (
+        <button
+          type="button"
+          onClick={() => onChange('')}
+          title="검색어 지우기"
+          className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 text-gray-500 hover:text-white rounded"
+        >
+          <X size={11} />
+        </button>
+      )}
+      {hint && !value && (
+        <p className="absolute top-full left-0 mt-1 text-[10px] text-gray-600 truncate">{hint}</p>
+      )}
+    </div>
+  );
+}
+
+// ─── Date range filter ────────────────────────────────────────────────────────
+
+export interface DateRange {
+  start: string;  // YYYY-MM-DD (포함 시작), '' 이면 미설정
+  end: string;    // YYYY-MM-DD (포함 끝), '' 이면 미설정
+}
+
+function todayStr(): string {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function firstOfMonth(offsetMonths = 0): string {
+  const d = new Date();
+  d.setMonth(d.getMonth() + offsetMonths, 1);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  return `${yyyy}-${mm}-01`;
+}
+
+function lastOfMonth(offsetMonths = 0): string {
+  const d = new Date();
+  d.setMonth(d.getMonth() + offsetMonths + 1, 0);  // 다음 달의 0일 = 이번 달 마지막 날
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function DateRangeFilter({
+  value,
+  onChange,
+  align = 'left',
+}: {
+  value: DateRange;
+  onChange: (r: DateRange) => void;
+  align?: 'left' | 'right';
+}) {
+  const today = todayStr();
+  const presets = [
+    { label: '오늘',   range: { start: today, end: today } },
+    { label: '이번 달', range: { start: firstOfMonth(0), end: lastOfMonth(0) } },
+    { label: '지난달', range: { start: firstOfMonth(-1), end: lastOfMonth(-1) } },
+  ];
+
+  const matchesPreset = (label: string) => {
+    const p = presets.find(x => x.label === label);
+    return !!p && p.range.start === value.start && p.range.end === value.end;
+  };
+  const isAll = !value.start && !value.end;
+
+  return (
+    <div className={`flex items-center gap-1.5 flex-wrap ${align === 'right' ? 'justify-end' : ''}`}>
+      <button
+        type="button"
+        onClick={() => onChange({ start: '', end: '' })}
+        className={`px-2 py-1 text-[11px] rounded border transition-colors ${
+          isAll
+            ? 'bg-emerald-500/15 border-emerald-400/40 text-emerald-300'
+            : 'border-[#2a2d35] text-gray-400 hover:text-white hover:border-gray-500'
+        }`}
+      >
+        전체
+      </button>
+      {presets.map(p => (
+        <button
+          key={p.label}
+          type="button"
+          onClick={() => onChange(p.range)}
+          className={`px-2 py-1 text-[11px] rounded border transition-colors ${
+            matchesPreset(p.label)
+              ? 'bg-emerald-500/15 border-emerald-400/40 text-emerald-300'
+              : 'border-[#2a2d35] text-gray-400 hover:text-white hover:border-gray-500'
+          }`}
+        >
+          {p.label}
+        </button>
+      ))}
+      <div className="flex items-center gap-1 ml-1 pl-2 border-l border-[#2a2d35]">
+        <input
+          type="date"
+          value={value.start}
+          onChange={(e) => onChange({ ...value, start: e.target.value })}
+          className="px-2 py-1 bg-[#141516] border border-[#2a2d35] rounded text-[11px] text-white focus:outline-none focus:border-emerald-500/50"
+          title="시작일"
+        />
+        <span className="text-gray-500 text-[11px]">~</span>
+        <input
+          type="date"
+          value={value.end}
+          onChange={(e) => onChange({ ...value, end: e.target.value })}
+          className="px-2 py-1 bg-[#141516] border border-[#2a2d35] rounded text-[11px] text-white focus:outline-none focus:border-emerald-500/50"
+          title="종료일"
+        />
+      </div>
+    </div>
+  );
+}
+
+// ─── Filter tabs (대분류 탭) ───────────────────────────────────────────────────
+
+function FilterTabs<T extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: Array<{ key: T; label: string; count?: number; tabColor?: string }>;
+  value: T;
+  onChange: (key: T) => void;
+}) {
+  return (
+    <div className="flex items-center gap-0 border-b border-[#2a2d35] overflow-x-auto">
+      {options.map(opt => {
+        const active = opt.key === value;
+        const colorCls = active
+          ? (opt.tabColor || 'border-emerald-400 text-emerald-300')
+          : 'border-transparent text-gray-400 hover:text-white';
+        return (
+          <button
+            key={opt.key}
+            type="button"
+            onClick={() => onChange(opt.key)}
+            className={`px-3 py-2 text-xs font-medium border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap ${colorCls}`}
+          >
+            {opt.label}
+            {opt.count !== undefined && (
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                active ? 'bg-white/15 text-white' : 'bg-white/5 text-gray-500'
+              }`}>
+                {opt.count}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// 기간 필터링 헬퍼 — date가 [start, end] 범위(포함)에 속하면 true.
+// start/end가 비어있으면 해당 경계 제한 없음.
+function isInRange(dateIso: string | null | undefined, range: DateRange): boolean {
+  if (!range.start && !range.end) return true;
+  if (!dateIso) return false;
+  const ymd = dateIso.length >= 10 ? dateIso.substring(0, 10) : dateIso;
+  if (range.start && ymd < range.start) return false;
+  if (range.end && ymd > range.end) return false;
+  return true;
+}
+
+// 캠페인 진행 기간이 필터 기간과 1일이라도 겹치면 true
+function campaignOverlapsRange(c: { start_date?: string | null; end_date?: string | null }, range: DateRange): boolean {
+  if (!range.start && !range.end) return true;
+  const cStart = c.start_date ? c.start_date.substring(0, 10) : '';
+  const cEnd = c.end_date ? c.end_date.substring(0, 10) : '9999-12-31';
+  // 캠페인 [cStart, cEnd] vs 필터 [range.start, range.end] 의 교집합 여부
+  const fStart = range.start || '0000-01-01';
+  const fEnd = range.end || '9999-12-31';
+  if (!cStart) return true;  // 시작일 모르면 범위 미정 → 포함
+  return cStart <= fEnd && cEnd >= fStart;
 }
 
 function campaignStatusBadge(status: AffiliateCampaign['status']) {
@@ -2065,10 +2295,16 @@ function CampaignDebugPanel({
 
 // ─── Campaigns section ────────────────────────────────────────────────────────
 
+type CampaignStatusTab = 'all' | 'pending' | 'active' | 'ended';
+
 function CampaignsSection() {
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [editingCampaignId, setEditingCampaignId] = useState<number | null>(null);
+  // 필터 상태 — 기본 탭은 [진행 중] (기획 의도: 과거 데이터로 스크롤 길어지는 현상 방지)
+  const [statusTab, setStatusTab] = useState<CampaignStatusTab>('active');
+  const [search, setSearch] = useState('');
+  const [dateRange, setDateRange] = useState<DateRange>({ start: '', end: '' });
   const [form, setForm] = useState<NewCampaignForm>({
     name: '',
     product: '',
@@ -2324,6 +2560,39 @@ function CampaignsSection() {
 
   const isCafe24Connected = cafe24Status?.connected ?? false;
 
+  // 탭별 카운트 — 필터링 전 전체 캠페인 기준
+  const tabCounts = {
+    all: campaigns.length,
+    pending: campaigns.filter(c => c.status === 'paused').length,
+    active: campaigns.filter(c => c.status === 'active').length,
+    ended: campaigns.filter(c => c.status === 'ended').length,
+  };
+
+  // 실제 화면에 표시될 캠페인 (탭 + 검색 + 기간 필터)
+  const filteredCampaigns = campaigns.filter(c => {
+    // 1. 상태 탭
+    if (statusTab === 'pending' && c.status !== 'paused') return false;
+    if (statusTab === 'active'  && c.status !== 'active') return false;
+    if (statusTab === 'ended'   && c.status !== 'ended')  return false;
+
+    // 2. 검색어 (캠페인명 + 상품명)
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      const haystacks = [
+        c.name,
+        c.product,
+        c.cafe24_product_name,
+        c.cafe24_category_name,
+      ].filter(Boolean).map(s => String(s).toLowerCase());
+      if (!haystacks.some(s => s.includes(q))) return false;
+    }
+
+    // 3. 기간 필터 — 캠페인 진행 기간이 선택 범위와 겹치는지
+    if (!campaignOverlapsRange(c, dateRange)) return false;
+
+    return true;
+  });
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
@@ -2334,6 +2603,28 @@ function CampaignsSection() {
         >
           <Plus size={14} /> 새 캠페인
         </button>
+      </div>
+
+      {/* 진행 상태 탭 */}
+      <FilterTabs<CampaignStatusTab>
+        options={[
+          { key: 'all',     label: '전체',     count: tabCounts.all },
+          { key: 'pending', label: '진행 대기', count: tabCounts.pending, tabColor: 'border-amber-400 text-amber-300' },
+          { key: 'active',  label: '진행 중',   count: tabCounts.active,  tabColor: 'border-emerald-400 text-emerald-300' },
+          { key: 'ended',   label: '종료',     count: tabCounts.ended,   tabColor: 'border-gray-400 text-gray-300' },
+        ]}
+        value={statusTab}
+        onChange={setStatusTab}
+      />
+
+      {/* 검색 + 기간 필터 */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <SearchBar
+          value={search}
+          onChange={setSearch}
+          placeholder="캠페인명·상품명 검색"
+        />
+        <DateRangeFilter value={dateRange} onChange={setDateRange} align="right" />
       </div>
 
       {isError && (
@@ -2583,9 +2874,20 @@ function CampaignsSection() {
             <Plus size={14} /> 첫 캠페인 만들기
           </button>
         </div>
+      ) : filteredCampaigns.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-12 gap-2 bg-[#1a1b1e] rounded-xl border border-[#2a2d35]">
+          <Filter size={24} className="text-gray-600" />
+          <p className="text-sm text-gray-400">필터 조건에 해당하는 캠페인이 없습니다</p>
+          <button
+            onClick={() => { setStatusTab('all'); setSearch(''); setDateRange({ start: '', end: '' }); }}
+            className="text-[11px] text-emerald-400 hover:text-emerald-300 underline mt-1"
+          >
+            필터 초기화
+          </button>
+        </div>
       ) : (
         <div className="space-y-3">
-          {campaigns.map(c => (
+          {filteredCampaigns.map(c => (
             <div key={c.id} className="bg-[#1a1b1e] rounded-xl p-4 border border-[#2a2d35]">
               <div className="flex justify-between items-start mb-3">
                 <div className="flex items-center gap-3">
@@ -3359,6 +3661,7 @@ interface PartnerEditForm {
   followers: number;
   memo: string;
   status: AffiliatePartner['status'];
+  partner_group: PartnerGroupKey;
 }
 
 interface PartnerEditModalProps {
@@ -3377,6 +3680,7 @@ function PartnerEditModal({ partner, onClose, onSave, isSaving }: PartnerEditMod
     followers: partner.followers,
     memo: partner.memo ?? '',
     status: partner.status,
+    partner_group: normalizePartnerGroup(partner.partner_group as string | null | undefined),
   });
 
   const toggleChannel = (key: string) => {
@@ -3401,6 +3705,7 @@ function PartnerEditModal({ partner, onClose, onSave, isSaving }: PartnerEditMod
       followers: editForm.followers,
       memo: editForm.memo,
       status: editForm.status,
+      partner_group: editForm.partner_group,
     });
   };
 
@@ -3476,6 +3781,31 @@ function PartnerEditModal({ partner, onClose, onSave, isSaving }: PartnerEditMod
                 <option value="rejected">거절</option>
               </select>
             </div>
+            <div className="md:col-span-2">
+              <label className="text-xs text-gray-400 flex items-center gap-1.5">
+                활동 그룹 *
+                <span className="text-[10px] text-gray-500">(계약 형태)</span>
+              </label>
+              <div className="mt-1 flex gap-1.5">
+                {PARTNER_GROUP_OPTIONS.map(opt => {
+                  const active = editForm.partner_group === opt.key;
+                  return (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      onClick={() => setEditForm({ ...editForm, partner_group: opt.key })}
+                      className={`flex-1 px-2 py-2 text-xs rounded-lg border transition-colors ${
+                        active
+                          ? opt.color
+                          : 'border-[#2a2d35] text-gray-500 hover:border-gray-500 hover:text-gray-300'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
 
           <div>
@@ -3540,6 +3870,8 @@ function PartnerEditModal({ partner, onClose, onSave, isSaving }: PartnerEditMod
   );
 }
 
+type PartnerGroupTab = 'all' | PartnerGroupKey;
+
 function PartnersSection() {
   const qc = useQueryClient();
   const [showInviteForm, setShowInviteForm] = useState(false);
@@ -3552,10 +3884,14 @@ function PartnersSection() {
     followers: 0,
     campaign_ids: [],
     memo: '',
+    partner_group: 'crew',
   });
   const [selectedPartner, setSelectedPartner] = useState<AffiliatePartner | null>(null);
   const [editingPartner, setEditingPartner] = useState<AffiliatePartner | null>(null);
   const [showTrash, setShowTrash] = useState(false);
+  // 필터 상태
+  const [groupTab, setGroupTab] = useState<PartnerGroupTab>('all');
+  const [search, setSearch] = useState('');
 
   const { data: partners = [], isLoading, isError } = useQuery<AffiliatePartner[]>({
     queryKey: ['affiliate', 'partners'],
@@ -3606,7 +3942,7 @@ function PartnersSection() {
       qc.invalidateQueries({ queryKey: ['affiliate', 'dashboard'] });
       toast.success('파트너 초대가 완료되었습니다');
       setShowInviteForm(false);
-      setInviteForm({ name: '', email: '', phone: '', channel: 'instagram', channels: [], followers: 0, campaign_ids: [], memo: '' });
+      setInviteForm({ name: '', email: '', phone: '', channel: 'instagram', channels: [], followers: 0, campaign_ids: [], memo: '', partner_group: 'crew' });
     },
     onError: () => toast.error('파트너 초대에 실패했습니다'),
   });
@@ -3830,6 +4166,31 @@ function PartnersSection() {
                   className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-emerald-500/50"
                 />
               </div>
+              <div>
+                <label className="text-xs text-gray-400 flex items-center gap-1.5">
+                  활동 그룹 *
+                  <span className="text-[10px] text-gray-500">(계약 형태)</span>
+                </label>
+                <div className="mt-1 flex gap-1.5">
+                  {PARTNER_GROUP_OPTIONS.map(opt => {
+                    const active = inviteForm.partner_group === opt.key;
+                    return (
+                      <button
+                        key={opt.key}
+                        type="button"
+                        onClick={() => setInviteForm({ ...inviteForm, partner_group: opt.key })}
+                        className={`flex-1 px-2 py-2 text-xs rounded-lg border transition-colors ${
+                          active
+                            ? opt.color
+                            : 'border-[#2a2d35] text-gray-500 hover:border-gray-500 hover:text-gray-300'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
               <div className="md:col-span-2">
                 <label className="text-xs text-gray-400 flex items-center gap-1.5">
                   채널 *
@@ -3930,6 +4291,31 @@ function PartnersSection() {
           </div>
         )}
 
+        {/* 활동 그룹 탭 + 검색 — 휴지통 모드가 아닐 때만 노출 */}
+        {!showTrash && partners.length > 0 && (
+          <>
+            <FilterTabs<PartnerGroupTab>
+              options={[
+                { key: 'all',   label: '전체', count: partners.length },
+                ...PARTNER_GROUP_OPTIONS.map(g => ({
+                  key: g.key as PartnerGroupTab,
+                  label: g.label,
+                  count: partners.filter(p => normalizePartnerGroup(p.partner_group as string | null | undefined) === g.key).length,
+                  tabColor: g.tabColor,
+                })),
+              ]}
+              value={groupTab}
+              onChange={setGroupTab}
+            />
+            <SearchBar
+              value={search}
+              onChange={setSearch}
+              placeholder="파트너명·인플루언서 ID 검색"
+              width="w-full sm:w-80"
+            />
+          </>
+        )}
+
         {partners.length === 0 && !isError ? (
           <div className="flex flex-col items-center justify-center py-16 gap-3 bg-[#1a1b1e] rounded-xl border border-[#2a2d35]">
             <Users size={28} className="text-gray-600" />
@@ -3941,9 +4327,45 @@ function PartnersSection() {
               <UserPlus size={14} /> 첫 파트너 초대하기
             </button>
           </div>
-        ) : (
+        ) : (() => {
+          const filteredPartners = partners.filter(p => {
+            // 1. 그룹 탭
+            if (groupTab !== 'all') {
+              if (normalizePartnerGroup(p.partner_group as string | null | undefined) !== groupTab) return false;
+            }
+            // 2. 검색어 (파트너명 + ID + 이메일 + 휴대폰 마지막 4자리)
+            if (search.trim()) {
+              const q = search.trim().toLowerCase();
+              const haystacks = [
+                p.name,
+                String(p.id),
+                p.email,
+                p.phone,
+                p.referral_link,
+              ].filter(Boolean).map(s => String(s).toLowerCase());
+              if (!haystacks.some(s => s.includes(q))) return false;
+            }
+            return true;
+          });
+
+          if (filteredPartners.length === 0) {
+            return (
+              <div className="flex flex-col items-center justify-center py-12 gap-2 bg-[#1a1b1e] rounded-xl border border-[#2a2d35]">
+                <Filter size={24} className="text-gray-600" />
+                <p className="text-sm text-gray-400">필터 조건에 해당하는 파트너가 없습니다</p>
+                <button
+                  onClick={() => { setGroupTab('all'); setSearch(''); }}
+                  className="text-[11px] text-emerald-400 hover:text-emerald-300 underline mt-1"
+                >
+                  필터 초기화
+                </button>
+              </div>
+            );
+          }
+
+          return (
           <div className="space-y-3">
-            {partners.map(p => (
+            {filteredPartners.map(p => (
               <div
                 key={p.id}
                 className="bg-[#1a1b1e] rounded-xl p-4 border border-[#2a2d35] cursor-pointer hover:border-emerald-500/30 transition-colors"
@@ -3957,6 +4379,15 @@ function PartnersSection() {
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="text-sm font-semibold text-white">{p.name}</p>
+                        <span className="text-[10px] text-gray-500 font-mono">#{p.id}</span>
+                        {(() => {
+                          const g = PARTNER_GROUP_MAP[normalizePartnerGroup(p.partner_group as string | null | undefined)];
+                          return (
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded border font-medium ${g.color}`}>
+                              {g.label}
+                            </span>
+                          );
+                        })()}
                         <span className={`text-[10px] px-1.5 py-0.5 rounded ${partnerStatusBadge(p.status)}`}>
                           {partnerStatusLabel(p.status)}
                         </span>
@@ -4064,7 +4495,8 @@ function PartnersSection() {
               </div>
             ))}
           </div>
-        )}
+          );
+        })()}
       </div>
     </>
   );
@@ -4409,6 +4841,9 @@ function MyPointsSection() {
 
 function SettlementSection() {
   const qc = useQueryClient();
+  // 매출 발생 기간(정산 생성일) 기준 필터 + 파트너명 검색
+  const [dateRange, setDateRange] = useState<DateRange>({ start: '', end: '' });
+  const [search, setSearch] = useState('');
 
   const { data: settlements = [], isLoading, isError } = useQuery<Settlement[]>({
     queryKey: ['affiliate', 'settlements'],
@@ -4442,9 +4877,20 @@ function SettlementSection() {
     onError: () => toast.error('정산 요청 생성에 실패했습니다'),
   });
 
-  const totalUnpaid = settlements.filter(s => s.status === 'pending').reduce((sum, s) => sum + s.amount, 0);
-  const totalPaid = settlements.filter(s => s.status === 'paid').reduce((sum, s) => sum + s.amount, 0);
-  const pendingCount = settlements.filter(s => s.status === 'pending').length;
+  // 기간/검색 필터 적용된 정산 내역 (매출 발생 기간 = 정산 생성일 기준)
+  const filteredSettlements = settlements.filter(s => {
+    if (!isInRange(s.created_at, dateRange)) return false;
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      if (!s.partner_name?.toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
+
+  // 통계는 필터링된 데이터 기준으로 표시 → 기간 분석 가능
+  const totalUnpaid = filteredSettlements.filter(s => s.status === 'pending').reduce((sum, s) => sum + s.amount, 0);
+  const totalPaid = filteredSettlements.filter(s => s.status === 'paid').reduce((sum, s) => sum + s.amount, 0);
+  const pendingCount = filteredSettlements.filter(s => s.status === 'pending').length;
 
   const approvedPartners = partners.filter(p => p.status === 'approved' && p.unpaid_commission > 0);
 
@@ -4452,7 +4898,21 @@ function SettlementSection() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-bold text-white">정산 관리</h2>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <h2 className="text-lg font-bold text-white">정산 관리</h2>
+        <SearchBar
+          value={search}
+          onChange={setSearch}
+          placeholder="파트너명 검색"
+          width="w-56"
+        />
+      </div>
+
+      {/* 매출 발생 기간 필터 */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <span className="text-[11px] text-gray-500">매출 발생 기간</span>
+        <DateRangeFilter value={dateRange} onChange={setDateRange} align="right" />
+      </div>
 
       {isError && (
         <div className="flex items-center gap-2 px-4 py-2 bg-red-500/10 border border-red-500/20 rounded-lg">
@@ -4519,11 +4979,27 @@ function SettlementSection() {
       )}
 
       <div className="bg-[#1a1b1e] rounded-xl p-4 border border-[#2a2d35]">
-        <h3 className="text-sm font-semibold text-white mb-3">정산 내역</h3>
-        {settlements.length === 0 ? (
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold text-white">정산 내역</h3>
+          <span className="text-[11px] text-gray-500">
+            {filteredSettlements.length}건
+            {(dateRange.start || dateRange.end || search) && ` (전체 ${settlements.length}건 중)`}
+          </span>
+        </div>
+        {filteredSettlements.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-10 gap-2">
             <DollarSign size={24} className="text-gray-600" />
-            <p className="text-xs text-gray-500">정산 내역이 없습니다</p>
+            <p className="text-xs text-gray-500">
+              {settlements.length === 0 ? '정산 내역이 없습니다' : '조건에 해당하는 정산 내역이 없습니다'}
+            </p>
+            {settlements.length > 0 && (dateRange.start || dateRange.end || search) && (
+              <button
+                onClick={() => { setDateRange({ start: '', end: '' }); setSearch(''); }}
+                className="text-[11px] text-emerald-400 hover:text-emerald-300 underline mt-1"
+              >
+                필터 초기화
+              </button>
+            )}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -4539,7 +5015,7 @@ function SettlementSection() {
                 </tr>
               </thead>
               <tbody>
-                {settlements.map(s => (
+                {filteredSettlements.map(s => (
                   <tr key={s.id} className="border-b border-[#2a2d35]/50 text-gray-300">
                     <td className="py-2.5 px-2 font-medium text-white">{s.partner_name}</td>
                     <td className="py-2.5 px-2 text-right text-emerald-400">₩{fmt(s.amount)}</td>

@@ -771,6 +771,8 @@ export interface PartnerCampaignLink {
   referral_link: string;
 }
 
+export type PartnerGroupKey = 'crew' | 'gongu' | 'ad' | 'other';
+
 export interface AffiliatePartner {
   id: number;
   name: string;
@@ -793,6 +795,8 @@ export interface AffiliatePartner {
   joined_date: string;
   campaign_ids?: number[];
   memo?: string;
+  /** 활동 그룹 분류 — crew(크루)/gongu(공구)/ad(광고)/other(기타) */
+  partner_group?: PartnerGroupKey | string | null;
 }
 
 export interface AffiliateTimeseriesPoint {
