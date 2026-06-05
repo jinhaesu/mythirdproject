@@ -1626,6 +1626,174 @@ async def pay_settlement(
 
 
 # ---------------------------------------------------------------------------
+# Settlement Excel Export — 파트너별 [전체주문건][취소건] 2탭 XLSX
+# ---------------------------------------------------------------------------
+
+@router.get("/partners/{partner_id}/settlement-export")
+async def export_partner_settlement(
+    partner_id: int,
+    start: Optional[str] = Query(None, description="YYYY-MM-DD"),
+    end: Optional[str] = Query(None, description="YYYY-MM-DD"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    파트너별 정산 검토용 엑셀 다운로드.
+
+    Sheet1 '전체주문건': 해당 파트너 링크를 통해 발생한 모든 전환(주문) 리스트
+    Sheet2 '취소건': status in (refunded, cancelled) 또는 부분 환불(refunded_amount>0)
+
+    검토 프로세스: 전체 - 취소 = 유효 주문 → 수수료율 적용 → 최종 정산액 산출
+    """
+    from io import BytesIO
+    from fastapi.responses import StreamingResponse
+    from urllib.parse import quote
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment
+
+    # 파트너 조회 (삭제된 파트너도 export 허용 — 과거 정산 검토 가능)
+    p_r = await db.execute(
+        select(AffiliatePartner).where(AffiliatePartner.id == partner_id)
+    )
+    partner = p_r.scalar_one_or_none()
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner not found")
+
+    # 기간 파싱 — 시작은 00:00, 종료는 다음 날 00:00 (end-exclusive)
+    range_start: Optional[datetime] = None
+    range_end_excl: Optional[datetime] = None
+    if start:
+        try:
+            range_start = datetime.strptime(start, "%Y-%m-%d")
+        except ValueError:
+            raise HTTPException(status_code=400, detail="start 형식: YYYY-MM-DD")
+    if end:
+        try:
+            range_end_excl = datetime.strptime(end, "%Y-%m-%d") + timedelta(days=1)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="end 형식: YYYY-MM-DD")
+
+    # 전환 조회 (converted_at 기준 기간 필터)
+    conv_query = select(ReferralConversion).where(
+        ReferralConversion.partner_id == partner_id
+    )
+    if range_start is not None:
+        conv_query = conv_query.where(ReferralConversion.converted_at >= range_start)
+    if range_end_excl is not None:
+        conv_query = conv_query.where(ReferralConversion.converted_at < range_end_excl)
+    conv_query = conv_query.order_by(ReferralConversion.converted_at.desc())
+
+    conv_r = await db.execute(conv_query)
+    conversions = list(conv_r.scalars().all())
+
+    # 캠페인명 캐시
+    camp_ids = list({c.campaign_id for c in conversions if c.campaign_id})
+    campaign_name_map: dict[int, str] = {}
+    if camp_ids:
+        camp_r = await db.execute(
+            select(AffiliateCampaign).where(AffiliateCampaign.id.in_(camp_ids))
+        )
+        for camp in camp_r.scalars().all():
+            campaign_name_map[camp.id] = camp.name
+
+    # ─── Workbook 생성 ───────────────────────────────────────────────────────
+    wb = Workbook()
+
+    HEADER = [
+        "주문번호", "주문일시", "캠페인", "상태",
+        "주문금액(원)", "환불금액(원)", "수수료(원)", "환불일시",
+    ]
+    STATUS_KOR = {
+        "paid": "정상",
+        "refunded": "환불",
+        "cancelled": "취소",
+    }
+
+    def _fmt_dt(dt: Optional[datetime]) -> str:
+        return dt.strftime("%Y-%m-%d %H:%M") if dt else ""
+
+    def _row(c: ReferralConversion) -> list:
+        return [
+            c.cafe24_order_id or c.order_id or f"#{c.id}",
+            _fmt_dt(c.converted_at),
+            campaign_name_map.get(c.campaign_id or 0, ""),
+            STATUS_KOR.get(c.status or "paid", c.status or "paid"),
+            int(c.order_amount or 0),
+            int(c.refunded_amount or 0),
+            int(c.commission_amount or 0),
+            _fmt_dt(c.refunded_at),
+        ]
+
+    def _write_sheet(ws, rows: list, title: str, summary_label: str):
+        ws.title = title
+        # 헤더 스타일
+        header_font = Font(bold=True, color="FFFFFF")
+        header_fill = PatternFill(start_color="2A2D35", end_color="2A2D35", fill_type="solid")
+        for col_idx, h in enumerate(HEADER, start=1):
+            cell = ws.cell(row=1, column=col_idx, value=h)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+        # 데이터
+        for r_idx, r in enumerate(rows, start=2):
+            for c_idx, val in enumerate(r, start=1):
+                ws.cell(row=r_idx, column=c_idx, value=val)
+        # 합계 행
+        if rows:
+            sum_row = len(rows) + 2
+            ws.cell(row=sum_row, column=1, value=summary_label).font = Font(bold=True)
+            ws.cell(row=sum_row, column=5, value=sum(r[4] for r in rows)).font = Font(bold=True)
+            ws.cell(row=sum_row, column=6, value=sum(r[5] for r in rows)).font = Font(bold=True)
+            ws.cell(row=sum_row, column=7, value=sum(r[6] for r in rows)).font = Font(bold=True)
+        # 폭
+        widths = [22, 18, 22, 10, 14, 14, 12, 18]
+        for i, w in enumerate(widths, start=1):
+            ws.column_dimensions[chr(64 + i)].width = w
+        ws.freeze_panes = "A2"
+
+    # Sheet 1: 전체주문건
+    ws_all = wb.active
+    all_rows = [_row(c) for c in conversions]
+    _write_sheet(ws_all, all_rows, "전체주문건", f"합계({len(all_rows)}건)")
+
+    # Sheet 2: 취소건
+    cancelled = [
+        c for c in conversions
+        if (c.status in ("refunded", "cancelled")) or (c.refunded_amount or 0) > 0
+    ]
+    ws_cancel = wb.create_sheet("취소건")
+    cancel_rows = [_row(c) for c in cancelled]
+    _write_sheet(ws_cancel, cancel_rows, "취소건", f"합계({len(cancel_rows)}건)")
+
+    # 메모리 버퍼 출력
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    # 파일명: 정산서_{파트너명}_{YYYYMMDD}_{YYYYMMDD}.xlsx
+    today_str = datetime.utcnow().strftime("%Y%m%d")
+    range_part = ""
+    if start and end:
+        range_part = f"_{start.replace('-', '')}-{end.replace('-', '')}"
+    elif start:
+        range_part = f"_{start.replace('-', '')}_시작"
+    elif end:
+        range_part = f"_~{end.replace('-', '')}"
+    safe_name = (partner.name or f"partner{partner_id}").replace("/", "_").replace("\\", "_")
+    filename = f"정산서_{safe_name}{range_part}_{today_str}.xlsx"
+    # RFC 5987 — 한글 파일명 안전 인코딩
+    quoted = quote(filename)
+
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{quoted}",
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
 # Referral Programs
 # ---------------------------------------------------------------------------
 

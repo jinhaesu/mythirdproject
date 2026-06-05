@@ -4868,13 +4868,18 @@ function SettlementSection() {
     onError: () => toast.error('정산 처리에 실패했습니다'),
   });
 
-  const createSettlementMutation = useMutation({
-    mutationFn: (partnerId: number) => affiliateApi.createSettlement({ partner_id: partnerId }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['affiliate', 'settlements'] });
-      toast.success('정산 요청이 생성되었습니다');
+  // 정산 검토용 엑셀 다운로드 (전체주문건/취소건 2탭). 현재 dateRange 필터를 그대로 사용.
+  const exportMutation = useMutation({
+    mutationFn: async (p: AffiliatePartner) => {
+      await affiliateApi.downloadSettlementExport(p.id, {
+        start: dateRange.start || undefined,
+        end: dateRange.end || undefined,
+        partnerName: p.name,
+      });
+      return p.id;
     },
-    onError: () => toast.error('정산 요청 생성에 실패했습니다'),
+    onSuccess: () => toast.success('정산서 엑셀이 다운로드되었습니다'),
+    onError: () => toast.error('정산서 다운로드에 실패했습니다'),
   });
 
   // 기간/검색 필터 적용된 정산 내역 (매출 발생 기간 = 정산 생성일 기준)
@@ -4962,11 +4967,14 @@ function SettlementSection() {
                     <td className="py-2.5 px-2 text-right text-red-400">₩{fmt(p.unpaid_commission)}</td>
                     <td className="py-2.5 px-2 text-center">
                       <button
-                        onClick={() => createSettlementMutation.mutate(p.id)}
-                        disabled={createSettlementMutation.isPending}
+                        onClick={() => exportMutation.mutate(p)}
+                        disabled={exportMutation.isPending && exportMutation.variables?.id === p.id}
+                        title="전체주문건 + 취소건 2탭 엑셀 다운로드 (현재 기간 필터 적용)"
                         className="flex items-center gap-1 mx-auto px-2 py-0.5 text-[10px] bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded transition-colors"
                       >
-                        {createSettlementMutation.isPending && <Loader2 size={8} className="animate-spin" />}
+                        {exportMutation.isPending && exportMutation.variables?.id === p.id
+                          ? <Loader2 size={10} className="animate-spin" />
+                          : <Download size={10} />}
                         정산 요청
                       </button>
                     </td>

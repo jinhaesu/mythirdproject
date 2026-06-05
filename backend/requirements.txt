@@ -39,6 +39,9 @@ Pillow==10.2.0
 # Utilities
 python-dateutil==2.8.2
 
+# Excel 정산서 다운로드 (어필리에이트 정산 export)
+openpyxl==3.1.2
+
 
 # Naver Commerce API
 bcrypt>=4.0.0

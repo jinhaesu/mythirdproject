@@ -868,6 +868,42 @@ export const affiliateApi = {
   getSettlements: async () => { const { data } = await api.get('/affiliate/settlements'); return data; },
   createSettlement: async (d: any) => { const { data } = await api.post('/affiliate/settlements', d); return data; },
   paySettlement: async (id: number) => { const { data } = await api.post(`/affiliate/settlements/${id}/pay`); return data; },
+  // 파트너별 정산 검토용 엑셀 (2탭: 전체주문건, 취소건) 다운로드
+  downloadSettlementExport: async (
+    partnerId: number,
+    opts?: { start?: string; end?: string; partnerName?: string },
+  ): Promise<void> => {
+    const params: Record<string, string> = {};
+    if (opts?.start) params.start = opts.start;
+    if (opts?.end) params.end = opts.end;
+    const response = await api.get(`/affiliate/partners/${partnerId}/settlement-export`, {
+      params,
+      responseType: 'blob',
+    });
+    // Content-Disposition에서 파일명 추출 (RFC 5987 UTF-8 인코딩 대응)
+    const cd: string | undefined = response.headers?.['content-disposition'] || response.headers?.['Content-Disposition'];
+    let filename = `정산서_${opts?.partnerName ?? `partner${partnerId}`}.xlsx`;
+    if (cd) {
+      const m = /filename\*=UTF-8''([^;]+)/i.exec(cd);
+      if (m && m[1]) {
+        try { filename = decodeURIComponent(m[1]); } catch { /* keep default */ }
+      } else {
+        const m2 = /filename="?([^";]+)"?/i.exec(cd);
+        if (m2 && m2[1]) filename = m2[1];
+      }
+    }
+    const blob = new Blob([response.data], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  },
   getReferralPrograms: async () => { const { data } = await api.get('/affiliate/referral-programs'); return data; },
   createReferralProgram: async (d: any) => { const { data } = await api.post('/affiliate/referral-programs', d); return data; },
   updateReferralProgram: async (id: number, d: any) => { const { data } = await api.put(`/affiliate/referral-programs/${id}`, d); return data; },
