@@ -1634,24 +1634,34 @@ async def export_partner_settlement(
     partner_id: int,
     start: Optional[str] = Query(None, description="YYYY-MM-DD"),
     end: Optional[str] = Query(None, description="YYYY-MM-DD"),
+    seller_type: str = Query("freelancer", description="freelancer | business"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    파트너별 정산 검토용 엑셀 다운로드.
+    파트너별 정산서 엑셀 다운로드 (3시트 구성).
 
-    Sheet1 '전체주문건': 해당 파트너 링크를 통해 발생한 모든 전환(주문) 리스트
-    Sheet2 '취소건': status in (refunded, cancelled) 또는 부분 환불(refunded_amount>0)
+    Sheet1 '요약': 판매자 유형(프리랜서/사업자)에 따른 정산서 양식
+      - 프리랜서: 총공급가(부가세 별도) + 소득세 3% + 주민세 0.3% 차감
+      - 사업자: 부가세 별도 처리, 세금 차감 없음 (본인 세금계산서 발행)
+    Sheet2 '전체주문건': 모든 전환(주문) — 상품명/수량/수수료 컬럼 + SUM 수식
+    Sheet3 '취소건': status in (refunded, cancelled) 또는 부분 환불
 
-    검토 프로세스: 전체 - 취소 = 유효 주문 → 수수료율 적용 → 최종 정산액 산출
+    검토 프로세스: 정상주문 합계 - 취소/환불 합계 = 유효 주문 → 수수료율 적용
     """
     from io import BytesIO
+    from collections import OrderedDict
     from fastapi.responses import StreamingResponse
     from urllib.parse import quote
     from openpyxl import Workbook
-    from openpyxl.styles import Font, PatternFill, Alignment
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
 
-    # 파트너 조회 (삭제된 파트너도 export 허용 — 과거 정산 검토 가능)
+    seller_type = (seller_type or "freelancer").lower()
+    if seller_type not in ("freelancer", "business"):
+        seller_type = "freelancer"
+
+    # 파트너 조회 (삭제된 파트너도 export 허용)
     p_r = await db.execute(
         select(AffiliatePartner).where(AffiliatePartner.id == partner_id)
     )
@@ -1659,7 +1669,7 @@ async def export_partner_settlement(
     if not partner:
         raise HTTPException(status_code=404, detail="Partner not found")
 
-    # 기간 파싱 — 시작은 00:00, 종료는 다음 날 00:00 (end-exclusive)
+    # 기간 파싱
     range_start: Optional[datetime] = None
     range_end_excl: Optional[datetime] = None
     if start:
@@ -1673,7 +1683,7 @@ async def export_partner_settlement(
         except ValueError:
             raise HTTPException(status_code=400, detail="end 형식: YYYY-MM-DD")
 
-    # 전환 조회 (converted_at 기준 기간 필터)
+    # 전환 조회
     conv_query = select(ReferralConversion).where(
         ReferralConversion.partner_id == partner_id
     )
@@ -1686,92 +1696,370 @@ async def export_partner_settlement(
     conv_r = await db.execute(conv_query)
     conversions = list(conv_r.scalars().all())
 
-    # 캠페인명 캐시
+    # 캠페인 정보 캐시 (이름, 상품명, 수수료율)
     camp_ids = list({c.campaign_id for c in conversions if c.campaign_id})
-    campaign_name_map: dict[int, str] = {}
+    campaign_map: dict[int, dict] = {}
     if camp_ids:
         camp_r = await db.execute(
             select(AffiliateCampaign).where(AffiliateCampaign.id.in_(camp_ids))
         )
         for camp in camp_r.scalars().all():
-            campaign_name_map[camp.id] = camp.name
+            # 다중상품(카테고리 캠페인)이면 카테고리명, 단일이면 상품명
+            product = (
+                camp.cafe24_product_name
+                or camp.cafe24_category_name
+                or camp.product
+                or camp.name
+                or ""
+            )
+            campaign_map[camp.id] = {
+                "name": camp.name or "",
+                "product": product,
+                "rate": float(camp.commission_rate or 0),
+            }
 
-    # ─── Workbook 생성 ───────────────────────────────────────────────────────
-    wb = Workbook()
+    def _camp_info(cid: Optional[int]) -> dict:
+        return campaign_map.get(cid or 0, {"name": "", "product": "", "rate": 0.0})
 
-    HEADER = [
-        "주문번호", "주문일시", "캠페인", "상태",
-        "주문금액(원)", "환불금액(원)", "수수료(원)", "환불일시",
-    ]
-    STATUS_KOR = {
-        "paid": "정상",
-        "refunded": "환불",
-        "cancelled": "취소",
-    }
+    STATUS_KOR = {"paid": "정상", "refunded": "환불", "cancelled": "취소"}
 
     def _fmt_dt(dt: Optional[datetime]) -> str:
         return dt.strftime("%Y-%m-%d %H:%M") if dt else ""
 
-    def _row(c: ReferralConversion) -> list:
+    # ─── 공통 스타일 ─────────────────────────────────────────────────────────
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="2A2D35", end_color="2A2D35", fill_type="solid")
+    center = Alignment(horizontal="center", vertical="center")
+    right = Alignment(horizontal="right", vertical="center")
+    bold = Font(bold=True)
+    thin = Side(style="thin", color="888888")
+    box = Border(left=thin, right=thin, top=thin, bottom=thin)
+    money_fmt = "#,##0"
+    pct_fmt = "0.0\"%\""
+
+    wb = Workbook()
+
+    # ===== Sheet 1: [요약] ===================================================
+    ws_sum = wb.active
+    ws_sum.title = "요약"
+
+    # 제목
+    title_text = (
+        "인플루언서 정산서 (프리랜서)" if seller_type == "freelancer"
+        else "인플루언서 정산서 (사업자)"
+    )
+    ws_sum["A1"] = title_text
+    ws_sum["A1"].font = Font(bold=True, size=16)
+    ws_sum.merge_cells("A1:G1")
+    ws_sum["A1"].alignment = center
+
+    # 메타 정보
+    ws_sum["A3"] = "인플루언서명"
+    ws_sum["B3"] = partner.name or ""
+    ws_sum["A4"] = "정산 기간"
+    ws_sum["B4"] = f"{start or '전체'} ~ {end or '전체'}"
+    ws_sum["A5"] = "발행일"
+    ws_sum["B5"] = datetime.utcnow().strftime("%Y-%m-%d")
+    for r in (3, 4, 5):
+        ws_sum[f"A{r}"].font = bold
+        ws_sum[f"A{r}"].fill = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
+
+    # 매출요약 헤더
+    # 프리랜서: 구분, 상품명, 판매수량, 총주문금액(원), 총공급가, 수수료(%), 크리에이터 정산금액
+    # 사업자  : 구분, 상품명, 판매수량, 총주문금액(원), 수수료(%), 크리에이터 정산금액
+    is_freelancer = seller_type == "freelancer"
+    if is_freelancer:
+        sum_headers = ["구분", "상품명", "판매수량", "총주문금액(원)", "총공급가(원)", "수수료(%)", "크리에이터 정산금액(원)"]
+    else:
+        sum_headers = ["구분", "상품명", "판매수량", "총주문금액(원)", "수수료(%)", "크리에이터 정산금액(원)"]
+
+    summary_title_row = 7
+    ws_sum.cell(row=summary_title_row, column=1, value="매출요약").font = Font(bold=True, size=12)
+
+    header_row = summary_title_row + 1
+    for ci, h in enumerate(sum_headers, start=1):
+        cell = ws_sum.cell(row=header_row, column=ci, value=h)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = center
+        cell.border = box
+
+    # 정상/취소 → 상품별 그룹화 (OrderedDict로 입력 순서 보존)
+    def _new_grp() -> dict:
+        return {"qty": 0, "amount": 0.0, "rate": 0.0}
+
+    normal_groups: "OrderedDict[str, dict]" = OrderedDict()
+    cancel_groups: "OrderedDict[str, dict]" = OrderedDict()
+
+    for c in conversions:
+        info = _camp_info(c.campaign_id)
+        product = info["product"] or "(상품명 미지정)"
+        rate = info["rate"] or 0.0
+        amount = float(c.order_amount or 0)
+        qty = 1  # ReferralConversion에 수량 컬럼 없음 — 기본 1, 사용자가 엑셀에서 수정 가능
+        is_cancel = (c.status in ("refunded", "cancelled")) or (c.refunded_amount or 0) > 0
+        bucket = cancel_groups if is_cancel else normal_groups
+        grp = bucket.setdefault(product, _new_grp())
+        grp["qty"] += qty
+        grp["amount"] += amount
+        # rate는 상품별 첫 캠페인 rate (그룹 내 다른 캠페인 rate가 다르면 사용자가 수동 수정)
+        if grp["rate"] == 0.0:
+            grp["rate"] = rate
+
+    row = header_row + 1
+    section_start_rows: dict[str, tuple[int, int]] = {}  # label → (first, last)
+
+    def _write_group(label: str, groups: "OrderedDict[str, dict]") -> Optional[tuple[int, int]]:
+        """그룹 섹션 작성. 빈 그룹이면 placeholder 1줄. 첫/마지막 행 번호 리턴."""
+        nonlocal row
+        first = row
+        if not groups:
+            ws_sum.cell(row=row, column=1, value=label).alignment = center
+            ws_sum.cell(row=row, column=2, value="(해당 주문 없음)")
+            for ci in range(1, len(sum_headers) + 1):
+                ws_sum.cell(row=row, column=ci).border = box
+            row += 1
+            return (first, row - 1)
+
+        for product, g in groups.items():
+            qty = g["qty"]
+            amount = g["amount"]
+            rate = g["rate"]
+            ws_sum.cell(row=row, column=1, value=label).alignment = center
+            ws_sum.cell(row=row, column=2, value=product)
+            ws_sum.cell(row=row, column=3, value=qty)
+            ws_sum.cell(row=row, column=4, value=amount).number_format = money_fmt
+            if is_freelancer:
+                # 총공급가 = 총주문금액 / 1.1, 정산금액 = 총공급가 * 수수료
+                ws_sum.cell(row=row, column=5, value=f"=ROUND(D{row}/1.1, 0)").number_format = money_fmt
+                ws_sum.cell(row=row, column=6, value=rate).number_format = pct_fmt
+                ws_sum.cell(row=row, column=7, value=f"=ROUND(E{row}*F{row}/100, 0)").number_format = money_fmt
+            else:
+                # 사업자: 정산금액 = 총주문금액 * 수수료 (부가세 별도 처리)
+                ws_sum.cell(row=row, column=5, value=rate).number_format = pct_fmt
+                ws_sum.cell(row=row, column=6, value=f"=ROUND(D{row}*E{row}/100, 0)").number_format = money_fmt
+            for ci in range(1, len(sum_headers) + 1):
+                ws_sum.cell(row=row, column=ci).border = box
+            row += 1
+        return (first, row - 1)
+
+    # 정상주문 섹션
+    section_start_rows["normal"] = _write_group("정상주문", normal_groups)
+    # 정상주문 소계
+    normal_subtotal_row = row
+    n_first, n_last = section_start_rows["normal"]
+    ws_sum.cell(row=row, column=1, value="정상주문 소계").font = bold
+    ws_sum.cell(row=row, column=1).alignment = center
+    if normal_groups:
+        ws_sum.cell(row=row, column=3, value=f"=SUM(C{n_first}:C{n_last})").number_format = money_fmt
+        ws_sum.cell(row=row, column=4, value=f"=SUM(D{n_first}:D{n_last})").number_format = money_fmt
+        if is_freelancer:
+            ws_sum.cell(row=row, column=5, value=f"=SUM(E{n_first}:E{n_last})").number_format = money_fmt
+            ws_sum.cell(row=row, column=7, value=f"=SUM(G{n_first}:G{n_last})").number_format = money_fmt
+        else:
+            ws_sum.cell(row=row, column=6, value=f"=SUM(F{n_first}:F{n_last})").number_format = money_fmt
+    for ci in range(1, len(sum_headers) + 1):
+        ws_sum.cell(row=row, column=ci).font = bold
+        ws_sum.cell(row=row, column=ci).fill = PatternFill(start_color="FFF7E0", end_color="FFF7E0", fill_type="solid")
+        ws_sum.cell(row=row, column=ci).border = box
+    row += 1
+
+    # 취소/환불 섹션
+    section_start_rows["cancel"] = _write_group("취소/환불", cancel_groups)
+    cancel_subtotal_row = row
+    c_first, c_last = section_start_rows["cancel"]
+    ws_sum.cell(row=row, column=1, value="취소/환불 소계").font = bold
+    ws_sum.cell(row=row, column=1).alignment = center
+    if cancel_groups:
+        ws_sum.cell(row=row, column=3, value=f"=SUM(C{c_first}:C{c_last})").number_format = money_fmt
+        ws_sum.cell(row=row, column=4, value=f"=SUM(D{c_first}:D{c_last})").number_format = money_fmt
+        if is_freelancer:
+            ws_sum.cell(row=row, column=5, value=f"=SUM(E{c_first}:E{c_last})").number_format = money_fmt
+            ws_sum.cell(row=row, column=7, value=f"=SUM(G{c_first}:G{c_last})").number_format = money_fmt
+        else:
+            ws_sum.cell(row=row, column=6, value=f"=SUM(F{c_first}:F{c_last})").number_format = money_fmt
+    for ci in range(1, len(sum_headers) + 1):
+        ws_sum.cell(row=row, column=ci).font = bold
+        ws_sum.cell(row=row, column=ci).fill = PatternFill(start_color="FDECEC", end_color="FDECEC", fill_type="solid")
+        ws_sum.cell(row=row, column=ci).border = box
+    row += 1
+
+    # 합계 (정상 - 취소)
+    total_row = row
+    ws_sum.cell(row=row, column=1, value="합계 (정상-취소)").font = bold
+    ws_sum.cell(row=row, column=1).alignment = center
+    ws_sum.cell(row=row, column=3, value=f"=C{normal_subtotal_row}-C{cancel_subtotal_row}").number_format = money_fmt
+    ws_sum.cell(row=row, column=4, value=f"=D{normal_subtotal_row}-D{cancel_subtotal_row}").number_format = money_fmt
+    if is_freelancer:
+        ws_sum.cell(row=row, column=5, value=f"=E{normal_subtotal_row}-E{cancel_subtotal_row}").number_format = money_fmt
+        ws_sum.cell(row=row, column=7, value=f"=G{normal_subtotal_row}-G{cancel_subtotal_row}").number_format = money_fmt
+        final_settlement_cell = f"G{total_row}"
+    else:
+        ws_sum.cell(row=row, column=6, value=f"=F{normal_subtotal_row}-F{cancel_subtotal_row}").number_format = money_fmt
+        final_settlement_cell = f"F{total_row}"
+    for ci in range(1, len(sum_headers) + 1):
+        ws_sum.cell(row=row, column=ci).font = Font(bold=True, size=12)
+        ws_sum.cell(row=row, column=ci).fill = PatternFill(start_color="E8F4FD", end_color="E8F4FD", fill_type="solid")
+        ws_sum.cell(row=row, column=ci).border = box
+    row += 2  # 한 줄 띄움
+
+    # ─── 정산 내역 ────────────────────────────────────────────────────────
+    ws_sum.cell(row=row, column=1, value="정산 내역").font = Font(bold=True, size=12)
+    row += 1
+    detail_header_row = row
+    for ci, h in enumerate(["항목", "금액(원)"], start=1):
+        cell = ws_sum.cell(row=row, column=ci, value=h)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = center
+        cell.border = box
+    row += 1
+
+    if is_freelancer:
+        # 최종합계 = 크리에이터 정산금액 합계 (G{total_row})
+        ws_sum.cell(row=row, column=1, value="최종합계 (크리에이터 정산금액)")
+        ws_sum.cell(row=row, column=2, value=f"={final_settlement_cell}").number_format = money_fmt
+        final_total_cell = f"B{row}"
+        for ci in (1, 2):
+            ws_sum.cell(row=row, column=ci).border = box
+        row += 1
+        # 소득세 3%
+        ws_sum.cell(row=row, column=1, value="소득세 (3%)")
+        ws_sum.cell(row=row, column=2, value=f"=ROUND({final_total_cell}*0.03, 0)").number_format = money_fmt
+        income_tax_cell = f"B{row}"
+        for ci in (1, 2):
+            ws_sum.cell(row=row, column=ci).border = box
+        row += 1
+        # 주민세 0.3%
+        ws_sum.cell(row=row, column=1, value="주민세 (0.3%)")
+        ws_sum.cell(row=row, column=2, value=f"=ROUND({final_total_cell}*0.003, 0)").number_format = money_fmt
+        local_tax_cell = f"B{row}"
+        for ci in (1, 2):
+            ws_sum.cell(row=row, column=ci).border = box
+        row += 1
+        # 실 지급 금액
+        ws_sum.cell(row=row, column=1, value="실 지급 금액").font = Font(bold=True, size=12)
+        ws_sum.cell(row=row, column=2, value=f"={final_total_cell}-{income_tax_cell}-{local_tax_cell}").number_format = money_fmt
+        ws_sum.cell(row=row, column=2).font = Font(bold=True, size=12, color="C0392B")
+        for ci in (1, 2):
+            ws_sum.cell(row=row, column=ci).fill = PatternFill(start_color="FFF7E0", end_color="FFF7E0", fill_type="solid")
+            ws_sum.cell(row=row, column=ci).border = box
+        row += 1
+    else:
+        # 사업자: 최종합계 = 실지급 (세금계산서 본인 발행)
+        ws_sum.cell(row=row, column=1, value="최종합계 (크리에이터 정산금액)")
+        ws_sum.cell(row=row, column=2, value=f"={final_settlement_cell}").number_format = money_fmt
+        final_total_cell = f"B{row}"
+        for ci in (1, 2):
+            ws_sum.cell(row=row, column=ci).border = box
+        row += 1
+        ws_sum.cell(row=row, column=1, value="실 지급 금액").font = Font(bold=True, size=12)
+        ws_sum.cell(row=row, column=2, value=f"={final_total_cell}").number_format = money_fmt
+        ws_sum.cell(row=row, column=2).font = Font(bold=True, size=12, color="C0392B")
+        for ci in (1, 2):
+            ws_sum.cell(row=row, column=ci).fill = PatternFill(start_color="FFF7E0", end_color="FFF7E0", fill_type="solid")
+            ws_sum.cell(row=row, column=ci).border = box
+        row += 1
+        # 안내문
+        row += 1
+        note_cell = ws_sum.cell(row=row, column=1, value="※ 사업자 — 부가세 별도. 세금계산서는 인플루언서 본인이 발행합니다.")
+        note_cell.font = Font(italic=True, color="666666", size=9)
+        ws_sum.merge_cells(start_row=row, start_column=1, end_row=row, end_column=len(sum_headers))
+
+    # 컬럼 폭
+    summary_widths = [16, 28, 10, 16, 16, 12, 20]
+    for i, w in enumerate(summary_widths[:len(sum_headers)], start=1):
+        ws_sum.column_dimensions[get_column_letter(i)].width = w
+    ws_sum.freeze_panes = "A8"
+
+    # ===== Sheet 2: [전체주문건] / Sheet 3: [취소건] =========================
+    # 컬럼: A=주문번호 B=주문일시 C=상품명 D=캠페인 E=주문금액(원) F=주문수량
+    #       G=수수료(%) H=수수료(원, 수식) I=환불금액(원) J=상태 K=환불일시
+    DETAIL_HEADER = [
+        "주문번호", "주문일시", "상품명", "캠페인",
+        "주문금액(원)", "주문수량", "수수료(%)", "수수료(원)",
+        "환불금액(원)", "상태", "환불일시",
+    ]
+    NUM_COLS = {"E": 5, "F": 6, "G": 7, "H": 8, "I": 9}
+
+    def _detail_row(c: ReferralConversion) -> list:
+        info = _camp_info(c.campaign_id)
         return [
             c.cafe24_order_id or c.order_id or f"#{c.id}",
             _fmt_dt(c.converted_at),
-            campaign_name_map.get(c.campaign_id or 0, ""),
-            STATUS_KOR.get(c.status or "paid", c.status or "paid"),
+            info["product"] or "",
+            info["name"] or "",
             int(c.order_amount or 0),
+            1,                            # 주문수량 (기본 1, 사용자 수정 가능)
+            info["rate"] or 0.0,          # 수수료(%) — 캠페인 commission_rate
+            None,                         # 수수료(원) — 수식 (아래에서 채움)
             int(c.refunded_amount or 0),
-            int(c.commission_amount or 0),
+            STATUS_KOR.get(c.status or "paid", c.status or "paid"),
             _fmt_dt(c.refunded_at),
         ]
 
-    def _write_sheet(ws, rows: list, title: str, summary_label: str):
+    def _write_detail_sheet(ws, rows: list[list], title: str, summary_label: str):
         ws.title = title
-        # 헤더 스타일
-        header_font = Font(bold=True, color="FFFFFF")
-        header_fill = PatternFill(start_color="2A2D35", end_color="2A2D35", fill_type="solid")
-        for col_idx, h in enumerate(HEADER, start=1):
-            cell = ws.cell(row=1, column=col_idx, value=h)
+        # 헤더
+        for ci, h in enumerate(DETAIL_HEADER, start=1):
+            cell = ws.cell(row=1, column=ci, value=h)
             cell.font = header_font
             cell.fill = header_fill
-            cell.alignment = Alignment(horizontal="center", vertical="center")
+            cell.alignment = center
         # 데이터
-        for r_idx, r in enumerate(rows, start=2):
-            for c_idx, val in enumerate(r, start=1):
-                ws.cell(row=r_idx, column=c_idx, value=val)
-        # 합계 행
+        for ri, r in enumerate(rows, start=2):
+            for ci, val in enumerate(r, start=1):
+                ws.cell(row=ri, column=ci, value=val)
+            # H{ri} 수수료(원) 수식 = ROUND(E*F*G/100, 0)
+            ws.cell(row=ri, column=8, value=f"=ROUND(E{ri}*F{ri}*G{ri}/100, 0)")
+            # 숫자/퍼센트 포맷
+            for col in ("E", "F", "H", "I"):
+                ws[f"{col}{ri}"].number_format = money_fmt
+            ws[f"G{ri}"].number_format = pct_fmt
+        # 합계 행 — SUM 수식
         if rows:
             sum_row = len(rows) + 2
-            ws.cell(row=sum_row, column=1, value=summary_label).font = Font(bold=True)
-            ws.cell(row=sum_row, column=5, value=sum(r[4] for r in rows)).font = Font(bold=True)
-            ws.cell(row=sum_row, column=6, value=sum(r[5] for r in rows)).font = Font(bold=True)
-            ws.cell(row=sum_row, column=7, value=sum(r[6] for r in rows)).font = Font(bold=True)
-        # 폭
-        widths = [22, 18, 22, 10, 14, 14, 12, 18]
+            ws.cell(row=sum_row, column=1, value=summary_label).font = bold
+            for col_letter in ("E", "F", "H", "I"):
+                ws.cell(
+                    row=sum_row,
+                    column=NUM_COLS[col_letter],
+                    value=f"=SUM({col_letter}2:{col_letter}{sum_row - 1})",
+                ).number_format = money_fmt
+                ws.cell(row=sum_row, column=NUM_COLS[col_letter]).font = bold
+            # 합계 행 배경
+            for ci in range(1, len(DETAIL_HEADER) + 1):
+                ws.cell(row=sum_row, column=ci).fill = PatternFill(
+                    start_color="F2F2F2", end_color="F2F2F2", fill_type="solid"
+                )
+        # 컬럼 폭
+        widths = [20, 17, 26, 22, 14, 10, 10, 14, 14, 10, 17]
         for i, w in enumerate(widths, start=1):
-            ws.column_dimensions[chr(64 + i)].width = w
+            ws.column_dimensions[get_column_letter(i)].width = w
         ws.freeze_panes = "A2"
 
-    # Sheet 1: 전체주문건
-    ws_all = wb.active
-    all_rows = [_row(c) for c in conversions]
-    _write_sheet(ws_all, all_rows, "전체주문건", f"합계({len(all_rows)}건)")
+    # 전체주문건 시트
+    ws_all = wb.create_sheet("전체주문건")
+    all_rows = [_detail_row(c) for c in conversions]
+    _write_detail_sheet(ws_all, all_rows, "전체주문건", f"합계({len(all_rows)}건)")
 
-    # Sheet 2: 취소건
-    cancelled = [
+    # 취소건 시트
+    cancelled_convs = [
         c for c in conversions
         if (c.status in ("refunded", "cancelled")) or (c.refunded_amount or 0) > 0
     ]
     ws_cancel = wb.create_sheet("취소건")
-    cancel_rows = [_row(c) for c in cancelled]
-    _write_sheet(ws_cancel, cancel_rows, "취소건", f"합계({len(cancel_rows)}건)")
+    cancel_rows = [_detail_row(c) for c in cancelled_convs]
+    _write_detail_sheet(ws_cancel, cancel_rows, "취소건", f"합계({len(cancel_rows)}건)")
 
     # 메모리 버퍼 출력
     buf = BytesIO()
     wb.save(buf)
     buf.seek(0)
 
-    # 파일명: 정산서_{파트너명}_{YYYYMMDD}_{YYYYMMDD}.xlsx
+    # 파일명
     today_str = datetime.utcnow().strftime("%Y%m%d")
+    type_kor = "프리랜서" if is_freelancer else "사업자"
     range_part = ""
     if start and end:
         range_part = f"_{start.replace('-', '')}-{end.replace('-', '')}"
@@ -1780,8 +2068,7 @@ async def export_partner_settlement(
     elif end:
         range_part = f"_~{end.replace('-', '')}"
     safe_name = (partner.name or f"partner{partner_id}").replace("/", "_").replace("\\", "_")
-    filename = f"정산서_{safe_name}{range_part}_{today_str}.xlsx"
-    # RFC 5987 — 한글 파일명 안전 인코딩
+    filename = f"정산서_{safe_name}_{type_kor}{range_part}_{today_str}.xlsx"
     quoted = quote(filename)
 
     return StreamingResponse(

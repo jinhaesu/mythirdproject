@@ -6,7 +6,7 @@ import {
   Users, Link2, Share2, TrendingUp, DollarSign, Award, Plus, Search,
   Eye, Copy, CheckCircle, Clock, X, BarChart2, Gift, UserPlus, ExternalLink,
   Percent, ShoppingBag, Megaphone, Settings, Filter, Download, Loader2,
-  AlertCircle, Coins, Tag, Store, ChevronDown, Trash2, Pencil, Phone,
+  AlertCircle, Coins, Tag, Store, ChevronDown, Trash2, Pencil, Phone, Briefcase,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
@@ -4868,17 +4868,23 @@ function SettlementSection() {
     onError: () => toast.error('정산 처리에 실패했습니다'),
   });
 
-  // 정산 검토용 엑셀 다운로드 (전체주문건/취소건 2탭). 현재 dateRange 필터를 그대로 사용.
+  // 정산서 다운로드 — 클릭 시 판매자 유형(프리랜서/사업자) 선택 모달 → 선택 후 export.
+  // dateRange 필터를 그대로 적용.
+  const [exportTarget, setExportTarget] = useState<AffiliatePartner | null>(null);
   const exportMutation = useMutation({
-    mutationFn: async (p: AffiliatePartner) => {
-      await affiliateApi.downloadSettlementExport(p.id, {
+    mutationFn: async (args: { partner: AffiliatePartner; sellerType: 'freelancer' | 'business' }) => {
+      await affiliateApi.downloadSettlementExport(args.partner.id, {
         start: dateRange.start || undefined,
         end: dateRange.end || undefined,
-        partnerName: p.name,
+        partnerName: args.partner.name,
+        sellerType: args.sellerType,
       });
-      return p.id;
+      return args.partner.id;
     },
-    onSuccess: () => toast.success('정산서 엑셀이 다운로드되었습니다'),
+    onSuccess: () => {
+      toast.success('정산서 엑셀이 다운로드되었습니다');
+      setExportTarget(null);
+    },
     onError: () => toast.error('정산서 다운로드에 실패했습니다'),
   });
 
@@ -4967,12 +4973,12 @@ function SettlementSection() {
                     <td className="py-2.5 px-2 text-right text-red-400">₩{fmt(p.unpaid_commission)}</td>
                     <td className="py-2.5 px-2 text-center">
                       <button
-                        onClick={() => exportMutation.mutate(p)}
-                        disabled={exportMutation.isPending && exportMutation.variables?.id === p.id}
-                        title="전체주문건 + 취소건 2탭 엑셀 다운로드 (현재 기간 필터 적용)"
+                        onClick={() => setExportTarget(p)}
+                        disabled={exportMutation.isPending && exportMutation.variables?.partner.id === p.id}
+                        title="판매자 유형 선택 후 정산서(요약·전체주문·취소건) 엑셀 다운로드"
                         className="flex items-center gap-1 mx-auto px-2 py-0.5 text-[10px] bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded transition-colors"
                       >
-                        {exportMutation.isPending && exportMutation.variables?.id === p.id
+                        {exportMutation.isPending && exportMutation.variables?.partner.id === p.id
                           ? <Loader2 size={10} className="animate-spin" />
                           : <Download size={10} />}
                         정산 요청
@@ -5053,6 +5059,79 @@ function SettlementSection() {
           </div>
         )}
       </div>
+
+      {/* 판매자 유형 선택 모달 — 정산서 양식이 유형별로 다름 (소득세 차감 vs 사업자 세금계산서 발행) */}
+      {exportTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={() => !exportMutation.isPending && setExportTarget(null)}
+        >
+          <div
+            className="bg-[#1a1b1e] border border-[#2a2d35] rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h3 className="text-base font-bold text-white">판매자 유형 선택</h3>
+                <p className="text-xs text-gray-500 mt-1">
+                  <span className="text-white">{exportTarget.name}</span> 님의 정산서 양식을 선택해주세요
+                </p>
+              </div>
+              <button
+                onClick={() => setExportTarget(null)}
+                disabled={exportMutation.isPending}
+                className="text-gray-500 hover:text-white text-lg leading-none disabled:opacity-30"
+                aria-label="닫기"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mt-4">
+              <button
+                onClick={() => exportMutation.mutate({ partner: exportTarget, sellerType: 'freelancer' })}
+                disabled={exportMutation.isPending}
+                className="group flex flex-col items-center gap-2 p-4 bg-[#141516] border border-[#2a2d35] hover:border-emerald-500/50 rounded-xl transition-colors disabled:opacity-50"
+              >
+                <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center group-hover:bg-emerald-500/20 transition-colors">
+                  <Users size={18} className="text-emerald-400" />
+                </div>
+                <div className="text-sm font-semibold text-white">프리랜서</div>
+                <div className="text-[10px] text-gray-500 text-center leading-tight">
+                  공급가 기준 정산<br/>소득세 3% + 주민세 0.3% 차감
+                </div>
+              </button>
+
+              <button
+                onClick={() => exportMutation.mutate({ partner: exportTarget, sellerType: 'business' })}
+                disabled={exportMutation.isPending}
+                className="group flex flex-col items-center gap-2 p-4 bg-[#141516] border border-[#2a2d35] hover:border-blue-500/50 rounded-xl transition-colors disabled:opacity-50"
+              >
+                <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center group-hover:bg-blue-500/20 transition-colors">
+                  <Briefcase size={18} className="text-blue-400" />
+                </div>
+                <div className="text-sm font-semibold text-white">사업자</div>
+                <div className="text-[10px] text-gray-500 text-center leading-tight">
+                  주문금액 기준 정산<br/>세금 차감 없음 (세금계산서 발행)
+                </div>
+              </button>
+            </div>
+
+            {exportMutation.isPending && (
+              <div className="flex items-center justify-center gap-2 mt-4 text-xs text-emerald-400">
+                <Loader2 size={12} className="animate-spin" />
+                <span>정산서 생성 중…</span>
+              </div>
+            )}
+
+            <p className="text-[10px] text-gray-600 mt-4 text-center">
+              {dateRange.start || dateRange.end
+                ? `기간 필터: ${dateRange.start || '전체'} ~ ${dateRange.end || '전체'}`
+                : '기간 필터 미적용 (전체 기간)'}
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

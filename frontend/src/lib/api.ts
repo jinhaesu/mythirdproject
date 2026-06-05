@@ -868,14 +868,21 @@ export const affiliateApi = {
   getSettlements: async () => { const { data } = await api.get('/affiliate/settlements'); return data; },
   createSettlement: async (d: any) => { const { data } = await api.post('/affiliate/settlements', d); return data; },
   paySettlement: async (id: number) => { const { data } = await api.post(`/affiliate/settlements/${id}/pay`); return data; },
-  // 파트너별 정산 검토용 엑셀 (2탭: 전체주문건, 취소건) 다운로드
+  // 파트너별 정산서 엑셀 (3탭: 요약, 전체주문건, 취소건) 다운로드
+  // sellerType: 'freelancer' → 세금 차감 / 'business' → 세금 차감 없음
   downloadSettlementExport: async (
     partnerId: number,
-    opts?: { start?: string; end?: string; partnerName?: string },
+    opts?: {
+      start?: string;
+      end?: string;
+      partnerName?: string;
+      sellerType?: 'freelancer' | 'business';
+    },
   ): Promise<void> => {
     const params: Record<string, string> = {};
     if (opts?.start) params.start = opts.start;
     if (opts?.end) params.end = opts.end;
+    params.seller_type = opts?.sellerType ?? 'freelancer';
     const response = await api.get(`/affiliate/partners/${partnerId}/settlement-export`, {
       params,
       responseType: 'blob',
