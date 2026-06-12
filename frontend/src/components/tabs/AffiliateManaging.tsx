@@ -1233,8 +1233,8 @@ function DashboardSection() {
   const [hoveredCell, setHoveredCell] = useState<string | null>(null);
 
   const { data, isLoading, isError } = useQuery<DashboardData>({
-    queryKey: ['affiliate', 'dashboard'],
-    queryFn: affiliateApi.getDashboard,
+    queryKey: ['affiliate', 'dashboard', days],
+    queryFn: () => affiliateApi.getDashboard(days),
     retry: 1,
   });
 
@@ -1275,8 +1275,8 @@ function DashboardSection() {
     data: byCampaign = [],
     isLoading: bcLoading,
   } = useQuery<AffiliateByCampaign[]>({
-    queryKey: ['affiliate-by-campaign'],
-    queryFn: affiliateApi.getDashboardByCampaign,
+    queryKey: ['affiliate-by-campaign', days],
+    queryFn: () => affiliateApi.getDashboardByCampaign(days),
     retry: 1,
   });
 
@@ -1293,8 +1293,8 @@ function DashboardSection() {
     data: topProducts = [],
     isLoading: topProductsLoading,
   } = useQuery<TopProduct[]>({
-    queryKey: ['affiliate-top-products'],
-    queryFn: () => affiliateApi.getTopProducts(10),
+    queryKey: ['affiliate-top-products', days],
+    queryFn: () => affiliateApi.getTopProducts(10, days),
     retry: 1,
   });
 
@@ -1366,6 +1366,25 @@ function DashboardSection() {
         </div>
       )}
 
+      {/* 기간 선택 — KPI 카드·캠페인 기여도·탑 파트너·차트 전체에 적용 */}
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-gray-500">기간:</span>
+        {([7, 30, 90] as const).map(dd => (
+          <button
+            key={dd}
+            onClick={() => setDays(dd)}
+            className={`px-3 py-1 text-xs rounded-lg font-medium transition-colors ${
+              days === dd
+                ? 'bg-blue-600 text-white'
+                : 'bg-[#1a1b1e] text-gray-400 border border-[#2a2d35] hover:text-white hover:border-gray-500'
+            }`}
+          >
+            {dd}일
+          </button>
+        ))}
+        <span className="text-[10px] text-gray-600 ml-1">아래 모든 지표는 최근 {days}일 기준</span>
+      </div>
+
       {/* KPI 카드 */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         {kpis.map((kpi, idx) => (
@@ -1395,24 +1414,6 @@ function DashboardSection() {
               )}
             </div>
           </div>
-        ))}
-      </div>
-
-      {/* 기간 선택 */}
-      <div className="flex items-center gap-2">
-        <span className="text-xs text-gray-500">기간:</span>
-        {([7, 30, 90] as const).map(d => (
-          <button
-            key={d}
-            onClick={() => setDays(d)}
-            className={`px-3 py-1 text-xs rounded-lg font-medium transition-colors ${
-              days === d
-                ? 'bg-blue-600 text-white'
-                : 'bg-[#1a1b1e] text-gray-400 border border-[#2a2d35] hover:text-white hover:border-gray-500'
-            }`}
-          >
-            {d}일
-          </button>
         ))}
       </div>
 

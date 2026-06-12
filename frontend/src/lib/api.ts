@@ -899,7 +899,10 @@ export interface TopProduct {
 
 // Affiliate API (TAB: 어필리에이트 관리)
 export const affiliateApi = {
-  getDashboard: async () => { const { data } = await api.get('/affiliate/dashboard'); return data; },
+  getDashboard: async (days?: number) => {
+    const { data } = await api.get('/affiliate/dashboard', { params: days ? { days } : {} });
+    return data;
+  },
   getCampaigns: async () => { const { data } = await api.get('/affiliate/campaigns'); return data; },
   createCampaign: async (d: any) => { const { data } = await api.post('/affiliate/campaigns', d); return data; },
   updateCampaign: async (id: number, d: any) => { const { data } = await api.put(`/affiliate/campaigns/${id}`, d); return data; },
@@ -1010,16 +1013,16 @@ export const affiliateApi = {
     const { data } = await api.get('/affiliate/dashboard/timeseries', { params: { days } });
     return data;
   },
-  getDashboardByCampaign: async (): Promise<AffiliateByCampaign[]> => {
-    const { data } = await api.get('/affiliate/dashboard/by-campaign');
+  getDashboardByCampaign: async (days?: number): Promise<AffiliateByCampaign[]> => {
+    const { data } = await api.get('/affiliate/dashboard/by-campaign', { params: days ? { days } : {} });
     return data;
   },
   getDashboardHourly: async (days = 30): Promise<HourlyConversion[]> => {
     const { data } = await api.get('/affiliate/dashboard/hourly', { params: { days } });
     return data;
   },
-  getTopProducts: async (limit = 10): Promise<TopProduct[]> => {
-    const { data } = await api.get('/affiliate/dashboard/top-products', { params: { limit } });
+  getTopProducts: async (limit = 10, days?: number): Promise<TopProduct[]> => {
+    const { data } = await api.get('/affiliate/dashboard/top-products', { params: { limit, ...(days ? { days } : {}) } });
     return data;
   },
 };
