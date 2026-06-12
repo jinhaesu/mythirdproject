@@ -1228,13 +1228,15 @@ function heatColor(ratio: number): string {
 
 function DashboardSection() {
   const [days, setDays] = useState<7 | 30 | 90>(7);
+  /** 전환 귀속 기준: 전환(주문) 발생일 vs 클릭 발생일 */
+  const [basis, setBasis] = useState<'converted' | 'clicked'>('converted');
   const [heatmapDays, setHeatmapDays] = useState<7 | 30 | 90>(30);
   /** 히트맵 hover cell: "dow_hour" 키 */
   const [hoveredCell, setHoveredCell] = useState<string | null>(null);
 
   const { data, isLoading, isError } = useQuery<DashboardData>({
-    queryKey: ['affiliate', 'dashboard', days],
-    queryFn: () => affiliateApi.getDashboard(days),
+    queryKey: ['affiliate', 'dashboard', days, basis],
+    queryFn: () => affiliateApi.getDashboard(days, basis),
     retry: 1,
   });
 
@@ -1275,8 +1277,8 @@ function DashboardSection() {
     data: byCampaign = [],
     isLoading: bcLoading,
   } = useQuery<AffiliateByCampaign[]>({
-    queryKey: ['affiliate-by-campaign', days],
-    queryFn: () => affiliateApi.getDashboardByCampaign(days),
+    queryKey: ['affiliate-by-campaign', days, basis],
+    queryFn: () => affiliateApi.getDashboardByCampaign(days, basis),
     retry: 1,
   });
 
@@ -1293,8 +1295,8 @@ function DashboardSection() {
     data: topProducts = [],
     isLoading: topProductsLoading,
   } = useQuery<TopProduct[]>({
-    queryKey: ['affiliate-top-products', days],
-    queryFn: () => affiliateApi.getTopProducts(10, days),
+    queryKey: ['affiliate-top-products', days, basis],
+    queryFn: () => affiliateApi.getTopProducts(10, days, basis),
     retry: 1,
   });
 
@@ -1382,7 +1384,30 @@ function DashboardSection() {
             {dd}일
           </button>
         ))}
-        <span className="text-[10px] text-gray-600 ml-1">아래 모든 지표는 최근 {days}일 기준</span>
+        <span className="mx-1 h-4 w-px bg-[#2a2d35]" />
+        <span className="text-xs text-gray-500">귀속:</span>
+        {([
+          { key: 'converted', label: '전환일 기준' },
+          { key: 'clicked', label: '클릭일 기준' },
+        ] as const).map(b => (
+          <button
+            key={b.key}
+            onClick={() => setBasis(b.key)}
+            title={b.key === 'clicked'
+              ? '최근 N일 내 발생한 클릭에서 나온 전환으로 집계 (주문일이 기간 밖이어도 포함)'
+              : '최근 N일 내 발생한 주문(전환)으로 집계'}
+            className={`px-3 py-1 text-xs rounded-lg font-medium transition-colors ${
+              basis === b.key
+                ? 'bg-violet-600 text-white'
+                : 'bg-[#1a1b1e] text-gray-400 border border-[#2a2d35] hover:text-white hover:border-gray-500'
+            }`}
+          >
+            {b.label}
+          </button>
+        ))}
+        <span className="text-[10px] text-gray-600 ml-1">
+          아래 모든 지표는 최근 {days}일 · {basis === 'clicked' ? '클릭일' : '전환일'} 기준
+        </span>
       </div>
 
       {/* KPI 카드 */}

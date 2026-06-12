@@ -8,7 +8,7 @@ from typing import Annotated, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
-from sqlalchemy import delete, func, select
+from sqlalchemy import and_, delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.endpoints.auth import get_current_user, get_shared_cafe24_user
@@ -1031,17 +1031,43 @@ async def permanent_delete_partner(
 # Dashboard stats
 # ---------------------------------------------------------------------------
 
+def _conv_period_cond(since, basis: str):
+    """전환의 기간 필터 조건.
+
+    basis='clicked'면 전환을 유발한 클릭의 발생일 기준으로 귀속 (클릭 정보가 없는
+    전환은 전환일로 폴백). 그 외에는 전환일(converted_at) 기준.
+    """
+    if basis == "clicked":
+        click_match = (
+            select(ReferralClick.id)
+            .where(
+                ReferralClick.id == ReferralConversion.click_id,
+                ReferralClick.clicked_at >= since,
+            )
+            .exists()
+        )
+        return or_(
+            and_(ReferralConversion.click_id.isnot(None), click_match),
+            and_(ReferralConversion.click_id.is_(None), ReferralConversion.converted_at >= since),
+        )
+    return ReferralConversion.converted_at >= since
+
+
 @router.get("/dashboard")
 async def get_dashboard(
     days: Optional[int] = Query(default=None, ge=1, le=365),
+    basis: str = Query(default="converted"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Return aggregated affiliate KPIs for the current user.
 
     days 지정 시 클릭/전환/매출 집계를 최근 N일로 제한 (파트너 수·정산 대기 등 비시계열 지표는 전체 기준 유지).
+    basis='clicked'면 전환 귀속을 클릭 발생일 기준으로 계산.
     """
     since = datetime.utcnow() - timedelta(days=days) if days else None
+    if basis != "clicked":
+        basis = "converted"
 
     # Total partners by status (휴지통 제외, 전체 공유)
     partners_result = await db.execute(
@@ -1082,7 +1108,7 @@ async def get_dashboard(
             ReferralConversion.status == "paid",
         ]
         if since is not None:
-            paid_conds.append(ReferralConversion.converted_at >= since)
+            paid_conds.append(_conv_period_cond(since, basis))
         conv_result = await db.execute(
             select(
                 func.count(ReferralConversion.id),
@@ -1101,7 +1127,7 @@ async def get_dashboard(
             ReferralConversion.status.in_(["refunded", "cancelled"]),
         ]
         if since is not None:
-            rc_conds.append(ReferralConversion.converted_at >= since)
+            rc_conds.append(_conv_period_cond(since, basis))
         status_result = await db.execute(
             select(
                 ReferralConversion.status,
@@ -1117,7 +1143,7 @@ async def get_dashboard(
         # 총 gross (모든 상태 합, 참고용)
         gross_conds = [ReferralConversion.partner_id.in_(partner_ids)]
         if since is not None:
-            gross_conds.append(ReferralConversion.converted_at >= since)
+            gross_conds.append(_conv_period_cond(since, basis))
         gross_result = await db.execute(
             select(func.coalesce(func.sum(ReferralConversion.order_amount), 0)).where(*gross_conds)
         )
@@ -1171,7 +1197,7 @@ async def get_dashboard(
         ]
         if since is not None:
             camp_click_conds.append(ReferralClick.clicked_at >= since)
-            camp_conv_conds.append(ReferralConversion.converted_at >= since)
+            camp_conv_conds.append(_conv_period_cond(since, basis))
         click_count_r = await db.execute(
             select(func.count(ReferralClick.id)).where(*camp_click_conds)
         )
@@ -1205,7 +1231,7 @@ async def get_dashboard(
         & (ReferralConversion.status == "paid")
     )
     if since is not None:
-        top_join_cond = top_join_cond & (ReferralConversion.converted_at >= since)
+        top_join_cond = top_join_cond & _conv_period_cond(since, basis)
     top_result = await db.execute(
         select(
             AffiliatePartner.id, AffiliatePartner.name, AffiliatePartner.channel,
@@ -1354,14 +1380,17 @@ async def get_dashboard_timeseries(
 @router.get("/dashboard/by-campaign")
 async def get_dashboard_by_campaign(
     days: Optional[int] = Query(default=None, ge=1, le=365),
+    basis: str = Query(default="converted"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
     캠페인별 성과 집계: 매출/커미션/클릭/전환/파트너 수 (전체 관리자 공유).
-    days 지정 시 클릭/전환 집계를 최근 N일로 제한.
+    days 지정 시 클릭/전환 집계를 최근 N일로 제한. basis='clicked'면 클릭일 기준 귀속.
     """
     since = datetime.utcnow() - timedelta(days=days) if days else None
+    if basis != "clicked":
+        basis = "converted"
     # 활성 파트너 ID (휴지통 제외)
     active_pids_r = await db.execute(
         select(AffiliatePartner.id).where(AffiliatePartner.deleted_at.is_(None))
@@ -1389,7 +1418,7 @@ async def get_dashboard_by_campaign(
         ]
         if since is not None:
             click_conds.append(ReferralClick.clicked_at >= since)
-            conv_conds.append(ReferralConversion.converted_at >= since)
+            conv_conds.append(_conv_period_cond(since, basis))
         if active_partner_ids:
             click_conds.append(ReferralClick.partner_id.in_(active_partner_ids))
             conv_conds.append(ReferralConversion.partner_id.in_(active_partner_ids))
@@ -1512,6 +1541,7 @@ async def get_dashboard_hourly(
 async def get_dashboard_top_products(
     limit: int = Query(default=10, ge=1, le=100),
     days: Optional[int] = Query(default=None, ge=1, le=365),
+    basis: str = Query(default="converted"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -1519,8 +1549,11 @@ async def get_dashboard_top_products(
     캠페인의 cafe24_product_no 기준으로 그룹핑한 상품별 성과.
 
     status='paid' 전환만 포함. revenue 내림차순 정렬. days 지정 시 최근 N일만.
+    basis='clicked'면 클릭일 기준 귀속.
     """
     since = datetime.utcnow() - timedelta(days=days) if days else None
+    if basis != "clicked":
+        basis = "converted"
     # 활성 파트너만 (휴지통 제외)
     active_pids_r = await db.execute(
         select(AffiliatePartner.id).where(AffiliatePartner.deleted_at.is_(None))
@@ -1534,7 +1567,7 @@ async def get_dashboard_top_products(
         & (ReferralConversion.status == "paid")
     )
     if since is not None:
-        join_cond = join_cond & (ReferralConversion.converted_at >= since)
+        join_cond = join_cond & _conv_period_cond(since, basis)
     if active_partner_ids:
         join_cond = join_cond & ReferralConversion.partner_id.in_(active_partner_ids)
     else:
