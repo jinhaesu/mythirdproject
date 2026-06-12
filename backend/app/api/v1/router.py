@@ -5,7 +5,7 @@ from app.api.v1.endpoints import (
     auth, benchmark, creative, campaign, analytics, dashboard, campaign_planner, chat, market_keywords,
     naver_analytics, naver_campaign, affiliate, partner_auth, partner_portal,
 )
-from app.api.v1.endpoints import cafe24, webhooks
+from app.api.v1.endpoints import cafe24, webhooks, insights
 
 api_router = APIRouter()
 
@@ -119,4 +119,11 @@ api_router.include_router(
     webhooks.router,
     prefix="/webhooks",
     tags=["Webhooks"]
+)
+
+# Meta 인사이트 스냅샷 + 온디맨드 하이브리드
+api_router.include_router(
+    insights.router,
+    prefix="/insights",
+    tags=["Meta Insights"]
 )

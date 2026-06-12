@@ -618,6 +618,65 @@ export const analyticsApi = {
   },
 };
 
+// ─── Insights API (DB 스냅샷 기반 추세 — /insights 라우터) ───
+
+/** GET /insights/trend?days=7|30|90 응답 타입 */
+export interface InsightTrendPoint {
+  date: string;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  conversions: number;
+  revenue: number;
+  roas: number;
+  cpa: number;
+  ctr: number;
+}
+
+export interface InsightTrendCampaign {
+  campaign_id: string;
+  campaign_name: string;
+  series: InsightTrendPoint[];
+}
+
+export interface InsightTrendResponse {
+  as_of: string | null;
+  account: { series: InsightTrendPoint[] };
+  campaigns: InsightTrendCampaign[];
+}
+
+export interface InsightStatusResponse {
+  as_of: string | null;
+  total_rows: number;
+  token_expired: boolean;
+  last_error: string | null;
+}
+
+export interface InsightRefreshResponse {
+  collected_rows: number;
+  as_of: string;
+}
+
+export const insightsApi = {
+  /** DB 스냅샷 기반 추세 데이터 조회 (days: 7 | 30 | 90) */
+  getTrend: async (days: 7 | 30 | 90 = 30): Promise<InsightTrendResponse> => {
+    const { data } = await api.get<InsightTrendResponse>('/insights/trend', { params: { days } });
+    return data;
+  },
+
+  /** 즉시 수집 실행 (백필 포함) */
+  refresh: async (): Promise<InsightRefreshResponse> => {
+    const { data } = await api.post<InsightRefreshResponse>('/insights/refresh');
+    return data;
+  },
+
+  /** 수집기 상태 조회 (토큰 만료 여부 포함) */
+  getStatus: async (): Promise<InsightStatusResponse> => {
+    const { data } = await api.get<InsightStatusResponse>('/insights/status');
+    return data;
+  },
+};
+
 // Campaign Planner API
 export const campaignPlannerApi = {
   autoPlan: async (request: AutoPlanRequest) => {

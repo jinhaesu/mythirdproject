@@ -201,9 +201,14 @@ async def lifespan(app: FastAPI):
     # Start background scheduler
     scheduler_task = asyncio.create_task(_run_scheduled_reports())
     logger.info("Scheduled report background runner started")
+    # Start Meta 인사이트 수집 루프 (1시간 주기, 시작 즉시 1회 실행)
+    from app.services.meta_insights_collector import run_collector_loop
+    insights_task = asyncio.create_task(run_collector_loop())
+    logger.info("Meta insights collector loop started")
     yield
     # Shutdown
     scheduler_task.cancel()
+    insights_task.cancel()
 
 
 app = FastAPI(
