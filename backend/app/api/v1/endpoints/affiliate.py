@@ -1947,25 +1947,25 @@ async def export_partner_settlement(
         ws_sum.cell(row=row, column=ci).border = box
     row += 1
 
-    # 합계 (정상+취소) — 판매수량·주문금액·공급가는 두 그룹 합산.
-    # 크리에이터 정산금액은 전체주문건 시트의 [수수료(원)] 합계 행을 직접 참조해서
-    # 사용자가 H열 수량을 수정해도 그 결과가 그대로 반영되도록 한다.
-    detail_sum_row_idx = len(conversions) + 2  # 전체주문건 시트의 H열 합계 행 위치
-    detail_commission_sum_ref = (
-        f"'전체주문건'!H{detail_sum_row_idx}" if conversions else "0"
-    )
-
+    # 합계 — 판매수량은 정상+취소(발생 수량 총합), 금액 3종(총주문금액·총공급가·
+    # 크리에이터 정산금액)은 정상소계 − 취소소계(순매출/순정산 기준). 검수 반영(2026-06-12):
+    # 과거 정산금액을 '전체주문건' H열(전체=정상+취소) 합계로 참조해 취소분이 차감되지
+    # 않던 버그 → 요약 소계 차감으로 교체.
     total_row = row
     ws_sum.cell(row=row, column=1, value="합계 (정상+취소)").font = bold
     ws_sum.cell(row=row, column=1).alignment = center
+    # 판매수량: 정상 + 취소 (발생 수량 총합)
     ws_sum.cell(row=row, column=3, value=f"=C{normal_subtotal_row}+C{cancel_subtotal_row}").number_format = money_fmt
-    ws_sum.cell(row=row, column=4, value=f"=D{normal_subtotal_row}+D{cancel_subtotal_row}").number_format = money_fmt
+    # 총주문금액: 정상 − 취소 (순매출)
+    ws_sum.cell(row=row, column=4, value=f"=D{normal_subtotal_row}-D{cancel_subtotal_row}").number_format = money_fmt
     if is_freelancer:
-        ws_sum.cell(row=row, column=5, value=f"=E{normal_subtotal_row}+E{cancel_subtotal_row}").number_format = money_fmt
-        ws_sum.cell(row=row, column=7, value=f"={detail_commission_sum_ref}").number_format = money_fmt
+        # 총공급가·크리에이터 정산금액: 정상소계 − 취소소계
+        ws_sum.cell(row=row, column=5, value=f"=E{normal_subtotal_row}-E{cancel_subtotal_row}").number_format = money_fmt
+        ws_sum.cell(row=row, column=7, value=f"=G{normal_subtotal_row}-G{cancel_subtotal_row}").number_format = money_fmt
         final_settlement_cell = f"G{total_row}"
     else:
-        ws_sum.cell(row=row, column=6, value=f"={detail_commission_sum_ref}").number_format = money_fmt
+        # 크리에이터 정산금액: 정상소계 − 취소소계
+        ws_sum.cell(row=row, column=6, value=f"=F{normal_subtotal_row}-F{cancel_subtotal_row}").number_format = money_fmt
         final_settlement_cell = f"F{total_row}"
     for ci in range(1, len(sum_headers) + 1):
         ws_sum.cell(row=row, column=ci).font = Font(bold=True, size=12)
