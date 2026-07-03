@@ -12,6 +12,7 @@ from typing import Optional
 
 from sqlalchemy import select
 
+from app.core.config import get_settings
 from app.db.database import AsyncSessionLocal
 from app.models.affiliate import (
     AffiliateCampaign,
@@ -22,6 +23,12 @@ from app.models.affiliate import (
 from app.models.partner_campaign import PartnerCampaign
 from app.models.user import User
 from app.services import cafe24 as cafe24_svc
+from app.services.attribution import (
+    extract_member_id,
+    get_member_link,
+    get_order_bind,
+    upsert_member_link,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -125,7 +132,13 @@ async def _process_order(db, order: dict) -> dict:
     if not paid_flag and actual_payment <= 0 and not is_cancel and not is_refund:
         return {"status": "skipped", "reason": "not_paid"}
 
-    # Attribution 매칭
+    # Attribution 매칭 — 구매자 식별 우선순위:
+    # 0) tracker.js 세션 바인딩(확정) → 1) ref 코드(확정) → 2) 쿠폰(캠페인) + 회원연결(파트너)
+    # → 3) 상품 매칭 + 회원연결 → (strict OFF일 때만) 라스트클릭 추정
+    strict = get_settings().ATTRIBUTION_STRICT
+    member_id = extract_member_id(order)
+    attribution_source: Optional[str] = None
+
     used_coupons = order.get("coupons") or order.get("order_coupons") or []
     coupon_codes = [
         c.get("coupon_code") or c.get("code")
@@ -138,9 +151,30 @@ async def _process_order(db, order: dict) -> dict:
 
     campaign: Optional[AffiliateCampaign] = None
     partner: Optional[AffiliatePartner] = None
+    click_id = None
+
+    # 0) tracker.js 확정 바인딩 — 클릭 세션과 주문번호가 직접 연결된 경우
+    bind = await get_order_bind(db, str(order_id))
+    if bind:
+        p_r = await db.execute(
+            select(AffiliatePartner).where(
+                AffiliatePartner.id == bind.partner_id,
+                AffiliatePartner.deleted_at.is_(None),
+            )
+        )
+        partner = p_r.scalar_one_or_none()
+        if partner:
+            click_id = bind.click_id
+            attribution_source = "bind"
+            if bind.campaign_id:
+                c_r = await db.execute(
+                    select(AffiliateCampaign).where(AffiliateCampaign.id == bind.campaign_id)
+                )
+                campaign = c_r.scalar_one_or_none()
+            logger.info(f"[Poller] order={order_id} 세션 바인딩 귀속: partner={partner.id}")
 
     # 1) ref 코드로 매칭
-    if ref_code:
+    if not partner and ref_code:
         pc_r = await db.execute(
             select(PartnerCampaign).where(PartnerCampaign.referral_code == ref_code)
         )
@@ -154,6 +188,8 @@ async def _process_order(db, order: dict) -> dict:
                 select(AffiliateCampaign).where(AffiliateCampaign.id == pc.campaign_id)
             )
             campaign = c_r.scalar_one_or_none()
+            if partner:
+                attribution_source = "ref"
 
     # 2) 쿠폰 코드로 캠페인 매칭
     if not campaign:
@@ -165,13 +201,10 @@ async def _process_order(db, order: dict) -> dict:
             if campaign:
                 break
 
-    click_id = None
-
-    # 3) 상품 기반 매칭 — 주문 상품이 어떤 캠페인의 cafe24_product_no와 일치하면
-    #    그 캠페인의 "주문 시점 기준 이전 2시간 내" 클릭의 파트너로 귀속.
-    #    (쿠폰 안 써도 동작. 반드시 click ≤ order_date 여야 함 —
-    #     폴러 지연 실행 시 주문 이후의 클릭이 잘못 귀속되는 것 방지.)
-    if not campaign:
+    # 3) 상품 기반 매칭 — 주문 상품이 캠페인 상품과 일치하는 경우.
+    #    (a) 회원 연결(과거 확정 귀속된 구매자) → 재구매 귀속 (strict에서도 동작)
+    #    (b) strict OFF일 때만: "주문 이전 2시간 내" 라스트클릭 추정 귀속
+    if not campaign and not partner:
         # 주문 상품 번호 수집
         product_nos = set()
         # ordering_product_code는 문자열 코드일 수 있으므로 items embed 우선
@@ -237,9 +270,34 @@ async def _process_order(db, order: dict) -> dict:
                         candidates.append(cand)
                 except (ValueError, TypeError):
                     continue
-            # 주문 시각 ± 2시간 — 시각을 모르면 매칭 스킵 (잘못된 귀속 방지)
+            # (a) 회원 연결 우선 — 과거 bind/ref로 확정 귀속된 구매자의 재구매
+            if candidates and member_id:
+                link = await get_member_link(db, member_id)
+                if link:
+                    lp_r = await db.execute(
+                        select(AffiliatePartner).where(
+                            AffiliatePartner.id == link.partner_id,
+                            AffiliatePartner.deleted_at.is_(None),
+                        )
+                    )
+                    linked_partner = lp_r.scalar_one_or_none()
+                    if linked_partner:
+                        partner = linked_partner
+                        campaign = next(
+                            (c for c in candidates if c.id == link.campaign_id),
+                            candidates[0],
+                        )
+                        attribution_source = "member"
+                        logger.info(
+                            f"[Poller] order={order_id} 회원 재구매 귀속: "
+                            f"member={member_id} partner={partner.id}"
+                        )
+
+            # (b) 주문 시각 ± 2시간 라스트클릭 추정 — strict 모드에서는 중단
             best_click = None
-            if order_dt_utc is None:
+            if partner is not None or strict:
+                pass
+            elif order_dt_utc is None:
                 logger.warning(
                     f"[Poller] order={order_id} order_date 파싱 실패 — 상품매칭 스킵"
                 )
@@ -267,32 +325,53 @@ async def _process_order(db, order: dict) -> dict:
                     select(AffiliatePartner).where(AffiliatePartner.id == best_click.partner_id)
                 )
                 partner = p_r.scalar_one_or_none()
+                if partner:
+                    attribution_source = "product_lastclick"
                 logger.info(
-                    f"[Poller] order={order_id} 상품 기반 매칭: "
+                    f"[Poller] order={order_id} 상품 기반 매칭(추정): "
                     f"products={product_nos} campaign={campaign.id} "
                     f"partner={partner.id if partner else None} "
                     f"order_at={order_dt_utc} click_at={best_click.clicked_at}"
                 )
 
-    # 쿠폰으로 캠페인만 매칭된 경우: 같은 캠페인의 최근 클릭으로 파트너 보완
+    # 쿠폰으로 캠페인만 매칭된 경우: 파트너 보완
     if not partner and campaign:
-        since_recent = datetime.utcnow() - timedelta(days=7)
-        click_r = await db.execute(
-            select(ReferralClick)
-            .where(
-                ReferralClick.campaign_id == campaign.id,
-                ReferralClick.clicked_at >= since_recent,
+        # (a) 회원 연결 — 구매자가 과거 확정 귀속된 회원이면 그 파트너로
+        if member_id:
+            link = await get_member_link(db, member_id)
+            if link:
+                lp_r = await db.execute(
+                    select(AffiliatePartner).where(
+                        AffiliatePartner.id == link.partner_id,
+                        AffiliatePartner.deleted_at.is_(None),
+                    )
+                )
+                lp = lp_r.scalar_one_or_none()
+                if lp:
+                    partner = lp
+                    attribution_source = "coupon_member"
+
+        # (b) strict OFF일 때만: 같은 캠페인 최근 7일 클릭으로 추정
+        if not partner and not strict:
+            since_recent = datetime.utcnow() - timedelta(days=7)
+            click_r = await db.execute(
+                select(ReferralClick)
+                .where(
+                    ReferralClick.campaign_id == campaign.id,
+                    ReferralClick.clicked_at >= since_recent,
+                )
+                .order_by(ReferralClick.clicked_at.desc())
+                .limit(1)
             )
-            .order_by(ReferralClick.clicked_at.desc())
-            .limit(1)
-        )
-        rc = click_r.scalar_one_or_none()
-        if rc:
-            click_id = rc.id
-            p_r = await db.execute(
-                select(AffiliatePartner).where(AffiliatePartner.id == rc.partner_id)
-            )
-            partner = p_r.scalar_one_or_none()
+            rc = click_r.scalar_one_or_none()
+            if rc:
+                click_id = rc.id
+                p_r = await db.execute(
+                    select(AffiliatePartner).where(AffiliatePartner.id == rc.partner_id)
+                )
+                partner = p_r.scalar_one_or_none()
+                if partner:
+                    attribution_source = "coupon_lastclick"
 
     if not campaign and not partner:
         return {"status": "no_match_strict", "order_id": order_id}
@@ -324,8 +403,14 @@ async def _process_order(db, order: dict) -> dict:
         status=initial_status,
         refunded_amount=refunded_amount_value,
         refunded_at=refunded_at_value,
+        attribution_source=attribution_source,
     )
     db.add(conv)
+    # 확정 신호(bind/ref) 귀속 시 구매 회원을 파트너에 연결 → 이후 재구매 자동 귀속
+    await upsert_member_link(
+        db, member_id, partner.id, campaign.id if campaign else None,
+        attribution_source or "",
+    )
     await db.commit()
     await db.refresh(conv)
     logger.info(

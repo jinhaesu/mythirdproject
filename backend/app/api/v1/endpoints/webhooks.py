@@ -230,14 +230,43 @@ async def cafe24_order_webhook(request: Request):
         # 3) 양쪽 다 없으면 스킵
         # ─────────────────────────────────────────────────────
         from app.models.partner_campaign import PartnerCampaign as PC
+        from app.core.config import get_settings as _gs
+        from app.services.attribution import (
+            get_member_link,
+            get_order_bind,
+            upsert_member_link,
+        )
+
+        strict = _gs().ATTRIBUTION_STRICT
+        member_id = str(buyer_id or "").strip()
 
         campaign = None
         partner = None
         click_id = None
+        attribution_source = None
+
+        # 0) tracker.js 확정 바인딩 — 클릭 세션과 주문번호가 직접 연결된 경우
+        bind = await get_order_bind(db, str(order_id))
+        if bind:
+            p_result = await db.execute(
+                select(AffiliatePartner).where(
+                    AffiliatePartner.id == bind.partner_id,
+                    AffiliatePartner.deleted_at.is_(None),
+                )
+            )
+            partner = p_result.scalar_one_or_none()
+            if partner:
+                click_id = bind.click_id
+                attribution_source = "bind"
+                if bind.campaign_id:
+                    camp_result = await db.execute(
+                        select(AffiliateCampaign).where(AffiliateCampaign.id == bind.campaign_id)
+                    )
+                    campaign = camp_result.scalar_one_or_none()
 
         ref_code = _extract_ref_code(order_memo) or _extract_ref_code(landing_url_in_payload)
 
-        if ref_code:
+        if not partner and ref_code:
             # PartnerCampaign 우선
             pc_result = await db.execute(
                 select(PC).where(PC.referral_code == ref_code)
@@ -272,6 +301,9 @@ async def cafe24_order_webhook(request: Request):
                     )
                     campaign = camp_result.scalar_one_or_none()
 
+        if partner and not attribution_source:
+            attribution_source = "ref"
+
         # 쿠폰 코드로 캠페인 보완/덮어쓰기
         coupon_codes = [c.get("coupon_code") or c.get("code") for c in used_coupons if c.get("coupon_code") or c.get("code")]
         if not campaign:
@@ -291,8 +323,22 @@ async def cafe24_order_webhook(request: Request):
             )
             return {"status": "no_match"}
 
-        # 파트너 미확정 시 같은 캠페인 최근 클릭으로 보완
-        if not partner and campaign:
+        # 파트너 미확정 시 보완 — (a) 회원 연결(구매자 식별) 우선
+        if not partner and campaign and member_id:
+            link = await get_member_link(db, member_id)
+            if link:
+                p_result = await db.execute(
+                    select(AffiliatePartner).where(
+                        AffiliatePartner.id == link.partner_id,
+                        AffiliatePartner.deleted_at.is_(None),
+                    )
+                )
+                partner = p_result.scalar_one_or_none()
+                if partner:
+                    attribution_source = "coupon_member"
+
+        # (b) strict OFF일 때만: 같은 캠페인 최근 7일 클릭으로 추정
+        if not partner and campaign and not strict:
             since = datetime.utcnow() - timedelta(days=7)
             click_result = await db.execute(
                 select(ReferralClick)
@@ -310,34 +356,44 @@ async def cafe24_order_webhook(request: Request):
                     select(AffiliatePartner).where(AffiliatePartner.id == click.partner_id)
                 )
                 partner = p_result.scalar_one_or_none()
+                if partner:
+                    attribution_source = "coupon_lastclick"
 
         if not partner:
             logger.info(f"[Webhook] order={order_id} — 파트너 attribution 실패")
             return {"status": "no_partner_match"}
 
-        # 커미션 계산
+        # 커미션 계산 (bind 귀속은 campaign이 없을 수 있음)
         commission_amount = 0.0
-        if campaign.commission_type == "percentage":
-            commission_amount = total_price * (campaign.commission_rate / 100)
-        else:
-            commission_amount = campaign.commission_rate
+        if campaign:
+            if campaign.commission_type == "percentage":
+                commission_amount = total_price * (campaign.commission_rate / 100)
+            else:
+                commission_amount = campaign.commission_rate
 
         conversion = ReferralConversion(
             click_id=click_id,
             partner_id=partner.id,
-            campaign_id=campaign.id,
+            campaign_id=campaign.id if campaign else None,
             order_id=order_id,
             cafe24_order_id=order_id,
             order_amount=total_price,
             commission_amount=round(commission_amount, 2),
             status="paid",
+            attribution_source=attribution_source,
         )
         db.add(conversion)
+        # 확정 신호(bind/ref) 귀속 시 구매 회원을 파트너에 연결 → 이후 재구매 자동 귀속
+        await upsert_member_link(
+            db, member_id, partner.id, campaign.id if campaign else None,
+            attribution_source or "",
+        )
         await db.commit()
         await db.refresh(conversion)
 
         logger.info(
             f"[Webhook] Conversion recorded: order={order_id} "
-            f"partner={partner.id} campaign={campaign.id} commission={commission_amount} action=paid"
+            f"partner={partner.id} campaign={campaign.id if campaign else None} "
+            f"commission={commission_amount} source={attribution_source} action=paid"
         )
         return {"status": "recorded", "conversion_id": conversion.id}

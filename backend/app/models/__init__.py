@@ -16,6 +16,8 @@ from app.models.affiliate import (
     ReferralConversion,
     AffiliateSettlement,
     ReferralProgram,
+    AffiliateOrderBind,
+    AffiliateMemberLink,
 )
 from app.models.points import PointTransaction
 from app.models.partner_campaign import PartnerCampaign
@@ -51,6 +53,8 @@ __all__ = [
     "ReferralClick",
     "ReferralConversion",
     "AffiliateSettlement",
+    "AffiliateOrderBind",
+    "AffiliateMemberLink",
     "ReferralProgram",
     "PointTransaction",
     "PartnerCampaign",

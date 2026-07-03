@@ -73,6 +73,11 @@ class Settings(BaseSettings):
     # 외부 노출 도메인 (nuldam.com 등 실제 스토어프론트 도메인). 없으면 mall_id.cafe24.com 사용.
     CAFE24_PUBLIC_DOMAIN: str = ""
 
+    # 어필리에이트 귀속 strict 모드 — True면 라스트클릭 추정 귀속(쿠폰→최근클릭,
+    # 상품→2h내 클릭)을 중단하고 확정 신호(세션 바인딩·ref코드·회원 연결)만 인정.
+    # 트래커 스크립트가 스토어에 설치되어 바인딩이 쌓인 뒤 켜는 것을 권장.
+    ATTRIBUTION_STRICT: bool = False
+
     # Allowed emails (comma-separated, empty = allow all)
     ALLOWED_EMAILS: str = ""
 

@@ -116,6 +116,42 @@ class ReferralConversion(Base):
     status: Mapped[str] = mapped_column(String(20), default="paid", index=True)
     refunded_amount: Mapped[float] = mapped_column(Float, default=0.0)  # 부분 환불 대응
     refunded_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    # 귀속 근거 — bind(세션 바인딩) | ref | coupon_member | member | coupon_lastclick | product_lastclick
+    # lastclick 계열은 추정 귀속(레거시)이므로 strict 모드에서 생성 중단 대상
+    attribution_source: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
+
+
+class AffiliateOrderBind(Base):
+    """주문 ↔ 클릭 세션의 확정 바인딩.
+
+    스토어프론트 트래커(tracker.js)가 주문완료 페이지에서 (order_id, 클릭 토큰)을
+    전송하면 기록. 폴러/웹훅이 이 테이블을 최우선 귀속 근거로 사용.
+    """
+    __tablename__ = "affiliate_order_binds"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
+    cafe24_order_id: Mapped[str] = mapped_column(String(100), unique=True, index=True)
+    click_id: Mapped[int] = mapped_column(Integer, ForeignKey("referral_clicks.id"))
+    partner_id: Mapped[int] = mapped_column(Integer, ForeignKey("affiliate_partners.id"))
+    campaign_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("affiliate_campaigns.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class AffiliateMemberLink(Base):
+    """카페24 회원 ↔ 파트너 연결 (구매자 식별 귀속의 기억장치).
+
+    bind/ref 같은 확정 신호로 귀속된 주문의 member_id를 파트너에 연결해 두고,
+    이후 같은 회원의 재구매를 클릭 없이도 해당 파트너에게 귀속.
+    """
+    __tablename__ = "affiliate_member_links"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
+    member_id: Mapped[str] = mapped_column(String(100), unique=True, index=True)
+    partner_id: Mapped[int] = mapped_column(Integer, ForeignKey("affiliate_partners.id"))
+    campaign_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("affiliate_campaigns.id"), nullable=True)
+    source: Mapped[str] = mapped_column(String(30), default="bind")  # bind | ref
+    first_seen: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    last_seen: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
 class AffiliateSettlement(Base):

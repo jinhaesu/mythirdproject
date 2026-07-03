@@ -2291,6 +2291,10 @@ async def track_referral_click(
         )
         db.add(click)
         await db.commit()
+        # 클릭 토큰(nref)을 목적지 URL에 부착 — 스토어의 tracker.js가 저장했다가
+        # 주문완료 페이지에서 (주문번호, 토큰)을 click-bind로 전송해 확정 귀속.
+        sep = "&" if "?" in redirect_url else "?"
+        redirect_url = f"{redirect_url}{sep}nref={cookie_id}"
         logger.info(f"[Track] click recorded: code={referral_code} partner={partner_id} campaign={campaign_id}")
     else:
         # 캠페인 자체 클릭 — partner_id NULL 허용하도록 로그만
@@ -2305,6 +2309,117 @@ async def track_referral_click(
         samesite="lax",
     )
     return response
+
+
+# ---------------------------------------------------------------------------
+# 구매자 식별 추적 — tracker.js + 주문-클릭 바인딩
+# ---------------------------------------------------------------------------
+
+_TRACKER_JS_TEMPLATE = r"""
+(function () {
+  try {
+    var qs = new URLSearchParams(location.search);
+    var t = qs.get('nref');
+    if (t && /^[0-9a-f]{16,64}$/i.test(t)) {
+      localStorage.setItem('nd_ref_token', t);
+      localStorage.setItem('nd_ref_ts', String(Date.now()));
+    }
+    // 주문완료 페이지 감지 (Cafe24: /order/order_result.html?order_id=YYYYMMDD-NNNNNNN)
+    var isDone = /order_result/i.test(location.pathname);
+    if (!isDone) return;
+    var token = localStorage.getItem('nd_ref_token');
+    var ts = parseInt(localStorage.getItem('nd_ref_ts') || '0', 10);
+    if (!token || !ts || Date.now() - ts > 30 * 24 * 3600 * 1000) return;
+    var oid = qs.get('order_id');
+    if (!oid) {
+      var m = document.documentElement.innerHTML.match(/20\d{6}-\d{7}/);
+      if (m) oid = m[0];
+    }
+    if (!oid) return;
+    var url = '__BACKEND__/api/v1/affiliate/click-bind';
+    // text/plain — CORS preflight 없이 전송 (서버는 raw body를 JSON 파싱)
+    var payload = JSON.stringify({ order_id: oid, token: token });
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon(url, new Blob([payload], { type: 'text/plain' }));
+    } else {
+      fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: payload, keepalive: true });
+    }
+    localStorage.removeItem('nd_ref_token');
+    localStorage.removeItem('nd_ref_ts');
+  } catch (e) { /* 추적 실패는 조용히 무시 */ }
+})();
+"""
+
+
+@router.get("/tracker.js")
+async def serve_tracker_js():
+    """카페24 스토어프론트에 삽입하는 추적 스크립트.
+
+    설치: 쇼핑몰 디자인 공통 레이아웃(모든 페이지)에
+    <script src="{BACKEND_URL}/api/v1/affiliate/tracker.js" defer></script>
+    """
+    from fastapi.responses import Response as _Resp
+    from app.core.config import get_settings as _gs
+    backend = (_gs().BACKEND_URL or "").rstrip("/")
+    js = _TRACKER_JS_TEMPLATE.replace("__BACKEND__", backend)
+    return _Resp(content=js, media_type="application/javascript",
+                 headers={"Cache-Control": "public, max-age=3600"})
+
+
+@router.post("/click-bind")
+async def bind_order_click(request: Request, db: AsyncSession = Depends(get_db)):
+    """주문완료 페이지의 tracker.js가 보내는 (주문번호, 클릭 토큰) 확정 바인딩.
+
+    인증 없음(스토어프론트 발신) — 토큰은 추측 불가한 uuid4 hex라 위조 어려움.
+    sendBeacon이 text/plain으로 보내므로 raw body를 직접 JSON 파싱.
+    """
+    import json as _json
+    from app.models.affiliate import AffiliateOrderBind
+    from app.services.attribution import find_click_by_token
+
+    try:
+        raw = await request.body()
+        data = _json.loads(raw.decode("utf-8", errors="replace") or "{}")
+    except Exception:
+        return {"status": "bad_payload"}
+
+    order_id = str(data.get("order_id") or "").strip()[:100]
+    token = str(data.get("token") or "").strip()[:100]
+    if not order_id or not token:
+        return {"status": "missing_fields"}
+
+    click = await find_click_by_token(db, token)
+    if not click:
+        return {"status": "unknown_token"}
+
+    existing_r = await db.execute(
+        select(AffiliateOrderBind).where(AffiliateOrderBind.cafe24_order_id == order_id)
+    )
+    if existing_r.scalar_one_or_none():
+        return {"status": "already_bound"}
+
+    db.add(AffiliateOrderBind(
+        cafe24_order_id=order_id,
+        click_id=click.id,
+        partner_id=click.partner_id,
+        campaign_id=click.campaign_id,
+    ))
+
+    # 폴러/웹훅이 이미 라스트클릭 추정으로 기록했다면 확정 정보로 교정
+    conv_r = await db.execute(
+        select(ReferralConversion).where(ReferralConversion.cafe24_order_id == order_id)
+    )
+    conv = conv_r.scalar_one_or_none()
+    if conv and conv.attribution_source not in ("bind", "ref"):
+        conv.partner_id = click.partner_id
+        conv.click_id = click.id
+        if click.campaign_id:
+            conv.campaign_id = click.campaign_id
+        conv.attribution_source = "bind"
+
+    await db.commit()
+    logger.info(f"[ClickBind] order={order_id} click={click.id} partner={click.partner_id}")
+    return {"status": "bound", "click_id": click.id}
 
 
 # ---------------------------------------------------------------------------
