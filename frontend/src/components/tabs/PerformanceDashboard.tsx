@@ -104,8 +104,9 @@ export default function PerformanceDashboard() {
   const [trendView, setTrendView] = useState<'daily' | 'weekly'>('daily');
   const [feedbackExpanded, setFeedbackExpanded] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
-  // 추세 분석 섹션 기간 선택 (7 | 30 | 90일)
+  // 추세 분석 섹션 기간 선택 (7 | 30 | 90일) + 일별/주별 집계
   const [insightDays, setInsightDays] = useState<7 | 30 | 90>(30);
+  const [insightGranularity, setInsightGranularity] = useState<'daily' | 'weekly'>('daily');
   const queryClient = useQueryClient();
 
   const isCustom = datePreset === 'custom' && customSince && customUntil && customSince <= customUntil;
@@ -246,8 +247,8 @@ export default function PerformanceDashboard() {
     isLoading: insightTrendLoading,
     refetch: refetchInsightTrend,
   } = useQuery({
-    queryKey: ['insight-trend', insightDays],
-    queryFn: () => insightsApi.getTrend(insightDays),
+    queryKey: ['insight-trend', insightDays, insightGranularity],
+    queryFn: () => insightsApi.getTrend({ days: insightDays, granularity: insightGranularity }),
     retry: 1,
     staleTime: 5 * 60 * 1000, // 5분 캐시
   });
@@ -613,6 +614,8 @@ export default function PerformanceDashboard() {
           <InsightTrendSection
             days={insightDays}
             onDaysChange={setInsightDays}
+            granularity={insightGranularity}
+            onGranularityChange={setInsightGranularity}
             trend={insightTrend ?? null}
             loading={insightTrendLoading}
             status={insightStatus ?? null}
@@ -1554,6 +1557,8 @@ const CAMPAIGN_COLORS = ['#7070FF', '#10b981', '#f97316', '#4EA7FC', '#F0BF00'];
 interface InsightTrendSectionProps {
   days: 7 | 30 | 90;
   onDaysChange: (d: 7 | 30 | 90) => void;
+  granularity: 'daily' | 'weekly';
+  onGranularityChange: (g: 'daily' | 'weekly') => void;
   trend: import('@/lib/api').InsightTrendResponse | null;
   loading: boolean;
   status: import('@/lib/api').InsightStatusResponse | null;
@@ -1564,6 +1569,8 @@ interface InsightTrendSectionProps {
 function InsightTrendSection({
   days,
   onDaysChange,
+  granularity,
+  onGranularityChange,
   trend,
   loading,
   status,
@@ -1571,6 +1578,11 @@ function InsightTrendSection({
   onRefresh,
 }: InsightTrendSectionProps) {
   const accountSeries: InsightTrendPoint[] = trend?.account?.series ?? [];
+  const isWeekly = granularity === 'weekly';
+  const unitLabel = isWeekly ? '주별' : '일별';
+  // 주별 집계 시 "MM-DD~MM-DD" 라벨, 일별은 "MM-DD"
+  const fmtPointLabel = (p: InsightTrendPoint) =>
+    isWeekly ? `${p.date.slice(5)}~${p.date_end.slice(5)}` : fmtDateMMDD(p.date);
   const campaigns: InsightTrendCampaign[] = trend?.campaigns ?? [];
   // 상위 5개 캠페인 (지출 합계 기준 내림차순)
   const top5Campaigns = [...campaigns]
@@ -1622,6 +1634,22 @@ function InsightTrendSection({
           )}
         </div>
         <div className="flex items-center gap-2">
+          {/* 일별/주별 집계 토글 */}
+          <div className="flex items-center bg-[#141516] rounded-lg p-0.5">
+            {(['daily', 'weekly'] as const).map((g) => (
+              <button
+                key={g}
+                onClick={() => onGranularityChange(g)}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                  granularity === g
+                    ? 'bg-[#0F1011] text-[#7070FF] shadow-[0px_1px_3px_rgba(0,0,0,0.2)]'
+                    : 'text-[#8A8F98] hover:text-[#D0D6E0]'
+                }`}
+              >
+                {g === 'daily' ? '일별' : '주별'}
+              </button>
+            ))}
+          </div>
           {/* 기간 선택 토글 */}
           <div className="flex items-center bg-[#141516] rounded-lg p-0.5">
             {([7, 30, 90] as const).map((d) => (
@@ -1692,13 +1720,13 @@ function InsightTrendSection({
       {/* 차트 영역 */}
       {!loading && hasData && (
         <div className="space-y-6">
-          {/* 차트 1: 일별 지출(Bar) + ROAS(Line) 복합 — 이중 Y축 */}
+          {/* 차트 1: 지출(Bar) + ROAS(Line) 복합 — 이중 Y축 */}
           <div>
-            <p className="text-[11px] font-medium text-[#8A8F98] mb-2">일별 지출 &amp; ROAS</p>
+            <p className="text-[11px] font-medium text-[#8A8F98] mb-2">{unitLabel} 지출 &amp; ROAS</p>
             <ResponsiveContainer width="100%" height={220}>
               <ComposedChart
                 data={accountSeries.map((p) => ({
-                  date: fmtDateMMDD(p.date),
+                  date: fmtPointLabel(p),
                   spend: p.spend,
                   roas: p.roas,
                 }))}
@@ -1772,15 +1800,15 @@ function InsightTrendSection({
             </ResponsiveContainer>
           </div>
 
-          {/* 차트 2: 일별 CPA 추이 (LineChart) */}
+          {/* 차트 2: CPA 추이 (LineChart) */}
           <div>
-            <p className="text-[11px] font-medium text-[#8A8F98] mb-2">일별 CPA 추이 (전환당 비용)</p>
+            <p className="text-[11px] font-medium text-[#8A8F98] mb-2">{unitLabel} CPA 추이 (전환당 비용)</p>
             <ResponsiveContainer width="100%" height={180}>
               <LineChart
                 data={accountSeries
                   .filter((p) => p.cpa > 0)
                   .map((p) => ({
-                    date: fmtDateMMDD(p.date),
+                    date: fmtPointLabel(p),
                     cpa: p.cpa,
                   }))}
                 margin={{ top: 8, right: 20, bottom: 4, left: 4 }}
@@ -1828,18 +1856,18 @@ function InsightTrendSection({
             </ResponsiveContainer>
           </div>
 
-          {/* 차트 3: 캠페인별 일별 지출 비교 (멀티 라인, 상위 5개) */}
+          {/* 차트 3: 캠페인별 지출 비교 (멀티 라인, 상위 5개) */}
           {top5Campaigns.length > 0 && (
             <div>
               <p className="text-[11px] font-medium text-[#8A8F98] mb-2">
-                캠페인별 일별 지출 비교
+                캠페인별 {unitLabel} 지출 비교
                 <span className="ml-1 text-[#62666D]">(지출 상위 {top5Campaigns.length}개)</span>
               </p>
               <ResponsiveContainer width="100%" height={220}>
                 <LineChart
                   data={campaignChartData.map((row) => ({
                     ...row,
-                    date: fmtDateMMDD(String(row.date)),
+                    date: isWeekly ? `${String(row.date).slice(5)} 주` : fmtDateMMDD(String(row.date)),
                   }))}
                   margin={{ top: 8, right: 20, bottom: 4, left: 4 }}
                 >
