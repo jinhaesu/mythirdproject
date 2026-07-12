@@ -334,12 +334,14 @@ async def list_orders(
     start_date: datetime,
     end_date: datetime,
     limit: int = 500,
+    offset: int = 0,
 ) -> list:
     """Cafe24 주문 목록 조회. start/end_date는 naive datetime(UTC)."""
     params = {
         "start_date": start_date.strftime("%Y-%m-%d"),
         "end_date": end_date.strftime("%Y-%m-%d"),
         "limit": limit,
+        "offset": offset,
         "embed": "items,coupons",  # 주문 상세에 items/coupons 포함 요청
     }
     data = await api_request(user, db, "GET", "/api/v2/admin/orders", params=params)

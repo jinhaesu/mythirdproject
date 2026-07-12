@@ -426,17 +426,25 @@ async def backfill_mall_orders(
     months_done: list[str] = []
 
     for chunk_start, chunk_end in chunks:
+        # offset 페이지네이션 — 월 주문이 500건을 넘어도 전부 수집 (안전 상한 16페이지=8000건)
+        orders: list = []
         try:
-            orders = await cafe24_svc.list_orders(
-                cafe24_user,
-                db,
-                datetime.combine(chunk_start, datetime.min.time()),
-                datetime.combine(chunk_end, datetime.min.time()),
-                limit=500,
-            )
+            for page in range(16):
+                batch = await cafe24_svc.list_orders(
+                    cafe24_user,
+                    db,
+                    datetime.combine(chunk_start, datetime.min.time()),
+                    datetime.combine(chunk_end, datetime.min.time()),
+                    limit=500,
+                    offset=page * 500,
+                )
+                orders.extend(batch)
+                if len(batch) < 500:
+                    break
         except Exception as e:
             logger.error(f"[KPI Backfill] list_orders 실패 {chunk_start}~{chunk_end}: {e}")
-            continue
+            if not orders:
+                continue
 
         fetched += len(orders)
         for o in orders:
