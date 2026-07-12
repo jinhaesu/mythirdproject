@@ -408,38 +408,33 @@ async def backfill_mall_orders(
     if not cafe24_user:
         raise HTTPException(status_code=503, detail="Cafe24 연결된 계정이 없습니다. 먼저 Cafe24를 연결해주세요.")
 
-    # 카페24 조회 범위 제한 회피 — 월 단위로 쪼갠다.
+    # 카페24 offset 상한(8000) 회피 — 7일 단위로 쪼갠다 (주 9천 건까지 안전).
     chunks: list[tuple[date, date]] = []
-    cursor = date(since_date.year, since_date.month, 1)
+    cursor = since_date
     while cursor <= until_date:
-        last_day = calendar.monthrange(cursor.year, cursor.month)[1]
-        chunk_start = max(cursor, since_date)
-        chunk_end = min(date(cursor.year, cursor.month, last_day), until_date)
-        chunks.append((chunk_start, chunk_end))
-        if cursor.month == 12:
-            cursor = date(cursor.year + 1, 1, 1)
-        else:
-            cursor = date(cursor.year, cursor.month + 1, 1)
+        chunk_end = min(cursor + timedelta(days=6), until_date)
+        chunks.append((cursor, chunk_end))
+        cursor = chunk_end + timedelta(days=1)
 
     fetched = 0
     upserted = 0
     months_done: list[str] = []
 
     for chunk_start, chunk_end in chunks:
-        # offset 페이지네이션 — 월 주문이 500건을 넘어도 전부 수집 (안전 상한 16페이지=8000건)
+        # offset 페이지네이션 — 페이지당 1000건, offset 상한 8000 → 청크당 최대 9000건
         orders: list = []
         try:
-            for page in range(16):
+            for page in range(9):
                 batch = await cafe24_svc.list_orders(
                     cafe24_user,
                     db,
                     datetime.combine(chunk_start, datetime.min.time()),
                     datetime.combine(chunk_end, datetime.min.time()),
-                    limit=500,
-                    offset=page * 500,
+                    limit=1000,
+                    offset=page * 1000,
                 )
                 orders.extend(batch)
-                if len(batch) < 500:
+                if len(batch) < 1000:
                     break
         except Exception as e:
             logger.error(f"[KPI Backfill] list_orders 실패 {chunk_start}~{chunk_end}: {e}")
@@ -465,7 +460,9 @@ async def backfill_mall_orders(
             except Exception as e:
                 logger.error(f"[KPI Backfill] order={order_id} upsert 실패: {e}")
 
-        months_done.append(f"{chunk_start.year:04d}-{chunk_start.month:02d}")
+        month_key = f"{chunk_start.year:04d}-{chunk_start.month:02d}"
+        if month_key not in months_done:
+            months_done.append(month_key)
 
     return {"fetched": fetched, "upserted": upserted, "months": months_done}
 
