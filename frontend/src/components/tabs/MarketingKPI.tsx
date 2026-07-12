@@ -355,6 +355,13 @@ export function MarketingKPI() {
     aov: m.mall?.aov ?? null,
   })), [months]);
 
+  const conversionChartData = useMemo(() => months.map((m) => ({
+    month: shortMonth(m.month),
+    visits: m.mall?.visits ?? null,
+    conversion_rate: m.mall?.conversion_rate ?? null,
+    target: m.goal?.target_conversion_rate ?? null,
+  })), [months]);
+
   // ─── Naver search volume ───
 
   const [keywordsInput, setKeywordsInput] = useState('널담,널담은디저트');
@@ -712,6 +719,45 @@ export function MarketingKPI() {
                     <Legend wrapperStyle={{ fontSize: 11 }} />
                     <Bar yAxisId="left" dataKey="revenue" name="매출" fill="#27A644" radius={[3, 3, 0, 0]} maxBarSize={30} />
                     <Line yAxisId="right" type="monotone" dataKey="aov" name="AOV" stroke="#7070FF" strokeWidth={2} />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            <div className="bg-[#0F1011] border border-[#23252A] rounded-xl p-4 md:col-span-2">
+              <h3 className="text-sm font-semibold text-[#D0D6E0] mb-3 flex items-center gap-1.5">
+                <Percent size={14} className="text-[#F2994A]" />
+                방문자수 & 구매전환율
+                <span className="text-[10px] font-normal text-[#62666D]">전환율 = 주문수 ÷ 방문자수 (카페24 접속통계 자동)</span>
+              </h3>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={conversionChartData} margin={{ top: 8, right: 16, left: 8, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#23252A" />
+                    <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#8A8F98' }} />
+                    <YAxis
+                      yAxisId="visits"
+                      tick={{ fontSize: 10, fill: '#8A8F98' }}
+                      tickFormatter={(v: number) => (v >= 10000 ? `${Math.round(v / 10000)}만` : String(v))}
+                    />
+                    <YAxis
+                      yAxisId="rate"
+                      orientation="right"
+                      tick={{ fontSize: 10, fill: '#F2994A' }}
+                      tickFormatter={(v: number) => `${v.toFixed(1)}%`}
+                    />
+                    <RechartsTooltip
+                      contentStyle={{ backgroundColor: '#141516', border: '1px solid #23252A', borderRadius: 8, fontSize: 11 }}
+                      labelStyle={{ color: '#D0D6E0' }}
+                      formatter={(value: any, name: any) => {
+                        if (name === '방문자수') return [Number(value).toLocaleString('ko-KR'), name];
+                        return [`${Number(value).toFixed(2)}%`, name];
+                      }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                    <Bar yAxisId="visits" dataKey="visits" name="방문자수" fill="#4EA7FC" opacity={0.6} radius={[3, 3, 0, 0]} maxBarSize={30} />
+                    <Line yAxisId="rate" type="monotone" dataKey="conversion_rate" name="구매전환율" stroke="#F2994A" strokeWidth={2} />
+                    <Line yAxisId="rate" type="monotone" dataKey="target" name="목표 전환율" stroke="#F0BF00" strokeWidth={2} strokeDasharray="4 4" />
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
