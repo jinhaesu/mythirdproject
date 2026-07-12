@@ -476,8 +476,8 @@ export default function PerformanceDashboard() {
             <KPICard icon={<Eye size={20} />} label="노출" value={formatNum(accountInsights.impressions)} sub={`도달 ${formatNum(accountInsights.reach)}`} color="blue" />
           </div>
 
-          {/* Trend Chart with Daily/Weekly Toggle */}
-          {trendDays.length > 0 && (
+          {/* Trend Chart with Daily/Weekly Toggle — 데이터가 없어도 카드·토글은 항상 표시 */}
+          {(
             <div className="bg-[#0F1011] border border-[#23252A] rounded-xl p-4">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-semibold text-[#D0D6E0] flex items-center gap-1.5">
@@ -499,6 +499,19 @@ export default function PerformanceDashboard() {
                   >주간</button>
                 </div>
               </div>
+
+              {/* 조회 기간에 수집 데이터가 없을 때 빈 상태 (토글은 위에 유지) */}
+              {trendDays.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <BarChart3 size={30} className="text-[#23252A] mb-2" />
+                  <p className="text-xs text-[#8A8F98]">
+                    선택한 기간에 수집된 광고 데이터가 없습니다.
+                  </p>
+                  <p className="text-[10px] text-[#62666D] mt-1">
+                    광고 집행 이전 기간이거나 아직 수집되지 않은 범위입니다.
+                  </p>
+                </div>
+              )}
 
               {/* 주간 비교 카드 (이번주 vs 지난주) */}
               {trendView === 'weekly' && weeklyComparison && (
@@ -539,6 +552,7 @@ export default function PerformanceDashboard() {
               )}
 
               {/* 지출(막대·좌축) + ROAS(선·우축) 통합 차트 */}
+              {trendDays.length > 0 && (<>
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart
@@ -607,6 +621,7 @@ export default function PerformanceDashboard() {
                   />
                 </div>
               </div>
+              </>)}
             </div>
           )}
 
