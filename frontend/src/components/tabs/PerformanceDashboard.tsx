@@ -104,9 +104,6 @@ export default function PerformanceDashboard() {
   const [trendView, setTrendView] = useState<'daily' | 'weekly'>('daily');
   const [feedbackExpanded, setFeedbackExpanded] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
-  // 추세 분석 섹션 기간 선택 (7 | 30 | 90일) + 일별/주별 집계
-  const [insightDays, setInsightDays] = useState<7 | 30 | 90>(30);
-  const [insightGranularity, setInsightGranularity] = useState<'daily' | 'weekly'>('daily');
   const queryClient = useQueryClient();
 
   const isCustom = datePreset === 'custom' && customSince && customUntil && customSince <= customUntil;
@@ -196,6 +193,31 @@ export default function PerformanceDashboard() {
     };
   }, [trendView, trendData]);
 
+  // 캠페인별 지출 비교 (지출 상위 5개, 성과 추이 카드에 통합 표시)
+  const campaignCompare = useMemo(() => {
+    const campaigns = trendData?.campaigns ?? [];
+    if (!campaigns.length) return null;
+    const top5 = [...campaigns]
+      .sort((a, b) =>
+        b.series.reduce((s, p) => s + p.spend, 0) - a.series.reduce((s, p) => s + p.spend, 0)
+      )
+      .slice(0, 5);
+    const dateMap: Record<string, { key: string; label: string; [k: string]: string | number }> = {};
+    top5.forEach((c) => {
+      c.series.forEach((pt) => {
+        if (!dateMap[pt.date]) {
+          dateMap[pt.date] = {
+            key: pt.date,
+            label: trendView === 'weekly' ? `${pt.date.slice(5)}~${pt.date_end.slice(5)}` : pt.date.slice(5),
+          };
+        }
+        dateMap[pt.date][c.campaign_name] = pt.spend;
+      });
+    });
+    const rows = Object.values(dateMap).sort((a, b) => a.key.localeCompare(b.key));
+    return { top5, rows };
+  }, [trendData, trendView]);
+
   const THREE_HOURS = 3 * 60 * 60 * 1000;
   const { data: aiAnalysis, isLoading: loadingAI, refetch: refetchAI, dataUpdatedAt } = useQuery({
     queryKey: ['ai-analysis', datePreset, aiStatusFilter],
@@ -241,26 +263,13 @@ export default function PerformanceDashboard() {
     retry: 1,
   });
 
-  // 추세 데이터 (기간 변경 시 재조회)
-  const {
-    data: insightTrend,
-    isLoading: insightTrendLoading,
-    refetch: refetchInsightTrend,
-  } = useQuery({
-    queryKey: ['insight-trend', insightDays, insightGranularity],
-    queryFn: () => insightsApi.getTrend({ days: insightDays, granularity: insightGranularity }),
-    retry: 1,
-    staleTime: 5 * 60 * 1000, // 5분 캐시
-  });
-
   // 즉시 수집 실행
   const insightRefreshMutation = useMutation({
     mutationFn: () => insightsApi.refresh(),
     onSuccess: (res) => {
       toast.success(`수집 완료: ${res.collected_rows.toLocaleString('ko-KR')}건`);
-      queryClient.invalidateQueries({ queryKey: ['insight-trend'] });
+      queryClient.invalidateQueries({ queryKey: ['insight-trend-main'] });
       queryClient.invalidateQueries({ queryKey: ['insight-status'] });
-      refetchInsightTrend();
     },
     onError: (err: any) => {
       toast.error(err?.response?.data?.detail || '수집 실패. 잠시 후 다시 시도해주세요.');
@@ -479,26 +488,51 @@ export default function PerformanceDashboard() {
           {/* Trend Chart with Daily/Weekly Toggle — 데이터가 없어도 카드·토글은 항상 표시 */}
           {(
             <div className="bg-[#0F1011] border border-[#23252A] rounded-xl p-4">
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                 <h3 className="text-sm font-semibold text-[#D0D6E0] flex items-center gap-1.5">
                   <TrendingUp size={14} className="text-blue-500" />
                   {trendView === 'daily' ? '일별' : '주간'} 성과 추이
+                  {insightStatus?.as_of && (
+                    <span className="text-[10px] font-normal text-[#62666D]">
+                      데이터 기준 {fmtAsOf(insightStatus.as_of)}
+                    </span>
+                  )}
                 </h3>
-                <div className="flex items-center bg-[#141516] rounded-lg p-0.5">
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center bg-[#141516] rounded-lg p-0.5">
+                    <button
+                      onClick={() => setTrendView('daily')}
+                      className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                        trendView === 'daily' ? 'bg-[#0F1011] text-[#7070FF] shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'text-[#8A8F98] hover:text-[#D0D6E0]'
+                      }`}
+                    >일별</button>
+                    <button
+                      onClick={() => setTrendView('weekly')}
+                      className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                        trendView === 'weekly' ? 'bg-[#0F1011] text-[#7070FF] shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'text-[#8A8F98] hover:text-[#D0D6E0]'
+                      }`}
+                    >주간</button>
+                  </div>
                   <button
-                    onClick={() => setTrendView('daily')}
-                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                      trendView === 'daily' ? 'bg-[#0F1011] text-[#7070FF] shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'text-[#8A8F98] hover:text-[#D0D6E0]'
-                    }`}
-                  >일별</button>
-                  <button
-                    onClick={() => setTrendView('weekly')}
-                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                      trendView === 'weekly' ? 'bg-[#0F1011] text-[#7070FF] shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'text-[#8A8F98] hover:text-[#D0D6E0]'
-                    }`}
-                  >주간</button>
+                    onClick={() => insightRefreshMutation.mutate()}
+                    disabled={insightRefreshMutation.isPending}
+                    className="flex items-center gap-1.5 px-3 py-1.5 border border-[#23252A] rounded-lg text-xs text-[#D0D6E0] hover:bg-[#141516] disabled:opacity-50 transition-all"
+                  >
+                    <RefreshCw size={12} className={insightRefreshMutation.isPending ? 'animate-spin' : ''} />
+                    {insightRefreshMutation.isPending ? '수집 중...' : '지금 수집'}
+                  </button>
                 </div>
               </div>
+
+              {/* Meta 토큰 만료 경고 */}
+              {insightStatus?.token_expired && (
+                <div className="flex items-center gap-2 px-4 py-2.5 mb-3 bg-[#EB5757]/10 border border-[#EB5757]/30 rounded-lg">
+                  <AlertTriangle size={14} className="text-[#EB5757] flex-shrink-0" />
+                  <p className="text-xs text-[#EB5757]">
+                    Meta 토큰이 만료되었습니다. 우측 상단 메뉴에서 Meta 계정을 다시 연결해주세요.
+                  </p>
+                </div>
+              )}
 
               {/* 조회 기간에 수집 데이터가 없을 때 빈 상태 (토글은 위에 유지) */}
               {trendDays.length === 0 && (
@@ -585,8 +619,8 @@ export default function PerformanceDashboard() {
                 </ResponsiveContainer>
               </div>
 
-              {/* 보조 지표 컴팩트 그리드 */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+              {/* 보조 지표 컴팩트 그리드 (매출·CPA·CTR·CPC) */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
                 <div className="bg-[#141516] rounded-lg p-2.5">
                   <p className="text-[10px] text-[#8A8F98] mb-1">전환값 (매출)</p>
                   <MiniLineChart
@@ -595,6 +629,17 @@ export default function PerformanceDashboard() {
                       value: d.revenue,
                     }))}
                     color="green"
+                    formatValue={(v) => formatMoney(v)}
+                  />
+                </div>
+                <div className="bg-[#141516] rounded-lg p-2.5">
+                  <p className="text-[10px] text-[#8A8F98] mb-1">CPA (전환당 비용)</p>
+                  <MiniLineChart
+                    data={trendDays.filter((d) => d.cpa > 0).map((d) => ({
+                      label: trendView === 'weekly' ? `${d.date.slice(5)}~${d.date_end.slice(5)}` : d.date.slice(5),
+                      value: d.cpa,
+                    }))}
+                    color="orange"
                     formatValue={(v) => formatMoney(v)}
                   />
                 </div>
@@ -621,22 +666,44 @@ export default function PerformanceDashboard() {
                   />
                 </div>
               </div>
+
+              {/* 캠페인별 지출 비교 (지출 상위 5개) */}
+              {campaignCompare && campaignCompare.rows.length > 0 && (
+                <div className="mt-4">
+                  <p className="text-[11px] font-medium text-[#8A8F98] mb-2">
+                    캠페인별 {trendView === 'weekly' ? '주별' : '일별'} 지출 비교
+                    <span className="ml-1 text-[#62666D]">(지출 상위 {campaignCompare.top5.length}개)</span>
+                  </p>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <LineChart data={campaignCompare.rows} margin={{ top: 4, right: 16, bottom: 0, left: 4 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#23252A" vertical={false} />
+                      <XAxis dataKey="label" tick={{ fontSize: 9, fill: '#8A8F98' }} stroke="#2a2d35" tickLine={false} interval="preserveStartEnd" minTickGap={24} />
+                      <YAxis tick={{ fontSize: 9, fill: '#8A8F98' }} stroke="#2a2d35" tickLine={false} axisLine={false} width={48}
+                        tickFormatter={(v: number) => v >= 10000 ? `${Math.round(v / 10000)}만` : String(Math.round(v))} />
+                      <RechartsTooltip
+                        contentStyle={{ backgroundColor: '#141516', border: '1px solid #23252A', borderRadius: 8, fontSize: 11 }}
+                        labelStyle={{ color: '#D0D6E0' }}
+                        formatter={(v: number, name: string) => [formatSpend(Number(v)), name]}
+                      />
+                      <Legend wrapperStyle={{ fontSize: 10 }} />
+                      {campaignCompare.top5.map((c, i) => (
+                        <Line
+                          key={c.campaign_id}
+                          type="monotone"
+                          dataKey={c.campaign_name}
+                          stroke={CAMPAIGN_COLORS[i % CAMPAIGN_COLORS.length]}
+                          strokeWidth={1.8}
+                          dot={false}
+                          activeDot={{ r: 3 }}
+                        />
+                      ))}
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
               </>)}
             </div>
           )}
-
-          {/* ─── 추세 분석 섹션 (DB 스냅샷 기반) ─── */}
-          <InsightTrendSection
-            days={insightDays}
-            onDaysChange={setInsightDays}
-            granularity={insightGranularity}
-            onGranularityChange={setInsightGranularity}
-            trend={insightTrend ?? null}
-            loading={insightTrendLoading}
-            status={insightStatus ?? null}
-            refreshing={insightRefreshMutation.isPending}
-            onRefresh={() => insightRefreshMutation.mutate()}
-          />
 
           {/* Conversion Actions */}
           {accountInsights.actions && accountInsights.actions.length > 0 && (
@@ -1568,376 +1635,6 @@ function fmtAsOf(iso: string | null): string {
 
 // 캠페인별 차트에 사용할 색상 팔레트 (최대 5개)
 const CAMPAIGN_COLORS = ['#7070FF', '#10b981', '#f97316', '#4EA7FC', '#F0BF00'];
-
-interface InsightTrendSectionProps {
-  days: 7 | 30 | 90;
-  onDaysChange: (d: 7 | 30 | 90) => void;
-  granularity: 'daily' | 'weekly';
-  onGranularityChange: (g: 'daily' | 'weekly') => void;
-  trend: import('@/lib/api').InsightTrendResponse | null;
-  loading: boolean;
-  status: import('@/lib/api').InsightStatusResponse | null;
-  refreshing: boolean;
-  onRefresh: () => void;
-}
-
-function InsightTrendSection({
-  days,
-  onDaysChange,
-  granularity,
-  onGranularityChange,
-  trend,
-  loading,
-  status,
-  refreshing,
-  onRefresh,
-}: InsightTrendSectionProps) {
-  const accountSeries: InsightTrendPoint[] = trend?.account?.series ?? [];
-  const isWeekly = granularity === 'weekly';
-  const unitLabel = isWeekly ? '주별' : '일별';
-  // 주별 집계 시 "MM-DD~MM-DD" 라벨, 일별은 "MM-DD"
-  const fmtPointLabel = (p: InsightTrendPoint) =>
-    isWeekly ? `${p.date.slice(5)}~${p.date_end.slice(5)}` : fmtDateMMDD(p.date);
-  const campaigns: InsightTrendCampaign[] = trend?.campaigns ?? [];
-  // 상위 5개 캠페인 (지출 합계 기준 내림차순)
-  const top5Campaigns = [...campaigns]
-    .sort((a, b) => {
-      const sumA = a.series.reduce((s, p) => s + p.spend, 0);
-      const sumB = b.series.reduce((s, p) => s + p.spend, 0);
-      return sumB - sumA;
-    })
-    .slice(0, 5);
-
-  // 캠페인별 멀티라인용 데이터 병합: date → { date: string, [campaign_name]: number }
-  const campaignChartData = (() => {
-    if (top5Campaigns.length === 0) return [] as Array<{ date: string; [k: string]: string | number }>;
-    const dateMap: Record<string, { date: string; [k: string]: string | number }> = {};
-    top5Campaigns.forEach((camp) => {
-      camp.series.forEach((pt) => {
-        if (!dateMap[pt.date]) dateMap[pt.date] = { date: pt.date };
-        dateMap[pt.date][camp.campaign_name] = pt.spend;
-      });
-    });
-    return Object.values(dateMap).sort((a, b) => (a.date as string).localeCompare(b.date as string));
-  })();
-
-  const tooltipStyle = {
-    fontSize: '11px',
-    padding: '6px 10px',
-    borderRadius: '8px',
-    border: 'none',
-    boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
-    background: '#1f2937',
-    color: '#f9fafb',
-  };
-
-  const axisTickProps = { fontSize: 9, fill: '#9ca3af' };
-
-  const hasData = accountSeries.length > 0;
-
-  return (
-    <div className="bg-[#0F1011] border border-[#23252A] rounded-xl p-4 space-y-5">
-      {/* 섹션 헤더 */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div className="flex items-center gap-2">
-          <Activity size={14} className="text-[#7070FF]" />
-          <h3 className="text-sm font-semibold text-[#D0D6E0]">추세 분석</h3>
-          {status?.as_of && (
-            <span className="text-[10px] text-[#62666D]">
-              데이터 기준: {fmtAsOf(status.as_of)}
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          {/* 일별/주별 집계 토글 */}
-          <div className="flex items-center bg-[#141516] rounded-lg p-0.5">
-            {(['daily', 'weekly'] as const).map((g) => (
-              <button
-                key={g}
-                onClick={() => onGranularityChange(g)}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                  granularity === g
-                    ? 'bg-[#0F1011] text-[#7070FF] shadow-[0px_1px_3px_rgba(0,0,0,0.2)]'
-                    : 'text-[#8A8F98] hover:text-[#D0D6E0]'
-                }`}
-              >
-                {g === 'daily' ? '일별' : '주별'}
-              </button>
-            ))}
-          </div>
-          {/* 기간 선택 토글 */}
-          <div className="flex items-center bg-[#141516] rounded-lg p-0.5">
-            {([7, 30, 90] as const).map((d) => (
-              <button
-                key={d}
-                onClick={() => onDaysChange(d)}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                  days === d
-                    ? 'bg-[#0F1011] text-[#7070FF] shadow-[0px_1px_3px_rgba(0,0,0,0.2)]'
-                    : 'text-[#8A8F98] hover:text-[#D0D6E0]'
-                }`}
-              >
-                {d}일
-              </button>
-            ))}
-          </div>
-          {/* 즉시 수집 버튼 */}
-          <button
-            onClick={onRefresh}
-            disabled={refreshing}
-            className="flex items-center gap-1.5 px-3 py-1.5 border border-[#23252A] rounded-lg text-xs text-[#D0D6E0] hover:bg-[#141516] disabled:opacity-50 transition-all"
-          >
-            <RefreshCw size={12} className={refreshing ? 'animate-spin' : ''} />
-            {refreshing ? '수집 중...' : '지금 새로고침'}
-          </button>
-        </div>
-      </div>
-
-      {/* 토큰 만료 경고 배너 */}
-      {status?.token_expired && (
-        <div className="flex items-center gap-2 px-4 py-2.5 bg-[#EB5757]/10 border border-[#EB5757]/30 rounded-lg">
-          <AlertTriangle size={14} className="text-[#EB5757] flex-shrink-0" />
-          <p className="text-xs text-[#EB5757]">
-            Meta 토큰이 만료되었습니다. 우측 상단 메뉴에서 Meta 계정을 다시 연결해주세요.
-          </p>
-        </div>
-      )}
-
-      {/* 로딩 상태 */}
-      {loading && (
-        <div className="flex items-center justify-center h-40">
-          <Loader2 size={28} className="animate-spin text-[#7070FF]" />
-          <span className="ml-3 text-sm text-[#8A8F98]">추세 데이터 로딩 중...</span>
-        </div>
-      )}
-
-      {/* 데이터 없음 빈 상태 */}
-      {!loading && !hasData && (
-        <div className="flex flex-col items-center justify-center py-12 text-center">
-          <BarChart3 size={36} className="text-[#23252A] mb-3" />
-          <p className="text-sm text-[#8A8F98] mb-1">아직 수집된 데이터가 없습니다.</p>
-          <p className="text-xs text-[#62666D] mb-4">
-            <button
-              onClick={onRefresh}
-              disabled={refreshing}
-              className="text-[#7070FF] underline underline-offset-2 hover:text-[#828FFF] disabled:opacity-50"
-            >
-              지금 새로고침
-            </button>
-            으로 첫 수집을 시작하세요.
-          </p>
-          {status?.last_error && (
-            <p className="text-[10px] text-[#EB5757] max-w-sm">마지막 오류: {status.last_error}</p>
-          )}
-        </div>
-      )}
-
-      {/* 차트 영역 */}
-      {!loading && hasData && (
-        <div className="space-y-6">
-          {/* 차트 1: 지출(Bar) + ROAS(Line) 복합 — 이중 Y축 */}
-          <div>
-            <p className="text-[11px] font-medium text-[#8A8F98] mb-2">{unitLabel} 지출 &amp; ROAS</p>
-            <ResponsiveContainer width="100%" height={220}>
-              <ComposedChart
-                data={accountSeries.map((p) => ({
-                  date: fmtPointLabel(p),
-                  spend: p.spend,
-                  roas: p.roas,
-                }))}
-                margin={{ top: 8, right: 48, bottom: 4, left: 4 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="#2a2d35" vertical={false} />
-                <XAxis
-                  dataKey="date"
-                  tick={axisTickProps}
-                  stroke="#2a2d35"
-                  tickLine={false}
-                  interval="preserveStartEnd"
-                />
-                {/* 왼쪽 Y축: 지출(원) */}
-                <YAxis
-                  yAxisId="spend"
-                  orientation="left"
-                  tick={axisTickProps}
-                  stroke="#2a2d35"
-                  tickLine={false}
-                  axisLine={false}
-                  width={52}
-                  tickFormatter={(v: number) => {
-                    if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
-                    if (v >= 1_000) return `${(v / 1_000).toFixed(0)}K`;
-                    return String(v);
-                  }}
-                />
-                {/* 오른쪽 Y축: ROAS */}
-                <YAxis
-                  yAxisId="roas"
-                  orientation="right"
-                  tick={axisTickProps}
-                  stroke="#2a2d35"
-                  tickLine={false}
-                  axisLine={false}
-                  width={36}
-                  tickFormatter={(v: number) => v.toFixed(1) + 'x'}
-                />
-                <RechartsTooltip
-                  contentStyle={tooltipStyle}
-                  formatter={(v: number, name: string) =>
-                    name === 'spend'
-                      ? [fmtKRW(v), '지출']
-                      : [v.toFixed(2) + 'x', 'ROAS']
-                  }
-                  labelFormatter={(l) => String(l)}
-                />
-                <Legend
-                  formatter={(value) => (value === 'spend' ? '지출' : 'ROAS')}
-                  wrapperStyle={{ fontSize: '10px', color: '#9ca3af' }}
-                />
-                <Bar
-                  yAxisId="spend"
-                  dataKey="spend"
-                  fill="#4EA7FC"
-                  opacity={0.75}
-                  radius={[3, 3, 0, 0]}
-                  maxBarSize={24}
-                />
-                <Line
-                  yAxisId="roas"
-                  type="monotone"
-                  dataKey="roas"
-                  stroke="#7070FF"
-                  strokeWidth={2}
-                  dot={false}
-                  activeDot={{ r: 4, fill: '#7070FF', strokeWidth: 0 }}
-                />
-              </ComposedChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* 차트 2: CPA 추이 (LineChart) */}
-          <div>
-            <p className="text-[11px] font-medium text-[#8A8F98] mb-2">{unitLabel} CPA 추이 (전환당 비용)</p>
-            <ResponsiveContainer width="100%" height={180}>
-              <LineChart
-                data={accountSeries
-                  .filter((p) => p.cpa > 0)
-                  .map((p) => ({
-                    date: fmtPointLabel(p),
-                    cpa: p.cpa,
-                  }))}
-                margin={{ top: 8, right: 20, bottom: 4, left: 4 }}
-              >
-                <defs>
-                  <linearGradient id="grad-cpa" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#FC7840" stopOpacity={0.2} />
-                    <stop offset="100%" stopColor="#FC7840" stopOpacity={0.02} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#2a2d35" vertical={false} />
-                <XAxis
-                  dataKey="date"
-                  tick={axisTickProps}
-                  stroke="#2a2d35"
-                  tickLine={false}
-                  interval="preserveStartEnd"
-                />
-                <YAxis
-                  tick={axisTickProps}
-                  stroke="#2a2d35"
-                  tickLine={false}
-                  axisLine={false}
-                  width={52}
-                  tickFormatter={(v: number) => {
-                    if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
-                    if (v >= 1_000) return `${(v / 1_000).toFixed(0)}K`;
-                    return String(v);
-                  }}
-                />
-                <RechartsTooltip
-                  contentStyle={tooltipStyle}
-                  formatter={(v: number) => [fmtKRW(v), 'CPA']}
-                  labelFormatter={(l) => String(l)}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="cpa"
-                  stroke="#FC7840"
-                  strokeWidth={2}
-                  dot={false}
-                  activeDot={{ r: 4, fill: '#FC7840', strokeWidth: 0 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* 차트 3: 캠페인별 지출 비교 (멀티 라인, 상위 5개) */}
-          {top5Campaigns.length > 0 && (
-            <div>
-              <p className="text-[11px] font-medium text-[#8A8F98] mb-2">
-                캠페인별 {unitLabel} 지출 비교
-                <span className="ml-1 text-[#62666D]">(지출 상위 {top5Campaigns.length}개)</span>
-              </p>
-              <ResponsiveContainer width="100%" height={220}>
-                <LineChart
-                  data={campaignChartData.map((row) => ({
-                    ...row,
-                    date: isWeekly ? `${String(row.date).slice(5)} 주` : fmtDateMMDD(String(row.date)),
-                  }))}
-                  margin={{ top: 8, right: 20, bottom: 4, left: 4 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#2a2d35" vertical={false} />
-                  <XAxis
-                    dataKey="date"
-                    tick={axisTickProps}
-                    stroke="#2a2d35"
-                    tickLine={false}
-                    interval="preserveStartEnd"
-                  />
-                  <YAxis
-                    tick={axisTickProps}
-                    stroke="#2a2d35"
-                    tickLine={false}
-                    axisLine={false}
-                    width={52}
-                    tickFormatter={(v: number) => {
-                      if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
-                      if (v >= 1_000) return `${(v / 1_000).toFixed(0)}K`;
-                      return String(v);
-                    }}
-                  />
-                  <RechartsTooltip
-                    contentStyle={tooltipStyle}
-                    formatter={(v: number, name: string) => [fmtKRW(v), name]}
-                    labelFormatter={(l) => String(l)}
-                  />
-                  <Legend
-                    wrapperStyle={{ fontSize: '10px', color: '#9ca3af' }}
-                    formatter={(value) => {
-                      // 긴 캠페인 이름 축약 (20자)
-                      return value.length > 20 ? value.slice(0, 20) + '…' : value;
-                    }}
-                  />
-                  {top5Campaigns.map((camp, idx) => (
-                    <Line
-                      key={camp.campaign_id}
-                      type="monotone"
-                      dataKey={camp.campaign_name}
-                      stroke={CAMPAIGN_COLORS[idx % CAMPAIGN_COLORS.length]}
-                      strokeWidth={1.5}
-                      dot={false}
-                      activeDot={{ r: 3, strokeWidth: 0 }}
-                    />
-                  ))}
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ─── Performance Feedback Panel Component ───
 function PerformanceFeedbackPanel({
