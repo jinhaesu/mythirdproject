@@ -418,12 +418,12 @@ async def get_visitors_daily(user, db, start_date, end_date) -> list:
 
         data = resp.json()
 
-    # 방어적 파싱 — 응답 shape가 {"visitors": [...]}, {"data": [...]}, 최상위 리스트 등 변형 가능
+    # 방어적 파싱 — 실측 응답은 {"view": [...]} (2026-07 확인), 그 외 변형 대비
     rows: list = []
     if isinstance(data, list):
         rows = data
     elif isinstance(data, dict):
-        for key in ("visitors", "data", "results", "items"):
+        for key in ("view", "visitors", "data", "results", "items"):
             val = data.get(key)
             if isinstance(val, list):
                 rows = val
