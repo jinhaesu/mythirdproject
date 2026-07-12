@@ -22,7 +22,13 @@ from app.models.affiliate import (
 from app.models.points import PointTransaction
 from app.models.partner_campaign import PartnerCampaign
 from app.models.meta_insight import MetaInsightDaily
-from app.models.kpi import MallOrder, MonthlyChannelSpend, MarketingGoal
+from app.models.kpi import (
+    MallOrder,
+    MonthlyChannelSpend,
+    MarketingGoal,
+    ChannelSpendDaily,
+    MallVisitorsDaily,
+)
 
 __all__ = [
     "User",
@@ -63,4 +69,6 @@ __all__ = [
     "MallOrder",
     "MonthlyChannelSpend",
     "MarketingGoal",
+    "ChannelSpendDaily",
+    "MallVisitorsDaily",
 ]

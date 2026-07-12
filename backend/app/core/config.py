@@ -69,9 +69,11 @@ class Settings(BaseSettings):
     CAFE24_WEBHOOK_SECRET: str = ""
     # 콤마 구분 scope 목록. 개발자센터에 등록된 권한과 일치해야 함.
     # mall.write_category — Phase 6 비공개 카테고리 자동 생성 필요 (B안)
-    CAFE24_SCOPES: str = "mall.read_product,mall.write_product,mall.read_category,mall.write_category,mall.write_promotion,mall.read_order,mall.read_customer"
+    CAFE24_SCOPES: str = "mall.read_product,mall.write_product,mall.read_category,mall.write_category,mall.write_promotion,mall.read_order,mall.read_customer,mall.read_analytics"
     # 외부 노출 도메인 (nuldam.com 등 실제 스토어프론트 도메인). 없으면 mall_id.cafe24.com 사용.
     CAFE24_PUBLIC_DOMAIN: str = ""
+    # Analytics API(ca-api.cafe24data.com) 호출 시 사용할 mall_id 기본값. 없으면 user.cafe24_mall_id 사용.
+    CAFE24_MALL_ID: str = ""
 
     # 어필리에이트 귀속 strict 모드 — True면 라스트클릭 추정 귀속(쿠폰→최근클릭,
     # 상품→2h내 클릭)을 중단하고 확정 신호(세션 바인딩·ref코드·회원 연결)만 인정.

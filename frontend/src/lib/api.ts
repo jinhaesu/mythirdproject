@@ -1119,6 +1119,8 @@ export interface KPIMallMetrics {
   guest_orders: number;
   aov: number;
   new_customers: number;
+  visits?: number | null;            // 월 방문자수 (카페24 Analytics, 미수집 시 null)
+  conversion_rate?: number | null;   // 구매전환율 % = 주문수/방문자수 (자동 산출)
 }
 
 export interface KPIGoal {

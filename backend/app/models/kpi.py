@@ -56,3 +56,28 @@ class MarketingGoal(Base):
     target_new_customers: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     actual_conversion_rate: Mapped[Optional[float]] = mapped_column(Float, nullable=True)  # 수동 입력
     memo: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
+
+
+class ChannelSpendDaily(Base):
+    """채널별 일별 광고비 자동 수집 스냅샷 (네이버 검색광고 등). 월 합산은 kpi.py에서 계산."""
+    __tablename__ = "channel_spend_daily"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
+    date: Mapped[date] = mapped_column(Date, index=True)
+    channel: Mapped[str] = mapped_column(String(30))  # naver_sa | naver_gfa | kakao | google | etc
+    spend: Mapped[float] = mapped_column(Float, default=0)
+
+    __table_args__ = (
+        UniqueConstraint("date", "channel", name="uq_channel_spend_daily_date_channel"),
+    )
+
+
+class MallVisitorsDaily(Base):
+    """카페24 Analytics API 일별 방문자수 자동 수집 스냅샷."""
+    __tablename__ = "mall_visitors_daily"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
+    date: Mapped[date] = mapped_column(Date, unique=True, index=True)
+    visit_count: Mapped[int] = mapped_column(Integer, default=0)
+    first_visit_count: Mapped[int] = mapped_column(Integer, default=0)
+    re_visit_count: Mapped[int] = mapped_column(Integer, default=0)

@@ -8,6 +8,8 @@
   DELETE /api/v1/kpi/channel-spend/{id}          — 채널별 월 광고비 삭제
   POST   /api/v1/kpi/backfill-orders             — Cafe24 주문 백필 (MallOrder)
   GET    /api/v1/kpi/naver-queries               — 네이버 DataLab 검색어트렌드 프록시
+  POST   /api/v1/kpi/backfill-naver-spend         — 네이버 검색광고 일별 광고비 백필
+  POST   /api/v1/kpi/backfill-visitors            — 카페24 일별 방문자수 백필
 """
 import calendar
 import logging
@@ -25,10 +27,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.v1.endpoints.auth import get_current_user, get_shared_cafe24_user
 from app.core.config import get_settings
 from app.db.database import get_db
-from app.models.kpi import MallOrder, MarketingGoal, MonthlyChannelSpend
+from app.models.kpi import (
+    ChannelSpendDaily,
+    MallOrder,
+    MallVisitorsDaily,
+    MarketingGoal,
+    MonthlyChannelSpend,
+)
 from app.models.meta_insight import MetaInsightDaily
 from app.models.user import User
 from app.services import cafe24 as cafe24_svc
+from app.services.kpi_collectors import collect_mall_visitors, collect_naver_spend
 from app.services.mall_order_sync import (
     extract_member_id_or_none,
     extract_order_amount,
@@ -69,6 +78,60 @@ def _recent_months(n: int) -> list[str]:
             m = 12
             y -= 1
     return list(reversed(months))
+
+
+def _merge_channel_spend(
+    channel: str,
+    month_key: str,
+    auto_value: float,
+    rows: list,
+    always_include_virtual: bool = False,
+) -> tuple[list[dict], float]:
+    """단일 채널의 MonthlyChannelSpend 수동 입력 행들과 자동 계산값(auto_value)을 병합.
+
+    - rows 중 해당 채널 행이 있고 actual_amount가 None이면 auto_value 사용(is_auto=true).
+    - rows 중 해당 채널 행이 없으면:
+        - always_include_virtual=True → 항상 가상 행(id=None) 추가 (meta 기존 동작 유지)
+        - always_include_virtual=False → auto_value > 0 일 때만 가상 행 추가 (naver_sa 등)
+
+    Returns:
+        (channel_spend_dicts, total_spend_added)
+    """
+    entries: list[dict] = []
+    total = 0.0
+    has_row = False
+    for row in rows:
+        if row.channel != channel:
+            continue
+        has_row = True
+        is_auto = row.actual_amount is None
+        resolved = auto_value if is_auto else (row.actual_amount or 0.0)
+        entries.append(
+            {
+                "id": row.id,
+                "month": month_key,
+                "channel": row.channel,
+                "planned_amount": row.planned_amount or 0.0,
+                "actual_amount": resolved,
+                "is_auto": is_auto,
+                "memo": row.memo,
+            }
+        )
+        total += resolved
+    if not has_row and (always_include_virtual or auto_value > 0):
+        entries.append(
+            {
+                "id": None,
+                "month": month_key,
+                "channel": channel,
+                "planned_amount": 0.0,
+                "actual_amount": auto_value,
+                "is_auto": True,
+                "memo": None,
+            }
+        )
+        total += auto_value
+    return entries, total
 
 
 def _serialize_goal(goal: MarketingGoal) -> dict:
@@ -112,6 +175,33 @@ async def get_kpi_summary(
     meta_spend_by_month: dict[str, float] = defaultdict(float)
     for d, spend in meta_rows:
         meta_spend_by_month[f"{d.year:04d}-{d.month:02d}"] += float(spend or 0)
+
+    # ── 네이버 검색광고 일별 광고비 (자동 수집 스냅샷 → 월 합산) ──
+    naver_rows = (
+        await db.execute(
+            select(ChannelSpendDaily.date, ChannelSpendDaily.spend).where(
+                ChannelSpendDaily.channel == "naver_sa",
+                ChannelSpendDaily.date >= range_start,
+                ChannelSpendDaily.date <= range_end,
+            )
+        )
+    ).all()
+    naver_spend_by_month: dict[str, float] = defaultdict(float)
+    for d, spend in naver_rows:
+        naver_spend_by_month[f"{d.year:04d}-{d.month:02d}"] += float(spend or 0)
+
+    # ── 카페24 일별 방문자수 (자동 수집 스냅샷 → 월 합산) ──
+    visitor_rows = (
+        await db.execute(
+            select(MallVisitorsDaily.date, MallVisitorsDaily.visit_count).where(
+                MallVisitorsDaily.date >= range_start,
+                MallVisitorsDaily.date <= range_end,
+            )
+        )
+    ).all()
+    visits_by_month: dict[str, int] = defaultdict(int)
+    for d, visit_count in visitor_rows:
+        visits_by_month[f"{d.year:04d}-{d.month:02d}"] += int(visit_count or 0)
 
     # ── 채널별 월 광고비 (수동 입력) ──
     spend_rows = (
@@ -174,16 +264,30 @@ async def get_kpi_summary(
     for month_key in month_list:
         m_start, m_end = _month_bounds(month_key)
         meta_spend = round(meta_spend_by_month.get(month_key, 0.0), 2)
+        naver_spend = round(naver_spend_by_month.get(month_key, 0.0), 2)
 
-        # 채널별 광고비 병합 (meta는 actual_amount 미입력 시 자동 계산값 채움)
-        channel_spends = []
+        # 채널별 광고비 병합 (meta/naver_sa는 actual_amount 미입력 시 자동 계산값 채움)
+        rows_this_month = spend_by_month.get(month_key, [])
+        channel_spends: list[dict] = []
         total_ad_spend = 0.0
-        has_meta_row = False
-        for row in spend_by_month.get(month_key, []):
-            is_auto = row.channel == "meta" and row.actual_amount is None
-            resolved = meta_spend if is_auto else (row.actual_amount or 0.0)
-            if row.channel == "meta":
-                has_meta_row = True
+
+        meta_entries, meta_total = _merge_channel_spend(
+            "meta", month_key, meta_spend, rows_this_month, always_include_virtual=True
+        )
+        channel_spends.extend(meta_entries)
+        total_ad_spend += meta_total
+
+        naver_entries, naver_total = _merge_channel_spend(
+            "naver_sa", month_key, naver_spend, rows_this_month, always_include_virtual=False
+        )
+        channel_spends.extend(naver_entries)
+        total_ad_spend += naver_total
+
+        # 자동 계산값이 없는 나머지 채널 (수동 입력 그대로 반영)
+        for row in rows_this_month:
+            if row.channel in ("meta", "naver_sa"):
+                continue
+            resolved = row.actual_amount or 0.0
             channel_spends.append(
                 {
                     "id": row.id,
@@ -191,24 +295,11 @@ async def get_kpi_summary(
                     "channel": row.channel,
                     "planned_amount": row.planned_amount or 0.0,
                     "actual_amount": resolved,
-                    "is_auto": is_auto,
+                    "is_auto": False,
                     "memo": row.memo,
                 }
             )
             total_ad_spend += resolved
-        if not has_meta_row:
-            channel_spends.append(
-                {
-                    "id": None,
-                    "month": month_key,
-                    "channel": "meta",
-                    "planned_amount": 0.0,
-                    "actual_amount": meta_spend,
-                    "is_auto": True,
-                    "memo": None,
-                }
-            )
-            total_ad_spend += meta_spend
 
         # 몰 지표
         orders_this_month = mall_by_month.get(month_key, [])
@@ -219,6 +310,10 @@ async def get_kpi_summary(
         guest_orders = sum(1 for o in orders_this_month if not o.member_id)
         aov = round(revenue / orders_count, 2) if orders_count else None
         new_customers = new_customers_by_month.get(month_key, 0)
+        visits = visits_by_month.get(month_key)
+        conversion_rate = (
+            round(orders_count / visits * 100, 2) if visits else None
+        )
 
         cac = round(total_ad_spend / new_customers, 2) if new_customers else None
 
@@ -246,6 +341,8 @@ async def get_kpi_summary(
                     "guest_orders": guest_orders,
                     "aov": aov,
                     "new_customers": new_customers,
+                    "visits": visits,
+                    "conversion_rate": conversion_rate,
                 },
                 "cac": cac,
                 "ltv": ltv,
@@ -465,6 +562,84 @@ async def backfill_mall_orders(
             months_done.append(month_key)
 
     return {"fetched": fetched, "upserted": upserted, "months": months_done}
+
+
+# ── 네이버 검색광고 / 카페24 방문자수 자동 수집 백필 ──────────────────────────
+
+@router.post("/backfill-naver-spend")
+async def backfill_naver_spend(
+    since: str = Query(..., description="YYYY-MM-DD"),
+    until: Optional[str] = Query(default=None, description="YYYY-MM-DD, 기본값 오늘"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """네이버 검색광고 일별 광고비를 ChannelSpendDaily(channel=naver_sa)에 백필 (최대 12개월)."""
+    try:
+        since_date = date.fromisoformat(since)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="since는 YYYY-MM-DD 형식이어야 합니다.")
+
+    until_date = date.today()
+    if until:
+        try:
+            until_date = date.fromisoformat(until)
+        except ValueError:
+            raise HTTPException(status_code=422, detail="until은 YYYY-MM-DD 형식이어야 합니다.")
+
+    if since_date > until_date:
+        raise HTTPException(status_code=422, detail="since가 until보다 뒤일 수 없습니다.")
+    if (until_date - since_date) > timedelta(days=366):
+        raise HTTPException(status_code=422, detail="조회 범위는 최대 12개월까지 가능합니다.")
+
+    try:
+        upserted = await collect_naver_spend(db, since_date, until_date)
+    except Exception as e:
+        logger.error(f"[KPI] backfill-naver-spend 실패: {e}", exc_info=True)
+        raise HTTPException(status_code=502, detail=f"네이버 검색광고 광고비 수집 실패: {e}")
+
+    return {"upserted": upserted, "since": since_date.isoformat(), "until": until_date.isoformat()}
+
+
+@router.post("/backfill-visitors")
+async def backfill_visitors(
+    since: str = Query(..., description="YYYY-MM-DD"),
+    until: Optional[str] = Query(default=None, description="YYYY-MM-DD, 기본값 오늘"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """카페24 Analytics API 일별 방문자수를 MallVisitorsDaily에 백필 (최대 12개월)."""
+    try:
+        since_date = date.fromisoformat(since)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="since는 YYYY-MM-DD 형식이어야 합니다.")
+
+    until_date = date.today()
+    if until:
+        try:
+            until_date = date.fromisoformat(until)
+        except ValueError:
+            raise HTTPException(status_code=422, detail="until은 YYYY-MM-DD 형식이어야 합니다.")
+
+    if since_date > until_date:
+        raise HTTPException(status_code=422, detail="since가 until보다 뒤일 수 없습니다.")
+    if (until_date - since_date) > timedelta(days=366):
+        raise HTTPException(status_code=422, detail="조회 범위는 최대 12개월까지 가능합니다.")
+
+    try:
+        upserted = await collect_mall_visitors(db, since_date, until_date)
+    except httpx.HTTPStatusError as e:
+        status_code = e.response.status_code if e.response is not None else 502
+        if status_code in (401, 403):
+            raise HTTPException(
+                status_code=400,
+                detail="카페24 앱에 mall.read_analytics 권한 추가 후 재연결 필요",
+            )
+        raise HTTPException(status_code=502, detail=f"카페24 방문자수 수집 실패: {e}")
+    except Exception as e:
+        logger.error(f"[KPI] backfill-visitors 실패: {e}", exc_info=True)
+        raise HTTPException(status_code=502, detail=f"카페24 방문자수 수집 실패: {e}")
+
+    return {"upserted": upserted, "since": since_date.isoformat(), "until": until_date.isoformat()}
 
 
 # ── Naver DataLab 검색어트렌드 프록시 ─────────────────────────────────────────

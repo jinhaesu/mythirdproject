@@ -498,9 +498,9 @@ export function MarketingKPI() {
             <KPIGoalCard
               icon={<Percent size={16} />}
               label="구매전환율"
-              value={fmtPercent(latestGoal?.actual_conversion_rate ?? null)}
+              value={fmtPercent(currentMonth?.mall?.conversion_rate ?? latestGoal?.actual_conversion_rate ?? null)}
               targetLabel={targetText(latestGoal?.target_conversion_rate ?? null, fmtPercent)}
-              badge={achievementBadge(latestGoal?.actual_conversion_rate ?? null, latestGoal?.target_conversion_rate ?? null)}
+              badge={achievementBadge(currentMonth?.mall?.conversion_rate ?? latestGoal?.actual_conversion_rate ?? null, latestGoal?.target_conversion_rate ?? null)}
             />
             <KPIGoalCard
               icon={<ShoppingCart size={16} />}

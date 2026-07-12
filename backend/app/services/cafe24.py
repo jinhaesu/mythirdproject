@@ -352,6 +352,86 @@ async def list_orders(
     return orders
 
 
+async def get_visitors_daily(user, db, start_date, end_date) -> list:
+    """카페24 Analytics API 일별 방문자수 조회.
+
+    호스트가 몰 도메인(mall_id.cafe24api.com)이 아니라 ca-api.cafe24data.com이므로
+    api_request()를 재사용하지 않고 httpx로 직접 호출한다. 인증은 기존 Cafe24 Admin API
+    access token 그대로 사용 (Authorization: Bearer). 필요 scope: mall.read_analytics.
+
+    Args:
+        start_date / end_date: date 객체 또는 "YYYY-MM-DD" 문자열
+
+    Returns:
+        [{date, visit_count, first_visit_count, re_visit_count}, ...] (방어적 파싱)
+
+    Raises:
+        httpx.HTTPStatusError: 401/403 등 (mall.read_analytics 권한 미허용 시)
+    """
+    token = await ensure_valid_token(user, db)
+    mall_id = getattr(user, "cafe24_mall_id", None) or settings.CAFE24_MALL_ID
+    if not mall_id:
+        raise RuntimeError("카페24 mall_id를 확인할 수 없습니다 (user.cafe24_mall_id / CAFE24_MALL_ID 미설정).")
+
+    start_str = start_date.isoformat() if hasattr(start_date, "isoformat") else str(start_date)
+    end_str = end_date.isoformat() if hasattr(end_date, "isoformat") else str(end_date)
+
+    params = {
+        "mall_id": mall_id,
+        "shop_no": 1,
+        "start_date": start_str,
+        "end_date": end_str,
+        "format_type": "day",
+    }
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
+    url = "https://ca-api.cafe24data.com/visitors/view"
+
+    async with httpx.AsyncClient(timeout=30) as client:
+        resp = await client.get(url, headers=headers, params=params)
+
+        if resp.status_code == 401:
+            if user.cafe24_refresh_token:
+                new_token = await _do_refresh_locked(user, db, force=True)
+                headers["Authorization"] = f"Bearer {new_token}"
+                resp = await client.get(url, headers=headers, params=params)
+
+        if resp.status_code in (401, 403):
+            body = resp.text[:500]
+            logger.error(f"[Cafe24] Analytics visitors -> {resp.status_code}: {body}")
+            raise httpx.HTTPStatusError(
+                f"Cafe24 Analytics API {resp.status_code}: mall.read_analytics 권한이 없거나 "
+                f"만료되었습니다 (재동의 필요). body={body}",
+                request=resp.request,
+                response=resp,
+            )
+        if resp.status_code >= 400:
+            body = resp.text[:500]
+            logger.error(f"[Cafe24] Analytics visitors -> {resp.status_code}: {body}")
+            raise httpx.HTTPStatusError(
+                f"Cafe24 Analytics API {resp.status_code}: {body}",
+                request=resp.request,
+                response=resp,
+            )
+
+        data = resp.json()
+
+    # 방어적 파싱 — 응답 shape가 {"visitors": [...]}, {"data": [...]}, 최상위 리스트 등 변형 가능
+    rows: list = []
+    if isinstance(data, list):
+        rows = data
+    elif isinstance(data, dict):
+        for key in ("visitors", "data", "results", "items"):
+            val = data.get(key)
+            if isinstance(val, list):
+                rows = val
+                break
+    logger.info(f"[Cafe24] get_visitors_daily {start_str}~{end_str} -> {len(rows)} rows")
+    return rows
+
+
 async def get_product(user, db, product_no: int) -> dict:
     """단일 상품 상세 조회."""
     data = await api_request(

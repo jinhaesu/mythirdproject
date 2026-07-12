@@ -205,10 +205,15 @@ async def lifespan(app: FastAPI):
     from app.services.meta_insights_collector import run_collector_loop
     insights_task = asyncio.create_task(run_collector_loop())
     logger.info("Meta insights collector loop started")
+    # Start 마케팅 KPI 자동 수집 루프 (6시간 주기 — 네이버 검색광고 일별 광고비 + 카페24 방문자수)
+    from app.services.kpi_collectors import run_kpi_collector_loop
+    kpi_collector_task = asyncio.create_task(run_kpi_collector_loop())
+    logger.info("KPI collector loop started")
     yield
     # Shutdown
     scheduler_task.cancel()
     insights_task.cancel()
+    kpi_collector_task.cancel()
 
 
 app = FastAPI(
