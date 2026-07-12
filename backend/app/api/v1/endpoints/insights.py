@@ -204,21 +204,23 @@ async def get_insights_trend(
 
 @router.post("/refresh")
 async def refresh_insights(
-    since: Optional[str] = Query(default=None, description="YYYY-MM-DD — 지정 시 해당일부터 오늘까지 백필"),
+    since: Optional[str] = Query(default=None, description="YYYY-MM-DD — 지정 시 해당일부터 백필"),
+    until: Optional[str] = Query(default=None, description="YYYY-MM-DD — 백필 종료일 (기본 오늘)"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """즉시 Meta 인사이트 수집을 실행하고 결과를 반환. since 지정 시 과거 범위 백필."""
+    """즉시 Meta 인사이트 수집을 실행하고 결과를 반환. since/until 지정 시 과거 범위 백필."""
     from app.services.meta_insights_collector import collect_insights, collector_state
 
-    if since:
-        try:
-            date.fromisoformat(since)
-        except ValueError:
-            raise HTTPException(status_code=422, detail="since 는 YYYY-MM-DD 형식이어야 합니다.")
+    for label, v in (("since", since), ("until", until)):
+        if v:
+            try:
+                date.fromisoformat(v)
+            except ValueError:
+                raise HTTPException(status_code=422, detail=f"{label} 는 YYYY-MM-DD 형식이어야 합니다.")
 
     try:
-        collected_rows = await collect_insights(db, since=since)
+        collected_rows = await collect_insights(db, since=since, until=until)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"수집 중 오류 발생: {exc}")
 

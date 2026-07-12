@@ -145,11 +145,17 @@ def _parse_actions(actions: Optional[List[Dict]], action_values: Optional[List[D
 
 # ── 핵심 수집 함수 ───────────────────────────────────────────────────────────
 
-async def collect_insights(db: AsyncSession, since: Optional[str] = None) -> int:
+async def collect_insights(
+    db: AsyncSession,
+    since: Optional[str] = None,
+    until: Optional[str] = None,
+) -> int:
     """공유 Meta 자격증명으로 campaign 레벨 일별 인사이트 수집·upsert.
 
     Args:
-        since: YYYY-MM-DD — 지정 시 해당일부터 오늘까지 명시적 백필
+        since: YYYY-MM-DD — 지정 시 해당일부터 명시적 백필
+        until: YYYY-MM-DD — 백필 종료일 (기본 오늘). Meta가 장기간 단일 조회를
+               거부하므로 1년 이상 백필은 since/until로 쪼개 여러 번 호출할 것.
 
     Returns:
         upsert된 행 수
@@ -186,7 +192,7 @@ async def collect_insights(db: AsyncSession, since: Optional[str] = None) -> int
     existing_count = count_result.scalar() or 0
 
     today = date.today()
-    until = today.isoformat()
+    until = until or today.isoformat()
     if since:
         # 명시적 백필 범위
         logger.info(f"[MetaInsights] 명시적 백필: {since} ~ {until}")
