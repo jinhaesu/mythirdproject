@@ -121,23 +121,26 @@ async def _fetch_campaign_insights_for_range(
 def _parse_actions(actions: Optional[List[Dict]], action_values: Optional[List[Dict]]) -> tuple:
     """actions/action_values 리스트에서 구매수·구매전환값 추출.
 
+    Meta는 동일 구매를 purchase / omni_purchase / offsite_conversion.fb_pixel_purchase
+    여러 타입으로 중복 보고하므로 합산하면 매출·전환수가 2~3배 부풀려진다.
+    우선순위에 따라 하나의 타입만 선택한다 (omni_purchase가 표준 집계 지표).
+
     Returns:
         (conversions: float, revenue: float)
     """
-    purchase_types = {"purchase", "omni_purchase", "offsite_conversion.fb_pixel_purchase"}
+    priority = ("omni_purchase", "purchase", "offsite_conversion.fb_pixel_purchase")
 
-    conversions = 0.0
-    revenue = 0.0
+    def _pick(rows: Optional[List[Dict]]) -> float:
+        by_type = {
+            r.get("action_type"): float(r.get("value", 0) or 0)
+            for r in (rows or [])
+        }
+        for t in priority:
+            if by_type.get(t):
+                return by_type[t]
+        return 0.0
 
-    for a in (actions or []):
-        if a.get("action_type") in purchase_types:
-            conversions += float(a.get("value", 0) or 0)
-
-    for av in (action_values or []):
-        if av.get("action_type") in purchase_types:
-            revenue += float(av.get("value", 0) or 0)
-
-    return conversions, revenue
+    return _pick(actions), _pick(action_values)
 
 
 # ── 핵심 수집 함수 ───────────────────────────────────────────────────────────
