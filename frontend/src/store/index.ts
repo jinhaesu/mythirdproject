@@ -81,7 +81,7 @@ interface AppState {
 }
 
 export const useAppStore = create<AppState>((set) => ({
-  activeTab: 0,
+  activeTab: 4, // 기본 탭: 성과 분석
   setActiveTab: (tab) => set({ activeTab: tab }),
 
   activePlatform: 'meta',

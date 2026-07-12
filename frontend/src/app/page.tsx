@@ -14,6 +14,7 @@ import {
   PerformanceDashboard,
   AutoManagement,
   AffiliateManaging,
+  MarketingKPI,
 } from '@/components/tabs';
 import {
   NaverSearchAdsDashboard,
@@ -144,6 +145,7 @@ export default function Home() {
             {activeTab === 3 && <AdsController />}
             {activeTab === 4 && <PerformanceDashboard />}
             {activeTab === 5 && <AutoManagement />}
+            {activeTab === 6 && <MarketingKPI />}
           </>
         )}
         {activePlatform === 'naver' && (

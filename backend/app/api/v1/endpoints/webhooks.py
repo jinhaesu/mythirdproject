@@ -180,7 +180,7 @@ async def cafe24_order_webhook(request: Request):
         )
 
     logger.info(
-        f"[Webhook] event={event_code}/{resource_name}/{topic} "
+        f"[Webhook] event={event_code_field}/{resource_name}/{topic} "
         f"order={order_id} refund_status={refund_status} order_status={order_status} "
         f"is_refund={is_refund} is_cancel={is_cancel}"
     )
@@ -193,6 +193,40 @@ async def cafe24_order_webhook(request: Request):
     from app.db.database import AsyncSessionLocal
 
     async with AsyncSessionLocal() as db:
+        # ── MallOrder 적립 (Marketing KPI 모듈) ─────────────────────────────
+        # 어필리에이트 귀속 여부와 무관하게 몰 전체 주문을 스냅샷으로 남긴다.
+        # 아래의 기존 어필리에이트 귀속 로직(ReferralConversion)은 건드리지 않음.
+        try:
+            from app.services.mall_order_sync import upsert_mall_order
+
+            mall_status = "refunded" if is_refund else ("cancelled" if is_cancel else "paid")
+            order_date_raw = (
+                resource.get("order_date") or resource.get("payment_date") or data.get("order_date")
+            )
+            order_date_val = None
+            if order_date_raw:
+                try:
+                    order_date_val = datetime.fromisoformat(
+                        str(order_date_raw).replace("Z", "+00:00")
+                    ).date()
+                except Exception:
+                    order_date_val = None
+            if order_date_val is None:
+                order_date_val = datetime.utcnow().date()
+
+            await upsert_mall_order(
+                db,
+                cafe24_order_id=str(order_id),
+                order_date=order_date_val,
+                member_id=(str(buyer_id).strip() if buyer_id else None),
+                amount=total_price,
+                status=mall_status,
+                source="webhook",
+            )
+        except Exception as mall_e:
+            logger.warning(f"[Webhook] MallOrder 적립 실패 order={order_id}: {mall_e}")
+        # ─────────────────────────────────────────────────────────────────────
+
         # ── 환불 이벤트 처리 ──────────────────────────────────────────────────
         if is_refund or is_cancel:
             existing = await db.execute(

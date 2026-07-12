@@ -5,3 +5,4 @@ export { AdsController } from './AdsController';
 export { default as PerformanceDashboard } from './PerformanceDashboard';
 export { AutoManagement } from './AutoManagement';
 export { AffiliateManaging } from './AffiliateManaging';
+export { MarketingKPI } from './MarketingKPI';

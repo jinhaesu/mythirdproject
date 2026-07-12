@@ -1,15 +1,16 @@
 'use client';
 
-import { Search, Palette, Target, BarChart2, ClipboardList, Shield } from 'lucide-react';
+import { Search, Palette, Target, BarChart2, ClipboardList, Shield, Gauge } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { clsx } from 'clsx';
 
 const tabs = [
+  { id: 4, name: '성과 분석', icon: BarChart2, description: 'KPI 대시보드' },
+  { id: 6, name: '마케팅 KPI', icon: Gauge, description: '목표·CAC·LTV 관리' },
   { id: 0, name: '시장 분석', icon: Search, description: '경쟁사/키워드 모니터링' },
   { id: 1, name: '소재 제작', icon: Palette, description: '이미지/영상 생성' },
   { id: 2, name: '캠페인 기획', icon: ClipboardList, description: '구조/타겟/카피 설계' },
   { id: 3, name: '광고 집행', icon: Target, description: '캠페인 생성 및 관리' },
-  { id: 4, name: '성과 분석', icon: BarChart2, description: 'KPI 대시보드' },
   { id: 5, name: '자동 관리', icon: Shield, description: '룰 기반 자동 최적화' },
 ];
 

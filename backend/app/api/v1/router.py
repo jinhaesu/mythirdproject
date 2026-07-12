@@ -5,7 +5,7 @@ from app.api.v1.endpoints import (
     auth, benchmark, creative, campaign, analytics, dashboard, campaign_planner, chat, market_keywords,
     naver_analytics, naver_campaign, affiliate, partner_auth, partner_portal,
 )
-from app.api.v1.endpoints import cafe24, webhooks, insights
+from app.api.v1.endpoints import cafe24, webhooks, insights, kpi
 
 api_router = APIRouter()
 
@@ -126,4 +126,11 @@ api_router.include_router(
     insights.router,
     prefix="/insights",
     tags=["Meta Insights"]
+)
+
+# Marketing KPI (몰 전체 주문 + 채널 광고비 + CAC/LTV)
+api_router.include_router(
+    kpi.router,
+    prefix="/kpi",
+    tags=["Marketing KPI"]
 )

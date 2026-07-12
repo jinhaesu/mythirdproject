@@ -100,6 +100,28 @@ async def _process_order(db, order: dict) -> dict:
     )
     paid_flag = str(order.get("paid") or "").upper() == "T"
 
+    # ── MallOrder 적립 (Marketing KPI 모듈) ─────────────────────────────────
+    # 귀속(ReferralConversion) 성공 여부와 무관하게 몰 전체 주문을 스냅샷으로 기록.
+    # 웹훅이 amount=0으로 먼저 적립해뒀을 수 있는 것을 실금액으로 보강하는 구조.
+    # 아래의 기존 어필리에이트 귀속 로직은 건드리지 않음.
+    try:
+        from app.services.mall_order_sync import extract_order_date as _extract_mall_date
+        from app.services.mall_order_sync import upsert_mall_order as _upsert_mall_order
+
+        _mall_status = "refunded" if is_refund else ("cancelled" if is_cancel else "paid")
+        await _upsert_mall_order(
+            db,
+            cafe24_order_id=str(order_id),
+            order_date=_extract_mall_date(order),
+            member_id=(extract_member_id(order) or None),
+            amount=actual_payment,
+            status=_mall_status,
+            source="poller",
+        )
+    except Exception as mall_e:
+        logger.warning(f"[Poller] MallOrder 적립 실패 order={order_id}: {mall_e}")
+    # ─────────────────────────────────────────────────────────────────────────
+
     # 기존 conversion 조회
     existing_r = await db.execute(
         select(ReferralConversion).where(ReferralConversion.cafe24_order_id == order_id)

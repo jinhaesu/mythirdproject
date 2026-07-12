@@ -620,9 +620,10 @@ export const analyticsApi = {
 
 // ─── Insights API (DB 스냅샷 기반 추세 — /insights 라우터) ───
 
-/** GET /insights/trend?days=7|30|90 응답 타입 */
+/** GET /insights/trend 응답 타입 */
 export interface InsightTrendPoint {
   date: string;
+  date_end: string;
   spend: number;
   impressions: number;
   clicks: number;
@@ -630,7 +631,15 @@ export interface InsightTrendPoint {
   revenue: number;
   roas: number;
   cpa: number;
+  cpc: number;
   ctr: number;
+}
+
+export interface InsightTrendParams {
+  days?: number;
+  since?: string;   // YYYY-MM-DD
+  until?: string;   // YYYY-MM-DD
+  granularity?: 'daily' | 'weekly';
 }
 
 export interface InsightTrendCampaign {
@@ -658,9 +667,10 @@ export interface InsightRefreshResponse {
 }
 
 export const insightsApi = {
-  /** DB 스냅샷 기반 추세 데이터 조회 (days: 7 | 30 | 90) */
-  getTrend: async (days: 7 | 30 | 90 = 30): Promise<InsightTrendResponse> => {
-    const { data } = await api.get<InsightTrendResponse>('/insights/trend', { params: { days } });
+  /** DB 스냅샷 기반 추세 데이터 조회 — days 또는 since/until 커스텀 범위 + daily/weekly */
+  getTrend: async (params: number | InsightTrendParams = 30): Promise<InsightTrendResponse> => {
+    const p: InsightTrendParams = typeof params === 'number' ? { days: params } : params;
+    const { data } = await api.get<InsightTrendResponse>('/insights/trend', { params: p });
     return data;
   },
 
@@ -1089,6 +1099,140 @@ export function clearAnalysisCache(datePreset?: string): void {
     keysToRemove.forEach(k => localStorage.removeItem(k));
   } catch { /* ignore */ }
 }
+
+// ─── KPI API (마케팅 KPI 탭 — /kpi 라우터) ───
+
+export interface KPIChannelSpend {
+  id: number | null; // null = meta 자동계산 가상 행 (DB row 없음)
+  month: string;
+  channel: string;
+  planned_amount: number | null;
+  actual_amount: number | null;
+  is_auto?: boolean; // meta 자동계산 여부
+  memo: string | null;
+}
+
+export interface KPIMallMetrics {
+  orders_count: number;
+  revenue: number;
+  buyers: number;
+  guest_orders: number;
+  aov: number;
+  new_customers: number;
+}
+
+export interface KPIGoal {
+  month: string;
+  target_cac: number | null;
+  target_ltv: number | null;
+  target_ltv_cac: number | null;
+  target_conversion_rate: number | null;
+  target_aov: number | null;
+  target_new_customers: number | null;
+  actual_conversion_rate: number | null;
+  memo: string | null;
+}
+
+export interface KPIMonthSummary {
+  month: string;
+  meta_spend: number;
+  channel_spends: KPIChannelSpend[];
+  total_ad_spend: number;
+  mall: KPIMallMetrics | null;
+  cac: number | null;
+  ltv: number | null;
+  ltv_cac: number | null;
+  goal: KPIGoal | null;
+}
+
+export interface KPISummaryResponse {
+  months: KPIMonthSummary[];
+}
+
+export interface KPIGoalUpdatePayload {
+  target_cac?: number | null;
+  target_ltv?: number | null;
+  target_ltv_cac?: number | null;
+  target_conversion_rate?: number | null;
+  target_aov?: number | null;
+  target_new_customers?: number | null;
+  actual_conversion_rate?: number | null;
+  memo?: string | null;
+}
+
+export interface KPIChannelSpendUpdatePayload {
+  month: string;
+  channel: string;
+  planned_amount?: number | null;
+  actual_amount?: number | null;
+  memo?: string | null;
+}
+
+export interface KPIBackfillOrdersResponse {
+  fetched: number;
+  upserted: number;
+  months: string[]; // 처리된 월 목록 ["2026-01", ...]
+}
+
+export interface KPINaverQueriesResponse {
+  keywords: string[];
+  series: Array<Record<string, any>>;
+}
+
+export const kpiApi = {
+  /** 월별 KPI 요약 (채널 광고비, 자사몰 지표, CAC/LTV, 목표) */
+  getSummary: async (months = 6): Promise<KPISummaryResponse> => {
+    const { data } = await api.get<KPISummaryResponse>('/kpi/summary', { params: { months } });
+    return data;
+  },
+
+  /** 월별 목표 upsert */
+  updateGoal: async (month: string, payload: KPIGoalUpdatePayload): Promise<KPIGoal> => {
+    const { data } = await api.put<KPIGoal>(`/kpi/goals/${month}`, payload);
+    return data;
+  },
+
+  /** 채널 광고비 upsert (month + channel 기준) */
+  updateChannelSpend: async (payload: KPIChannelSpendUpdatePayload): Promise<KPIChannelSpend> => {
+    const { data } = await api.put<KPIChannelSpend>('/kpi/channel-spend', payload);
+    return data;
+  },
+
+  /** 채널 광고비 삭제 */
+  deleteChannelSpend: async (id: number): Promise<void> => {
+    await api.delete(`/kpi/channel-spend/${id}`);
+  },
+
+  /** 자사몰 주문 백필 (CAC/LTV 계산용 원천 데이터 수집) */
+  backfillOrders: async (since = '2026-01-01'): Promise<KPIBackfillOrdersResponse> => {
+    const { data } = await api.post<KPIBackfillOrdersResponse>('/kpi/backfill-orders', null, { params: { since } });
+    return data;
+  },
+
+  /** 네이버 데이터랩 상대 검색량 추이 (키워드 최대 5개, 쉼표 구분).
+   * 백엔드는 DataLab 원본(results: [{title, data: [{period, ratio}]}])을 반환 —
+   * 여기서 차트용 시리즈([{period: "YYYY-MM", [키워드]: ratio}])로 변환한다. */
+  getNaverQueries: async (keywords: string[], months = 6): Promise<KPINaverQueriesResponse> => {
+    const { data } = await api.get<any>('/kpi/naver-queries', {
+      params: { keywords: keywords.join(','), months },
+    });
+    const results: Array<{ title: string; data: Array<{ period: string; ratio: number }> }> =
+      data?.results ?? [];
+    const byPeriod: Record<string, Record<string, any>> = {};
+    for (const r of results) {
+      for (const point of r.data ?? []) {
+        const period = (point.period || '').slice(0, 7); // YYYY-MM
+        if (!period) continue;
+        byPeriod[period] = byPeriod[period] || { period };
+        byPeriod[period][r.title] = point.ratio;
+      }
+    }
+    const series = Object.values(byPeriod).sort((a, b) =>
+      String(a.period).localeCompare(String(b.period))
+    );
+    return { keywords: data?.keywords ?? results.map((r) => r.title), series };
+  },
+};
 
 // Currency & number formatting utilities
 export function formatCurrency(amount: number, currency: string = 'KRW'): string {

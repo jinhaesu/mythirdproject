@@ -92,7 +92,7 @@ function translateActionType(actionType: string): string {
 }
 
 export default function PerformanceDashboard() {
-  const [datePreset, setDatePreset] = useState<DatePreset>('last_7d');
+  const [datePreset, setDatePreset] = useState<DatePreset>('last_30d');
   const [customSince, setCustomSince] = useState('');
   const [customUntil, setCustomUntil] = useState('');
   const [expandedCampaign, setExpandedCampaign] = useState<string | null>(null);
@@ -151,53 +151,35 @@ export default function PerformanceDashboard() {
   });
 
   const daysMap: Record<string, number> = { today: 1, yesterday: 1, last_3d: 3, last_7d: 7, last_14d: 14, last_30d: 30, this_month: 30, last_month: 30 };
-  const trendIncrement = trendView === 'weekly' ? 7 : 1;
 
-  // 주간 뷰: 어제 기준으로 정확한 7일 단위 구간 계산
-  // last_7d → 이번주(어제~7일전) vs 지난주 = 14일, last_14d → 4주 = 28일, last_30d → 8주 = 56일
-  const weeklyRange = useMemo(() => {
-    if (trendView !== 'weekly') return null;
-    const weeksMap: Record<string, number> = { last_7d: 2, last_14d: 4, last_30d: 8 };
-    const totalWeeks = weeksMap[datePreset] || 2;
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-    const start = new Date(yesterday);
-    start.setDate(start.getDate() - (totalWeeks * 7) + 1);
-    return {
-      since: start.toISOString().slice(0, 10),
-      until: yesterday.toISOString().slice(0, 10),
-    };
-  }, [trendView, datePreset]);
+  // 주간 뷰에서 프리셋 기간을 주 단위로 확장 (7일→2주, 14일→4주, 30일→8주)
+  const weeklyWeeksMap: Record<string, number> = { last_7d: 2, last_14d: 4, last_30d: 8 };
+  const trendDaysCount = trendView === 'weekly'
+    ? (weeklyWeeksMap[datePreset] || 8) * 7
+    : (daysMap[datePreset] || 30);
 
-  const trendDaysCount = trendView === 'weekly' ? 56 : (daysMap[datePreset] || 7);
-
+  // 추이 차트는 DB 스냅샷(/insights/trend)에서 조회 — 장기간·주간 집계도 ms 단위 응답
   const { data: trendData } = useQuery({
-    queryKey: ['account-trend', datePreset, effectiveSince, effectiveUntil, trendView],
-    queryFn: () => {
-      if (trendView === 'weekly' && weeklyRange) {
-        return analyticsApi.getAccountTrend(14, weeklyRange.since, weeklyRange.until, 7);
-      }
-      if (isDateRange) {
-        return analyticsApi.getAccountTrend(30, effectiveSince, effectiveUntil, trendIncrement);
-      }
-      return analyticsApi.getAccountTrend(trendDaysCount, undefined, undefined, trendIncrement);
-    },
-    enabled: overview?.connected === true,
+    queryKey: ['insight-trend-main', datePreset, effectiveSince, effectiveUntil, trendView],
+    queryFn: () => insightsApi.getTrend(
+      isDateRange
+        ? { since: effectiveSince, until: effectiveUntil, granularity: trendView }
+        : { days: trendDaysCount, granularity: trendView }
+    ),
     placeholderData: keepPreviousData,
+    staleTime: 5 * 60 * 1000,
   });
 
   // 주간 비교: 이번주 vs 지난주 (정확한 날짜 기반)
   // last_7d 기준 오늘 3/11 → 이번주: 3/4~3/10, 지난주: 2/25~3/3
   const weeklyComparison = useMemo(() => {
-    if (trendView !== 'weekly' || !trendData?.data?.length) return null;
-    const weeks = trendData.data;
-    if (weeks.length < 2) return null;
+    const weeks = trendData?.account?.series;
+    if (trendView !== 'weekly' || !weeks || weeks.length < 2) return null;
     const thisWeek = weeks[weeks.length - 1];
     const lastWeek = weeks[weeks.length - 2];
-    const calc = (key: string) => {
-      const cur = parseFloat(thisWeek[key] || '0');
-      const prev = parseFloat(lastWeek[key] || '0');
+    const calc = (key: keyof InsightTrendPoint) => {
+      const cur = Number(thisWeek[key] || 0);
+      const prev = Number(lastWeek[key] || 0);
       const change = prev > 0 ? ((cur - prev) / prev * 100) : 0;
       return { cur, prev, change };
     };
@@ -207,9 +189,9 @@ export default function PerformanceDashboard() {
       clicks: calc('clicks'),
       ctr: calc('ctr'),
       cpc: calc('cpc'),
-      roas: { cur: parseFloat(thisWeek.roas || '0'), prev: parseFloat(lastWeek.roas || '0'), change: parseFloat(lastWeek.roas || '0') > 0 ? ((parseFloat(thisWeek.roas || '0') - parseFloat(lastWeek.roas || '0')) / parseFloat(lastWeek.roas || '0') * 100) : 0 },
-      thisWeekLabel: `${thisWeek.date_start?.slice(5)} ~ ${thisWeek.date_stop?.slice(5)}`,
-      lastWeekLabel: `${lastWeek.date_start?.slice(5)} ~ ${lastWeek.date_stop?.slice(5)}`,
+      roas: calc('roas'),
+      thisWeekLabel: `${thisWeek.date.slice(5)} ~ ${thisWeek.date_end.slice(5)}`,
+      lastWeekLabel: `${lastWeek.date.slice(5)} ~ ${lastWeek.date_end.slice(5)}`,
     };
   }, [trendView, trendData]);
 
@@ -377,7 +359,7 @@ export default function PerformanceDashboard() {
 
   const analysis = aiAnalysis?.analysis;
   const accountInsights = overview?.account_insights || {};
-  const trendDays = trendData?.data || [];
+  const trendDays = trendData?.account?.series || [];
 
   const formatNum = (v: any) => {
     if (!v) return '0';
@@ -555,60 +537,72 @@ export default function PerformanceDashboard() {
                 </div>
               )}
 
-              <div className="space-y-3">
-                <div>
-                  <p className="text-[10px] text-[#8A8F98] mb-1">ROAS</p>
-                  <MiniLineChart
-                    data={trendDays.map((d: any) => ({
-                      label: trendView === 'weekly' ? `${d.date_start?.slice(5)}~${d.date_stop?.slice(5)}` : d.date_stop?.slice(5) || '',
-                      value: parseFloat(d.roas || 0)
+              {/* 지출(막대·좌축) + ROAS(선·우축) 통합 차트 */}
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart
+                    data={trendDays.map((d) => ({
+                      label: trendView === 'weekly' ? `${d.date.slice(5)}~${d.date_end.slice(5)}` : d.date.slice(5),
+                      spend: d.spend,
+                      roas: d.roas,
+                      revenue: d.revenue,
                     }))}
-                    color="orange"
-                    formatValue={(v) => v.toFixed(2) + 'x'}
+                    margin={{ top: 8, right: 8, left: 8, bottom: 0 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#23252A" />
+                    <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#8A8F98' }} interval="preserveStartEnd" minTickGap={24} />
+                    <YAxis yAxisId="spend" orientation="left" tick={{ fontSize: 10, fill: '#8A8F98' }}
+                      tickFormatter={(v: number) => v >= 10000 ? `${Math.round(v / 10000)}만` : String(Math.round(v))} />
+                    <YAxis yAxisId="roas" orientation="right" tick={{ fontSize: 10, fill: '#F2994A' }}
+                      tickFormatter={(v: number) => `${v.toFixed(1)}x`} />
+                    <RechartsTooltip
+                      contentStyle={{ backgroundColor: '#141516', border: '1px solid #23252A', borderRadius: 8, fontSize: 11 }}
+                      labelStyle={{ color: '#D0D6E0' }}
+                      formatter={(value: any, name: any) => {
+                        if (name === 'ROAS') return [`${Number(value).toFixed(2)}x`, name];
+                        return [formatSpend(Number(value)), name];
+                      }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                    <Bar yAxisId="spend" dataKey="spend" name="지출" fill="#4EA7FC" radius={[3, 3, 0, 0]} maxBarSize={26} />
+                    <Line yAxisId="roas" type="monotone" dataKey="roas" name="ROAS" stroke="#F2994A" strokeWidth={2} dot={trendDays.length <= 40} />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* 보조 지표 컴팩트 그리드 */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+                <div className="bg-[#141516] rounded-lg p-2.5">
+                  <p className="text-[10px] text-[#8A8F98] mb-1">전환값 (매출)</p>
+                  <MiniLineChart
+                    data={trendDays.map((d) => ({
+                      label: trendView === 'weekly' ? `${d.date.slice(5)}~${d.date_end.slice(5)}` : d.date.slice(5),
+                      value: d.revenue,
+                    }))}
+                    color="green"
+                    formatValue={(v) => formatMoney(v)}
                   />
                 </div>
-                <div>
-                  <p className="text-[10px] text-[#8A8F98] mb-1">지출</p>
-                  <MiniLineChart
-                    data={trendDays.map((d: any) => ({
-                      label: trendView === 'weekly' ? `${d.date_start?.slice(5)}~${d.date_stop?.slice(5)}` : d.date_stop?.slice(5) || '',
-                      value: parseFloat(d.spend || 0)
-                    }))}
-                    color="blue"
-                    formatValue={(v) => formatSpend(v)}
-                  />
-                </div>
-                <div>
+                <div className="bg-[#141516] rounded-lg p-2.5">
                   <p className="text-[10px] text-[#8A8F98] mb-1">CTR (%)</p>
                   <MiniLineChart
-                    data={trendDays.map((d: any) => ({
-                      label: trendView === 'weekly' ? `${d.date_start?.slice(5)}~${d.date_stop?.slice(5)}` : d.date_stop?.slice(5) || '',
-                      value: parseFloat(d.ctr || 0)
+                    data={trendDays.map((d) => ({
+                      label: trendView === 'weekly' ? `${d.date.slice(5)}~${d.date_end.slice(5)}` : d.date.slice(5),
+                      value: d.ctr,
                     }))}
                     color="green"
                     formatValue={(v) => `${v.toFixed(2)}%`}
                   />
                 </div>
-                <div>
+                <div className="bg-[#141516] rounded-lg p-2.5">
                   <p className="text-[10px] text-[#8A8F98] mb-1">CPC</p>
                   <MiniLineChart
-                    data={trendDays.map((d: any) => ({
-                      label: trendView === 'weekly' ? `${d.date_start?.slice(5)}~${d.date_stop?.slice(5)}` : d.date_stop?.slice(5) || '',
-                      value: parseFloat(d.cpc || 0)
+                    data={trendDays.map((d) => ({
+                      label: trendView === 'weekly' ? `${d.date.slice(5)}~${d.date_end.slice(5)}` : d.date.slice(5),
+                      value: d.cpc,
                     }))}
                     color="purple"
                     formatValue={(v) => formatCPC(v)}
-                  />
-                </div>
-                <div>
-                  <p className="text-[10px] text-[#8A8F98] mb-1">전환값 (매출)</p>
-                  <MiniLineChart
-                    data={trendDays.map((d: any) => ({
-                      label: trendView === 'weekly' ? `${d.date_start?.slice(5)}~${d.date_stop?.slice(5)}` : d.date_stop?.slice(5) || '',
-                      value: parseFloat(d.conversion_value || 0)
-                    }))}
-                    color="green"
-                    formatValue={(v) => formatMoney(v)}
                   />
                 </div>
               </div>
