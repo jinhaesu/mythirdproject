@@ -142,20 +142,35 @@ async def _fetch_youtube_channel(url: str, client: httpx.AsyncClient) -> tuple[O
             parts.append(f"[구독자수] {subscriber:,}명")
 
     # 채널 ID → RSS 피드로 최근 영상 제목 수집 (JS 렌더링 무관, 가장 신뢰도 높은 실데이터)
+    # 주의: HTML의 첫 "channelId" 매치는 관련/추천 채널 ID일 수 있음 (프로덕션 404 실측).
+    # canonical/og:url의 /channel/UC...가 확정적 → externalId → channelId 후보 순회.
     video_titles: list[str] = []
-    cid_m = re.search(r'"(?:channelId|externalId)"\s*:\s*"(UC[0-9A-Za-z_-]{16,})"', html)
-    if cid_m:
+    candidates: list[str] = []
+    head = html[:200_000]
+    canon_m = re.search(r'youtube\.com/channel/(UC[0-9A-Za-z_-]{16,})', head)
+    if canon_m:
+        candidates.append(canon_m.group(1))
+    ext_m = re.search(r'"externalId"\s*:\s*"(UC[0-9A-Za-z_-]{16,})"', html)
+    if ext_m:
+        candidates.append(ext_m.group(1))
+    candidates.extend(re.findall(r'"channelId"\s*:\s*"(UC[0-9A-Za-z_-]{16,})"', html)[:3])
+    seen: set[str] = set()
+    candidates = [c for c in candidates if not (c in seen or seen.add(c))]
+
+    for cid in candidates[:3]:
         try:
             rss = await client.get(
-                f"https://www.youtube.com/feeds/videos.xml?channel_id={cid_m.group(1)}",
+                f"https://www.youtube.com/feeds/videos.xml?channel_id={cid}",
                 headers=_BROWSER_HEADERS,
             )
             if rss.status_code < 400:
                 titles = re.findall(r"<title>([^<]*)</title>", rss.text[:400_000])
                 # 첫 title은 채널명이므로 제외
                 video_titles = [_strip_html(t) for t in titles[1:16] if _strip_html(t)]
+                if video_titles:
+                    break
         except Exception as e:
-            logger.warning(f"[Influencer] 유튜브 RSS 실패: {e}")
+            logger.warning(f"[Influencer] 유튜브 RSS 실패 cid={cid}: {e}")
 
     if video_titles:
         joined = "\n".join(f"- {t}" for t in video_titles)
