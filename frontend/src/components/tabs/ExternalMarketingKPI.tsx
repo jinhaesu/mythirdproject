@@ -312,7 +312,6 @@ export function ExternalMarketingKPI() {
   const [newRevenueLinked, setNewRevenueLinked] = useState(true);
   const [newPlanned, setNewPlanned] = useState('');
   const [newActual, setNewActual] = useState('');
-  const [newRevenue, setNewRevenue] = useState('');
   const [newMemo, setNewMemo] = useState('');
 
   const addSpend = () => {
@@ -321,6 +320,7 @@ export function ExternalMarketingKPI() {
       toast.error('기타 채널의 채널명을 입력해주세요.');
       return;
     }
+    // 광고비와 매출은 별도 기입 — 등록 시에는 매출을 받지 않는다 (아래 "채널 매출 기입" 폼 사용)
     updateChannelSpendMutation.mutate({
       month: newMonth,
       channel: newChannel,
@@ -328,14 +328,40 @@ export function ExternalMarketingKPI() {
       planned_amount: newPlanned.trim() === '' ? null : parseFloat(newPlanned),
       actual_amount: newActual.trim() === '' ? null : parseFloat(newActual),
       revenue_linked: newRevenueLinked,
-      revenue: newRevenueLinked ? (newRevenue.trim() === '' ? null : parseFloat(newRevenue)) : null,
       memo: newMemo.trim() === '' ? null : newMemo,
     });
     setNewChannelLabel('');
     setNewPlanned('');
     setNewActual('');
-    setNewRevenue('');
     setNewMemo('');
+  };
+
+  // ─── 채널 매출 별도 기입 (매출 관여 채널 전용) ───
+  const [revMonth, setRevMonth] = useState(defaultMonth);
+  const [revChannel, setRevChannel] = useState('');
+  const [revAmount, setRevAmount] = useState('');
+
+  const revenueLinkedRows = useMemo(
+    () => spendRows.filter((r) => r.month === revMonth && r.item.revenue_linked === true && !r.item.is_auto),
+    [spendRows, revMonth],
+  );
+
+  const saveChannelRevenue = () => {
+    if (!revMonth || !revChannel) {
+      toast.error('월과 채널을 선택해주세요.');
+      return;
+    }
+    if (revAmount.trim() === '') {
+      toast.error('매출액을 입력해주세요.');
+      return;
+    }
+    updateChannelSpendMutation.mutate({
+      month: revMonth,
+      channel: revChannel,
+      scope: 'external',
+      revenue: parseFloat(revAmount),
+    });
+    setRevAmount('');
   };
 
   // ─── 공동구매(어필리에이트) 매출 차트 데이터 ───
@@ -604,15 +630,6 @@ export function ExternalMarketingKPI() {
                   placeholder="광고비 (₩)"
                   className="w-28 px-2 py-1.5 bg-[#08090A] border border-[#23252A] rounded-lg text-xs text-[#D0D6E0] focus:outline-none focus:border-[#5E6AD2]"
                 />
-                {newRevenueLinked && (
-                  <input
-                    value={newRevenue}
-                    onChange={(e: ChangeEvent<HTMLInputElement>) => setNewRevenue(e.target.value)}
-                    type="number"
-                    placeholder="매출 (₩)"
-                    className="w-28 px-2 py-1.5 bg-[#08090A] border border-[#23252A] rounded-lg text-xs text-[#D0D6E0] focus:outline-none focus:border-[#5E6AD2]"
-                  />
-                )}
                 <input
                   value={newMemo}
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setNewMemo(e.target.value)}
@@ -627,6 +644,52 @@ export function ExternalMarketingKPI() {
                 >
                   <Plus size={12} /> 채널 추가
                 </button>
+                <span className="text-[10px] text-[#62666D]">매출은 아래 "채널 매출 기입"에서 별도 입력</span>
+              </div>
+            </div>
+
+            {/* 채널 매출 별도 기입 — 광고비 등록과 분리 (월 마감 후 매출 확정 시 입력) */}
+            <div className="mt-3 pt-3 border-t border-[#23252A]">
+              <p className="text-[11px] font-medium text-[#27A644] mb-2">채널 매출 기입 (매출 관여 채널 전용)</p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <input
+                  type="month"
+                  value={revMonth}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => { setRevMonth(e.target.value); setRevChannel(''); }}
+                  className="px-2 py-1.5 bg-[#08090A] border border-[#23252A] rounded-lg text-xs text-[#D0D6E0] focus:outline-none focus:border-[#5E6AD2]"
+                />
+                <select
+                  value={revChannel}
+                  onChange={(e: ChangeEvent<HTMLSelectElement>) => setRevChannel(e.target.value)}
+                  className="px-2 py-1.5 bg-[#08090A] border border-[#23252A] rounded-lg text-xs text-[#D0D6E0] focus:outline-none focus:border-[#5E6AD2]"
+                >
+                  <option value="">채널 선택</option>
+                  {revenueLinkedRows.map((r) => (
+                    <option key={r.key} value={r.item.channel}>
+                      {r.item.channel_label || CHANNEL_LABELS[r.item.channel] || r.item.channel}
+                      {r.item.revenue != null ? ` (기입됨 ₩${Math.round(r.item.revenue).toLocaleString('ko-KR')})` : ''}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  value={revAmount}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setRevAmount(e.target.value)}
+                  type="number"
+                  placeholder="해당 월 매출 (₩)"
+                  className="w-36 px-2 py-1.5 bg-[#08090A] border border-[#23252A] rounded-lg text-xs text-[#D0D6E0] focus:outline-none focus:border-[#5E6AD2]"
+                />
+                <button
+                  onClick={saveChannelRevenue}
+                  disabled={updateChannelSpendMutation.isPending}
+                  className="px-3 py-1.5 bg-[#27A644] text-white text-xs font-medium rounded-lg hover:bg-[#2FBF4F] disabled:opacity-50"
+                >
+                  매출 저장
+                </button>
+                {revenueLinkedRows.length === 0 && (
+                  <span className="text-[10px] text-[#62666D]">
+                    {revMonth}에 등록된 매출 관여 채널이 없습니다 — 먼저 위에서 채널을 추가하세요.
+                  </span>
+                )}
               </div>
             </div>
           </div>
