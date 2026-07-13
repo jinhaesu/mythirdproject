@@ -26,6 +26,7 @@ from app.models.kpi import (
     MallOrder,
     MonthlyChannelSpend,
     MarketingGoal,
+    ExternalMarketingGoal,
     ChannelSpendDaily,
     MallVisitorsDaily,
 )
@@ -71,6 +72,7 @@ __all__ = [
     "MallOrder",
     "MonthlyChannelSpend",
     "MarketingGoal",
+    "ExternalMarketingGoal",
     "ChannelSpendDaily",
     "MallVisitorsDaily",
     "InfluencerSeeding",

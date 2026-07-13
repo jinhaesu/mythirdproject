@@ -1,16 +1,24 @@
 """마케팅 KPI 모듈 — 몰 전체 주문 + 채널 광고비 + CAC/LTV/전환율 대시보드.
 
+자사몰(mall) KPI와 그 외(external) KPI를 분리한다. naver_sa(네이버 검색광고)는 자사몰(카페24)로
+연결되지 않는 채널이므로 자사몰 summary/export에서 제외하고 "그 외" KPI로 이동했다. "그 외" KPI에는
+어필리에이트(인플루언서 공동구매) 매출(app.models.affiliate.ReferralConversion)을 연동한다.
+
 엔드포인트:
-  GET    /api/v1/kpi/summary?granularity=month|week|day — KPI 요약 (month=월별 요약, week/day=최근 N일 버킷)
+  GET    /api/v1/kpi/summary?granularity=month|week|day — 자사몰 KPI 요약 (month=월별 요약, week/day=최근 N일 버킷)
   PUT    /api/v1/kpi/goals/{month}               — 월간 목표 upsert
   GET    /api/v1/kpi/goals?months=12             — 월간 목표 목록
-  PUT    /api/v1/kpi/channel-spend               — 채널별 월 광고비 upsert
+  PUT    /api/v1/kpi/channel-spend               — 채널별 월 광고비 upsert (scope: mall|external, 기본 mall)
   DELETE /api/v1/kpi/channel-spend/{id}          — 채널별 월 광고비 삭제
   POST   /api/v1/kpi/backfill-orders             — Cafe24 주문 백필 (MallOrder)
   GET    /api/v1/kpi/naver-queries               — 네이버 DataLab 검색어트렌드 프록시 + 절대 검색량(키워드도구)
   POST   /api/v1/kpi/backfill-naver-spend         — 네이버 검색광고 일별 광고비 백필
   POST   /api/v1/kpi/backfill-visitors            — 카페24 일별 방문자수 백필
-  GET    /api/v1/kpi/export                      — KPI 요약 엑셀 다운로드 (summary와 동일 파라미터)
+  GET    /api/v1/kpi/export                      — 자사몰 KPI 요약 엑셀 다운로드 (summary와 동일 파라미터)
+  GET    /api/v1/kpi/external-summary?months=12  — 그 외(외부) KPI 요약 (naver_sa 자동 + 어필리에이트 공동구매 매출)
+  PUT    /api/v1/kpi/external-goals/{month}      — 그 외 KPI 월간 목표 upsert
+  GET    /api/v1/kpi/external-goals?months=12    — 그 외 KPI 월간 목표 목록
+  GET    /api/v1/kpi/external-export             — 그 외 KPI 요약 엑셀 다운로드
 """
 import calendar
 import logging
@@ -28,8 +36,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.v1.endpoints.auth import get_current_user, get_shared_cafe24_user
 from app.core.config import get_settings
 from app.db.database import get_db
+from app.models.affiliate import AffiliateCampaign, ReferralConversion
 from app.models.kpi import (
     ChannelSpendDaily,
+    ExternalMarketingGoal,
     MallOrder,
     MallVisitorsDaily,
     MarketingGoal,
@@ -79,6 +89,25 @@ def _recent_months(n: int) -> list[str]:
             m = 12
             y -= 1
     return list(reversed(months))
+
+
+async def _daily_channel_spend_by_month(
+    db: AsyncSession, channel: str, range_start: date, range_end: date
+) -> dict[str, float]:
+    """ChannelSpendDaily(channel=channel)의 일별 자동 수집 광고비를 월 합산."""
+    rows = (
+        await db.execute(
+            select(ChannelSpendDaily.date, ChannelSpendDaily.spend).where(
+                ChannelSpendDaily.channel == channel,
+                ChannelSpendDaily.date >= range_start,
+                ChannelSpendDaily.date <= range_end,
+            )
+        )
+    ).all()
+    spend_by_month: dict[str, float] = defaultdict(float)
+    for d, spend in rows:
+        spend_by_month[f"{d.year:04d}-{d.month:02d}"] += float(spend or 0)
+    return spend_by_month
 
 
 def _merge_channel_spend(
@@ -150,6 +179,17 @@ def _serialize_goal(goal: MarketingGoal) -> dict:
     }
 
 
+def _serialize_external_goal(goal: ExternalMarketingGoal) -> dict:
+    return {
+        "id": goal.id,
+        "month": goal.month,
+        "target_spend": goal.target_spend,
+        "target_revenue": goal.target_revenue,
+        "actual_revenue_manual": goal.actual_revenue_manual,
+        "memo": goal.memo,
+    }
+
+
 # ── GET /summary ─────────────────────────────────────────────────────────────
 
 async def _kpi_summary_data(
@@ -184,20 +224,6 @@ async def _kpi_summary_monthly(db: AsyncSession, months: int) -> dict:
     for d, spend in meta_rows:
         meta_spend_by_month[f"{d.year:04d}-{d.month:02d}"] += float(spend or 0)
 
-    # ── 네이버 검색광고 일별 광고비 (자동 수집 스냅샷 → 월 합산) ──
-    naver_rows = (
-        await db.execute(
-            select(ChannelSpendDaily.date, ChannelSpendDaily.spend).where(
-                ChannelSpendDaily.channel == "naver_sa",
-                ChannelSpendDaily.date >= range_start,
-                ChannelSpendDaily.date <= range_end,
-            )
-        )
-    ).all()
-    naver_spend_by_month: dict[str, float] = defaultdict(float)
-    for d, spend in naver_rows:
-        naver_spend_by_month[f"{d.year:04d}-{d.month:02d}"] += float(spend or 0)
-
     # ── 카페24 일별 방문자수 (자동 수집 스냅샷 → 월 합산) ──
     visitor_rows = (
         await db.execute(
@@ -211,10 +237,14 @@ async def _kpi_summary_monthly(db: AsyncSession, months: int) -> dict:
     for d, visit_count in visitor_rows:
         visits_by_month[f"{d.year:04d}-{d.month:02d}"] += int(visit_count or 0)
 
-    # ── 채널별 월 광고비 (수동 입력) ──
+    # ── 채널별 월 광고비 (수동 입력, 자사몰 scope만) — naver_sa는 자사몰로 연결되지
+    #    않으므로 자동 병합하지 않는다 (그 외 KPI로 이동, /kpi/external-summary 참고) ──
     spend_rows = (
         await db.execute(
-            select(MonthlyChannelSpend).where(MonthlyChannelSpend.month.in_(month_list))
+            select(MonthlyChannelSpend).where(
+                MonthlyChannelSpend.month.in_(month_list),
+                MonthlyChannelSpend.scope == "mall",
+            )
         )
     ).scalars().all()
     spend_by_month: dict[str, list[MonthlyChannelSpend]] = defaultdict(list)
@@ -272,9 +302,11 @@ async def _kpi_summary_monthly(db: AsyncSession, months: int) -> dict:
     for month_key in month_list:
         m_start, m_end = _month_bounds(month_key)
         meta_spend = round(meta_spend_by_month.get(month_key, 0.0), 2)
-        naver_spend = round(naver_spend_by_month.get(month_key, 0.0), 2)
 
-        # 채널별 광고비 병합 (meta/naver_sa는 actual_amount 미입력 시 자동 계산값 채움)
+        # 채널별 광고비 병합 (meta는 actual_amount 미입력 시 자동 계산값 채움).
+        # naver_sa는 자사몰로 연결되지 않는 채널이므로 자동 병합 대상에서 제외했다
+        # (scope='mall'로 필터된 rows_this_month에 naver_sa 행이 수동으로 남아있다면
+        #  아래 "나머지 채널" 루프에서 수동 입력 그대로 반영된다).
         rows_this_month = spend_by_month.get(month_key, [])
         channel_spends: list[dict] = []
         total_ad_spend = 0.0
@@ -285,15 +317,9 @@ async def _kpi_summary_monthly(db: AsyncSession, months: int) -> dict:
         channel_spends.extend(meta_entries)
         total_ad_spend += meta_total
 
-        naver_entries, naver_total = _merge_channel_spend(
-            "naver_sa", month_key, naver_spend, rows_this_month, always_include_virtual=False
-        )
-        channel_spends.extend(naver_entries)
-        total_ad_spend += naver_total
-
         # 자동 계산값이 없는 나머지 채널 (수동 입력 그대로 반영)
         for row in rows_this_month:
-            if row.channel in ("meta", "naver_sa"):
+            if row.channel == "meta":
                 continue
             resolved = row.actual_amount or 0.0
             channel_spends.append(
@@ -365,8 +391,8 @@ async def _kpi_summary_monthly(db: AsyncSession, months: int) -> dict:
 async def _kpi_summary_bucketed(db: AsyncSession, granularity: str, days: int) -> dict:
     """최근 days일(오늘 포함)을 일/주(월요일 시작) 버킷으로 나눈 마케팅 KPI 요약.
 
-    ltv/ltv_cac/goal은 항상 None (월 단위 전용 지표). channel_spends는 meta/naver_sa
-    자동 2행만 포함한다.
+    ltv/ltv_cac/goal은 항상 None (월 단위 전용 지표). channel_spends는 meta 자동 1행만
+    포함한다 (naver_sa는 자사몰로 연결되지 않는 채널이라 그 외 KPI로 이동).
     """
     today = date.today()
     end_date = today
@@ -407,20 +433,6 @@ async def _kpi_summary_bucketed(db: AsyncSession, granularity: str, days: int) -
     meta_spend_by_bucket: dict[str, float] = defaultdict(float)
     for d, spend in meta_rows:
         meta_spend_by_bucket[_key_for(d)] += float(spend or 0)
-
-    # ── 네이버 검색광고 일별 광고비 (자동 수집 스냅샷 → 버킷 합산) ──
-    naver_rows = (
-        await db.execute(
-            select(ChannelSpendDaily.date, ChannelSpendDaily.spend).where(
-                ChannelSpendDaily.channel == "naver_sa",
-                ChannelSpendDaily.date >= range_start,
-                ChannelSpendDaily.date <= range_end,
-            )
-        )
-    ).all()
-    naver_spend_by_bucket: dict[str, float] = defaultdict(float)
-    for d, spend in naver_rows:
-        naver_spend_by_bucket[_key_for(d)] += float(spend or 0)
 
     # ── 카페24 일별 방문자수 (자동 수집 스냅샷 → 버킷 합산) ──
     visitor_rows = (
@@ -469,7 +481,6 @@ async def _kpi_summary_bucketed(db: AsyncSession, granularity: str, days: int) -
     for b_start, b_end in bucket_bounds:
         key = b_start.isoformat()
         meta_spend = round(meta_spend_by_bucket.get(key, 0.0), 2)
-        naver_spend = round(naver_spend_by_bucket.get(key, 0.0), 2)
 
         channel_spends = [
             {
@@ -481,17 +492,8 @@ async def _kpi_summary_bucketed(db: AsyncSession, granularity: str, days: int) -
                 "is_auto": True,
                 "memo": None,
             },
-            {
-                "id": None,
-                "month": key,
-                "channel": "naver_sa",
-                "planned_amount": 0.0,
-                "actual_amount": naver_spend,
-                "is_auto": True,
-                "memo": None,
-            },
         ]
-        total_ad_spend = round(meta_spend + naver_spend, 2)
+        total_ad_spend = round(meta_spend, 2)
 
         orders_this_bucket = mall_by_bucket.get(key, [])
         orders_count = len(orders_this_bucket)
@@ -533,6 +535,152 @@ async def _kpi_summary_bucketed(db: AsyncSession, granularity: str, days: int) -
     return {"months": buckets_out, "granularity": granularity}
 
 
+# ── 그 외(외부) KPI ────────────────────────────────────────────────────────────
+
+async def _external_summary_monthly(db: AsyncSession, months: int) -> dict:
+    """최근 N개월(당월 포함) '그 외(외부)' 마케팅 KPI 요약.
+
+    naver_sa(네이버 검색광고)는 자사몰(카페24)로 연결되지 않는 채널이라 자동 병합
+    대상이며, MonthlyChannelSpend(scope='external') 수동 입력 채널과 병합한다.
+    매출은 어필리에이트(인플루언서 공동구매) ReferralConversion(status='paid') +
+    ExternalMarketingGoal.actual_revenue_manual(자동 집계 외 판매채널 수동 보정)을 합산한다.
+    """
+    month_list = _recent_months(months)
+    range_start, _ = _month_bounds(month_list[0])
+    _, range_end = _month_bounds(month_list[-1])
+
+    # ── 네이버 검색광고 일별 광고비 (자동 수집 스냅샷 → 월 합산) ──
+    naver_spend_by_month = await _daily_channel_spend_by_month(db, "naver_sa", range_start, range_end)
+
+    # ── 채널별 월 광고비 (수동 입력, 그 외 scope만) ──
+    spend_rows = (
+        await db.execute(
+            select(MonthlyChannelSpend).where(
+                MonthlyChannelSpend.month.in_(month_list),
+                MonthlyChannelSpend.scope == "external",
+            )
+        )
+    ).scalars().all()
+    spend_by_month: dict[str, list[MonthlyChannelSpend]] = defaultdict(list)
+    for row in spend_rows:
+        spend_by_month[row.month].append(row)
+
+    # ── 어필리에이트 공동구매 매출 (ReferralConversion, status='paid') ──
+    range_start_dt = datetime.combine(range_start, datetime.min.time())
+    range_end_dt = datetime.combine(range_end, datetime.max.time())
+    rc_rows = (
+        await db.execute(
+            select(
+                ReferralConversion.converted_at,
+                ReferralConversion.order_amount,
+                ReferralConversion.campaign_id,
+            ).where(
+                ReferralConversion.status == "paid",
+                ReferralConversion.converted_at >= range_start_dt,
+                ReferralConversion.converted_at <= range_end_dt,
+            )
+        )
+    ).all()
+    groupbuy_revenue_by_month: dict[str, float] = defaultdict(float)
+    groupbuy_orders_by_month: dict[str, int] = defaultdict(int)
+    campaign_agg: dict[Optional[int], dict] = defaultdict(lambda: {"revenue": 0.0, "orders": 0})
+    for converted_at, order_amount, campaign_id in rc_rows:
+        if not converted_at:
+            continue
+        month_key = f"{converted_at.year:04d}-{converted_at.month:02d}"
+        groupbuy_revenue_by_month[month_key] += float(order_amount or 0.0)
+        groupbuy_orders_by_month[month_key] += 1
+        campaign_agg[campaign_id]["revenue"] += float(order_amount or 0.0)
+        campaign_agg[campaign_id]["orders"] += 1
+
+    # ── 캠페인명 조인 (상위 10 캠페인) ──
+    campaign_ids = [cid for cid in campaign_agg.keys() if cid is not None]
+    campaign_name_by_id: dict[int, str] = {}
+    if campaign_ids:
+        name_rows = (
+            await db.execute(
+                select(AffiliateCampaign.id, AffiliateCampaign.name).where(
+                    AffiliateCampaign.id.in_(campaign_ids)
+                )
+            )
+        ).all()
+        campaign_name_by_id = {cid: name for cid, name in name_rows}
+
+    top_campaigns = sorted(
+        (
+            {
+                "campaign_id": cid,
+                "campaign_name": campaign_name_by_id.get(cid) if cid is not None else None,
+                "revenue": round(agg["revenue"], 2),
+                "orders": agg["orders"],
+            }
+            for cid, agg in campaign_agg.items()
+        ),
+        key=lambda c: c["revenue"],
+        reverse=True,
+    )[:10]
+
+    # ── 목표 ──
+    goal_rows = (
+        await db.execute(
+            select(ExternalMarketingGoal).where(ExternalMarketingGoal.month.in_(month_list))
+        )
+    ).scalars().all()
+    goal_by_month = {g.month: g for g in goal_rows}
+
+    months_out = []
+    for month_key in month_list:
+        naver_spend = round(naver_spend_by_month.get(month_key, 0.0), 2)
+        rows_this_month = spend_by_month.get(month_key, [])
+
+        channel_spends: list[dict] = []
+        total_spend = 0.0
+
+        naver_entries, naver_total = _merge_channel_spend(
+            "naver_sa", month_key, naver_spend, rows_this_month, always_include_virtual=False
+        )
+        channel_spends.extend(naver_entries)
+        total_spend += naver_total
+
+        for row in rows_this_month:
+            if row.channel == "naver_sa":
+                continue
+            resolved = row.actual_amount or 0.0
+            channel_spends.append(
+                {
+                    "id": row.id,
+                    "month": month_key,
+                    "channel": row.channel,
+                    "planned_amount": row.planned_amount or 0.0,
+                    "actual_amount": resolved,
+                    "is_auto": False,
+                    "memo": row.memo,
+                }
+            )
+            total_spend += resolved
+
+        groupbuy_revenue = round(groupbuy_revenue_by_month.get(month_key, 0.0), 2)
+        groupbuy_orders = groupbuy_orders_by_month.get(month_key, 0)
+        goal = goal_by_month.get(month_key)
+        manual_revenue = goal.actual_revenue_manual if goal else None
+        total_revenue = round(groupbuy_revenue + (manual_revenue or 0.0), 2)
+
+        months_out.append(
+            {
+                "month": month_key,
+                "channel_spends": channel_spends,
+                "total_spend": round(total_spend, 2),
+                "groupbuy_revenue": groupbuy_revenue,
+                "groupbuy_orders": groupbuy_orders,
+                "manual_revenue": manual_revenue,
+                "total_revenue": total_revenue,
+                "goal": _serialize_external_goal(goal) if goal else None,
+            }
+        )
+
+    return {"months": months_out, "top_campaigns": top_campaigns}
+
+
 @router.get("/summary")
 async def get_kpi_summary(
     granularity: str = Query(default="month", description="month | week | day"),
@@ -549,6 +697,16 @@ async def get_kpi_summary(
     if granularity not in ("month", "week", "day"):
         raise HTTPException(status_code=422, detail="granularity 는 month, week, day 중 하나여야 합니다.")
     return await _kpi_summary_data(db, granularity, months, days)
+
+
+@router.get("/external-summary")
+async def get_external_kpi_summary(
+    months: int = Query(default=12, ge=1, le=24),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """그 외(외부) 마케팅 KPI 요약 — naver_sa 자동 + 어필리에이트 공동구매 매출 + 목표."""
+    return await _external_summary_monthly(db, months)
 
 
 # ── Goals ────────────────────────────────────────────────────────────────────
@@ -602,11 +760,61 @@ async def list_marketing_goals(
     return {"goals": [_serialize_goal(g) for g in goals]}
 
 
+# ── External Goals (그 외/외부 KPI) ────────────────────────────────────────────
+
+class ExternalMarketingGoalUpsert(BaseModel):
+    target_spend: Optional[float] = None
+    target_revenue: Optional[float] = None
+    actual_revenue_manual: Optional[float] = None
+    memo: Optional[str] = None
+
+
+@router.put("/external-goals/{month}")
+async def upsert_external_marketing_goal(
+    month: str,
+    payload: ExternalMarketingGoalUpsert,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """그 외(외부) 마케팅 KPI 월간 목표 upsert. 지정된 필드만 갱신 (미지정은 기존값 유지)."""
+    _validate_month(month)
+    result = await db.execute(
+        select(ExternalMarketingGoal).where(ExternalMarketingGoal.month == month)
+    )
+    goal = result.scalar_one_or_none()
+    if goal is None:
+        goal = ExternalMarketingGoal(month=month)
+        db.add(goal)
+    for field, value in payload.model_dump(exclude_none=True).items():
+        setattr(goal, field, value)
+    await db.commit()
+    await db.refresh(goal)
+    return _serialize_external_goal(goal)
+
+
+@router.get("/external-goals")
+async def list_external_marketing_goals(
+    months: int = Query(default=12, ge=1, le=24),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """최근 N개월 범위 내 저장된 그 외(외부) 마케팅 목표 목록 (없는 월은 생략)."""
+    month_list = _recent_months(months)
+    result = await db.execute(
+        select(ExternalMarketingGoal)
+        .where(ExternalMarketingGoal.month.in_(month_list))
+        .order_by(ExternalMarketingGoal.month)
+    )
+    goals = result.scalars().all()
+    return {"goals": [_serialize_external_goal(g) for g in goals]}
+
+
 # ── Channel spend ────────────────────────────────────────────────────────────
 
 class ChannelSpendUpsert(BaseModel):
     month: str
     channel: str
+    scope: Optional[str] = None  # "mall" | "external", 기본 "mall"
     planned_amount: Optional[float] = None
     actual_amount: Optional[float] = None
     memo: Optional[str] = None
@@ -618,21 +826,28 @@ async def upsert_channel_spend(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """채널별 월 광고비(예산/실적) upsert. (month, channel) 유니크 기준."""
+    """채널별 월 광고비(예산/실적) upsert. (month, channel, scope) 유니크 기준.
+
+    scope 미지정 시 "mall"(자사몰). "external"이면 그 외(외부) KPI에 반영된다.
+    """
     _validate_month(payload.month)
     if not payload.channel or not payload.channel.strip():
         raise HTTPException(status_code=422, detail="channel은 필수입니다.")
     channel = payload.channel.strip()
+    scope = (payload.scope or "mall").strip() or "mall"
+    if scope not in ("mall", "external"):
+        raise HTTPException(status_code=422, detail="scope는 mall 또는 external이어야 합니다.")
 
     result = await db.execute(
         select(MonthlyChannelSpend).where(
             MonthlyChannelSpend.month == payload.month,
             MonthlyChannelSpend.channel == channel,
+            MonthlyChannelSpend.scope == scope,
         )
     )
     row = result.scalar_one_or_none()
     if row is None:
-        row = MonthlyChannelSpend(month=payload.month, channel=channel)
+        row = MonthlyChannelSpend(month=payload.month, channel=channel, scope=scope)
         db.add(row)
 
     if payload.planned_amount is not None:
@@ -648,6 +863,7 @@ async def upsert_channel_spend(
         "id": row.id,
         "month": row.month,
         "channel": row.channel,
+        "scope": row.scope,
         "planned_amount": row.planned_amount,
         "actual_amount": row.actual_amount,
         "memo": row.memo,
@@ -1145,6 +1361,123 @@ async def export_kpi_excel(
     else:
         start_label = end_label = "no-data"
     filename = f"마케팅KPI_{start_label}_{end_label}.xlsx"
+    quoted = quote(filename)
+
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quoted}"},
+    )
+
+
+@router.get("/external-export")
+async def export_external_kpi_excel(
+    months: int = Query(default=12, ge=1, le=24),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """그 외(외부) 마케팅 KPI 요약을 엑셀(xlsx)로 다운로드. 파라미터는 /external-summary와 동일."""
+    from io import BytesIO
+    from urllib.parse import quote
+
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
+    from openpyxl.utils import get_column_letter
+    from fastapi.responses import StreamingResponse
+
+    data = await _external_summary_monthly(db, months)
+    items = data["months"]
+    top_campaigns = data["top_campaigns"]
+
+    header_font = Font(bold=True)
+    header_fill = PatternFill(start_color="D9D9D9", end_color="D9D9D9", fill_type="solid")
+    center = Alignment(horizontal="center", vertical="center")
+    money_fmt = "#,##0"
+
+    # 채널 목록 (등장한 순서대로, 모든 월에 걸쳐 union)
+    channel_order: list[str] = []
+    for item in items:
+        for cs in item.get("channel_spends") or []:
+            ch = cs.get("channel")
+            if ch not in channel_order:
+                channel_order.append(ch)
+
+    headers = ["월", "총광고비"] + [f"{ch} 광고비" for ch in channel_order] + [
+        "공동구매 매출", "공동구매 주문수", "기타 매출(수동)", "총 매출", "목표 광고비", "목표 매출",
+    ]
+    money_cols = set(range(2, 3 + len(channel_order))) | {
+        3 + len(channel_order),  # 공동구매 매출
+        5 + len(channel_order),  # 기타 매출(수동)
+        6 + len(channel_order),  # 총 매출
+        7 + len(channel_order),  # 목표 광고비
+        8 + len(channel_order),  # 목표 매출
+    }
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "외부 마케팅 KPI"
+    for ci, h in enumerate(headers, start=1):
+        cell = ws.cell(row=1, column=ci, value=h)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = center
+
+    for ri, item in enumerate(items, start=2):
+        spend_by_channel = {
+            cs.get("channel"): cs.get("actual_amount") or 0.0 for cs in (item.get("channel_spends") or [])
+        }
+        goal = item.get("goal") or {}
+        row_vals = (
+            [item["month"], item.get("total_spend")]
+            + [round(spend_by_channel.get(ch, 0.0), 2) for ch in channel_order]
+            + [
+                item.get("groupbuy_revenue"),
+                item.get("groupbuy_orders"),
+                item.get("manual_revenue"),
+                item.get("total_revenue"),
+                goal.get("target_spend"),
+                goal.get("target_revenue"),
+            ]
+        )
+        for ci, val in enumerate(row_vals, start=1):
+            cell = ws.cell(row=ri, column=ci, value=val)
+            if isinstance(val, (int, float)) and ci in money_cols:
+                cell.number_format = money_fmt
+
+    widths = [10, 14] + [14] * len(channel_order) + [14, 12, 14, 14, 12, 12]
+    for i, w in enumerate(widths, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+    ws.freeze_panes = "A2"
+
+    # ── Sheet2: 캠페인별 공동구매 ──
+    ws2 = wb.create_sheet("캠페인별 공동구매")
+    ch_headers = ["캠페인", "매출", "주문수"]
+    for ci, h in enumerate(ch_headers, start=1):
+        cell = ws2.cell(row=1, column=ci, value=h)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = center
+
+    for ri, camp in enumerate(top_campaigns, start=2):
+        ws2.cell(row=ri, column=1, value=camp.get("campaign_name") or "미지정")
+        ws2.cell(row=ri, column=2, value=camp.get("revenue") or 0.0).number_format = money_fmt
+        ws2.cell(row=ri, column=3, value=camp.get("orders") or 0)
+
+    ws2.column_dimensions[get_column_letter(1)].width = 24
+    ws2.column_dimensions[get_column_letter(2)].width = 14
+    ws2.column_dimensions[get_column_letter(3)].width = 10
+    ws2.freeze_panes = "A2"
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    if items:
+        start_label = items[0]["month"]
+        end_label = items[-1]["month"]
+    else:
+        start_label = end_label = "no-data"
+    filename = f"그외마케팅KPI_{start_label}_{end_label}.xlsx"
     quoted = quote(filename)
 
     return StreamingResponse(

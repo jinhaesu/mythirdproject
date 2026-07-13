@@ -27,18 +27,23 @@ class MallOrder(Base):
 
 
 class MonthlyChannelSpend(Base):
-    """채널별 월 예산(목표) / 실적(수동 입력). meta는 actual_amount=None이면 자동 계산값 사용."""
+    """채널별 월 예산(목표) / 실적(수동 입력). meta는 actual_amount=None이면 자동 계산값 사용.
+
+    scope: "mall"(자사몰 카페24로 연결되는 채널) | "external"(그 외 — naver_sa 등
+    자사몰로 연결되지 않는 채널). (month, channel, scope) 유니크.
+    """
     __tablename__ = "monthly_channel_spends"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
     month: Mapped[str] = mapped_column(String(7), index=True)  # "YYYY-MM"
     channel: Mapped[str] = mapped_column(String(30))  # meta | naver_sa | naver_gfa | kakao | google | etc
+    scope: Mapped[str] = mapped_column(String(20), default="mall", server_default="mall", index=True)  # mall | external
     planned_amount: Mapped[float] = mapped_column(Float, default=0)
     actual_amount: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     memo: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
 
     __table_args__ = (
-        UniqueConstraint("month", "channel", name="uq_monthly_channel_spend_month_channel"),
+        UniqueConstraint("month", "channel", "scope", name="uq_monthly_channel_spend_month_channel_scope"),
     )
 
 
@@ -55,6 +60,19 @@ class MarketingGoal(Base):
     target_aov: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     target_new_customers: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     actual_conversion_rate: Mapped[Optional[float]] = mapped_column(Float, nullable=True)  # 수동 입력
+    memo: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
+
+
+class ExternalMarketingGoal(Base):
+    """월별 '그 외(외부)' 마케팅 KPI 목표 — 자사몰로 연결되지 않는 채널(네이버 검색광고 등)
+    광고비 목표 + 어필리에이트 공동구매 등 매출 목표/수동 보정."""
+    __tablename__ = "external_marketing_goals"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
+    month: Mapped[str] = mapped_column(String(7), unique=True, index=True)  # "YYYY-MM"
+    target_spend: Mapped[Optional[float]] = mapped_column(Float, nullable=True)  # 광고비 목표
+    target_revenue: Mapped[Optional[float]] = mapped_column(Float, nullable=True)  # 공동구매 등 매출 목표
+    actual_revenue_manual: Mapped[Optional[float]] = mapped_column(Float, nullable=True)  # 자동 집계 외 판매채널 매출 수동 보정
     memo: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
 
 

@@ -1211,6 +1211,8 @@ export interface KPIChannelSpendUpdatePayload {
   planned_amount?: number | null;
   actual_amount?: number | null;
   memo?: string | null;
+  /** 'mall'(자사몰, 기본값) | 'external'(그 외 채널). 미전달 시 백엔드가 'mall'로 처리 */
+  scope?: 'mall' | 'external';
 }
 
 export interface KPIBackfillOrdersResponse {
@@ -1312,6 +1314,60 @@ export const kpiApi = {
       String(a.period).localeCompare(String(b.period))
     );
     return { keywords: data?.keywords ?? results.map((r) => r.title), series, isAbsolute: false };
+  },
+};
+
+// ─── 그 외 마케팅 KPI (자사몰 외 채널) API (/kpi/external-* 라우터) ───
+
+export interface KPIExternalGoal {
+  month: string;
+  target_spend: number | null;
+  target_revenue: number | null;
+  actual_revenue_manual: number | null;
+  memo: string | null;
+}
+
+export interface KPIExternalMonthSummary {
+  month: string;
+  channel_spends: KPIChannelSpend[];
+  total_spend: number;
+  groupbuy_revenue: number;
+  groupbuy_orders: number;
+  manual_revenue: number;
+  total_revenue: number;
+  goal: KPIExternalGoal | null;
+}
+
+export interface KPIExternalTopCampaign {
+  campaign_id: number;
+  campaign_name: string;
+  revenue: number;
+  orders: number;
+}
+
+export interface KPIExternalSummaryResponse {
+  months: KPIExternalMonthSummary[];
+  top_campaigns: KPIExternalTopCampaign[];
+}
+
+export interface KPIExternalGoalUpdatePayload {
+  target_spend?: number | null;
+  target_revenue?: number | null;
+  actual_revenue_manual?: number | null;
+  memo?: string | null;
+}
+
+export const externalKpiApi = {
+  /** 그 외(자사몰 외) 마케팅 KPI 요약 — 외부 채널 광고비 + 공동구매(어필리에이트) 매출 */
+  getSummary: async (months = 12): Promise<KPIExternalSummaryResponse> => {
+    const { data } = await api.get<KPIExternalSummaryResponse>('/kpi/external-summary', { params: { months } });
+    return data;
+  },
+
+  /** 월별 그 외 채널 목표 upsert (목표 광고비/목표 매출/기타 판매채널 매출) */
+  updateGoal: async (month: string, payload: KPIExternalGoalUpdatePayload): Promise<KPIExternalGoal> => {
+    const { data } = await api.put<KPIExternalGoal>(`/kpi/external-goals/${month}`, payload);
+    return data;
   },
 };
 
