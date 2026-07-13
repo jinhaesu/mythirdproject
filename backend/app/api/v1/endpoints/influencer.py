@@ -98,16 +98,17 @@ def _parse_korean_count(s: str) -> Optional[int]:
 
 
 def _extract_og(html: str, prop: str) -> Optional[str]:
-    m = re.search(
-        rf'<meta[^>]+property=["\']og:{prop}["\'][^>]+content=["\'](.*?)["\']',
-        html, re.IGNORECASE | re.DOTALL,
-    )
-    if not m:
-        m = re.search(
-            rf'<meta[^>]+content=["\'](.*?)["\'][^>]+property=["\']og:{prop}["\']',
-            html, re.IGNORECASE | re.DOTALL,
-        )
-    return _strip_html(m.group(1)) if m else None
+    """og 메타 추출 — 대용량 HTML에서 DOTALL 백트래킹을 피하기 위해
+    <head> 영역만 자르고 <meta> 태그 단위로 선형 스캔한다."""
+    head = html[:200_000]
+    needle = f"og:{prop}"
+    for tag in re.findall(r"<meta\b[^>]*>", head, re.IGNORECASE):
+        if needle not in tag:
+            continue
+        m = re.search(r'content\s*=\s*["\']([^"\']*)["\']', tag, re.IGNORECASE)
+        if m and m.group(1).strip():
+            return _strip_html(m.group(1))
+    return None
 
 
 async def _fetch_youtube_channel(url: str, client: httpx.AsyncClient) -> tuple[Optional[str], Optional[int], str]:
@@ -150,7 +151,7 @@ async def _fetch_youtube_channel(url: str, client: httpx.AsyncClient) -> tuple[O
                 headers=_BROWSER_HEADERS,
             )
             if rss.status_code < 400:
-                titles = re.findall(r"<title>(.*?)</title>", rss.text, re.DOTALL)
+                titles = re.findall(r"<title>([^<]*)</title>", rss.text[:400_000])
                 # 첫 title은 채널명이므로 제외
                 video_titles = [_strip_html(t) for t in titles[1:16] if _strip_html(t)]
         except Exception as e:
@@ -269,31 +270,30 @@ async def _fetch_page_text(url: str) -> Optional[str]:
             resp = await client.get(url, headers=headers)
         if resp.status_code >= 400:
             return None
-        html = resp.text
+        # 대용량 페이지 정규식 백트래킹 방지 — 앞 500KB만 사용
+        html = resp.text[:500_000]
     except Exception as e:
         logger.warning(f"[Influencer] 페이지 fetch 실패 url={url}: {e}")
         return None
 
     parts = []
-    title_m = re.search(r"<title[^>]*>(.*?)</title>", html, re.IGNORECASE | re.DOTALL)
-    if title_m:
+    title_m = re.search(r"<title[^>]*>([^<]*)</title>", html[:200_000], re.IGNORECASE)
+    if title_m and title_m.group(1).strip():
         parts.append(f"[title] {_strip_html(title_m.group(1))}")
 
-    desc_m = re.search(
-        r'<meta[^>]+name=["\']description["\'][^>]+content=["\'](.*?)["\']',
-        html,
-        re.IGNORECASE | re.DOTALL,
-    )
-    if desc_m:
-        parts.append(f"[description] {_strip_html(desc_m.group(1))}")
-
-    og_m = re.search(
-        r'<meta[^>]+property=["\']og:description["\'][^>]+content=["\'](.*?)["\']',
-        html,
-        re.IGNORECASE | re.DOTALL,
-    )
-    if og_m:
-        parts.append(f"[og:description] {_strip_html(og_m.group(1))}")
+    # meta description / og:description — 태그 단위 선형 스캔 (DOTALL 백트래킹 회피)
+    for tag in re.findall(r"<meta\b[^>]*>", html[:200_000], re.IGNORECASE):
+        low = tag.lower()
+        label = None
+        if 'name="description"' in low or "name='description'" in low:
+            label = "description"
+        elif "og:description" in low:
+            label = "og:description"
+        if not label:
+            continue
+        m = re.search(r'content\s*=\s*["\']([^"\']*)["\']', tag, re.IGNORECASE)
+        if m and m.group(1).strip():
+            parts.append(f"[{label}] {_strip_html(m.group(1))}")
 
     # 본문 앞부분: 스크립트/스타일 제거 후 태그 스트립
     body = re.sub(r"<script[\s\S]*?</script>", " ", html, flags=re.IGNORECASE)
@@ -468,20 +468,33 @@ async def analyze_seeding(
     if fetched_follower and not row.follower_count:
         row.follower_count = fetched_follower
 
+    import asyncio
+
     from app.services.ai import ClaudeService
 
     claude = ClaudeService()
     try:
-        result = await claude.analyze_influencer_target(
-            name=row.name,
-            channel=row.channel,
-            url=row.url,
-            page_text=page_text,
-            follower_count=row.follower_count,
-            product=row.product,
-            notes=row.notes,
-            data_quality=data_quality,
+        # ClaudeService는 동기 SDK 클라이언트 — 이벤트 루프 블로킹 방지를 위해
+        # 반드시 스레드에서 실행하고 상한 시간을 건다 (전체 서비스 행 방지).
+        result = await asyncio.wait_for(
+            asyncio.to_thread(
+                lambda: asyncio.run(
+                    claude.analyze_influencer_target(
+                        name=row.name,
+                        channel=row.channel,
+                        url=row.url,
+                        page_text=page_text,
+                        follower_count=row.follower_count,
+                        product=row.product,
+                        notes=row.notes,
+                        data_quality=data_quality,
+                    )
+                )
+            ),
+            timeout=120.0,
         )
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=504, detail="AI 분석 시간 초과(120초). 잠시 후 다시 시도해주세요.")
     except Exception as e:
         logger.error(f"[Influencer] AI 분석 실패 id={seeding_id}: {e}", exc_info=True)
         raise HTTPException(status_code=502, detail=f"AI 분석 요청 실패: {e}")
