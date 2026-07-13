@@ -24,6 +24,11 @@ engine_kwargs = {
 
 if db_url.startswith("sqlite"):
     engine_kwargs["connect_args"] = {"check_same_thread": False}
+else:
+    # lock_timeout: init_db의 ALTER TYPE/TABLE이 다른 컨테이너(예: 행 걸린 구 배포)가
+    # 쥔 락에 막혀 startup이 무한 대기 → 헬스체크 실패 → 배포 실패가 반복되는 것을 방지.
+    # 런타임 쿼리도 락 대기 8초 초과 시 에러로 실패한다 (행보다 실패가 낫다).
+    engine_kwargs["connect_args"] = {"server_settings": {"lock_timeout": "8000"}}
 
 engine = create_async_engine(db_url, **engine_kwargs)
 
