@@ -145,6 +145,9 @@ def _merge_channel_spend(
                 "actual_amount": resolved,
                 "is_auto": is_auto,
                 "memo": row.memo,
+                "channel_label": None if is_auto else row.channel_label,
+                "revenue_linked": False if is_auto else bool(row.revenue_linked),
+                "revenue": None if is_auto else row.revenue,
             }
         )
         total += resolved
@@ -158,6 +161,9 @@ def _merge_channel_spend(
                 "actual_amount": auto_value,
                 "is_auto": True,
                 "memo": None,
+                "channel_label": None,
+                "revenue_linked": False,
+                "revenue": None,
             }
         )
         total += auto_value
@@ -331,6 +337,9 @@ async def _kpi_summary_monthly(db: AsyncSession, months: int) -> dict:
                     "actual_amount": resolved,
                     "is_auto": False,
                     "memo": row.memo,
+                    "channel_label": row.channel_label,
+                    "revenue_linked": bool(row.revenue_linked),
+                    "revenue": row.revenue,
                 }
             )
             total_ad_spend += resolved
@@ -491,6 +500,9 @@ async def _kpi_summary_bucketed(db: AsyncSession, granularity: str, days: int) -
                 "actual_amount": meta_spend,
                 "is_auto": True,
                 "memo": None,
+                "channel_label": None,
+                "revenue_linked": False,
+                "revenue": None,
             },
         ]
         total_ad_spend = round(meta_spend, 2)
@@ -655,6 +667,9 @@ async def _external_summary_monthly(db: AsyncSession, months: int) -> dict:
                     "actual_amount": resolved,
                     "is_auto": False,
                     "memo": row.memo,
+                    "channel_label": row.channel_label,
+                    "revenue_linked": bool(row.revenue_linked),
+                    "revenue": row.revenue,
                 }
             )
             total_spend += resolved
@@ -663,7 +678,11 @@ async def _external_summary_monthly(db: AsyncSession, months: int) -> dict:
         groupbuy_orders = groupbuy_orders_by_month.get(month_key, 0)
         goal = goal_by_month.get(month_key)
         manual_revenue = goal.actual_revenue_manual if goal else None
-        total_revenue = round(groupbuy_revenue + (manual_revenue or 0.0), 2)
+        # 매출 관여 채널의 채널 매출 합 (scope='external' 행 중 revenue_linked=True)
+        channel_revenue = round(
+            sum((row.revenue or 0.0) for row in rows_this_month if row.revenue_linked), 2
+        )
+        total_revenue = round(groupbuy_revenue + channel_revenue + (manual_revenue or 0.0), 2)
 
         months_out.append(
             {
@@ -672,6 +691,7 @@ async def _external_summary_monthly(db: AsyncSession, months: int) -> dict:
                 "total_spend": round(total_spend, 2),
                 "groupbuy_revenue": groupbuy_revenue,
                 "groupbuy_orders": groupbuy_orders,
+                "channel_revenue": channel_revenue,
                 "manual_revenue": manual_revenue,
                 "total_revenue": total_revenue,
                 "goal": _serialize_external_goal(goal) if goal else None,
@@ -818,6 +838,9 @@ class ChannelSpendUpsert(BaseModel):
     planned_amount: Optional[float] = None
     actual_amount: Optional[float] = None
     memo: Optional[str] = None
+    revenue_linked: Optional[bool] = None  # 매출 관여 여부 (True면 해당 채널 매출도 등록)
+    revenue: Optional[float] = None  # 관여 시 해당 채널 매출
+    channel_label: Optional[str] = None  # channel='etc' 등 커스텀 채널명
 
 
 @router.put("/channel-spend")
@@ -829,6 +852,8 @@ async def upsert_channel_spend(
     """채널별 월 광고비(예산/실적) upsert. (month, channel, scope) 유니크 기준.
 
     scope 미지정 시 "mall"(자사몰). "external"이면 그 외(외부) KPI에 반영된다.
+    revenue_linked=True(매출 관여)이면 revenue(해당 채널 매출)도 함께 저장한다.
+    channel='etc' 선택 시 channel_label로 커스텀 채널명을 지정할 수 있다.
     """
     _validate_month(payload.month)
     if not payload.channel or not payload.channel.strip():
@@ -856,6 +881,12 @@ async def upsert_channel_spend(
         row.actual_amount = payload.actual_amount
     if payload.memo is not None:
         row.memo = payload.memo
+    if payload.revenue_linked is not None:
+        row.revenue_linked = payload.revenue_linked
+    if payload.revenue is not None:
+        row.revenue = payload.revenue
+    if payload.channel_label is not None:
+        row.channel_label = payload.channel_label
 
     await db.commit()
     await db.refresh(row)
@@ -867,6 +898,9 @@ async def upsert_channel_spend(
         "planned_amount": row.planned_amount,
         "actual_amount": row.actual_amount,
         "memo": row.memo,
+        "channel_label": row.channel_label,
+        "revenue_linked": row.revenue_linked,
+        "revenue": row.revenue,
     }
 
 
@@ -1403,14 +1437,15 @@ async def export_external_kpi_excel(
                 channel_order.append(ch)
 
     headers = ["월", "총광고비"] + [f"{ch} 광고비" for ch in channel_order] + [
-        "공동구매 매출", "공동구매 주문수", "기타 매출(수동)", "총 매출", "목표 광고비", "목표 매출",
+        "채널 매출 합", "공동구매 매출", "공동구매 주문수", "기타 매출(수동)", "총 매출", "목표 광고비", "목표 매출",
     ]
     money_cols = set(range(2, 3 + len(channel_order))) | {
-        3 + len(channel_order),  # 공동구매 매출
-        5 + len(channel_order),  # 기타 매출(수동)
-        6 + len(channel_order),  # 총 매출
-        7 + len(channel_order),  # 목표 광고비
-        8 + len(channel_order),  # 목표 매출
+        3 + len(channel_order),  # 채널 매출 합
+        4 + len(channel_order),  # 공동구매 매출
+        6 + len(channel_order),  # 기타 매출(수동)
+        7 + len(channel_order),  # 총 매출
+        8 + len(channel_order),  # 목표 광고비
+        9 + len(channel_order),  # 목표 매출
     }
 
     wb = Workbook()
@@ -1431,6 +1466,7 @@ async def export_external_kpi_excel(
             [item["month"], item.get("total_spend")]
             + [round(spend_by_channel.get(ch, 0.0), 2) for ch in channel_order]
             + [
+                item.get("channel_revenue"),
                 item.get("groupbuy_revenue"),
                 item.get("groupbuy_orders"),
                 item.get("manual_revenue"),
@@ -1444,7 +1480,7 @@ async def export_external_kpi_excel(
             if isinstance(val, (int, float)) and ci in money_cols:
                 cell.number_format = money_fmt
 
-    widths = [10, 14] + [14] * len(channel_order) + [14, 12, 14, 14, 12, 12]
+    widths = [10, 14] + [14] * len(channel_order) + [14, 14, 12, 14, 14, 12, 12]
     for i, w in enumerate(widths, start=1):
         ws.column_dimensions[get_column_letter(i)].width = w
     ws.freeze_panes = "A2"
@@ -1467,6 +1503,42 @@ async def export_external_kpi_excel(
     ws2.column_dimensions[get_column_letter(2)].width = 14
     ws2.column_dimensions[get_column_letter(3)].width = 10
     ws2.freeze_panes = "A2"
+
+    # ── Sheet3: 채널별 상세 (매출 관여/비관여 구분 + 채널 매출 + ROAS) ──
+    ws3 = wb.create_sheet("채널별 상세")
+    d_headers = ["월", "채널", "유형", "예산", "광고비", "매출", "ROAS", "메모"]
+    for ci, h in enumerate(d_headers, start=1):
+        cell = ws3.cell(row=1, column=ci, value=h)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = center
+
+    r = 2
+    for item in items:
+        for cs in item.get("channel_spends") or []:
+            revenue_linked = bool(cs.get("revenue_linked"))
+            actual = cs.get("actual_amount") or 0.0
+            revenue = cs.get("revenue") if revenue_linked else None
+            roas = round(revenue / actual, 2) if (revenue_linked and revenue is not None and actual) else None
+
+            ws3.cell(row=r, column=1, value=item["month"])
+            ws3.cell(row=r, column=2, value=cs.get("channel_label") or cs.get("channel"))
+            ws3.cell(row=r, column=3, value="관여" if revenue_linked else "비관여")
+            ws3.cell(row=r, column=4, value=cs.get("planned_amount") or 0.0).number_format = money_fmt
+            ws3.cell(row=r, column=5, value=actual).number_format = money_fmt
+            revenue_cell = ws3.cell(row=r, column=6, value=revenue)
+            if revenue is not None:
+                revenue_cell.number_format = money_fmt
+            roas_cell = ws3.cell(row=r, column=7, value=roas)
+            if roas is not None:
+                roas_cell.number_format = "0.00"
+            ws3.cell(row=r, column=8, value=cs.get("memo") or "")
+            r += 1
+
+    d_widths = [10, 16, 10, 14, 14, 14, 10, 24]
+    for i, w in enumerate(d_widths, start=1):
+        ws3.column_dimensions[get_column_letter(i)].width = w
+    ws3.freeze_panes = "A2"
 
     buf = BytesIO()
     wb.save(buf)

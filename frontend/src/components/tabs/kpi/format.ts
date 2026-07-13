@@ -8,6 +8,8 @@ export const CHANNEL_LABELS: Record<string, string> = {
   naver_gfa: '네이버 GFA',
   kakao: '카카오',
   google: '구글',
+  smartstore: '스마트스토어',
+  coupang: '쿠팡',
   etc: '기타',
 };
 
@@ -17,6 +19,8 @@ export const CHANNEL_COLORS: Record<string, string> = {
   naver_gfa: '#00B36B',
   kakao: '#FEE500',
   google: '#EA4335',
+  smartstore: '#1EC800',
+  coupang: '#E5322D',
   etc: '#8A8F98',
 };
 

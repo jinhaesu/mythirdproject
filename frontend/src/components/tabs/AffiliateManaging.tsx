@@ -1228,15 +1228,24 @@ function heatColor(ratio: number): string {
 
 function DashboardSection() {
   const [days, setDays] = useState<7 | 30 | 90>(7);
+  /** 커스텀 기간 (직접 지정) — 활성 시 days 대신 since/until 사용 */
+  const [customMode, setCustomMode] = useState(false);
+  const [customSince, setCustomSince] = useState('');
+  const [customUntil, setCustomUntil] = useState('');
   /** 전환 귀속 기준: 전환(주문) 발생일 vs 클릭 발생일 */
   const [basis, setBasis] = useState<'converted' | 'clicked'>('converted');
   const [heatmapDays, setHeatmapDays] = useState<7 | 30 | 90>(30);
   /** 히트맵 hover cell: "dow_hour" 키 */
   const [hoveredCell, setHoveredCell] = useState<string | null>(null);
 
+  const range = customMode && customSince && customUntil && customSince <= customUntil
+    ? { since: customSince, until: customUntil }
+    : undefined;
+  const rangeKey = range ? `${range.since}~${range.until}` : days;
+
   const { data, isLoading, isError } = useQuery<DashboardData>({
-    queryKey: ['affiliate', 'dashboard', days, basis],
-    queryFn: () => affiliateApi.getDashboard(days, basis),
+    queryKey: ['affiliate', 'dashboard', rangeKey, basis],
+    queryFn: () => affiliateApi.getDashboard(days, basis, range),
     retry: 1,
   });
 
@@ -1244,25 +1253,37 @@ function DashboardSection() {
     data: timeseriesRaw = [],
     isLoading: tsLoading,
   } = useQuery<AffiliateTimeseriesPoint[]>({
-    queryKey: ['affiliate-timeseries', days],
-    queryFn: () => affiliateApi.getDashboardTimeseries(days),
+    queryKey: ['affiliate-timeseries', rangeKey],
+    queryFn: () => affiliateApi.getDashboardTimeseries(days, range),
     retry: 1,
   });
 
-  // X축 고정: 데이터가 없는 날짜도 포함해 최근 N일을 빠짐없이 표시
+  // X축 고정: 데이터가 없는 날짜도 포함해 선택 기간을 빠짐없이 표시
   const timeseries = useMemo(() => {
     const byDate: Record<string, AffiliateTimeseriesPoint> = {};
     for (const row of timeseriesRaw) byDate[row.date] = row;
     const out: AffiliateTimeseriesPoint[] = [];
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    for (let i = days - 1; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(today.getDate() - i);
+    const fmt = (d: Date) => {
       const yyyy = d.getFullYear();
       const mm = String(d.getMonth() + 1).padStart(2, '0');
       const dd = String(d.getDate()).padStart(2, '0');
-      const key = `${yyyy}-${mm}-${dd}`;
+      return `${yyyy}-${mm}-${dd}`;
+    };
+    let start: Date;
+    let end: Date;
+    if (range) {
+      start = new Date(range.since + 'T00:00:00');
+      end = new Date(range.until + 'T00:00:00');
+      // 과도한 포인트 방지 (1년 상한)
+      if ((end.getTime() - start.getTime()) / 86400000 > 366) return timeseriesRaw;
+    } else {
+      end = new Date();
+      end.setHours(0, 0, 0, 0);
+      start = new Date(end);
+      start.setDate(end.getDate() - (days - 1));
+    }
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      const key = fmt(d);
       out.push(byDate[key] ?? {
         date: key,
         revenue: 0, commission: 0, clicks: 0, conversions: 0,
@@ -1271,14 +1292,14 @@ function DashboardSection() {
       });
     }
     return out;
-  }, [timeseriesRaw, days]);
+  }, [timeseriesRaw, days, range?.since, range?.until]);
 
   const {
     data: byCampaign = [],
     isLoading: bcLoading,
   } = useQuery<AffiliateByCampaign[]>({
-    queryKey: ['affiliate-by-campaign', days, basis],
-    queryFn: () => affiliateApi.getDashboardByCampaign(days, basis),
+    queryKey: ['affiliate-by-campaign', rangeKey, basis],
+    queryFn: () => affiliateApi.getDashboardByCampaign(days, basis, range),
     retry: 1,
   });
 
@@ -1295,8 +1316,8 @@ function DashboardSection() {
     data: topProducts = [],
     isLoading: topProductsLoading,
   } = useQuery<TopProduct[]>({
-    queryKey: ['affiliate-top-products', days, basis],
-    queryFn: () => affiliateApi.getTopProducts(10, days, basis),
+    queryKey: ['affiliate-top-products', rangeKey, basis],
+    queryFn: () => affiliateApi.getTopProducts(10, days, basis, range),
     retry: 1,
   });
 
@@ -1369,14 +1390,14 @@ function DashboardSection() {
       )}
 
       {/* 기간 선택 — KPI 카드·캠페인 기여도·탑 파트너·차트 전체에 적용 */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <span className="text-xs text-gray-500">기간:</span>
         {([7, 30, 90] as const).map(dd => (
           <button
             key={dd}
-            onClick={() => setDays(dd)}
+            onClick={() => { setDays(dd); setCustomMode(false); }}
             className={`px-3 py-1 text-xs rounded-lg font-medium transition-colors ${
-              days === dd
+              !customMode && days === dd
                 ? 'bg-blue-600 text-white'
                 : 'bg-[#1a1b1e] text-gray-400 border border-[#2a2d35] hover:text-white hover:border-gray-500'
             }`}
@@ -1384,6 +1405,41 @@ function DashboardSection() {
             {dd}일
           </button>
         ))}
+        <button
+          onClick={() => setCustomMode(true)}
+          className={`px-3 py-1 text-xs rounded-lg font-medium transition-colors ${
+            customMode
+              ? 'bg-blue-600 text-white'
+              : 'bg-[#1a1b1e] text-gray-400 border border-[#2a2d35] hover:text-white hover:border-gray-500'
+          }`}
+        >
+          직접 지정
+        </button>
+        {customMode && (
+          <>
+            <input
+              type="date"
+              value={customSince}
+              onChange={(e) => setCustomSince(e.target.value)}
+              max={customUntil || undefined}
+              className="px-2 py-1 text-xs rounded-lg bg-[#1a1b1e] text-gray-300 border border-[#2a2d35] focus:outline-none focus:border-blue-500"
+            />
+            <span className="text-gray-500 text-xs">~</span>
+            <input
+              type="date"
+              value={customUntil}
+              onChange={(e) => setCustomUntil(e.target.value)}
+              min={customSince || undefined}
+              className="px-2 py-1 text-xs rounded-lg bg-[#1a1b1e] text-gray-300 border border-[#2a2d35] focus:outline-none focus:border-blue-500"
+            />
+            {customSince && customUntil && customSince > customUntil && (
+              <span className="text-[10px] text-red-400">시작일이 종료일보다 뒤입니다</span>
+            )}
+            {customMode && !range && !(customSince && customUntil) && (
+              <span className="text-[10px] text-gray-600">시작일·종료일을 선택하세요</span>
+            )}
+          </>
+        )}
         <span className="mx-1 h-4 w-px bg-[#2a2d35]" />
         <span className="text-xs text-gray-500">귀속:</span>
         {([
@@ -1406,7 +1462,7 @@ function DashboardSection() {
           </button>
         ))}
         <span className="text-[10px] text-gray-600 ml-1">
-          아래 모든 지표는 최근 {days}일 · {basis === 'clicked' ? '클릭일' : '전환일'} 기준
+          아래 모든 지표는 {range ? `${range.since} ~ ${range.until}` : `최근 ${days}일`} · {basis === 'clicked' ? '클릭일' : '전환일'} 기준
         </span>
       </div>
 

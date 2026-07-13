@@ -2,7 +2,7 @@
 from datetime import date, datetime
 from typing import Optional
 
-from sqlalchemy import Date, DateTime, Float, Integer, String, UniqueConstraint
+from sqlalchemy import Boolean, Date, DateTime, Float, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.database import Base
@@ -41,6 +41,9 @@ class MonthlyChannelSpend(Base):
     planned_amount: Mapped[float] = mapped_column(Float, default=0)
     actual_amount: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     memo: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    revenue_linked: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")  # 매출 관여 여부
+    revenue: Mapped[Optional[float]] = mapped_column(Float, nullable=True)  # 관여 시 해당 채널 매출
+    channel_label: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)  # channel='etc'일 때 표시명
 
     __table_args__ = (
         UniqueConstraint("month", "channel", "scope", name="uq_monthly_channel_spend_month_channel_scope"),

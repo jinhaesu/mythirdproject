@@ -26,8 +26,19 @@ import { InfluencerSeedingCard } from './kpi/InfluencerSeedingCard';
 import { SponsorshipCard } from './kpi/SponsorshipCard';
 import { NaverQueriesCard } from './kpi/NaverQueriesCard';
 
-// 그 외(자사몰 외) 채널: 네이버 SA/GFA 자동 채널 + 수동 채널
-const EXTERNAL_CHANNEL_KEYS = ['naver_sa', 'naver_gfa', 'kakao', 'google', 'meta', 'etc'] as const;
+// 그 외(자사몰 외) 채널: 네이버 SA/GFA 자동 채널 + 수동 채널 (스택 차트/테이블 전체 집계 대상)
+const EXTERNAL_CHANNEL_KEYS = ['naver_sa', 'naver_gfa', 'kakao', 'google', 'meta', 'smartstore', 'coupang', 'etc'] as const;
+
+// 채널 추가 폼 셀렉트 옵션 (네이버 SA는 자동 집계라 선택 불가 안내만 표시)
+const ADDABLE_CHANNEL_OPTIONS: Array<{ value: string; label: string; disabled?: boolean }> = [
+  { value: 'naver_sa', label: '네이버 SA (자동 집계, 선택 불가)', disabled: true },
+  { value: 'naver_gfa', label: CHANNEL_LABELS.naver_gfa },
+  { value: 'kakao', label: CHANNEL_LABELS.kakao },
+  { value: 'google', label: CHANNEL_LABELS.google },
+  { value: 'smartstore', label: CHANNEL_LABELS.smartstore },
+  { value: 'coupang', label: CHANNEL_LABELS.coupang },
+  { value: 'etc', label: CHANNEL_LABELS.etc },
+];
 
 const monthLabel = (m: string): string => `${parseInt((m.split('-')[1] || '0'), 10)}월`;
 
@@ -95,15 +106,21 @@ function ExternalChannelSpendRow({
 }) {
   const [planned, setPlanned] = useState(item.planned_amount != null ? String(item.planned_amount) : '');
   const [actual, setActual] = useState(item.actual_amount != null ? String(item.actual_amount) : '');
+  const [revenue, setRevenue] = useState(item.revenue != null ? String(item.revenue) : '');
   const [memo, setMemo] = useState(item.memo ?? '');
 
   useEffect(() => {
     setPlanned(item.planned_amount != null ? String(item.planned_amount) : '');
     setActual(item.actual_amount != null ? String(item.actual_amount) : '');
+    setRevenue(item.revenue != null ? String(item.revenue) : '');
     setMemo(item.memo ?? '');
-  }, [item.id, item.planned_amount, item.actual_amount, item.memo]);
+  }, [item.id, item.planned_amount, item.actual_amount, item.revenue, item.memo]);
 
   const isAuto = item.is_auto === true;
+  const isRevenueLinked = item.revenue_linked === true;
+  const displayLabel = (item.channel_label && item.channel_label.trim() !== '')
+    ? item.channel_label
+    : (CHANNEL_LABELS[item.channel] || item.channel);
 
   const commit = () => {
     onSave({
@@ -111,6 +128,7 @@ function ExternalChannelSpendRow({
       channel: item.channel,
       planned_amount: planned.trim() === '' ? null : parseFloat(planned),
       actual_amount: isAuto ? undefined : (actual.trim() === '' ? null : parseFloat(actual)),
+      revenue: isRevenueLinked ? (revenue.trim() === '' ? null : parseFloat(revenue)) : undefined,
       memo: memo.trim() === '' ? null : memo,
     });
   };
@@ -119,14 +137,27 @@ function ExternalChannelSpendRow({
     if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
   };
 
+  const actualNum = actual.trim() === '' ? null : parseFloat(actual);
+  const revenueNum = isRevenueLinked && revenue.trim() !== '' ? parseFloat(revenue) : null;
+  const roasText = (!isRevenueLinked || actualNum === null || !actualNum || revenueNum === null || Number.isNaN(actualNum) || Number.isNaN(revenueNum))
+    ? '-'
+    : `${(revenueNum / actualNum).toFixed(1)}x`;
+
   return (
     <tr className="border-b border-[#23252A] hover:bg-[#141516]/40">
       <td className="px-3 py-2 text-xs text-[#8A8F98] whitespace-nowrap">{month}</td>
       <td className="px-3 py-2 text-xs whitespace-nowrap">
         <span className="inline-flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-full" style={{ background: CHANNEL_COLORS[item.channel] || '#8A8F98' }} />
-          <span className="text-[#D0D6E0]">{CHANNEL_LABELS[item.channel] || item.channel}</span>
+          <span className="text-[#D0D6E0]">{displayLabel}</span>
         </span>
+      </td>
+      <td className="px-3 py-2 whitespace-nowrap">
+        {isRevenueLinked ? (
+          <span className="text-[9px] font-semibold bg-[#27A644]/15 text-[#27A644] px-1.5 py-0.5 rounded-full">매출 관여</span>
+        ) : (
+          <span className="text-[9px] font-semibold bg-[#23252A] text-[#8A8F98] px-1.5 py-0.5 rounded-full">비관여</span>
+        )}
       </td>
       <td className="px-3 py-2">
         <input
@@ -135,7 +166,7 @@ function ExternalChannelSpendRow({
           onBlur={commit}
           onKeyDown={onKeyDown}
           type="number"
-          className="w-28 bg-[#08090A] border border-[#23252A] rounded-lg px-2 py-1 text-xs text-[#F7F8F8] focus:outline-none focus:border-[#5E6AD2]"
+          className="w-24 bg-[#08090A] border border-[#23252A] rounded-lg px-2 py-1 text-xs text-[#F7F8F8] focus:outline-none focus:border-[#5E6AD2]"
           placeholder="0"
         />
       </td>
@@ -152,11 +183,27 @@ function ExternalChannelSpendRow({
             onBlur={commit}
             onKeyDown={onKeyDown}
             type="number"
-            className="w-28 bg-[#08090A] border border-[#23252A] rounded-lg px-2 py-1 text-xs text-[#F7F8F8] focus:outline-none focus:border-[#5E6AD2]"
+            className="w-24 bg-[#08090A] border border-[#23252A] rounded-lg px-2 py-1 text-xs text-[#F7F8F8] focus:outline-none focus:border-[#5E6AD2]"
             placeholder="0"
           />
         )}
       </td>
+      <td className="px-3 py-2">
+        {isRevenueLinked ? (
+          <input
+            value={revenue}
+            onChange={(e: ChangeEvent<HTMLInputElement>) => setRevenue(e.target.value)}
+            onBlur={commit}
+            onKeyDown={onKeyDown}
+            type="number"
+            className="w-24 bg-[#08090A] border border-[#23252A] rounded-lg px-2 py-1 text-xs text-[#F7F8F8] focus:outline-none focus:border-[#5E6AD2]"
+            placeholder="0"
+          />
+        ) : (
+          <span className="text-xs text-[#62666D]">-</span>
+        )}
+      </td>
+      <td className="px-3 py-2 text-xs text-[#8A8F98] whitespace-nowrap">{roasText}</td>
       <td className="px-3 py-2">
         <input
           value={memo}
@@ -164,7 +211,7 @@ function ExternalChannelSpendRow({
           onBlur={commit}
           onKeyDown={onKeyDown}
           type="text"
-          className="w-40 bg-[#08090A] border border-[#23252A] rounded-lg px-2 py-1 text-xs text-[#D0D6E0] focus:outline-none focus:border-[#5E6AD2]"
+          className="w-36 bg-[#08090A] border border-[#23252A] rounded-lg px-2 py-1 text-xs text-[#D0D6E0] focus:outline-none focus:border-[#5E6AD2]"
           placeholder="메모"
         />
       </td>
@@ -260,11 +307,35 @@ export function ExternalMarketingKPI() {
   }, [months]);
 
   const [newMonth, setNewMonth] = useState(defaultMonth);
-  const [newChannel, setNewChannel] = useState<string>('naver_sa');
+  const [newChannel, setNewChannel] = useState<string>('naver_gfa');
+  const [newChannelLabel, setNewChannelLabel] = useState('');
+  const [newRevenueLinked, setNewRevenueLinked] = useState(true);
+  const [newPlanned, setNewPlanned] = useState('');
+  const [newActual, setNewActual] = useState('');
+  const [newRevenue, setNewRevenue] = useState('');
+  const [newMemo, setNewMemo] = useState('');
 
   const addSpend = () => {
     if (!newMonth) return;
-    updateChannelSpendMutation.mutate({ month: newMonth, channel: newChannel });
+    if (newChannel === 'etc' && newChannelLabel.trim() === '') {
+      toast.error('기타 채널의 채널명을 입력해주세요.');
+      return;
+    }
+    updateChannelSpendMutation.mutate({
+      month: newMonth,
+      channel: newChannel,
+      channel_label: newChannel === 'etc' ? newChannelLabel.trim() : null,
+      planned_amount: newPlanned.trim() === '' ? null : parseFloat(newPlanned),
+      actual_amount: newActual.trim() === '' ? null : parseFloat(newActual),
+      revenue_linked: newRevenueLinked,
+      revenue: newRevenueLinked ? (newRevenue.trim() === '' ? null : parseFloat(newRevenue)) : null,
+      memo: newMemo.trim() === '' ? null : newMemo,
+    });
+    setNewChannelLabel('');
+    setNewPlanned('');
+    setNewActual('');
+    setNewRevenue('');
+    setNewMemo('');
   };
 
   // ─── 공동구매(어필리에이트) 매출 차트 데이터 ───
@@ -382,9 +453,9 @@ export function ExternalMarketingKPI() {
             />
             <ExternalGoalCard
               icon={<TrendingUp size={16} />}
-              label="총 매출 (공동구매+수동)"
+              label="총 매출"
               value={fmtWon(currentMonth?.total_revenue ?? null)}
-              showTarget={false}
+              targetLabel={`공동구매 ${fmtWon(currentMonth?.groupbuy_revenue ?? null)} + 채널 매출 ${fmtWon(currentMonth?.channel_revenue ?? null)}`}
             />
           </div>
 
@@ -437,8 +508,11 @@ export function ExternalMarketingKPI() {
                   <tr className="border-b border-[#23252A] text-[10px] text-[#62666D] uppercase tracking-wide">
                     <th className="px-3 py-2">월</th>
                     <th className="px-3 py-2">채널</th>
+                    <th className="px-3 py-2">유형</th>
                     <th className="px-3 py-2">예산</th>
-                    <th className="px-3 py-2">실적</th>
+                    <th className="px-3 py-2">광고비</th>
+                    <th className="px-3 py-2">매출</th>
+                    <th className="px-3 py-2">ROAS</th>
                     <th className="px-3 py-2">메모</th>
                     <th className="px-3 py-2" />
                   </tr>
@@ -455,7 +529,7 @@ export function ExternalMarketingKPI() {
                   ))}
                   {spendRows.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="px-3 py-6 text-center text-xs text-[#62666D]">
+                      <td colSpan={9} className="px-3 py-6 text-center text-xs text-[#62666D]">
                         등록된 채널 광고비가 없습니다.
                       </td>
                     </tr>
@@ -464,29 +538,96 @@ export function ExternalMarketingKPI() {
               </table>
             </div>
 
-            <div className="flex items-center gap-2 mt-3 pt-3 border-t border-[#23252A] flex-wrap">
-              <select
-                value={newChannel}
-                onChange={(e: ChangeEvent<HTMLSelectElement>) => setNewChannel(e.target.value)}
-                className="px-2 py-1.5 bg-[#08090A] border border-[#23252A] rounded-lg text-xs text-[#D0D6E0] focus:outline-none focus:border-[#5E6AD2]"
-              >
-                {EXTERNAL_CHANNEL_KEYS.map((ch) => (
-                  <option key={ch} value={ch}>{CHANNEL_LABELS[ch]}</option>
-                ))}
-              </select>
-              <input
-                type="month"
-                value={newMonth}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => setNewMonth(e.target.value)}
-                className="px-2 py-1.5 bg-[#08090A] border border-[#23252A] rounded-lg text-xs text-[#D0D6E0] focus:outline-none focus:border-[#5E6AD2]"
-              />
-              <button
-                onClick={addSpend}
-                disabled={updateChannelSpendMutation.isPending}
-                className="flex items-center gap-1 px-3 py-1.5 bg-[#5E6AD2] text-white text-xs font-medium rounded-lg hover:bg-[#828FFF] disabled:opacity-50"
-              >
-                <Plus size={12} /> 채널 추가
-              </button>
+            <div className="mt-3 pt-3 border-t border-[#23252A] space-y-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center bg-[#141516] rounded-lg p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setNewRevenueLinked(true)}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                      newRevenueLinked ? 'bg-[#27A644]/15 text-[#27A644]' : 'text-[#8A8F98] hover:text-[#D0D6E0]'
+                    }`}
+                  >
+                    매출 관여
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewRevenueLinked(false)}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                      !newRevenueLinked ? 'bg-[#23252A] text-[#D0D6E0]' : 'text-[#8A8F98] hover:text-[#D0D6E0]'
+                    }`}
+                  >
+                    비관여
+                  </button>
+                </div>
+
+                <select
+                  value={newChannel}
+                  onChange={(e: ChangeEvent<HTMLSelectElement>) => setNewChannel(e.target.value)}
+                  className="px-2 py-1.5 bg-[#08090A] border border-[#23252A] rounded-lg text-xs text-[#D0D6E0] focus:outline-none focus:border-[#5E6AD2]"
+                >
+                  {ADDABLE_CHANNEL_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value} disabled={opt.disabled}>{opt.label}</option>
+                  ))}
+                </select>
+
+                {newChannel === 'etc' && (
+                  <input
+                    value={newChannelLabel}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setNewChannelLabel(e.target.value)}
+                    type="text"
+                    placeholder="채널명 입력"
+                    className="w-32 px-2 py-1.5 bg-[#08090A] border border-[#23252A] rounded-lg text-xs text-[#D0D6E0] focus:outline-none focus:border-[#5E6AD2]"
+                  />
+                )}
+
+                <input
+                  type="month"
+                  value={newMonth}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setNewMonth(e.target.value)}
+                  className="px-2 py-1.5 bg-[#08090A] border border-[#23252A] rounded-lg text-xs text-[#D0D6E0] focus:outline-none focus:border-[#5E6AD2]"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                <input
+                  value={newPlanned}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setNewPlanned(e.target.value)}
+                  type="number"
+                  placeholder="예산 (₩)"
+                  className="w-28 px-2 py-1.5 bg-[#08090A] border border-[#23252A] rounded-lg text-xs text-[#D0D6E0] focus:outline-none focus:border-[#5E6AD2]"
+                />
+                <input
+                  value={newActual}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setNewActual(e.target.value)}
+                  type="number"
+                  placeholder="광고비 (₩)"
+                  className="w-28 px-2 py-1.5 bg-[#08090A] border border-[#23252A] rounded-lg text-xs text-[#D0D6E0] focus:outline-none focus:border-[#5E6AD2]"
+                />
+                {newRevenueLinked && (
+                  <input
+                    value={newRevenue}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setNewRevenue(e.target.value)}
+                    type="number"
+                    placeholder="매출 (₩)"
+                    className="w-28 px-2 py-1.5 bg-[#08090A] border border-[#23252A] rounded-lg text-xs text-[#D0D6E0] focus:outline-none focus:border-[#5E6AD2]"
+                  />
+                )}
+                <input
+                  value={newMemo}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setNewMemo(e.target.value)}
+                  type="text"
+                  placeholder="메모"
+                  className="w-40 px-2 py-1.5 bg-[#08090A] border border-[#23252A] rounded-lg text-xs text-[#D0D6E0] focus:outline-none focus:border-[#5E6AD2]"
+                />
+                <button
+                  onClick={addSpend}
+                  disabled={updateChannelSpendMutation.isPending}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-[#5E6AD2] text-white text-xs font-medium rounded-lg hover:bg-[#828FFF] disabled:opacity-50"
+                >
+                  <Plus size={12} /> 채널 추가
+                </button>
+              </div>
             </div>
           </div>
 
@@ -585,7 +726,7 @@ export function ExternalMarketingKPI() {
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                   <GoalInput label="목표 광고비 (₩)" value={targetSpend} onChange={setTargetSpend} />
                   <GoalInput label="목표 매출 (₩)" value={targetRevenue} onChange={setTargetRevenue} />
-                  <GoalInput label="기타 판매채널 매출(수동, ₩)" value={actualRevenueManual} onChange={setActualRevenueManual} />
+                  <GoalInput label="매출 보정(집계 외 수동 가산, ₩)" value={actualRevenueManual} onChange={setActualRevenueManual} />
                 </div>
                 <div>
                   <label className="text-xs text-[#8A8F98] block mb-1">메모</label>

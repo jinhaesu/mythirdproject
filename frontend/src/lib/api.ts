@@ -909,9 +909,12 @@ export interface TopProduct {
 
 // Affiliate API (TAB: 어필리에이트 관리)
 export const affiliateApi = {
-  getDashboard: async (days?: number, basis?: 'converted' | 'clicked') => {
+  getDashboard: async (days?: number, basis?: 'converted' | 'clicked', range?: { since: string; until: string }) => {
     const { data } = await api.get('/affiliate/dashboard', {
-      params: { ...(days ? { days } : {}), ...(basis === 'clicked' ? { basis } : {}) },
+      params: {
+        ...(range ? { since: range.since, until: range.until } : days ? { days } : {}),
+        ...(basis === 'clicked' ? { basis } : {}),
+      },
     });
     return data;
   },
@@ -1021,13 +1024,18 @@ export const affiliateApi = {
     const { data } = await api.post(`/affiliate/campaigns/${campaignId}/reattach-products`);
     return data;
   },
-  getDashboardTimeseries: async (days = 30): Promise<AffiliateTimeseriesPoint[]> => {
-    const { data } = await api.get('/affiliate/dashboard/timeseries', { params: { days } });
+  getDashboardTimeseries: async (days = 30, range?: { since: string; until: string }): Promise<AffiliateTimeseriesPoint[]> => {
+    const { data } = await api.get('/affiliate/dashboard/timeseries', {
+      params: range ? { days, since: range.since, until: range.until } : { days },
+    });
     return data;
   },
-  getDashboardByCampaign: async (days?: number, basis?: 'converted' | 'clicked'): Promise<AffiliateByCampaign[]> => {
+  getDashboardByCampaign: async (days?: number, basis?: 'converted' | 'clicked', range?: { since: string; until: string }): Promise<AffiliateByCampaign[]> => {
     const { data } = await api.get('/affiliate/dashboard/by-campaign', {
-      params: { ...(days ? { days } : {}), ...(basis === 'clicked' ? { basis } : {}) },
+      params: {
+        ...(range ? { since: range.since, until: range.until } : days ? { days } : {}),
+        ...(basis === 'clicked' ? { basis } : {}),
+      },
     });
     return data;
   },
@@ -1035,9 +1043,13 @@ export const affiliateApi = {
     const { data } = await api.get('/affiliate/dashboard/hourly', { params: { days } });
     return data;
   },
-  getTopProducts: async (limit = 10, days?: number, basis?: 'converted' | 'clicked'): Promise<TopProduct[]> => {
+  getTopProducts: async (limit = 10, days?: number, basis?: 'converted' | 'clicked', range?: { since: string; until: string }): Promise<TopProduct[]> => {
     const { data } = await api.get('/affiliate/dashboard/top-products', {
-      params: { limit, ...(days ? { days } : {}), ...(basis === 'clicked' ? { basis } : {}) },
+      params: {
+        limit,
+        ...(range ? { since: range.since, until: range.until } : days ? { days } : {}),
+        ...(basis === 'clicked' ? { basis } : {}),
+      },
     });
     return data;
   },
@@ -1139,6 +1151,12 @@ export interface KPIChannelSpend {
   actual_amount: number | null;
   is_auto?: boolean; // meta 자동계산 여부
   memo: string | null;
+  /** 기타(etc) 등 채널의 표시명. 지정 시 CHANNEL_LABELS보다 우선 표시 */
+  channel_label?: string | null;
+  /** 이 채널이 매출에 관여하는지 여부 (그 외 마케팅 KPI 채널 광고비 전용) */
+  revenue_linked?: boolean;
+  /** 매출 관여 채널의 채널 매출 (revenue_linked=true일 때만 유효) */
+  revenue?: number | null;
 }
 
 export interface KPIMallMetrics {
@@ -1213,6 +1231,12 @@ export interface KPIChannelSpendUpdatePayload {
   memo?: string | null;
   /** 'mall'(자사몰, 기본값) | 'external'(그 외 채널). 미전달 시 백엔드가 'mall'로 처리 */
   scope?: 'mall' | 'external';
+  /** 기타(etc) 등 채널의 표시명 */
+  channel_label?: string | null;
+  /** 이 채널이 매출에 관여하는지 여부 (그 외 마케팅 KPI 채널 광고비 전용) */
+  revenue_linked?: boolean;
+  /** 매출 관여 채널의 채널 매출 (revenue_linked=true일 때만 유효) */
+  revenue?: number | null;
 }
 
 export interface KPIBackfillOrdersResponse {
@@ -1334,6 +1358,9 @@ export interface KPIExternalMonthSummary {
   groupbuy_revenue: number;
   groupbuy_orders: number;
   manual_revenue: number;
+  /** 매출 관여(revenue_linked) 채널들의 매출 합 */
+  channel_revenue: number;
+  /** groupbuy_revenue + channel_revenue + (manual_revenue||0) */
   total_revenue: number;
   goal: KPIExternalGoal | null;
 }
