@@ -3,14 +3,14 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import {
-  BarChart3, DollarSign, Eye, MousePointer, Target,
+  BarChart3, DollarSign, Download, Eye, MousePointer, Target,
   Play, Pause, ChevronDown, ChevronRight, AlertTriangle, CheckCircle, XCircle,
   Loader2, RefreshCw, Zap, Activity, Users, Layers,
   TrendingUp, TrendingDown, ToggleLeft, ToggleRight, Edit3, Check, X,
   Shield, Sparkles, ArrowRight, Lightbulb, Palette,
   MessageSquare, BarChart2, ExternalLink,
 } from 'lucide-react';
-import { analyticsApi, insightsApi, clearAnalysisCache } from '@/lib/api';
+import { analyticsApi, downloadFile, insightsApi, clearAnalysisCache } from '@/lib/api';
 import type { InsightTrendPoint, InsightTrendCampaign } from '@/lib/api';
 import toast from 'react-hot-toast';
 import type { PerformanceFeedback, CampaignStatusFilter } from '@/types';
@@ -276,6 +276,22 @@ export default function PerformanceDashboard() {
     },
   });
 
+  // 성과 추이 엑셀 다운로드 — 현재 선택된 기간(커스텀/프리셋 range 또는 일수)·granularity 반영
+  const handleExportInsights = async () => {
+    try {
+      const params: Record<string, any> = { granularity: trendView };
+      if (isDateRange) {
+        params.since = effectiveSince;
+        params.until = effectiveUntil;
+      } else {
+        params.days = trendDaysCount;
+      }
+      await downloadFile('/insights/export', params);
+    } catch {
+      toast.error('엑셀 다운로드에 실패했습니다.');
+    }
+  };
+
   const statusMutation = useMutation({
     mutationFn: ({ id, type, status }: { id: string; type: string; status: string }) =>
       analyticsApi.updateStatus(id, type, status),
@@ -520,6 +536,12 @@ export default function PerformanceDashboard() {
                   >
                     <RefreshCw size={12} className={insightRefreshMutation.isPending ? 'animate-spin' : ''} />
                     {insightRefreshMutation.isPending ? '수집 중...' : '지금 수집'}
+                  </button>
+                  <button
+                    onClick={handleExportInsights}
+                    className="flex items-center gap-1.5 px-3 py-1.5 border border-[#23252A] rounded-lg text-xs text-[#D0D6E0] hover:bg-[#141516] transition-all"
+                  >
+                    <Download size={12} /> 엑셀
                   </button>
                 </div>
               </div>

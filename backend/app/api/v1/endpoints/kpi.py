@@ -1,15 +1,16 @@
 """마케팅 KPI 모듈 — 몰 전체 주문 + 채널 광고비 + CAC/LTV/전환율 대시보드.
 
 엔드포인트:
-  GET    /api/v1/kpi/summary?months=6           — 월별 KPI 요약
+  GET    /api/v1/kpi/summary?granularity=month|week|day — KPI 요약 (month=월별 요약, week/day=최근 N일 버킷)
   PUT    /api/v1/kpi/goals/{month}               — 월간 목표 upsert
   GET    /api/v1/kpi/goals?months=12             — 월간 목표 목록
   PUT    /api/v1/kpi/channel-spend               — 채널별 월 광고비 upsert
   DELETE /api/v1/kpi/channel-spend/{id}          — 채널별 월 광고비 삭제
   POST   /api/v1/kpi/backfill-orders             — Cafe24 주문 백필 (MallOrder)
-  GET    /api/v1/kpi/naver-queries               — 네이버 DataLab 검색어트렌드 프록시
+  GET    /api/v1/kpi/naver-queries               — 네이버 DataLab 검색어트렌드 프록시 + 절대 검색량(키워드도구)
   POST   /api/v1/kpi/backfill-naver-spend         — 네이버 검색광고 일별 광고비 백필
   POST   /api/v1/kpi/backfill-visitors            — 카페24 일별 방문자수 백필
+  GET    /api/v1/kpi/export                      — KPI 요약 엑셀 다운로드 (summary와 동일 파라미터)
 """
 import calendar
 import logging
@@ -151,12 +152,19 @@ def _serialize_goal(goal: MarketingGoal) -> dict:
 
 # ── GET /summary ─────────────────────────────────────────────────────────────
 
-@router.get("/summary")
-async def get_kpi_summary(
-    months: int = Query(default=6, ge=1, le=24),
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
+async def _kpi_summary_data(
+    db: AsyncSession,
+    granularity: str,
+    months: int,
+    days: int,
+) -> dict:
+    """summary·export 공용 KPI 집계. granularity=month면 월별, week/day면 최근 days일 버킷."""
+    if granularity == "month":
+        return await _kpi_summary_monthly(db, months)
+    return await _kpi_summary_bucketed(db, granularity, days)
+
+
+async def _kpi_summary_monthly(db: AsyncSession, months: int) -> dict:
     """최근 N개월(당월 포함) 마케팅 KPI 요약. 데이터 부족 항목은 None."""
     month_list = _recent_months(months)
     range_start, _ = _month_bounds(month_list[0])
@@ -351,7 +359,196 @@ async def get_kpi_summary(
             }
         )
 
-    return {"months": months_out}
+    return {"months": months_out, "granularity": "month"}
+
+
+async def _kpi_summary_bucketed(db: AsyncSession, granularity: str, days: int) -> dict:
+    """최근 days일(오늘 포함)을 일/주(월요일 시작) 버킷으로 나눈 마케팅 KPI 요약.
+
+    ltv/ltv_cac/goal은 항상 None (월 단위 전용 지표). channel_spends는 meta/naver_sa
+    자동 2행만 포함한다.
+    """
+    today = date.today()
+    end_date = today
+    start_date = today - timedelta(days=days - 1)
+
+    bucket_bounds: list[tuple[date, date]] = []
+    if granularity == "day":
+        for i in range(days):
+            d = start_date + timedelta(days=i)
+            bucket_bounds.append((d, d))
+    else:  # week (월요일 시작)
+        first_anchor = start_date - timedelta(days=start_date.weekday())
+        cursor = first_anchor
+        while cursor <= end_date:
+            b_end = min(cursor + timedelta(days=6), end_date)
+            bucket_bounds.append((cursor, b_end))
+            cursor += timedelta(days=7)
+
+    range_start = bucket_bounds[0][0]
+    range_end = end_date
+    key_set = {b[0].isoformat() for b in bucket_bounds}
+
+    def _key_for(d: date) -> str:
+        if granularity == "day":
+            return d.isoformat()
+        return (d - timedelta(days=d.weekday())).isoformat()
+
+    # ── Meta 광고비 (일별 스냅샷 → 버킷 합산) ──
+    meta_rows = (
+        await db.execute(
+            select(MetaInsightDaily.date, MetaInsightDaily.spend).where(
+                MetaInsightDaily.level == "campaign",
+                MetaInsightDaily.date >= range_start,
+                MetaInsightDaily.date <= range_end,
+            )
+        )
+    ).all()
+    meta_spend_by_bucket: dict[str, float] = defaultdict(float)
+    for d, spend in meta_rows:
+        meta_spend_by_bucket[_key_for(d)] += float(spend or 0)
+
+    # ── 네이버 검색광고 일별 광고비 (자동 수집 스냅샷 → 버킷 합산) ──
+    naver_rows = (
+        await db.execute(
+            select(ChannelSpendDaily.date, ChannelSpendDaily.spend).where(
+                ChannelSpendDaily.channel == "naver_sa",
+                ChannelSpendDaily.date >= range_start,
+                ChannelSpendDaily.date <= range_end,
+            )
+        )
+    ).all()
+    naver_spend_by_bucket: dict[str, float] = defaultdict(float)
+    for d, spend in naver_rows:
+        naver_spend_by_bucket[_key_for(d)] += float(spend or 0)
+
+    # ── 카페24 일별 방문자수 (자동 수집 스냅샷 → 버킷 합산) ──
+    visitor_rows = (
+        await db.execute(
+            select(MallVisitorsDaily.date, MallVisitorsDaily.visit_count).where(
+                MallVisitorsDaily.date >= range_start,
+                MallVisitorsDaily.date <= range_end,
+            )
+        )
+    ).all()
+    visits_by_bucket: dict[str, int] = defaultdict(int)
+    for d, visit_count in visitor_rows:
+        visits_by_bucket[_key_for(d)] += int(visit_count or 0)
+
+    # ── 몰 전체 주문 (paid) — 조회 범위 전체 로드 ──
+    mall_rows = (
+        await db.execute(
+            select(MallOrder).where(
+                MallOrder.status == "paid",
+                MallOrder.order_date >= range_start,
+                MallOrder.order_date <= range_end,
+            )
+        )
+    ).scalars().all()
+    mall_by_bucket: dict[str, list[MallOrder]] = defaultdict(list)
+    for o in mall_rows:
+        mall_by_bucket[_key_for(o.order_date)].append(o)
+
+    # ── 신규 고객 판별: 회원별 사상 최초 주문일 (전체 기간 기준) ──
+    first_order_rows = (
+        await db.execute(
+            select(MallOrder.member_id, func.min(MallOrder.order_date))
+            .where(MallOrder.status == "paid", MallOrder.member_id.isnot(None))
+            .group_by(MallOrder.member_id)
+        )
+    ).all()
+    new_customers_by_bucket: dict[str, int] = defaultdict(int)
+    for member_id, first_date in first_order_rows:
+        if not (member_id and first_date):
+            continue
+        key = _key_for(first_date)
+        if key in key_set:
+            new_customers_by_bucket[key] += 1
+
+    buckets_out = []
+    for b_start, b_end in bucket_bounds:
+        key = b_start.isoformat()
+        meta_spend = round(meta_spend_by_bucket.get(key, 0.0), 2)
+        naver_spend = round(naver_spend_by_bucket.get(key, 0.0), 2)
+
+        channel_spends = [
+            {
+                "id": None,
+                "month": key,
+                "channel": "meta",
+                "planned_amount": 0.0,
+                "actual_amount": meta_spend,
+                "is_auto": True,
+                "memo": None,
+            },
+            {
+                "id": None,
+                "month": key,
+                "channel": "naver_sa",
+                "planned_amount": 0.0,
+                "actual_amount": naver_spend,
+                "is_auto": True,
+                "memo": None,
+            },
+        ]
+        total_ad_spend = round(meta_spend + naver_spend, 2)
+
+        orders_this_bucket = mall_by_bucket.get(key, [])
+        orders_count = len(orders_this_bucket)
+        revenue = round(sum(o.amount or 0.0 for o in orders_this_bucket), 2)
+        member_ids = {o.member_id for o in orders_this_bucket if o.member_id}
+        buyers = len(member_ids)
+        guest_orders = sum(1 for o in orders_this_bucket if not o.member_id)
+        aov = round(revenue / orders_count, 2) if orders_count else None
+        new_customers = new_customers_by_bucket.get(key, 0)
+        visits = visits_by_bucket.get(key)
+        conversion_rate = round(orders_count / visits * 100, 2) if visits else None
+
+        cac = round(total_ad_spend / new_customers, 2) if new_customers else None
+
+        buckets_out.append(
+            {
+                "month": key,
+                "bucket_end": b_end.isoformat(),
+                "meta_spend": meta_spend,
+                "channel_spends": channel_spends,
+                "total_ad_spend": total_ad_spend,
+                "mall": {
+                    "orders_count": orders_count,
+                    "revenue": revenue,
+                    "buyers": buyers,
+                    "guest_orders": guest_orders,
+                    "aov": aov,
+                    "new_customers": new_customers,
+                    "visits": visits,
+                    "conversion_rate": conversion_rate,
+                },
+                "cac": cac,
+                "ltv": None,
+                "ltv_cac": None,
+                "goal": None,
+            }
+        )
+
+    return {"months": buckets_out, "granularity": granularity}
+
+
+@router.get("/summary")
+async def get_kpi_summary(
+    granularity: str = Query(default="month", description="month | week | day"),
+    months: int = Query(default=6, ge=1, le=24),
+    days: int = Query(default=30, ge=7, le=190, description="week/day granularity 전용 — 최근 N일"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """마케팅 KPI 요약.
+
+    granularity=month(기본): 최근 N개월(months) 월별 요약 (기존 동작 그대로, +"granularity" 필드).
+    granularity=week|day: 최근 N일(days) 주/일 단위 요약. ltv/ltv_cac/goal은 항상 None.
+    """
+    if granularity not in ("month", "week", "day"):
+        raise HTTPException(status_code=422, detail="granularity 는 month, week, day 중 하나여야 합니다.")
+    return await _kpi_summary_data(db, granularity, months, days)
 
 
 # ── Goals ────────────────────────────────────────────────────────────────────
@@ -644,6 +841,29 @@ async def backfill_visitors(
 
 # ── Naver DataLab 검색어트렌드 프록시 ─────────────────────────────────────────
 
+def _parse_qc_count(value) -> int:
+    """네이버 검색광고 키워드도구 월간 검색량 파싱.
+
+    정상적으로는 정수(문자열/숫자)로 오지만, 저노출 키워드는 "< 10" 형태 문자열로
+    올 수 있어 방어적으로 파싱한다. 임계값 미만 표기는 임계값의 절반을 근사치로 사용.
+    """
+    if value is None:
+        return 0
+    if isinstance(value, (int, float)):
+        return int(value)
+    s = str(value).strip()
+    if not s:
+        return 0
+    m = re.match(r"^<\s*([\d,]+)", s)
+    if m:
+        n = int(m.group(1).replace(",", ""))
+        return max(0, n // 2)
+    try:
+        return int(float(s.replace(",", "")))
+    except ValueError:
+        return 0
+
+
 @router.get("/naver-queries")
 async def get_naver_queries(
     keywords: str = Query(..., description="쉼표 구분 키워드 (최대 5개)"),
@@ -699,9 +919,236 @@ async def get_naver_queries(
         )
 
     data = resp.json()
-    return {
+    results = data.get("results", [])
+
+    # ── 절대 검색량 (네이버 검색광고 키워드도구) — 미설정/실패 시 조용히 생략 ──
+    volumes: dict[str, dict] = {}
+    results_absolute: list[dict] = []
+    if settings.NAVER_ADS_API_KEY and settings.NAVER_ADS_SECRET_KEY and settings.NAVER_ADS_CUSTOMER_ID:
+        try:
+            from app.services.naver.search_ads_api import NaverSearchAdsAPI
+
+            ads_client = NaverSearchAdsAPI(
+                api_key=settings.NAVER_ADS_API_KEY,
+                secret_key=settings.NAVER_ADS_SECRET_KEY,
+                customer_id=settings.NAVER_ADS_CUSTOMER_ID,
+            )
+            raw_volumes = await ads_client.get_keyword_search_volume(keyword_list)
+
+            def _norm(s: str) -> str:
+                return re.sub(r"\s+", "", (s or "")).upper()
+
+            norm_map = {_norm(kw): kw for kw in keyword_list}
+            for item in raw_volumes or []:
+                rel = item.get("relKeyword") or item.get("keyword") or ""
+                orig = norm_map.get(_norm(rel))
+                if not orig:
+                    continue
+                pc = _parse_qc_count(item.get("monthlyPcQcCnt"))
+                mobile = _parse_qc_count(item.get("monthlyMobileQcCnt"))
+                volumes[orig] = {"total": pc + mobile, "pc": pc, "mobile": mobile}
+        except Exception as e:
+            logger.warning(f"[KPI] naver-queries 절대 검색량 조회 실패 (무시하고 진행): {e}")
+            volumes = {}
+
+        if volumes:
+            current_month_str = f"{date.today().year:04d}-{date.today().month:02d}"
+            for result in results:
+                title = result.get("title")
+                data_points = result.get("data") or []
+                vol = volumes.get(title)
+                if vol is None:
+                    continue
+                monthly_total = vol["total"]
+
+                # 앵커: 당월 제외, 가장 최근 period 중 ratio>0 인 것
+                anchor_ratio = None
+                for point in sorted(data_points, key=lambda p: p.get("period", ""), reverse=True):
+                    period = point.get("period", "") or ""
+                    if period[:7] == current_month_str:
+                        continue
+                    ratio = point.get("ratio") or 0
+                    if ratio > 0:
+                        anchor_ratio = ratio
+                        break
+                if not anchor_ratio:
+                    continue  # 앵커 없으면 절대값 생략
+
+                abs_data = [
+                    {
+                        "period": point.get("period"),
+                        "count": round((point.get("ratio") or 0) / anchor_ratio * monthly_total),
+                    }
+                    for point in data_points
+                ]
+                results_absolute.append({"title": title, "data": abs_data})
+
+    response = {
         "start_date": start_date.isoformat(),
         "end_date": end_date.isoformat(),
         "keywords": keyword_list,
-        "results": data.get("results", []),
+        "results": results,
     }
+    if volumes:
+        response["volumes"] = volumes
+    if results_absolute:
+        response["results_absolute"] = results_absolute
+    return response
+
+
+# ── 엑셀 다운로드 ──────────────────────────────────────────────────────────────
+
+@router.get("/export")
+async def export_kpi_excel(
+    granularity: str = Query(default="month", description="month | week | day"),
+    months: int = Query(default=6, ge=1, le=24),
+    days: int = Query(default=30, ge=7, le=190, description="week/day granularity 전용 — 최근 N일"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """마케팅 KPI 요약을 엑셀(xlsx)로 다운로드. 파라미터는 /summary와 동일."""
+    if granularity not in ("month", "week", "day"):
+        raise HTTPException(status_code=422, detail="granularity 는 month, week, day 중 하나여야 합니다.")
+
+    from io import BytesIO
+    from urllib.parse import quote
+
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
+    from openpyxl.utils import get_column_letter
+    from fastapi.responses import StreamingResponse
+
+    data = await _kpi_summary_data(db, granularity, months, days)
+    items = data["months"]
+    month_mode = granularity == "month"
+
+    header_font = Font(bold=True)
+    header_fill = PatternFill(start_color="D9D9D9", end_color="D9D9D9", fill_type="solid")
+    center = Alignment(horizontal="center", vertical="center")
+    money_fmt = "#,##0"
+    ratio_fmt = "0.00"
+
+    headers = [
+        "기간", "총광고비", "Meta 광고비", "네이버 광고비",
+        "주문수", "매출", "AOV", "방문자수", "구매전환율(%)",
+        "신규고객수", "CAC", "LTV", "LTV/CAC",
+    ]
+    if month_mode:
+        headers += ["목표CAC", "목표LTV", "목표전환율", "목표AOV", "목표신규"]
+
+    # 1-based 컬럼 인덱스 기준 서식 그룹
+    money_cols = {2, 3, 4, 6, 7, 11, 12}   # 총광고비/Meta/네이버/매출/AOV/CAC/LTV
+    ratio_cols = {9, 13}                    # 구매전환율(%)/LTV_CAC
+    if month_mode:
+        money_cols |= {14, 15, 17}          # 목표CAC/목표LTV/목표AOV
+        ratio_cols |= {16}                  # 목표전환율
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "KPI 요약"
+    for ci, h in enumerate(headers, start=1):
+        cell = ws.cell(row=1, column=ci, value=h)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = center
+
+    for ri, item in enumerate(items, start=2):
+        channel_spends = item.get("channel_spends") or []
+        meta_actual = sum(
+            (cs.get("actual_amount") or 0.0) for cs in channel_spends if cs.get("channel") == "meta"
+        )
+        naver_actual = sum(
+            (cs.get("actual_amount") or 0.0) for cs in channel_spends if cs.get("channel") == "naver_sa"
+        )
+        mall = item.get("mall") or {}
+
+        if month_mode:
+            period_label = item["month"]
+        else:
+            start_s = item["month"]
+            end_s = item.get("bucket_end") or start_s
+            period_label = start_s if start_s == end_s else f"{start_s} ~ {end_s}"
+
+        row_vals = [
+            period_label,
+            item.get("total_ad_spend"),
+            round(meta_actual, 2),
+            round(naver_actual, 2),
+            mall.get("orders_count"),
+            mall.get("revenue"),
+            mall.get("aov"),
+            mall.get("visits"),
+            mall.get("conversion_rate"),
+            mall.get("new_customers"),
+            item.get("cac"),
+            item.get("ltv"),
+            item.get("ltv_cac"),
+        ]
+        if month_mode:
+            goal = item.get("goal") or {}
+            row_vals += [
+                goal.get("target_cac"),
+                goal.get("target_ltv"),
+                goal.get("target_conversion_rate"),
+                goal.get("target_aov"),
+                goal.get("target_new_customers"),
+            ]
+
+        for ci, val in enumerate(row_vals, start=1):
+            cell = ws.cell(row=ri, column=ci, value=val)
+            if isinstance(val, (int, float)):
+                if ci in money_cols:
+                    cell.number_format = money_fmt
+                elif ci in ratio_cols:
+                    cell.number_format = ratio_fmt
+
+    widths = [16, 14, 14, 14, 10, 14, 12, 12, 14, 12, 12, 12, 10]
+    if month_mode:
+        widths += [12, 12, 12, 12, 12]
+    for i, w in enumerate(widths, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+    ws.freeze_panes = "A2"
+
+    # ── Sheet2: 채널 광고비 (월 모드만) ──
+    if month_mode:
+        ws2 = wb.create_sheet("채널 광고비")
+        ch_headers = ["월", "채널", "예산", "실적", "자동여부", "메모"]
+        for ci, h in enumerate(ch_headers, start=1):
+            cell = ws2.cell(row=1, column=ci, value=h)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = center
+
+        r = 2
+        for item in items:
+            for cs in item.get("channel_spends") or []:
+                ws2.cell(row=r, column=1, value=item["month"])
+                ws2.cell(row=r, column=2, value=cs.get("channel"))
+                ws2.cell(row=r, column=3, value=cs.get("planned_amount") or 0.0).number_format = money_fmt
+                ws2.cell(row=r, column=4, value=cs.get("actual_amount") or 0.0).number_format = money_fmt
+                ws2.cell(row=r, column=5, value="자동" if cs.get("is_auto") else "수동")
+                ws2.cell(row=r, column=6, value=cs.get("memo") or "")
+                r += 1
+
+        ch_widths = [10, 14, 14, 14, 10, 24]
+        for i, w in enumerate(ch_widths, start=1):
+            ws2.column_dimensions[get_column_letter(i)].width = w
+        ws2.freeze_panes = "A2"
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    if items:
+        start_label = items[0]["month"]
+        end_label = items[-1].get("bucket_end") or items[-1]["month"]
+    else:
+        start_label = end_label = "no-data"
+    filename = f"마케팅KPI_{start_label}_{end_label}.xlsx"
+    quoted = quote(filename)
+
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quoted}"},
+    )

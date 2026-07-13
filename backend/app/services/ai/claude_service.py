@@ -421,3 +421,61 @@ KPI 데이터:
             "insights": [],
             "recommendations": []
         }
+
+    async def analyze_influencer_target(
+        self,
+        name: str,
+        channel: str,
+        url: Optional[str] = None,
+        page_text: Optional[str] = None,
+        follower_count: Optional[int] = None,
+        product: Optional[str] = None,
+        notes: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        인플루언서 시딩 대상의 타겟 고객층을 분석 (널담은디저트 브랜드 관점).
+        """
+        info_lines = [f"이름/핸들: {name}", f"채널: {channel}"]
+        if url:
+            info_lines.append(f"URL: {url}")
+        if follower_count:
+            info_lines.append(f"팔로워수: {follower_count:,}")
+        if product:
+            info_lines.append(f"시딩 제품: {product}")
+        if notes:
+            info_lines.append(f"메모: {notes}")
+        if page_text:
+            info_lines.append(f"페이지 텍스트 발췌:\n{page_text[:3000]}")
+
+        prompt = f"""당신은 '널담은디저트'(비건/건강 디저트 브랜드, nuldam.com)의 인플루언서 마케팅 담당자입니다.
+아래 인플루언서에게 제품을 시딩할 때의 관점에서 이 인플루언서/채널의 예상 타겟 고객층을 분석해주세요.
+
+{chr(10).join(info_lines)}
+
+JSON 형식으로만 응답해주세요 (다른 텍스트 없이):
+{{
+    "target_segment": "한 줄 요약 (연령대·성별·관심사)",
+    "audience_summary": "3~5문장 상세 분석 (구독자 특성, 콘텐츠 톤, 우리 브랜드 적합도, 예상 전환 포인트)",
+    "follower_estimate": null 또는 숫자
+}}"""
+
+        response = self.client.messages.create(
+            model=self.model,
+            max_tokens=1000,
+            messages=[{"role": "user", "content": prompt}]
+        )
+
+        try:
+            content = response.content[0].text
+            start = content.find("{")
+            end = content.rfind("}") + 1
+            if start >= 0 and end > start:
+                return json.loads(content[start:end])
+        except (json.JSONDecodeError, IndexError):
+            pass
+
+        return {
+            "target_segment": None,
+            "audience_summary": response.content[0].text if response.content else None,
+            "follower_estimate": None,
+        }

@@ -1062,6 +1062,35 @@ export const chatApi = {
   },
 };
 
+// ─── 공통 파일 다운로드 헬퍼 (엑셀 export 등) ───
+
+/** GET 요청으로 blob을 받아 Content-Disposition의 filename*(UTF-8)을 파싱해 다운로드시킨다. */
+export async function downloadFile(path: string, params?: Record<string, any>): Promise<void> {
+  const response = await api.get(path, { params, responseType: 'blob' });
+  const cd: string | undefined = response.headers?.['content-disposition'] || response.headers?.['Content-Disposition'];
+  let filename = (path.split('/').pop() || 'download') + '.xlsx';
+  if (cd) {
+    const m = /filename\*=UTF-8''([^;]+)/i.exec(cd);
+    if (m && m[1]) {
+      try { filename = decodeURIComponent(m[1]); } catch { /* keep default */ }
+    } else {
+      const m2 = /filename="?([^";]+)"?/i.exec(cd);
+      if (m2 && m2[1]) filename = m2[1];
+    }
+  }
+  const blob = new Blob([response.data], {
+    type: response.headers?.['content-type'] || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(url);
+}
+
 // ─── localStorage cache helpers (survives F5 / tab switch) ───
 const CACHE_PREFIX = 'mc_cache_';
 const THREE_HOURS_MS = 3 * 60 * 60 * 1000;
@@ -1136,7 +1165,10 @@ export interface KPIGoal {
 }
 
 export interface KPIMonthSummary {
+  /** granularity='month'이면 "YYYY-MM", week/day면 버킷 시작일 ISO("YYYY-MM-DD") */
   month: string;
+  /** week/day 모드에서만 존재 — 버킷 종료일 ISO */
+  bucket_end?: string | null;
   meta_spend: number;
   channel_spends: KPIChannelSpend[];
   total_ad_spend: number;
@@ -1147,8 +1179,19 @@ export interface KPIMonthSummary {
   goal: KPIGoal | null;
 }
 
+export type KPIGranularity = 'month' | 'week' | 'day';
+
 export interface KPISummaryResponse {
   months: KPIMonthSummary[];
+  granularity?: KPIGranularity;
+}
+
+export interface KPISummaryParams {
+  granularity?: KPIGranularity;
+  /** granularity='month'일 때: 3 | 6 | 12 */
+  months?: number;
+  /** granularity='week' | 'day'일 때: 30 | 90 */
+  days?: number;
 }
 
 export interface KPIGoalUpdatePayload {
@@ -1176,15 +1219,25 @@ export interface KPIBackfillOrdersResponse {
   months: string[]; // 처리된 월 목록 ["2026-01", ...]
 }
 
+export interface KPINaverVolumeStat {
+  total: number;
+  pc: number;
+  mobile: number;
+}
+
 export interface KPINaverQueriesResponse {
   keywords: string[];
   series: Array<Record<string, any>>;
+  /** true면 절대 검색량(results_absolute) 기반, false면 상대지수(results) fallback */
+  isAbsolute: boolean;
+  /** isAbsolute=true일 때만 존재 — 키워드별 최근 기간 총검색량 */
+  volumes?: Record<string, KPINaverVolumeStat>;
 }
 
 export const kpiApi = {
-  /** 월별 KPI 요약 (채널 광고비, 자사몰 지표, CAC/LTV, 목표) */
-  getSummary: async (months = 6): Promise<KPISummaryResponse> => {
-    const { data } = await api.get<KPISummaryResponse>('/kpi/summary', { params: { months } });
+  /** KPI 요약 (채널 광고비, 자사몰 지표, CAC/LTV, 목표). granularity=month|week|day */
+  getSummary: async (params: KPISummaryParams = { granularity: 'month', months: 6 }): Promise<KPISummaryResponse> => {
+    const { data } = await api.get<KPISummaryResponse>('/kpi/summary', { params });
     return data;
   },
 
@@ -1211,13 +1264,39 @@ export const kpiApi = {
     return data;
   },
 
-  /** 네이버 데이터랩 상대 검색량 추이 (키워드 최대 5개, 쉼표 구분).
-   * 백엔드는 DataLab 원본(results: [{title, data: [{period, ratio}]}])을 반환 —
-   * 여기서 차트용 시리즈([{period: "YYYY-MM", [키워드]: ratio}])로 변환한다. */
+  /** 네이버 데이터랩 검색량 추이 (키워드 최대 5개, 쉼표 구분).
+   * 백엔드가 절대 검색량(results_absolute: [{title, data: [{period, count}]}]) + volumes를
+   * 제공하면 그걸로 시리즈를 구성하고 isAbsolute=true 반환. 없으면 상대지수(results:
+   * [{title, data: [{period, ratio}]}]) 기반 fallback으로 isAbsolute=false 반환. */
   getNaverQueries: async (keywords: string[], months = 6): Promise<KPINaverQueriesResponse> => {
     const { data } = await api.get<any>('/kpi/naver-queries', {
       params: { keywords: keywords.join(','), months },
     });
+
+    const resultsAbsolute: Array<{ title: string; data: Array<{ period: string; count: number }> }> | undefined =
+      data?.results_absolute;
+
+    if (resultsAbsolute && resultsAbsolute.length > 0) {
+      const byPeriod: Record<string, Record<string, any>> = {};
+      for (const r of resultsAbsolute) {
+        for (const point of r.data ?? []) {
+          const period = (point.period || '').slice(0, 7); // YYYY-MM
+          if (!period) continue;
+          byPeriod[period] = byPeriod[period] || { period };
+          byPeriod[period][r.title] = point.count;
+        }
+      }
+      const series = Object.values(byPeriod).sort((a, b) =>
+        String(a.period).localeCompare(String(b.period))
+      );
+      return {
+        keywords: data?.keywords ?? resultsAbsolute.map((r) => r.title),
+        series,
+        isAbsolute: true,
+        volumes: data?.volumes,
+      };
+    }
+
     const results: Array<{ title: string; data: Array<{ period: string; ratio: number }> }> =
       data?.results ?? [];
     const byPeriod: Record<string, Record<string, any>> = {};
@@ -1232,7 +1311,90 @@ export const kpiApi = {
     const series = Object.values(byPeriod).sort((a, b) =>
       String(a.period).localeCompare(String(b.period))
     );
-    return { keywords: data?.keywords ?? results.map((r) => r.title), series };
+    return { keywords: data?.keywords ?? results.map((r) => r.title), series, isAbsolute: false };
+  },
+};
+
+// ─── Influencer 시딩 API (/influencer 라우터) ───
+
+export type InfluencerChannel = 'instagram' | 'youtube' | 'blog' | 'tiktok' | 'etc';
+
+export interface InfluencerSeeding {
+  id: number;
+  name: string;
+  channel: string;
+  url?: string | null;
+  follower_count?: number | null;
+  cost?: number | null;
+  seeded_at: string; // YYYY-MM-DD
+  product?: string | null;
+  notes?: string | null;
+  ai_target_segment?: string | null;
+  ai_audience_summary?: string | null;
+  ai_analyzed_at?: string | null;
+}
+
+export interface InfluencerSeedingCreatePayload {
+  name: string;
+  channel: string;
+  url?: string;
+  follower_count?: number;
+  cost?: number;
+  seeded_at: string;
+  product?: string;
+  notes?: string;
+}
+
+export type InfluencerSeedingUpdatePayload = Partial<InfluencerSeedingCreatePayload>;
+
+export interface InfluencerSummaryByChannel { channel: string; total_cost: number; count: number; }
+export interface InfluencerSummaryBySegment { segment: string; total_cost: number; count: number; }
+export interface InfluencerSummaryByMonth { month: string; total_cost: number; count: number; }
+
+export interface InfluencerSummaryResponse {
+  by_channel: InfluencerSummaryByChannel[];
+  by_segment: InfluencerSummaryBySegment[];
+  by_month: InfluencerSummaryByMonth[];
+  total: { cost: number; count: number; analyzed_count: number };
+}
+
+export const influencerApi = {
+  /** 시딩 목록 조회 */
+  listSeedings: async (channel?: string, limit = 200): Promise<InfluencerSeeding[]> => {
+    // 백엔드는 {seedings: [...], count} 래핑으로 응답
+    const { data } = await api.get<{ seedings: InfluencerSeeding[]; count: number }>('/influencer/seedings', {
+      params: { channel: channel || undefined, limit },
+    });
+    return Array.isArray(data) ? data : (data?.seedings ?? []);
+  },
+
+  /** 시딩 등록 */
+  createSeeding: async (payload: InfluencerSeedingCreatePayload): Promise<InfluencerSeeding> => {
+    const { data } = await api.post<InfluencerSeeding>('/influencer/seedings', payload);
+    return data;
+  },
+
+  /** 시딩 부분 수정 */
+  updateSeeding: async (id: number, payload: InfluencerSeedingUpdatePayload): Promise<InfluencerSeeding> => {
+    const { data } = await api.put<InfluencerSeeding>(`/influencer/seedings/${id}`, payload);
+    return data;
+  },
+
+  /** 시딩 삭제 */
+  deleteSeeding: async (id: number): Promise<void> => {
+    await api.delete(`/influencer/seedings/${id}`);
+  },
+
+  /** AI 타겟 세그먼트/오디언스 요약 분석 (10~30초 소요) */
+  analyzeSeeding: async (id: number): Promise<InfluencerSeeding> => {
+    const { data } = await api.post<InfluencerSeeding>(`/influencer/seedings/${id}/analyze`);
+    return data;
+  },
+
+  /** 채널별/세그먼트별/월별 시딩 비용 요약 */
+  getSummary: async (months = 12): Promise<InfluencerSummaryResponse> => {
+    const { data } = await api.get<InfluencerSummaryResponse>('/influencer/summary', { params: { months } });
+    return data;
   },
 };
 

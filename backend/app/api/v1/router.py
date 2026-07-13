@@ -5,7 +5,7 @@ from app.api.v1.endpoints import (
     auth, benchmark, creative, campaign, analytics, dashboard, campaign_planner, chat, market_keywords,
     naver_analytics, naver_campaign, affiliate, partner_auth, partner_portal,
 )
-from app.api.v1.endpoints import cafe24, webhooks, insights, kpi
+from app.api.v1.endpoints import cafe24, webhooks, insights, kpi, influencer
 
 api_router = APIRouter()
 
@@ -133,4 +133,11 @@ api_router.include_router(
     kpi.router,
     prefix="/kpi",
     tags=["Marketing KPI"]
+)
+
+# Influencer Seeding (시딩 비용/대상 기록 + AI 타겟 고객층 분석)
+api_router.include_router(
+    influencer.router,
+    prefix="/influencer",
+    tags=["Influencer Seeding"]
 )
