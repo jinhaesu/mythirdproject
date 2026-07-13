@@ -111,6 +111,33 @@ def _extract_og(html: str, prop: str) -> Optional[str]:
     return None
 
 
+def _titles_from_youtube_html(html: str) -> list[str]:
+    """ytInitialData의 accessibilityText("제목, 조회수 X회 …")에서 영상 제목 추출.
+
+    데이터센터 IP에서 RSS가 404로 차단될 때의 폴백 (2026-07 Railway 실측).
+    """
+    import json as _json
+
+    out: list[str] = []
+    seen: set[str] = set()
+    for m in re.finditer(r'"accessibilityText"\s*:\s*"((?:[^"\\]|\\.){4,300}?)"', html):
+        try:
+            text = _json.loads(f'"{m.group(1)}"')
+        except (ValueError, UnicodeDecodeError):
+            continue
+        if "조회수" not in text and "views" not in text:
+            continue
+        title = re.split(r",\s*조회수", text)[0]
+        title = re.sub(r"\s*[-–]?\s*[\d,.]+[KMB]?\s*views.*$", "", title, flags=re.IGNORECASE).strip()
+        if len(title) < 4 or title in seen:
+            continue
+        seen.add(title)
+        out.append(title)
+        if len(out) >= 15:
+            break
+    return out
+
+
 async def _fetch_youtube_channel(url: str, client: httpx.AsyncClient) -> tuple[Optional[str], Optional[int], str]:
     """유튜브 채널 실데이터: 설명·구독자수(HTML 내 ytInitialData) + RSS 최근 영상 제목.
 
@@ -177,6 +204,17 @@ async def _fetch_youtube_channel(url: str, client: httpx.AsyncClient) -> tuple[O
             await _asyncio.sleep(0.7 * (attempt + 1))
         if video_titles:
             break
+
+    # RSS 차단(데이터센터 IP 404) 폴백 — 페이지 HTML의 ytInitialData에서 제목 직접 추출
+    if not video_titles:
+        video_titles = _titles_from_youtube_html(html)
+        if not video_titles:
+            try:
+                vresp = await client.get(url.rstrip("/") + "/videos", headers=_BROWSER_HEADERS)
+                if vresp.status_code < 400:
+                    video_titles = _titles_from_youtube_html(vresp.text)
+            except Exception as e:
+                logger.warning(f"[Influencer] 유튜브 /videos 폴백 실패: {e}")
 
     if video_titles:
         joined = "\n".join(f"- {t}" for t in video_titles)
