@@ -30,6 +30,7 @@ from app.models.kpi import (
     MallVisitorsDaily,
 )
 from app.models.influencer import InfluencerSeeding
+from app.models.sponsorship import Sponsorship
 
 __all__ = [
     "User",
@@ -73,4 +74,5 @@ __all__ = [
     "ChannelSpendDaily",
     "MallVisitorsDaily",
     "InfluencerSeeding",
+    "Sponsorship",
 ]

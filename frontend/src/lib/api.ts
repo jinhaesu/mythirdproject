@@ -1398,6 +1398,88 @@ export const influencerApi = {
   },
 };
 
+// ─── Sponsorship (협찬 관리) API (/sponsorship 라우터) ───
+
+export type SponsorshipEventType = 'festival' | 'club' | 'marathon' | 'conference' | 'etc';
+
+export interface SponsorshipEvent {
+  id: number;
+  target_name: string;
+  event_type: string;
+  sponsored_at: string; // YYYY-MM-DD
+  product: string;
+  quantity: number;
+  estimated_value?: number | null;
+  reason?: string | null;
+  expected_effect?: string | null;
+  conditions?: string | null;
+  notes?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface SponsorshipEventCreatePayload {
+  target_name: string;
+  event_type: string;
+  sponsored_at: string;
+  product: string;
+  quantity: number;
+  estimated_value?: number;
+  reason?: string;
+  expected_effect?: string;
+  conditions?: string;
+  notes?: string;
+}
+
+export type SponsorshipEventUpdatePayload = Partial<SponsorshipEventCreatePayload>;
+
+export interface SponsorshipByMonth { month: string; count: number; quantity: number; estimated_value: number; }
+export interface SponsorshipByProduct { product: string; count: number; quantity: number; }
+export interface SponsorshipByEventType { event_type: string; count: number; quantity: number; estimated_value: number; }
+export interface SponsorshipByCondition { condition: string; count: number; }
+
+export interface SponsorshipSummaryResponse {
+  by_month: SponsorshipByMonth[];
+  by_product: SponsorshipByProduct[];
+  by_event_type: SponsorshipByEventType[];
+  by_condition: SponsorshipByCondition[];
+  total: { count: number; quantity: number; estimated_value: number };
+}
+
+export const sponsorshipApi = {
+  /** 협찬 이벤트 목록 조회 (event_type 필터 선택) */
+  listEvents: async (eventType?: string, limit = 300): Promise<SponsorshipEvent[]> => {
+    // 백엔드는 {events: [...], count} 래핑으로 응답
+    const { data } = await api.get<{ events: SponsorshipEvent[]; count: number }>('/sponsorship/events', {
+      params: { event_type: eventType || undefined, limit },
+    });
+    return Array.isArray(data) ? data : (data?.events ?? []);
+  },
+
+  /** 협찬 이벤트 등록 */
+  createEvent: async (payload: SponsorshipEventCreatePayload): Promise<SponsorshipEvent> => {
+    const { data } = await api.post<SponsorshipEvent>('/sponsorship/events', payload);
+    return data;
+  },
+
+  /** 협찬 이벤트 부분 수정 */
+  updateEvent: async (id: number, payload: SponsorshipEventUpdatePayload): Promise<SponsorshipEvent> => {
+    const { data } = await api.put<SponsorshipEvent>(`/sponsorship/events/${id}`, payload);
+    return data;
+  },
+
+  /** 협찬 이벤트 삭제 */
+  deleteEvent: async (id: number): Promise<void> => {
+    await api.delete(`/sponsorship/events/${id}`);
+  },
+
+  /** 월별/제품별/행사유형별/조건별 협찬 요약 */
+  getSummary: async (months = 12): Promise<SponsorshipSummaryResponse> => {
+    const { data } = await api.get<SponsorshipSummaryResponse>('/sponsorship/summary', { params: { months } });
+    return data;
+  },
+};
+
 // Currency & number formatting utilities
 export function formatCurrency(amount: number, currency: string = 'KRW'): string {
   if (currency === 'KRW') {

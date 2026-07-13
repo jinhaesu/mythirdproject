@@ -5,7 +5,7 @@ from app.api.v1.endpoints import (
     auth, benchmark, creative, campaign, analytics, dashboard, campaign_planner, chat, market_keywords,
     naver_analytics, naver_campaign, affiliate, partner_auth, partner_portal,
 )
-from app.api.v1.endpoints import cafe24, webhooks, insights, kpi, influencer
+from app.api.v1.endpoints import cafe24, webhooks, insights, kpi, influencer, sponsorship
 
 api_router = APIRouter()
 
@@ -140,4 +140,11 @@ api_router.include_router(
     influencer.router,
     prefix="/influencer",
     tags=["Influencer Seeding"]
+)
+
+# Sponsorship (대학축제/동아리/마라톤/학회 등 행사 제품 협찬 기록·집계)
+api_router.include_router(
+    sponsorship.router,
+    prefix="/sponsorship",
+    tags=["Sponsorship"]
 )
