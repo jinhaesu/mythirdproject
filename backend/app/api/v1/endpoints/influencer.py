@@ -32,6 +32,16 @@ router = APIRouter()
 _UNANALYZED_LABEL = "미분석"
 
 
+def _segment_key(segment: Optional[str]) -> str:
+    """세그먼트 집계 키 정규화 — 분석 실패류('분석 불가', '정보 부족')는 미분석으로 묶는다."""
+    if not segment:
+        return _UNANALYZED_LABEL
+    s = segment.strip()
+    if s.startswith("분석 불가") or s.startswith("정보 부족"):
+        return _UNANALYZED_LABEL
+    return s
+
+
 # ── 공용 헬퍼 ────────────────────────────────────────────────────────────────
 
 def _serialize(row: InfluencerSeeding) -> dict:
@@ -58,6 +68,192 @@ def _parse_date(value: str, field_name: str = "seeded_at") -> date:
         return date.fromisoformat(value)
     except (ValueError, TypeError):
         raise HTTPException(status_code=422, detail=f"{field_name}는 YYYY-MM-DD 형식이어야 합니다.")
+
+
+_BROWSER_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.5",
+}
+
+
+def _parse_korean_count(s: str) -> Optional[int]:
+    """"1.23만", "9.8천", "1.2M", "34.5K", "9,450" 형태를 정수로 변환."""
+    if not s:
+        return None
+    s = s.replace(",", "").replace("명", "").replace("subscribers", "").strip()
+    m = re.match(r"^([\d.]+)\s*([만천억KMkm]?)$", s)
+    if not m:
+        return None
+    try:
+        num = float(m.group(1))
+    except ValueError:
+        return None
+    unit = m.group(2)
+    mult = {"만": 10_000, "천": 1_000, "억": 100_000_000,
+            "K": 1_000, "k": 1_000, "M": 1_000_000, "m": 1_000_000}.get(unit, 1)
+    return int(num * mult)
+
+
+def _extract_og(html: str, prop: str) -> Optional[str]:
+    m = re.search(
+        rf'<meta[^>]+property=["\']og:{prop}["\'][^>]+content=["\'](.*?)["\']',
+        html, re.IGNORECASE | re.DOTALL,
+    )
+    if not m:
+        m = re.search(
+            rf'<meta[^>]+content=["\'](.*?)["\'][^>]+property=["\']og:{prop}["\']',
+            html, re.IGNORECASE | re.DOTALL,
+        )
+    return _strip_html(m.group(1)) if m else None
+
+
+async def _fetch_youtube_channel(url: str, client: httpx.AsyncClient) -> tuple[Optional[str], Optional[int], str]:
+    """유튜브 채널 실데이터: 설명·구독자수(HTML 내 ytInitialData) + RSS 최근 영상 제목.
+
+    Returns: (텍스트, 구독자수, data_quality)
+    """
+    resp = await client.get(url, headers=_BROWSER_HEADERS)
+    if resp.status_code >= 400:
+        return None, None, "none"
+    html = resp.text
+
+    parts: list[str] = []
+    title = _extract_og(html, "title")
+    if title:
+        parts.append(f"[채널명] {title}")
+
+    desc = _extract_og(html, "description")
+    if desc:
+        parts.append(f"[채널 설명] {desc}")
+
+    subscriber: Optional[int] = None
+    sub_m = re.search(r'구독자\s*([\d.,]+\s*[만천억]?)\s*명', html)
+    if not sub_m:
+        sub_m = re.search(r'"subscriberCountText"[^}]*?"simpleText"\s*:\s*"구독자\s*([^"]+?)명?"', html)
+    if not sub_m:
+        sub_m = re.search(r'([\d.,]+[KM]?)\s*subscribers', html)
+    if sub_m:
+        subscriber = _parse_korean_count(sub_m.group(1).strip())
+        if subscriber:
+            parts.append(f"[구독자수] {subscriber:,}명")
+
+    # 채널 ID → RSS 피드로 최근 영상 제목 수집 (JS 렌더링 무관, 가장 신뢰도 높은 실데이터)
+    video_titles: list[str] = []
+    cid_m = re.search(r'"(?:channelId|externalId)"\s*:\s*"(UC[0-9A-Za-z_-]{16,})"', html)
+    if cid_m:
+        try:
+            rss = await client.get(
+                f"https://www.youtube.com/feeds/videos.xml?channel_id={cid_m.group(1)}",
+                headers=_BROWSER_HEADERS,
+            )
+            if rss.status_code < 400:
+                titles = re.findall(r"<title>(.*?)</title>", rss.text, re.DOTALL)
+                # 첫 title은 채널명이므로 제외
+                video_titles = [_strip_html(t) for t in titles[1:16] if _strip_html(t)]
+        except Exception as e:
+            logger.warning(f"[Influencer] 유튜브 RSS 실패: {e}")
+
+    if video_titles:
+        joined = "\n".join(f"- {t}" for t in video_titles)
+        parts.append(f"[최근 업로드 영상 제목 {len(video_titles)}개]\n{joined}")
+
+    if not parts:
+        return None, None, "none"
+    quality = "rich" if video_titles else "partial"
+    return "\n".join(parts), subscriber, quality
+
+
+async def _fetch_naver_blog(url: str, client: httpx.AsyncClient) -> tuple[Optional[str], Optional[int], str]:
+    """네이버 블로그 실데이터: RSS로 블로그 제목·소개·최근 글 제목/카테고리."""
+    bid_m = re.search(r"blog\.naver\.com/(?:PostList\.naver\?blogId=)?([A-Za-z0-9_-]+)", url)
+    if not bid_m:
+        return None, None, "none"
+    blog_id = bid_m.group(1)
+    if blog_id.lower() in ("postview", "postlist"):
+        q = re.search(r"blogId=([A-Za-z0-9_-]+)", url)
+        if not q:
+            return None, None, "none"
+        blog_id = q.group(1)
+
+    try:
+        rss = await client.get(f"https://rss.blog.naver.com/{blog_id}.xml", headers=_BROWSER_HEADERS)
+    except Exception:
+        return None, None, "none"
+    if rss.status_code >= 400 or "<rss" not in rss.text[:200].lower():
+        return None, None, "none"
+
+    xml = rss.text
+    parts: list[str] = []
+    ch_m = re.search(r"<channel>.*?<title>(.*?)</title>.*?<description>(.*?)</description>", xml, re.DOTALL)
+    if ch_m:
+        parts.append(f"[블로그명] {_strip_html(ch_m.group(1))}")
+        d = _strip_html(ch_m.group(2))
+        if d:
+            parts.append(f"[블로그 소개] {d}")
+
+    item_titles = re.findall(r"<item>.*?<title>(.*?)</title>", xml, re.DOTALL)[:15]
+    cats = list(dict.fromkeys(_strip_html(c) for c in re.findall(r"<category>(.*?)</category>", xml, re.DOTALL)))[:10]
+    if item_titles:
+        joined = "\n".join(f"- {_strip_html(t)}" for t in item_titles)
+        parts.append(f"[최근 글 제목 {len(item_titles)}개]\n{joined}")
+    if cats:
+        parts.append(f"[글 카테고리] {', '.join(cats)}")
+
+    if not parts:
+        return None, None, "none"
+    return "\n".join(parts), None, "rich" if item_titles else "partial"
+
+
+async def _fetch_instagram(url: str, client: httpx.AsyncClient) -> tuple[Optional[str], Optional[int], str]:
+    """인스타그램: og 메타에서 팔로워수·소개 추출 (로그인월이면 none)."""
+    try:
+        resp = await client.get(url, headers=_BROWSER_HEADERS)
+    except Exception:
+        return None, None, "none"
+    if resp.status_code >= 400:
+        return None, None, "none"
+    html = resp.text
+
+    parts: list[str] = []
+    follower: Optional[int] = None
+    og_title = _extract_og(html, "title")
+    og_desc = _extract_og(html, "description")
+    if og_title:
+        parts.append(f"[프로필] {og_title}")
+    if og_desc:
+        parts.append(f"[프로필 설명] {og_desc}")
+        f_m = re.search(r"([\d.,]+[KMkm만천]?)\s*(?:Followers|팔로워)", og_desc)
+        if f_m:
+            follower = _parse_korean_count(f_m.group(1))
+            if follower:
+                parts.append(f"[팔로워수] {follower:,}")
+
+    if not parts:
+        return None, None, "none"
+    # og만으로는 콘텐츠 주제 판단이 어려움 → partial
+    return "\n".join(parts), follower, "partial"
+
+
+async def _fetch_channel_data(url: str, channel: str) -> tuple[Optional[str], Optional[int], str]:
+    """채널 유형별 실데이터 수집. Returns (텍스트, 팔로워/구독자수, data_quality)."""
+    lowered = url.lower()
+    try:
+        async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
+            if "youtube.com" in lowered or "youtu.be" in lowered:
+                return await _fetch_youtube_channel(url, client)
+            if "blog.naver.com" in lowered:
+                return await _fetch_naver_blog(url, client)
+            if "instagram.com" in lowered:
+                return await _fetch_instagram(url, client)
+    except Exception as e:
+        logger.warning(f"[Influencer] 채널 데이터 수집 실패 url={url}: {e}")
+
+    # 일반 페이지 폴백
+    text = await _fetch_page_text(url)
+    return text, None, ("partial" if text else "none")
 
 
 async def _fetch_page_text(url: str) -> Optional[str]:
@@ -263,8 +459,14 @@ async def analyze_seeding(
         raise HTTPException(status_code=404, detail="시딩 항목을 찾을 수 없습니다.")
 
     page_text: Optional[str] = None
+    fetched_follower: Optional[int] = None
+    data_quality = "none"
     if row.url:
-        page_text = await _fetch_page_text(row.url)
+        page_text, fetched_follower, data_quality = await _fetch_channel_data(row.url, row.channel)
+
+    # 실측 팔로워/구독자수는 AI 추정보다 우선
+    if fetched_follower and not row.follower_count:
+        row.follower_count = fetched_follower
 
     from app.services.ai import ClaudeService
 
@@ -278,6 +480,7 @@ async def analyze_seeding(
             follower_count=row.follower_count,
             product=row.product,
             notes=row.notes,
+            data_quality=data_quality,
         )
     except Exception as e:
         logger.error(f"[Influencer] AI 분석 실패 id={seeding_id}: {e}", exc_info=True)
@@ -338,7 +541,7 @@ async def get_summary(
         by_channel[r.channel]["total_cost"] += cost
         by_channel[r.channel]["count"] += 1
 
-        segment_key = r.ai_target_segment or _UNANALYZED_LABEL
+        segment_key = _segment_key(r.ai_target_segment)
         by_segment[segment_key]["total_cost"] += cost
         by_segment[segment_key]["count"] += 1
 
@@ -454,7 +657,7 @@ async def export_seedings(
 
     segment_agg: dict[str, dict] = defaultdict(lambda: {"count": 0, "cost": 0.0})
     for r in rows:
-        key = r.ai_target_segment or _UNANALYZED_LABEL
+        key = _segment_key(r.ai_target_segment)
         segment_agg[key]["count"] += 1
         segment_agg[key]["cost"] += float(r.cost or 0)
     for segment, agg in sorted(segment_agg.items(), key=lambda kv: -kv[1]["cost"]):

@@ -431,9 +431,12 @@ KPI 데이터:
         follower_count: Optional[int] = None,
         product: Optional[str] = None,
         notes: Optional[str] = None,
+        data_quality: str = "unknown",
     ) -> Dict[str, Any]:
         """
         인플루언서 시딩 대상의 타겟 고객층을 분석 (널담은디저트 브랜드 관점).
+
+        data_quality: rich(설명+최근 콘텐츠 제목 확보) | partial(메타데이터 일부) | none(실데이터 없음)
         """
         info_lines = [f"이름/핸들: {name}", f"채널: {channel}"]
         if url:
@@ -445,17 +448,28 @@ KPI 데이터:
         if notes:
             info_lines.append(f"메모: {notes}")
         if page_text:
-            info_lines.append(f"페이지 텍스트 발췌:\n{page_text[:3000]}")
+            info_lines.append(f"수집된 채널 실데이터:\n{page_text[:4000]}")
+        else:
+            info_lines.append("수집된 채널 실데이터: 없음")
 
         prompt = f"""당신은 '널담은디저트'(비건/건강 디저트 브랜드, nuldam.com)의 인플루언서 마케팅 담당자입니다.
 아래 인플루언서에게 제품을 시딩할 때의 관점에서 이 인플루언서/채널의 예상 타겟 고객층을 분석해주세요.
 
 {chr(10).join(info_lines)}
 
+[분석 규칙 — 반드시 지킬 것]
+1. 분석은 반드시 위 **수집된 채널 실데이터**(채널 설명, 최근 콘텐츠 제목, 구독자수 등)에 근거해야 합니다.
+2. 이름·핸들·이모지만으로 성별, 연령대, 콘텐츠 주제를 추측하는 것은 절대 금지입니다. 핸들명은 근거가 아닙니다.
+3. 실데이터가 없거나 콘텐츠 주제를 판단하기에 불충분하면 추측으로 채우지 말고
+   target_segment를 "정보 부족 — 채널 데이터 확인 불가"로 반환하고,
+   audience_summary에는 어떤 데이터가 없어서 분석이 불가한지만 간결히 적으세요.
+4. 최근 콘텐츠 제목이 있으면 그 제목들에서 실제 다루는 주제와 화자 단서를 우선 근거로 삼으세요.
+5. audience_summary 첫 문장에 어떤 실데이터를 근거로 판단했는지 명시하세요.
+
 JSON 형식으로만 응답해주세요 (다른 텍스트 없이):
 {{
-    "target_segment": "한 줄 요약 (연령대·성별·관심사)",
-    "audience_summary": "3~5문장 상세 분석 (구독자 특성, 콘텐츠 톤, 우리 브랜드 적합도, 예상 전환 포인트)",
+    "target_segment": "한 줄 요약 (연령대·성별·관심사) 또는 '정보 부족 — 채널 데이터 확인 불가'",
+    "audience_summary": "3~5문장 상세 분석 (근거 데이터 명시, 구독자 특성, 콘텐츠 톤, 우리 브랜드 적합도, 예상 전환 포인트)",
     "follower_estimate": null 또는 숫자
 }}"""
 

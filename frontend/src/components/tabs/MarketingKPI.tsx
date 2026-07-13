@@ -1127,7 +1127,10 @@ function InfluencerSeedingCard() {
   );
 
   const byChannelData = summary?.by_channel ?? [];
-  const bySegmentData = summary?.by_segment ?? [];
+  // 세그먼트 차트에서 '미분석'은 제외 (분석된 타겟 분포만 표시) — 제외분은 캡션으로 안내
+  const bySegmentAll = summary?.by_segment ?? [];
+  const bySegmentData = bySegmentAll.filter((s) => s.segment !== '미분석');
+  const unanalyzedSeg = bySegmentAll.find((s) => s.segment === '미분석') ?? null;
   const byMonthData = (summary?.by_month ?? []).map((m) => ({ ...m, monthLabel: shortMonth(m.month) }));
 
   return (
@@ -1345,7 +1348,19 @@ function InfluencerSeedingCard() {
         </div>
 
         <div className="bg-[#08090A] border border-[#23252A] rounded-xl p-3">
-          <h4 className="text-xs font-semibold text-[#D0D6E0] mb-2">타겟 세그먼트별 비용</h4>
+          <h4 className="text-xs font-semibold text-[#D0D6E0] mb-2">
+            타겟 세그먼트별 비용
+            {unanalyzedSeg && (
+              <span className="ml-1.5 text-[10px] font-normal text-[#62666D]">
+                (미분석 {unanalyzedSeg.count}건 · {fmtWon(unanalyzedSeg.total_cost)} 제외)
+              </span>
+            )}
+          </h4>
+          {bySegmentData.length === 0 ? (
+            <div className="h-48 flex items-center justify-center">
+              <p className="text-xs text-[#62666D]">AI 분석 완료된 시딩이 아직 없습니다.</p>
+            </div>
+          ) : (
           <div className="h-48">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={bySegmentData} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 0 }}>
@@ -1371,6 +1386,7 @@ function InfluencerSeedingCard() {
               </BarChart>
             </ResponsiveContainer>
           </div>
+          )}
         </div>
       </div>
 
