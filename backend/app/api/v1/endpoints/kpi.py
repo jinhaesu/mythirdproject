@@ -40,6 +40,7 @@ from app.models.affiliate import AffiliateCampaign, ReferralConversion
 from app.models.kpi import (
     ChannelSpendDaily,
     ExternalMarketingGoal,
+    MallMember,
     MallOrder,
     MallVisitorsDaily,
     MarketingGoal,
@@ -352,6 +353,8 @@ async def _kpi_summary_monthly(db: AsyncSession, months: int) -> dict:
         buyers = len(member_ids)
         guest_orders = sum(1 for o in orders_this_month if not o.member_id)
         aov = round(revenue / orders_count, 2) if orders_count else None
+        member_orders = orders_count - guest_orders
+        avg_orders_per_customer = round(member_orders / buyers, 3) if buyers else None
         new_customers = new_customers_by_month.get(month_key, 0)
         visits = visits_by_month.get(month_key)
         conversion_rate = (
@@ -386,6 +389,7 @@ async def _kpi_summary_monthly(db: AsyncSession, months: int) -> dict:
                     "new_customers": new_customers,
                     "visits": visits,
                     "conversion_rate": conversion_rate,
+                    "avg_orders_per_customer": avg_orders_per_customer,
                 },
                 "cac": cac,
                 "ltv": ltv,
@@ -514,6 +518,8 @@ async def _kpi_summary_bucketed(db: AsyncSession, granularity: str, days: int) -
         buyers = len(member_ids)
         guest_orders = sum(1 for o in orders_this_bucket if not o.member_id)
         aov = round(revenue / orders_count, 2) if orders_count else None
+        member_orders = orders_count - guest_orders
+        avg_orders_per_customer = round(member_orders / buyers, 3) if buyers else None
         new_customers = new_customers_by_bucket.get(key, 0)
         visits = visits_by_bucket.get(key)
         conversion_rate = round(orders_count / visits * 100, 2) if visits else None
@@ -536,6 +542,7 @@ async def _kpi_summary_bucketed(db: AsyncSession, granularity: str, days: int) -
                     "new_customers": new_customers,
                     "visits": visits,
                     "conversion_rate": conversion_rate,
+                    "avg_orders_per_customer": avg_orders_per_customer,
                 },
                 "cac": cac,
                 "ltv": None,
@@ -1087,6 +1094,347 @@ async def backfill_visitors(
         raise HTTPException(status_code=502, detail=f"카페24 방문자수 수집 실패: {e}")
 
     return {"upserted": upserted, "since": since_date.isoformat(), "until": until_date.isoformat()}
+
+
+# ── 회원 인구통계 (가입 히트맵 + 연령·성별 CAC/LTV) ──────────────────────────
+
+@router.post("/backfill-members")
+async def backfill_members(
+    mode: str = Query(default="orders", description="orders=구매회원 보강(customers API) | privacy=전체 가입자 백필(customersprivacy, 재동의 필요)"),
+    limit: int = Query(default=500, ge=1, le=2000, description="orders 모드: 이번 호출에서 보강할 회원 수"),
+    since: Optional[str] = Query(default=None, description="privacy 모드: 가입일 시작 YYYY-MM-DD"),
+    until: Optional[str] = Query(default=None, description="privacy 모드: 가입일 끝 YYYY-MM-DD"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """카페24 회원 정보(가입일시·성별·출생연도)를 MallMember에 백필."""
+    from app.services.kpi_collectors import backfill_members_privacy, sync_mall_members
+
+    if mode == "privacy":
+        if not since:
+            raise HTTPException(status_code=422, detail="privacy 모드는 since(YYYY-MM-DD)가 필요합니다.")
+        try:
+            since_d = date.fromisoformat(since)
+            until_d = date.fromisoformat(until) if until else date.today()
+        except ValueError:
+            raise HTTPException(status_code=422, detail="since/until은 YYYY-MM-DD 형식이어야 합니다.")
+        try:
+            return await backfill_members_privacy(db, since_d, until_d)
+        except httpx.HTTPStatusError as e:
+            status_code = e.response.status_code if e.response is not None else 502
+            if status_code == 403:
+                raise HTTPException(
+                    status_code=400,
+                    detail="카페24 앱에 개인정보 읽기(mall.read_privacy) 권한 추가 + 재동의가 필요합니다.",
+                )
+            raise HTTPException(status_code=502, detail=f"카페24 회원 백필 실패: {e}")
+
+    return await sync_mall_members(db, limit=limit)
+
+
+@router.get("/signup-heatmap")
+async def get_signup_heatmap(
+    months: int = Query(default=3, ge=1, le=24),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """기간 내 회원가입 시간대 히트맵 — 요일(월=0)×시간(0~23) 매트릭스.
+
+    데이터 소스: mall_members.joined_at (카페24 회원 가입일시, KST).
+    개인정보 스코프 재동의 전에는 구매 이력이 있는 회원만 포함된다 (coverage 참고).
+    """
+    month_list = _recent_months(months)
+    range_start, _ = _month_bounds(month_list[0])
+    _, range_end = _month_bounds(month_list[-1])
+    start_dt = datetime.combine(range_start, datetime.min.time())
+    end_dt = datetime.combine(range_end + timedelta(days=1), datetime.min.time())
+
+    rows = (
+        await db.execute(
+            select(MallMember.joined_at).where(
+                MallMember.joined_at.isnot(None),
+                MallMember.joined_at >= start_dt,
+                MallMember.joined_at < end_dt,
+            )
+        )
+    ).scalars().all()
+
+    matrix = [[0] * 24 for _ in range(7)]
+    monthly_counts: dict[str, int] = defaultdict(int)
+    for joined in rows:
+        matrix[joined.weekday()][joined.hour] += 1
+        monthly_counts[f"{joined.year:04d}-{joined.month:02d}"] += 1
+
+    total_members = (
+        await db.execute(select(func.count()).select_from(MallMember))
+    ).scalar() or 0
+    with_join = (
+        await db.execute(
+            select(func.count()).select_from(MallMember).where(MallMember.joined_at.isnot(None))
+        )
+    ).scalar() or 0
+    privacy_members = (
+        await db.execute(
+            select(func.count()).select_from(MallMember).where(MallMember.source == "privacy")
+        )
+    ).scalar() or 0
+    buyers_total = (
+        await db.execute(
+            select(func.count(func.distinct(MallOrder.member_id))).where(MallOrder.member_id.isnot(None))
+        )
+    ).scalar() or 0
+
+    return {
+        "since": range_start.isoformat(),
+        "until": range_end.isoformat(),
+        "matrix": matrix,
+        "total": len(rows),
+        "weekday_totals": [sum(r) for r in matrix],
+        "hour_totals": [sum(matrix[w][h] for w in range(7)) for h in range(24)],
+        "monthly_counts": [{"month": m, "count": monthly_counts.get(m, 0)} for m in month_list],
+        "coverage": {
+            "members_enriched": total_members,
+            "members_with_join": with_join,
+            "buyers_total": buyers_total,
+            "privacy_source": privacy_members,
+            "full_signup_data": privacy_members > 0,
+        },
+    }
+
+
+# Meta 연령·성별 광고비 breakdown 캐시 (모듈 레벨, TTL 6시간)
+_meta_demo_cache: dict = {}
+
+
+async def _meta_demographic_spend(db: AsyncSession, since: date, until: date) -> Optional[dict]:
+    """Meta 인사이트 breakdowns=age,gender — 월×연령×성별 광고비.
+
+    반환: {"age": {(month, band): spend}, "gender": {(month, band): spend}} | None(자격증명 없음/실패)
+    """
+    import time as _time
+
+    cache_key = (since.isoformat(), until.isoformat())
+    cached = _meta_demo_cache.get(cache_key)
+    if cached and (_time.time() - cached[0] < 6 * 3600):
+        return cached[1]
+
+    meta_user = (
+        await db.execute(
+            select(User).where(User.meta_access_token.isnot(None), User.meta_access_token != "").limit(1)
+        )
+    ).scalar_one_or_none()
+    if not meta_user or not meta_user.meta_ad_account_id:
+        return None
+
+    ad_account_id = meta_user.meta_ad_account_id
+    if not ad_account_id.startswith("act_"):
+        ad_account_id = f"act_{ad_account_id}"
+
+    settings = get_settings()
+    base = f"{settings.META_GRAPH_API_BASE}/{settings.META_API_VERSION}"
+    params = {
+        "access_token": meta_user.meta_access_token,
+        "level": "account",
+        "fields": "spend",
+        "breakdowns": "age,gender",
+        "time_increment": "monthly",
+        "time_range": f'{{"since":"{since.isoformat()}","until":"{until.isoformat()}"}}',
+        "limit": 500,
+    }
+
+    age_spend: dict[tuple[str, str], float] = defaultdict(float)
+    gender_spend: dict[tuple[str, str], float] = defaultdict(float)
+    try:
+        async with httpx.AsyncClient(timeout=60) as client:
+            url = f"{base}/{ad_account_id}/insights"
+            while True:
+                resp = await client.get(url, params=params)
+                body = resp.json()
+                if body.get("error"):
+                    logger.error(f"[KPI] Meta demographic insights 에러: {body['error']}")
+                    return None
+                for row in body.get("data", []):
+                    month_key = str(row.get("date_start", ""))[:7]
+                    spend = float(row.get("spend") or 0)
+                    age_band = str(row.get("age") or "unknown").lower()
+                    gender_raw = str(row.get("gender") or "unknown").lower()
+                    gender_band = {"male": "M", "female": "F"}.get(gender_raw, "unknown")
+                    age_spend[(month_key, age_band)] += spend
+                    gender_spend[(month_key, gender_band)] += spend
+                next_url = (body.get("paging") or {}).get("next")
+                if not next_url:
+                    break
+                url, params = next_url, {}
+    except Exception as e:
+        logger.error(f"[KPI] Meta demographic insights 호출 실패: {e}")
+        return None
+
+    result = {"age": dict(age_spend), "gender": dict(gender_spend)}
+    _meta_demo_cache[cache_key] = (_time.time(), result)
+    return result
+
+
+# Meta breakdown과 동일한 연령 밴드 사용 — CAC 분자(연령별 광고비)와 분모(연령별 신규고객) 기준 통일
+_AGE_BANDS = ["13-17", "18-24", "25-34", "35-44", "45-54", "55-64", "65+"]
+
+
+def _age_band(birthyear: Optional[int], as_of: date) -> str:
+    if not birthyear:
+        return "unknown"
+    age = as_of.year - birthyear  # 만 나이 근사 (생일 경과 여부 무시)
+    if age < 13:
+        return "unknown"
+    if age <= 17:
+        return "13-17"
+    if age <= 24:
+        return "18-24"
+    if age <= 34:
+        return "25-34"
+    if age <= 44:
+        return "35-44"
+    if age <= 54:
+        return "45-54"
+    if age <= 64:
+        return "55-64"
+    return "65+"
+
+
+@router.get("/demographics")
+async def get_kpi_demographics(
+    months: int = Query(default=6, ge=1, le=24),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """월별 연령대·성별 LTV/CAC/신규고객 — Meta 연령·성별 광고비 실데이터 결합.
+
+    산식(응답 basis에 동일 내용 포함):
+      - 신규고객: 해당 월에 사상 첫 paid 주문을 한 회원. 연령/성별은 mall_members 기준.
+      - LTV: 해당 월 말일 기준 트레일링 180일 동안 paid 주문이 있는 회원 1인당 평균 매출을
+        연령대/성별 그룹별로 계산.
+      - CAC: Meta 연령·성별 breakdown 광고비 ÷ 해당 그룹 신규고객 수. Meta 외 채널(카카오 등
+        수동 입력)은 연령 구분이 불가능해 연령별 CAC에서 제외 → 전체 CAC보다 낮게 표시될 수 있음.
+      - 연령대 밴드는 Meta breakdown과 동일(18-24, 25-34, …) — 분자·분모 기준 통일 목적.
+    """
+    month_list = _recent_months(months)
+    range_start, _ = _month_bounds(month_list[0])
+    _, range_end = _month_bounds(month_list[-1])
+
+    # 회원 인구통계 로드 (전체 — 45k 수준까지는 메모리 무리 없음)
+    member_rows = (
+        await db.execute(select(MallMember.member_id, MallMember.gender, MallMember.birthyear))
+    ).all()
+    member_info = {mid: (g, by) for mid, g, by in member_rows}
+
+    # 첫 주문월 (전체 기간)
+    first_order_rows = (
+        await db.execute(
+            select(MallOrder.member_id, func.min(MallOrder.order_date))
+            .where(MallOrder.status == "paid", MallOrder.member_id.isnot(None))
+            .group_by(MallOrder.member_id)
+        )
+    ).all()
+
+    # LTV용 주문 로드 (트레일링 180일 여유 포함)
+    ltv_rows = (
+        await db.execute(
+            select(MallOrder.member_id, MallOrder.order_date, MallOrder.amount).where(
+                MallOrder.status == "paid",
+                MallOrder.member_id.isnot(None),
+                MallOrder.order_date >= range_start - timedelta(days=180),
+                MallOrder.order_date <= range_end,
+            )
+        )
+    ).all()
+
+    meta_demo = await _meta_demographic_spend(db, range_start, range_end)
+
+    def _bands_for(member_id: str, as_of: date) -> tuple[str, str]:
+        g, by = member_info.get(member_id, (None, None))
+        gender_band = g if g in ("M", "F") else "unknown"
+        return _age_band(by, as_of), gender_band
+
+    # 신규고객 집계: (month, age_band) / (month, gender_band)
+    new_by_age: dict[tuple[str, str], int] = defaultdict(int)
+    new_by_gender: dict[tuple[str, str], int] = defaultdict(int)
+    month_set = set(month_list)
+    for member_id, first_date in first_order_rows:
+        if not (member_id and first_date):
+            continue
+        mk = f"{first_date.year:04d}-{first_date.month:02d}"
+        if mk not in month_set:
+            continue
+        ab, gb = _bands_for(member_id, first_date)
+        new_by_age[(mk, ab)] += 1
+        new_by_gender[(mk, gb)] += 1
+
+    age_rows_out: list[dict] = []
+    gender_rows_out: list[dict] = []
+    for month_key in month_list:
+        _, m_end = _month_bounds(month_key)
+        window_start = m_end - timedelta(days=179)
+
+        # 그룹별 트레일링 180일 매출/고객
+        rev_by_age: dict[str, float] = defaultdict(float)
+        cnt_by_age: dict[str, set] = defaultdict(set)
+        rev_by_gender: dict[str, float] = defaultdict(float)
+        cnt_by_gender: dict[str, set] = defaultdict(set)
+        for member_id, o_date, amount in ltv_rows:
+            if not (window_start <= o_date <= m_end):
+                continue
+            ab, gb = _bands_for(member_id, m_end)
+            rev_by_age[ab] += float(amount or 0)
+            cnt_by_age[ab].add(member_id)
+            rev_by_gender[gb] += float(amount or 0)
+            cnt_by_gender[gb].add(member_id)
+
+        for band in _AGE_BANDS + ["unknown"]:
+            new_c = new_by_age.get((month_key, band), 0)
+            customers = len(cnt_by_age.get(band, set()))
+            ltv = round(rev_by_age[band] / customers, 2) if customers else None
+            meta_spend = None
+            if meta_demo is not None:
+                meta_spend = round(meta_demo["age"].get((month_key, band), 0.0), 2)
+            cac = round(meta_spend / new_c, 2) if (meta_spend and new_c) else None
+            age_rows_out.append({
+                "month": month_key, "band": band, "new_customers": new_c,
+                "ltv_customers": customers, "ltv": ltv, "meta_spend": meta_spend, "cac": cac,
+            })
+
+        for band in ["F", "M", "unknown"]:
+            new_c = new_by_gender.get((month_key, band), 0)
+            customers = len(cnt_by_gender.get(band, set()))
+            ltv = round(rev_by_gender[band] / customers, 2) if customers else None
+            meta_spend = None
+            if meta_demo is not None:
+                meta_spend = round(meta_demo["gender"].get((month_key, band), 0.0), 2)
+            cac = round(meta_spend / new_c, 2) if (meta_spend and new_c) else None
+            gender_rows_out.append({
+                "month": month_key, "band": band, "new_customers": new_c,
+                "ltv_customers": customers, "ltv": ltv, "meta_spend": meta_spend, "cac": cac,
+            })
+
+    gender_known = sum(1 for g, _ in member_info.values() if g in ("M", "F"))
+    birthyear_known = sum(1 for _, by in member_info.values() if by)
+
+    return {
+        "months": month_list,
+        "age_bands": _AGE_BANDS + ["unknown"],
+        "gender_bands": ["F", "M", "unknown"],
+        "age": age_rows_out,
+        "gender": gender_rows_out,
+        "meta_available": meta_demo is not None,
+        "coverage": {
+            "members_enriched": len(member_info),
+            "gender_known": gender_known,
+            "birthyear_known": birthyear_known,
+        },
+        "basis": {
+            "new_customers": "해당 월에 사상 첫 결제(paid) 주문을 한 회원 수. 연령·성별은 카페24 회원정보 기준.",
+            "ltv": "해당 월 말일 기준 최근 180일 내 결제 주문이 있는 회원 1인당 평균 매출(그룹별). 실현 매출 기반 트레일링 LTV — 예측치 아님.",
+            "cac": "Meta 연령·성별 breakdown 광고비 ÷ 그룹별 신규고객 수. 연령 구분이 불가능한 수동 채널(카카오 등) 광고비는 제외되어 전체 CAC보다 낮게 보일 수 있음.",
+            "age_band": "연령대 밴드는 Meta 광고 breakdown과 동일 기준(만 나이 근사 = 기준일 연도 - 출생연도). 출생연도 미보유 회원은 '미상'.",
+        },
+    }
 
 
 # ── Naver DataLab 검색어트렌드 프록시 ─────────────────────────────────────────

@@ -1168,6 +1168,8 @@ export interface KPIMallMetrics {
   new_customers: number;
   visits?: number | null;            // 월 방문자수 (카페24 Analytics, 미수집 시 null)
   conversion_rate?: number | null;   // 구매전환율 % = 주문수/방문자수 (자동 산출)
+  /** 고객 1인당 평균 구매횟수 = 회원 주문수 ÷ 구매 회원수 (비회원 주문 제외) */
+  avg_orders_per_customer?: number | null;
 }
 
 export interface KPIGoal {
@@ -1260,6 +1262,50 @@ export interface KPINaverQueriesResponse {
   volumes?: Record<string, KPINaverVolumeStat>;
 }
 
+export interface KPISignupHeatmapResponse {
+  since: string;
+  until: string;
+  /** 7(요일, 월=0) × 24(시간) 가입자 수 매트릭스 */
+  matrix: number[][];
+  total: number;
+  weekday_totals: number[];
+  hour_totals: number[];
+  monthly_counts: Array<{ month: string; count: number }>;
+  coverage: {
+    members_enriched: number;
+    members_with_join: number;
+    buyers_total: number;
+    privacy_source: number;
+    /** true면 비구매 가입자 포함 전체 가입 데이터 (개인정보 스코프 백필 완료) */
+    full_signup_data: boolean;
+  };
+}
+
+export interface KPIDemographicRow {
+  month: string;
+  band: string;
+  new_customers: number;
+  ltv_customers: number;
+  ltv: number | null;
+  meta_spend: number | null;
+  cac: number | null;
+}
+
+export interface KPIDemographicsResponse {
+  months: string[];
+  age_bands: string[];
+  gender_bands: string[];
+  age: KPIDemographicRow[];
+  gender: KPIDemographicRow[];
+  meta_available: boolean;
+  coverage: {
+    members_enriched: number;
+    gender_known: number;
+    birthyear_known: number;
+  };
+  basis: Record<string, string>;
+}
+
 export const kpiApi = {
   /** KPI 요약 (채널 광고비, 자사몰 지표, CAC/LTV, 목표). granularity=month|week|day */
   getSummary: async (params: KPISummaryParams = { granularity: 'month', months: 6 }): Promise<KPISummaryResponse> => {
@@ -1287,6 +1333,18 @@ export const kpiApi = {
   /** 자사몰 주문 백필 (CAC/LTV 계산용 원천 데이터 수집) */
   backfillOrders: async (since = '2026-01-01'): Promise<KPIBackfillOrdersResponse> => {
     const { data } = await api.post<KPIBackfillOrdersResponse>('/kpi/backfill-orders', null, { params: { since } });
+    return data;
+  },
+
+  /** 회원가입 시간대 히트맵 (요일×시간) */
+  getSignupHeatmap: async (months = 3): Promise<KPISignupHeatmapResponse> => {
+    const { data } = await api.get<KPISignupHeatmapResponse>('/kpi/signup-heatmap', { params: { months } });
+    return data;
+  },
+
+  /** 연령대·성별 LTV/CAC/신규고객 (Meta 연령별 광고비 결합) */
+  getDemographics: async (months = 6): Promise<KPIDemographicsResponse> => {
+    const { data } = await api.get<KPIDemographicsResponse>('/kpi/demographics', { params: { months } });
     return data;
   },
 

@@ -7,7 +7,6 @@ import { authApi } from '@/lib/api';
 import { Header, TabNav, NaverTabNav } from '@/components/layout';
 import { Button, Input, Card } from '@/components/ui';
 import {
-  MarketIntelligence,
   CreativeStudio,
   CampaignPlanner,
   AdsController,
@@ -35,8 +34,13 @@ const _verifiedMagicTokens = new Set<string>();
 
 export default function Home() {
   const { isAuthenticated, setAuth, logout } = useAuthStore();
-  const { activeTab, activePlatform, naverActiveTab } = useAppStore();
+  const { activeTab, activePlatform, naverActiveTab, setActiveTab } = useAppStore();
   const [verifying, setVerifying] = useState(false);
+
+  // 시장 분석 탭(id 0) 제거됨 — 이전 세션에 저장된 activeTab=0은 성과 분석으로 이동
+  useEffect(() => {
+    if (activeTab === 0) setActiveTab(4);
+  }, [activeTab, setActiveTab]);
 
   // 인터셉터의 401 발생 알림을 받아 로그아웃 처리 — 강제 reload 대신
   useEffect(() => {
@@ -140,7 +144,6 @@ export default function Home() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {activePlatform === 'meta' && (
           <>
-            {activeTab === 0 && <MarketIntelligence />}
             {activeTab === 1 && <CreativeStudio />}
             {activeTab === 2 && <CampaignPlanner />}
             {activeTab === 3 && <AdsController />}

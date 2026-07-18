@@ -26,6 +26,27 @@ class MallOrder(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+class MallMember(Base):
+    """카페24 회원 스냅샷 — 가입일시(시간대 히트맵) + 성별/출생연도(인구통계 KPI).
+
+    수집 경로:
+      - customers API(mall.read_customer): 구매 이력 있는 회원 단건 조회 — joined_at, gender.
+        birthday는 이 API에서 항상 None (개인정보 필드).
+      - customersprivacy API(mall.read_privacy, 재동의 필요): 가입일 범위 목록 조회 —
+        비구매 가입자 포함 전체 + birthday. source='privacy'로 업그레이드.
+    joined_at은 KST naive datetime (카페24 응답 +09:00 → tz 제거).
+    """
+    __tablename__ = "mall_members"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
+    member_id: Mapped[str] = mapped_column(String(100), unique=True, index=True)
+    joined_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True, index=True)
+    gender: Mapped[Optional[str]] = mapped_column(String(1), nullable=True)  # M | F
+    birthyear: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    source: Mapped[str] = mapped_column(String(20), default="customers")  # customers | privacy
+    synced_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class MonthlyChannelSpend(Base):
     """채널별 월 예산(목표) / 실적(수동 입력). meta는 actual_amount=None이면 자동 계산값 사용.
 

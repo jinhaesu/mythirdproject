@@ -6,14 +6,14 @@ meta_insights_collector.py와 동일한 select-then-update upsert 패턴(Postgre
 import asyncio
 import logging
 from collections import defaultdict
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.models.kpi import ChannelSpendDaily, MallVisitorsDaily
+from app.models.kpi import ChannelSpendDaily, MallMember, MallOrder, MallVisitorsDaily
 from app.services import cafe24 as cafe24_svc
 from app.services.naver.search_ads_api import NaverSearchAdsAPI
 
@@ -249,6 +249,164 @@ async def collect_mall_visitors(db: AsyncSession, since: date, until: date) -> i
     return upserted
 
 
+# ── C. 카페24 회원 정보 (가입일시/성별/출생연도) ──────────────────────────────
+
+def _parse_kst_datetime(raw) -> Optional[datetime]:
+    """카페24 ISO(+09:00) 문자열 → KST naive datetime."""
+    if not raw:
+        return None
+    try:
+        return datetime.fromisoformat(str(raw)).replace(tzinfo=None)
+    except ValueError:
+        return None
+
+
+def _parse_birthyear(raw) -> Optional[int]:
+    """"YYYY-MM-DD" → 출생연도. 비정상 값(1900 이전/미래)은 None."""
+    if not raw:
+        return None
+    try:
+        y = int(str(raw)[:4])
+    except ValueError:
+        return None
+    from datetime import date as _date
+    return y if 1900 <= y <= _date.today().year else None
+
+
+def _apply_member_row(existing: Optional[MallMember], member_id: str, row: dict, source: str) -> Optional[MallMember]:
+    """카페24 응답 행을 MallMember에 반영. 새 행이면 인스턴스 반환(호출측 db.add), 갱신이면 None.
+
+    privacy 소스가 customers 소스보다 정보가 많으므로(birthday) 덮어쓰되,
+    반대 방향(customers가 privacy를 덮는 것)은 birthday를 None으로 지우지 않도록 필드별 병합.
+    """
+    joined_at = _parse_kst_datetime(row.get("created_date"))
+    gender = row.get("gender") or None
+    if gender not in ("M", "F"):
+        gender = None
+    birthyear = _parse_birthyear(row.get("birthday"))
+
+    if existing:
+        if joined_at:
+            existing.joined_at = joined_at
+        if gender:
+            existing.gender = gender
+        if birthyear:
+            existing.birthyear = birthyear
+            existing.source = "privacy" if source == "privacy" else existing.source
+        if source == "privacy":
+            existing.source = "privacy"
+        existing.synced_at = datetime.utcnow()
+        return None
+    return MallMember(
+        member_id=member_id,
+        joined_at=joined_at,
+        gender=gender,
+        birthyear=birthyear,
+        source=source,
+        synced_at=datetime.utcnow(),
+    )
+
+
+async def sync_mall_members(db: AsyncSession, limit: int = 300) -> dict:
+    """mall_orders에 등장하지만 mall_members에 없는 회원을 customers API로 보강.
+
+    카페24 rate limit(버킷 40, 초당 2 리필)을 고려해 호출 간 0.4초 대기.
+    Returns: {"enriched": n, "remaining": 남은 미보강 회원 수}
+    """
+    cafe24_user = await get_shared_cafe24_user_or_none(db)
+    if not cafe24_user:
+        logger.warning("[KPI Collector] Cafe24 연결 계정 없음 — 회원 동기화 생략.")
+        return {"enriched": 0, "remaining": 0}
+
+    known = select(MallMember.member_id)
+    pending_rows = (
+        await db.execute(
+            select(MallOrder.member_id)
+            .where(MallOrder.member_id.isnot(None), MallOrder.member_id.notin_(known))
+            .group_by(MallOrder.member_id)
+            .order_by(MallOrder.member_id)
+            .limit(limit + 1)
+        )
+    ).scalars().all()
+
+    has_more = len(pending_rows) > limit
+    targets = pending_rows[:limit]
+    enriched = 0
+    for mid in targets:
+        try:
+            row = await cafe24_svc.get_customer(cafe24_user, db, mid)
+        except Exception as e:
+            logger.warning(f"[KPI Collector] 회원 조회 실패 {mid}: {e}")
+            continue
+        if row is None:
+            # 탈퇴 등 조회 불가 — 빈 스텁 저장해서 재시도 루프 방지
+            db.add(MallMember(member_id=mid, source="customers"))
+            enriched += 1
+            continue
+        new_row = _apply_member_row(None, mid, row, "customers")
+        if new_row:
+            db.add(new_row)
+        enriched += 1
+        if enriched % 50 == 0:
+            await db.commit()
+        await asyncio.sleep(0.4)
+
+    await db.commit()
+    remaining_note = -1 if has_more else 0
+    logger.info(f"[KPI Collector] 회원 동기화 완료: {enriched}명 보강 (더 남음: {has_more})")
+    return {"enriched": enriched, "remaining": remaining_note}
+
+
+async def backfill_members_privacy(db: AsyncSession, since: date, until: date) -> dict:
+    """customersprivacy API로 가입일 범위 전체 회원(비구매자 포함) 백필.
+
+    mall.read_privacy 스코프 재동의 후 사용 가능. 월 단위 청크 × offset 페이징.
+    """
+    cafe24_user = await get_shared_cafe24_user_or_none(db)
+    if not cafe24_user:
+        return {"upserted": 0, "error": "Cafe24 연결 계정 없음"}
+
+    upserted = 0
+    for chunk_start, chunk_end in _chunk_date_range_monthly(since, until):
+        offset = 0
+        while True:
+            rows = await cafe24_svc.list_customersprivacy(
+                cafe24_user, db,
+                chunk_start.isoformat(), chunk_end.isoformat(),
+                offset=offset, limit=100,
+            )
+            if not rows:
+                break
+            for row in rows:
+                mid = row.get("member_id")
+                if not mid:
+                    continue
+                existing = (
+                    await db.execute(select(MallMember).where(MallMember.member_id == mid))
+                ).scalar_one_or_none()
+                new_row = _apply_member_row(existing, mid, row, "privacy")
+                if new_row:
+                    db.add(new_row)
+                upserted += 1
+            await db.commit()
+            if len(rows) < 100:
+                break
+            offset += 100
+            if offset > 20000:  # 방어적 상한 (월 2만명 초과 가입은 비정상)
+                logger.warning(f"[KPI Collector] privacy 백필 offset 상한 도달: {chunk_start}")
+                break
+            await asyncio.sleep(0.4)
+
+    logger.info(f"[KPI Collector] privacy 회원 백필 완료: {upserted}명 ({since}~{until})")
+    return {"upserted": upserted}
+
+
+async def get_shared_cafe24_user_or_none(db: AsyncSession):
+    from app.api.v1.endpoints.auth import get_shared_cafe24_user
+
+    return await get_shared_cafe24_user(db)
+
+
 # ── 6시간 주기 수집 루프 ────────────────────────────────────────────────────
 
 async def run_kpi_collector_loop() -> None:
@@ -277,5 +435,12 @@ async def run_kpi_collector_loop() -> None:
                 logger.info(f"[KPI Collector] 방문자수 수집 완료: {v}행")
         except Exception as e:
             logger.error(f"[KPI Collector] 방문자수 수집 루프 에러: {e}", exc_info=True)
+
+        try:
+            async with AsyncSessionLocal() as db:
+                m = await sync_mall_members(db, limit=300)
+                logger.info(f"[KPI Collector] 회원 동기화 완료: {m}")
+        except Exception as e:
+            logger.error(f"[KPI Collector] 회원 동기화 루프 에러: {e}", exc_info=True)
 
         await asyncio.sleep(6 * 3600)

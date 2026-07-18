@@ -352,6 +352,47 @@ async def list_orders(
     return orders
 
 
+async def get_customer(user, db, member_id: str) -> Optional[dict]:
+    """단일 회원 조회 (scope: mall.read_customer).
+
+    반환 필드 중 created_date(가입일시, +09:00 ISO)와 gender만 신뢰 가능 —
+    birthday는 이 API에서 항상 None (customersprivacy 전용 필드).
+    회원이 없으면(탈퇴 등) None 반환.
+    """
+    try:
+        data = await api_request(
+            user, db, "GET", "/api/v2/admin/customers",
+            params={"member_id": member_id},
+        )
+    except httpx.HTTPStatusError as e:
+        # 404/422 (탈퇴 회원 등) → None, 그 외 전파
+        if e.response is not None and e.response.status_code in (404, 422):
+            return None
+        raise
+    rows = data.get("customers") or []
+    return rows[0] if rows else None
+
+
+async def list_customersprivacy(
+    user, db, created_start: str, created_end: str, offset: int = 0, limit: int = 100,
+) -> list:
+    """가입일 범위로 회원 개인정보 목록 조회 (scope: mall.read_privacy — 재동의 필요).
+
+    비구매 가입자 포함 전체 회원 + birthday("YYYY-MM-DD")/gender/created_date 반환.
+    스코프 미허용 시 403 HTTPStatusError 전파.
+    """
+    data = await api_request(
+        user, db, "GET", "/api/v2/admin/customersprivacy",
+        params={
+            "created_start_date": created_start,
+            "created_end_date": created_end,
+            "offset": offset,
+            "limit": limit,
+        },
+    )
+    return data.get("customersprivacy") or []
+
+
 async def get_visitors_daily(user, db, start_date, end_date) -> list:
     """카페24 Analytics API 일별 방문자수 조회.
 

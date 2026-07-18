@@ -23,6 +23,8 @@ import {
   CHANNEL_COLORS, CHANNEL_LABELS,
   achievementBadge, bucketLabel, fmtNum, fmtPercent, fmtRatio, fmtWon, targetText,
 } from './kpi/format';
+import { SignupHeatmapCard } from './kpi/SignupHeatmapCard';
+import { DemographicsCard } from './kpi/DemographicsCard';
 
 // ─── Constants ───
 
@@ -305,6 +307,7 @@ export function MarketingKPI() {
     cac: m.cac,
     ltv: m.ltv,
     ltv_cac: m.ltv_cac,
+    avg_orders: m.mall?.avg_orders_per_customer ?? null,
   })), [months, granularity]);
 
   // ─── Mall metrics chart data ───
@@ -628,7 +631,7 @@ export function MarketingKPI() {
           <div className="bg-[#0F1011] border border-[#23252A] rounded-xl p-4">
             <h3 className="text-sm font-semibold text-[#D0D6E0] mb-3 flex items-center gap-1.5">
               <TrendingUp size={14} className="text-[#7070FF]" />
-              {isMonthMode ? 'CAC·LTV 추이' : 'CAC 추이'}
+              {isMonthMode ? 'CAC·LTV·평균 구매횟수 추이' : 'CAC·평균 구매횟수 추이'}
               {!isMonthMode && (
                 <span className="text-[10px] font-normal text-[#62666D]">LTV·목표는 월별 모드에서 표시됩니다.</span>
               )}
@@ -654,13 +657,16 @@ export function MarketingKPI() {
                       contentStyle={{ backgroundColor: '#141516', border: '1px solid #23252A', borderRadius: 8, fontSize: 11 }}
                       labelStyle={{ color: '#D0D6E0' }}
                       formatter={(value: any, name: any) =>
-                        name === 'LTV/CAC' ? [`${Number(value).toFixed(2)}x`, name] : [fmtWon(Number(value)), name]
+                        name === 'LTV/CAC' ? [`${Number(value).toFixed(2)}x`, name]
+                          : name === '평균 구매횟수' ? [`${Number(value).toFixed(2)}회`, name]
+                            : [fmtWon(Number(value)), name]
                       }
                     />
                     <Legend wrapperStyle={{ fontSize: 11 }} />
                     <Line yAxisId="left" type="monotone" dataKey="cac" name="CAC" stroke="#EB5757" strokeWidth={2} />
                     <Line yAxisId="left" type="monotone" dataKey="ltv" name="LTV" stroke="#27A644" strokeWidth={2} />
                     <Line yAxisId="right" type="monotone" dataKey="ltv_cac" name="LTV/CAC" stroke="#F0BF00" strokeWidth={2} strokeDasharray="4 4" />
+                    <Line yAxisId="right" type="monotone" dataKey="avg_orders" name="평균 구매횟수" stroke="#4EA7FC" strokeWidth={2} />
                     {latestGoal?.target_cac != null && (
                       <ReferenceLine yAxisId="left" y={latestGoal.target_cac} stroke="#EB5757" strokeDasharray="3 3"
                         label={{ value: '목표 CAC', fontSize: 10, fill: '#EB5757', position: 'insideTopRight' }} />
@@ -679,21 +685,40 @@ export function MarketingKPI() {
                     <CartesianGrid strokeDasharray="3 3" stroke="#23252A" />
                     <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#8A8F98' }} />
                     <YAxis
+                      yAxisId="left"
                       tick={{ fontSize: 10, fill: '#8A8F98' }}
                       tickFormatter={(v: number) => (v >= 10000 ? `${Math.round(v / 10000)}만` : String(v))}
+                    />
+                    <YAxis
+                      yAxisId="right"
+                      orientation="right"
+                      tick={{ fontSize: 10, fill: '#4EA7FC' }}
+                      tickFormatter={(v: number) => `${v.toFixed(1)}회`}
                     />
                     <RechartsTooltip
                       contentStyle={{ backgroundColor: '#141516', border: '1px solid #23252A', borderRadius: 8, fontSize: 11 }}
                       labelStyle={{ color: '#D0D6E0' }}
-                      formatter={(value: any, name: any) => [fmtWon(Number(value)), name]}
+                      formatter={(value: any, name: any) =>
+                        name === '평균 구매횟수' ? [`${Number(value).toFixed(2)}회`, name] : [fmtWon(Number(value)), name]
+                      }
                     />
                     <Legend wrapperStyle={{ fontSize: 11 }} />
-                    <Line type="monotone" dataKey="cac" name="CAC" stroke="#EB5757" strokeWidth={2} />
+                    <Line yAxisId="left" type="monotone" dataKey="cac" name="CAC" stroke="#EB5757" strokeWidth={2} />
+                    <Line yAxisId="right" type="monotone" dataKey="avg_orders" name="평균 구매횟수" stroke="#4EA7FC" strokeWidth={2} />
                   </LineChart>
                 )}
               </ResponsiveContainer>
             </div>
+            <p className="text-[10px] text-[#62666D] mt-2 leading-relaxed">
+              <b className="text-[#8A8F98]">계산 기준</b> — CAC = 총광고비(메타 자동 + 수동 채널) ÷ 신규고객(사상 첫 결제 회원) ·
+              LTV = 기간 말일 기준 최근 180일 결제 회원 1인당 평균 매출(실현 매출 트레일링) ·
+              평균 구매횟수 = 해당 기간 회원 주문수 ÷ 구매 회원수(비회원 주문 제외)
+            </p>
           </div>
+
+          {/* 회원가입 히트맵 + 연령·성별 인구통계 */}
+          <SignupHeatmapCard />
+          <DemographicsCard />
 
           {/* 자사몰 지표 추이 */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
