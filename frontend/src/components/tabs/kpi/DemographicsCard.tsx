@@ -146,15 +146,15 @@ export function DemographicsCard() {
           )}
 
           <div className="overflow-x-auto">
-            <table className="w-full text-left">
+            <table className="w-full min-w-[640px] text-left">
               <thead>
                 <tr className="border-b border-[#23252A] text-[10px] text-[#62666D] uppercase tracking-wide">
-                  <th className="px-3 py-2">{dim === 'age' ? '연령대' : '성별'}</th>
-                  <th className="px-3 py-2 text-right">신규고객</th>
-                  <th className="px-3 py-2 text-right">LTV 산정 고객수</th>
-                  <th className="px-3 py-2 text-right">LTV</th>
-                  <th className="px-3 py-2 text-right">Meta 광고비</th>
-                  <th className="px-3 py-2 text-right">CAC (Meta 기준)</th>
+                  <th className="px-3 py-2 whitespace-nowrap">{dim === 'age' ? '연령대' : '성별'}</th>
+                  <th className="px-3 py-2 text-right whitespace-nowrap">신규고객</th>
+                  <th className="px-3 py-2 text-right whitespace-nowrap">LTV 산정 고객수</th>
+                  <th className="px-3 py-2 text-right whitespace-nowrap">LTV</th>
+                  <th className="px-3 py-2 text-right whitespace-nowrap">Meta 광고비</th>
+                  <th className="px-3 py-2 text-right whitespace-nowrap">CAC (Meta 기준)</th>
                 </tr>
               </thead>
               <tbody>

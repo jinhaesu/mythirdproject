@@ -132,7 +132,7 @@ export function NaverReviewMonitor() {
 
       {selectedProduct && (
         <div className="bg-[#0F1011] rounded-xl border border-[#23252A] p-5 space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-y-2">
             <h2 className="text-sm font-semibold text-[#F7F8F8]">리뷰 분석: <span className="text-[#27A644]">{selectedProduct.product_name}</span></h2>
             <div className="flex items-center gap-3">
               <select value={starThreshold} onChange={(e) => setStarThreshold(Number(e.target.value))} className="px-2 py-1 border rounded text-xs">{[1,2,3,4].map(n => <option key={n} value={n}>{n}점 이하</option>)}</select>
@@ -158,7 +158,7 @@ export function NaverReviewMonitor() {
               </div>
               <div className="bg-[#08090A] rounded-xl p-4 border">
                 <h3 className="text-sm font-semibold text-[#F7F8F8] mb-3 flex items-center gap-1.5"><TrendingDown size={14} /> 기간별 {starThreshold}점 이하</h3>
-                <div className="grid grid-cols-3 gap-3">{[
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">{[
                   { label: '7일', count: analysisResult.stats.low_star_count_7d, color: 'text-[#EB5757]' },
                   { label: '14일', count: analysisResult.stats.low_star_count_14d, color: 'text-[#FC7840]' },
                   { label: '30일', count: analysisResult.stats.low_star_count_30d, color: 'text-[#F0BF00]' },
@@ -214,8 +214,8 @@ function ReviewSchedulePanel() {
       <div className="flex items-center justify-between mb-4"><h2 className="text-sm font-semibold text-[#F7F8F8] flex items-center gap-1.5"><BarChart3 size={15} /> 정기 리뷰 리포트</h2><button onClick={() => setShowForm(!showForm)} className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-[#27A644] bg-[#27A644]/10 rounded-lg hover:bg-[#27A644]/15 border border-[#27A644]/30"><Plus size={13} /> 스케줄 추가</button></div>
       {showForm && (
         <div className="p-4 bg-[#08090A] rounded-lg border space-y-4 mb-4">
-          <div><label className="text-xs text-[#8A8F98] mb-2 block">발송 요일</label><div className="flex gap-1.5">{DOW.map((label, idx) => { const val = idx < 5 ? idx + 1 : idx === 5 ? 6 : 0; return <button key={idx} onClick={() => toggleDay(val)} className={clsx('w-10 h-10 rounded-lg text-sm font-medium transition-all', days.includes(val) ? 'bg-[#27A644] text-white shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'bg-[#0F1011] text-[#8A8F98] border hover:border-green-300')}>{label}</button>; })}</div></div>
-          <div className="flex items-center gap-4">
+          <div><label className="text-xs text-[#8A8F98] mb-2 block">발송 요일</label><div className="flex gap-1.5 flex-wrap gap-y-2">{DOW.map((label, idx) => { const val = idx < 5 ? idx + 1 : idx === 5 ? 6 : 0; return <button key={idx} onClick={() => toggleDay(val)} className={clsx('w-10 h-10 rounded-lg text-sm font-medium transition-all', days.includes(val) ? 'bg-[#27A644] text-white shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'bg-[#0F1011] text-[#8A8F98] border hover:border-green-300')}>{label}</button>; })}</div></div>
+          <div className="flex items-center gap-4 flex-wrap gap-y-3">
             <div><label className="text-xs text-[#8A8F98] mb-1 block">시간</label><div className="flex items-center gap-1"><select value={hour} onChange={(e) => setHour(Number(e.target.value))} className="px-2 py-1.5 border rounded-lg text-sm w-20">{Array.from({length:24},(_,i)=><option key={i} value={i}>{String(i).padStart(2,'0')}시</option>)}</select><span className="text-[#62666D] font-bold">:</span><select value={minute} onChange={(e) => setMinute(Number(e.target.value))} className="px-2 py-1.5 border rounded-lg text-sm w-20">{Array.from({length:60},(_,i)=><option key={i} value={i}>{String(i).padStart(2,'0')}분</option>)}</select></div></div>
             <div><label className="text-xs text-[#8A8F98] mb-1 block">별점 기준</label><select value={threshold} onChange={(e) => setThreshold(Number(e.target.value))} className="px-2 py-1.5 border rounded-lg text-sm">{[1,2,3,4].map(n=><option key={n} value={n}>{n}점 이하</option>)}</select></div>
           </div>

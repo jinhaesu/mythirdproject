@@ -306,7 +306,7 @@ export function SponsorshipCard() {
       </div>
 
       {/* 필터 */}
-      <div className="flex items-center gap-2 mb-3">
+      <div className="flex items-center gap-2 flex-wrap mb-3">
         <span className="text-[11px] text-[#62666D]">행사 유형</span>
         <select
           value={eventTypeFilter}
@@ -329,15 +329,15 @@ export function SponsorshipCard() {
         <p className="text-xs text-[#EB5757] py-6 text-center">협찬 데이터를 불러오지 못했습니다.</p>
       ) : (
         <div className="overflow-x-auto mb-4">
-          <table className="w-full text-left">
+          <table className="w-full min-w-[700px] text-left">
             <thead>
               <tr className="border-b border-[#23252A] text-[10px] text-[#62666D] uppercase tracking-wide">
-                <th className="px-3 py-2">일자</th>
-                <th className="px-3 py-2">대상명</th>
-                <th className="px-3 py-2">행사유형</th>
-                <th className="px-3 py-2">제품</th>
-                <th className="px-3 py-2">수량</th>
-                <th className="px-3 py-2">조건</th>
+                <th className="px-3 py-2 whitespace-nowrap">일자</th>
+                <th className="px-3 py-2 whitespace-nowrap">대상명</th>
+                <th className="px-3 py-2 whitespace-nowrap">행사유형</th>
+                <th className="px-3 py-2 whitespace-nowrap">제품</th>
+                <th className="px-3 py-2 whitespace-nowrap">수량</th>
+                <th className="px-3 py-2 whitespace-nowrap">조건</th>
                 <th className="px-3 py-2" />
               </tr>
             </thead>

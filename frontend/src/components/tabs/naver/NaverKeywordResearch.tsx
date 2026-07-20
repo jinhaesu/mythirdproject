@@ -594,7 +594,7 @@ export function NaverKeywordResearch() {
 
       {/* Search Bar */}
       <div className="bg-[#0F1011] rounded-xl border border-[#23252A] p-5">
-        <div className="flex gap-3">
+        <div className="flex gap-3 flex-wrap">
           <div className="relative flex-1">
             <Search
               size={16}
@@ -670,7 +670,7 @@ export function NaverKeywordResearch() {
               </h2>
 
               {/* Controls */}
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-wrap gap-y-2">
                 {/* Period */}
                 <div className="flex items-center bg-[#141516] rounded-lg p-0.5 gap-0.5">
                   {PERIOD_OPTIONS.map((opt) => (
@@ -751,7 +751,7 @@ export function NaverKeywordResearch() {
                 {(() => {
                   const exact = volumeData.data.find(d => d.keyword === searchedKeyword) || volumeData.data[0];
                   return (
-                    <div className="grid grid-cols-3 gap-4 mb-5">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-5">
                       <div className="bg-gradient-to-br from-green-50 to-[#0F1011] border border-[#27A644]/30 rounded-xl p-4 text-center">
                         <div className="flex items-center justify-center gap-1.5 text-xs text-[#8A8F98] mb-1">
                           <BarChart3 size={13} /> 총 월간 검색량
@@ -778,7 +778,7 @@ export function NaverKeywordResearch() {
                   <div>
                     <h3 className="text-sm font-semibold text-[#D0D6E0] mb-2">연관 키워드 검색량</h3>
                     <div className="overflow-x-auto rounded-lg border border-[#23252A]">
-                      <table className="w-full text-sm">
+                      <table className="w-full text-sm min-w-[560px]">
                         <thead>
                           <tr className="bg-[#08090A] text-[#8A8F98] text-xs">
                             <th className="text-left px-3 py-2 font-medium">키워드</th>
@@ -824,7 +824,7 @@ export function NaverKeywordResearch() {
           {/* ── AI Ranking Analysis ─────────────────────────────────────── */}
           {shoppingItems.length > 0 && (
             <div className="bg-[#0F1011] rounded-xl border border-[#23252A] p-6">
-              <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center justify-between mb-5 flex-wrap gap-y-2">
                 <h2 className="text-base font-semibold text-[#F7F8F8] flex items-center gap-2">
                   <Sparkles size={18} className="text-purple-500" />
                   AI 랭킹 분석
@@ -987,10 +987,10 @@ function RankResultCard({ data }: { data: any }) {
       {/* 요약 행 */}
       <button
         onClick={() => hasDetail && setExpanded(!expanded)}
-        className={clsx('w-full flex items-center justify-between px-4 py-3 text-left transition-colors', hasDetail ? 'hover:bg-[#141516]/5 cursor-pointer' : 'cursor-default')}
+        className={clsx('w-full flex items-center justify-between flex-wrap gap-y-1 px-4 py-3 text-left transition-colors', hasDetail ? 'hover:bg-[#141516]/5 cursor-pointer' : 'cursor-default')}
       >
         <span className="text-sm font-semibold text-[#F7F8F8] min-w-[100px]">{data.keyword}</span>
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-6 flex-wrap gap-y-1">
           <div className="text-xs">
             <span className="text-[#8A8F98] mr-1.5">쇼핑</span>
             {shopRanks.length > 0

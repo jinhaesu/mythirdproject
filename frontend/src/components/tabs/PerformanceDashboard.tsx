@@ -514,7 +514,7 @@ export default function PerformanceDashboard() {
                     </span>
                   )}
                 </h3>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap gap-y-2">
                   <div className="flex items-center bg-[#141516] rounded-lg p-0.5">
                     <button
                       onClick={() => setTrendView('daily')}
@@ -783,7 +783,7 @@ export default function PerformanceDashboard() {
             </div>
           ) : analysis && analysis.parse_error ? (
             <div className="bg-[#0F1011] rounded-2xl border border-[#F0BF00]/30 shadow-[0px_7px_32px_rgba(0,0,0,0.35)] overflow-hidden">
-              <div className="bg-gradient-to-r from-yellow-500 to-amber-500 px-6 py-4 flex items-center justify-between">
+              <div className="bg-gradient-to-r from-yellow-500 to-amber-500 px-6 py-4 flex items-center justify-between flex-wrap gap-y-2">
                 <div className="flex items-center gap-2">
                   <AlertTriangle size={20} className="text-white" />
                   <h2 className="text-base font-bold text-white">AI 분석 결과 (텍스트)</h2>
@@ -816,7 +816,7 @@ export default function PerformanceDashboard() {
               {/* Gradient Header */}
               <div className="relative bg-gradient-to-r from-indigo-600 via-purple-600 to-blue-600 px-6 py-5">
                 <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 20% 50%, white 1px, transparent 1px), radial-gradient(circle at 80% 20%, white 1px, transparent 1px)', backgroundSize: '60px 60px' }} />
-                <div className="relative flex items-center justify-between">
+                <div className="relative flex items-center justify-between flex-wrap gap-y-2">
                   <div className="flex items-center gap-3">
                     <div className="w-11 h-11 bg-[#0F1011]/20 backdrop-blur-sm rounded-xl flex items-center justify-center ring-2 ring-white/30">
                       <Sparkles size={22} className="text-white" />
@@ -1110,7 +1110,7 @@ export default function PerformanceDashboard() {
 
           {/* Campaign List */}
           <div className="bg-[#0F1011] border border-[#23252A] rounded-xl">
-            <div className="px-5 py-4 border-b border-[#23252A] flex items-center justify-between">
+            <div className="px-5 py-4 border-b border-[#23252A] flex items-center justify-between flex-wrap gap-y-2">
               <h3 className="font-semibold text-[#F7F8F8] flex items-center gap-2">
                 <Layers size={18} /> 캠페인 목록 ({campaigns.length}개 / 전체 {allCampaigns.length}개)
               </h3>
@@ -1385,13 +1385,13 @@ export default function PerformanceDashboard() {
                                   };
                                   return (
                                     <div className="overflow-x-auto">
-                                      <table className="text-[10px] w-full">
+                                      <table className="text-[10px] w-full min-w-[420px]">
                                         <thead>
                                           <tr>
-                                            <th className="text-left py-1 px-2 text-[#62666D] font-medium">연령대</th>
-                                            <th className="text-center py-1 px-2 text-[#62666D] font-medium">여성</th>
-                                            <th className="text-center py-1 px-2 text-[#62666D] font-medium">남성</th>
-                                            <th className="text-center py-1 px-2 text-[#62666D] font-medium">전체</th>
+                                            <th className="text-left py-1 px-2 text-[#62666D] font-medium whitespace-nowrap">연령대</th>
+                                            <th className="text-center py-1 px-2 text-[#62666D] font-medium whitespace-nowrap">여성</th>
+                                            <th className="text-center py-1 px-2 text-[#62666D] font-medium whitespace-nowrap">남성</th>
+                                            <th className="text-center py-1 px-2 text-[#62666D] font-medium whitespace-nowrap">전체</th>
                                           </tr>
                                         </thead>
                                         <tbody>
@@ -2001,7 +2001,7 @@ function PerformanceFeedbackPanel({
           />
           {openSection === 'creative' && creative && (
             <div className="px-4 pb-4 space-y-3">
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
                 <div className="bg-[#08090A] rounded-lg p-2.5 text-center">
                   <p className="text-[10px] text-[#62666D]">현재 ON 소재 수</p>
                   <p className={`text-lg font-black ${creative.active_ad_count <= 1 ? 'text-[#EB5757]' : creative.active_ad_count <= 2 ? 'text-[#F0BF00]' : 'text-[#27A644]'}`}>
@@ -2248,7 +2248,7 @@ function CreativePerformanceDashboard({
 
   return (
     <div className="bg-[#0F1011] border border-[#23252A] rounded-xl">
-      <div className="px-5 py-4 border-b border-[#23252A] flex items-center justify-between">
+      <div className="px-5 py-4 border-b border-[#23252A] flex items-center justify-between flex-wrap gap-y-2">
         <button
           onClick={() => setShowCreativeDash(!showCreativeDash)}
           className="flex items-center gap-2 text-left"
@@ -2345,19 +2345,19 @@ function CreativePerformanceDashboard({
 
           {/* Creative performance table */}
           <div className="overflow-x-auto">
-            <table className="w-full text-xs">
+            <table className="w-full text-xs min-w-[820px]">
               <thead>
                 <tr className="border-b border-[#23252A]">
-                  <th className="text-left py-2 px-2 text-[#8A8F98] font-medium">소재/캠페인</th>
-                  <th className="text-right py-2 px-2 text-[#8A8F98] font-medium">상태</th>
-                  <th className="text-right py-2 px-2 text-[#8A8F98] font-medium">지출</th>
-                  <th className="text-right py-2 px-2 text-[#8A8F98] font-medium">전환값</th>
-                  <th className="text-right py-2 px-2 text-[#8A8F98] font-medium">ROAS</th>
-                  <th className="text-right py-2 px-2 text-[#8A8F98] font-medium">CTR</th>
-                  <th className="text-right py-2 px-2 text-[#8A8F98] font-medium">CPC</th>
-                  <th className="text-right py-2 px-2 text-[#8A8F98] font-medium">CPM</th>
-                  <th className="text-right py-2 px-2 text-[#8A8F98] font-medium">빈도</th>
-                  <th className="text-center py-2 px-2 text-[#8A8F98] font-medium">관리</th>
+                  <th className="text-left py-2 px-2 text-[#8A8F98] font-medium whitespace-nowrap">소재/캠페인</th>
+                  <th className="text-right py-2 px-2 text-[#8A8F98] font-medium whitespace-nowrap">상태</th>
+                  <th className="text-right py-2 px-2 text-[#8A8F98] font-medium whitespace-nowrap">지출</th>
+                  <th className="text-right py-2 px-2 text-[#8A8F98] font-medium whitespace-nowrap">전환값</th>
+                  <th className="text-right py-2 px-2 text-[#8A8F98] font-medium whitespace-nowrap">ROAS</th>
+                  <th className="text-right py-2 px-2 text-[#8A8F98] font-medium whitespace-nowrap">CTR</th>
+                  <th className="text-right py-2 px-2 text-[#8A8F98] font-medium whitespace-nowrap">CPC</th>
+                  <th className="text-right py-2 px-2 text-[#8A8F98] font-medium whitespace-nowrap">CPM</th>
+                  <th className="text-right py-2 px-2 text-[#8A8F98] font-medium whitespace-nowrap">빈도</th>
+                  <th className="text-center py-2 px-2 text-[#8A8F98] font-medium whitespace-nowrap">관리</th>
                 </tr>
               </thead>
               <tbody>

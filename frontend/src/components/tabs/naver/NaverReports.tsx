@@ -518,7 +518,7 @@ export function NaverReports() {
                     <div key={schedId} className="px-6 py-4 hover:bg-[#141516]/5 flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-[#F7F8F8]">{sched.name}</p>
-                        <div className="flex items-center gap-3 mt-1 text-xs text-[#8A8F98]">
+                        <div className="flex items-center gap-3 mt-1 text-xs text-[#8A8F98] flex-wrap gap-y-1">
                           <span className="px-1.5 py-0.5 bg-[#27A644]/10 text-[#27A644] rounded">{typeLabel}</span>
                           <span className="flex items-center gap-1">
                             <Clock size={12} />

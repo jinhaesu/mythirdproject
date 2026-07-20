@@ -240,7 +240,7 @@ export function NaverSearchAdsDashboard() {
           </h1>
           <p className="text-sm text-[#8A8F98] mt-1">네이버 검색광고 실시간 성과 분석</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <select
             value={datePreset}
             onChange={(e) => setDatePreset(e.target.value as DatePreset)}
@@ -376,15 +376,15 @@ export function NaverSearchAdsDashboard() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
               <p className="text-xs text-[#8A8F98] mb-2">비용 추이</p>
-              <MiniLineChart data={trendSpend} color="#2DB400" width={280} height={60} />
+              <div className="overflow-x-auto"><MiniLineChart data={trendSpend} color="#2DB400" width={280} height={60} /></div>
             </div>
             <div>
               <p className="text-xs text-[#8A8F98] mb-2">클릭수 추이</p>
-              <MiniLineChart data={trendClicks} color="#3B82F6" width={280} height={60} />
+              <div className="overflow-x-auto"><MiniLineChart data={trendClicks} color="#3B82F6" width={280} height={60} /></div>
             </div>
             <div>
               <p className="text-xs text-[#8A8F98] mb-2">노출수 추이</p>
-              <MiniLineChart data={trendImpressions} color="#8B5CF6" width={280} height={60} />
+              <div className="overflow-x-auto"><MiniLineChart data={trendImpressions} color="#8B5CF6" width={280} height={60} /></div>
             </div>
           </div>
         </div>
@@ -456,7 +456,7 @@ export function NaverSearchAdsDashboard() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm min-w-[1100px]">
               <thead className="bg-[#08090A]">
                 <tr>
                   <th className="text-left px-4 py-3 text-xs font-medium text-[#8A8F98] uppercase">캠페인명</th>
@@ -932,7 +932,8 @@ function CampaignRow({ campaign, campaignId, isExpanded, status, onToggleExpand,
                             </button>
                           ))}
                         </div>
-                        <table className="w-full text-sm">
+                        <div className="overflow-x-auto">
+                        <table className="w-full text-sm min-w-[800px]">
                           <thead>
                             <tr className="text-xs text-[#8A8F98] uppercase">
                               <th className="text-left px-3 py-2">광고그룹명</th>
@@ -979,6 +980,7 @@ function CampaignRow({ campaign, campaignId, isExpanded, status, onToggleExpand,
                             })}
                           </tbody>
                         </table>
+                        </div>
                       </>
                     )}
                   </>
@@ -1058,7 +1060,7 @@ function CampaignRow({ campaign, campaignId, isExpanded, status, onToggleExpand,
 
                       {/* Keyword + Quality + Ranking Table */}
                       <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
+                        <table className="w-full text-sm min-w-[900px]">
                           <thead>
                             <tr className="text-xs text-[#8A8F98] uppercase bg-[#0F1011]">
                               <th className="text-left px-3 py-2">키워드</th>

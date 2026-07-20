@@ -71,7 +71,7 @@ export function Header() {
   return (
     <header style={{ backgroundColor: '#0F1011', borderBottom: '1px solid #23252A' }} className="sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-14">
+        <div className="flex items-center justify-between flex-wrap gap-y-2 py-2 lg:py-0 lg:h-14 lg:flex-nowrap">
           <div className="flex items-center gap-3">
             {/* Dynamic logo based on active platform */}
             <div className="flex items-center gap-2">
@@ -93,7 +93,7 @@ export function Header() {
               </span>
             </div>
             <span
-              className="px-2 py-0.5 rounded text-xs font-medium"
+              className="hidden sm:inline-block px-2 py-0.5 rounded text-xs font-medium"
               style={{
                 backgroundColor: 'rgba(94,106,210,0.18)',
                 color: '#F7F8F8',
@@ -186,24 +186,24 @@ export function Header() {
           </div>
 
           {isAuthenticated && user && (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
               {!user.meta_connected && (
                 <button
                   onClick={handleMetaConnect}
                   disabled={connecting}
-                  className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                  className="flex items-center gap-2 px-2.5 sm:px-4 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
                   style={{ backgroundColor: '#5E6AD2', color: '#F7F8F8', border: '1px solid transparent' }}
                   onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#828FFF'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#5E6AD2'; }}
                 >
                   <Link2 size={14} />
-                  {connecting ? '연결 중...' : 'Meta 연결하기'}
+                  <span className="hidden sm:inline">{connecting ? '연결 중...' : 'Meta 연결하기'}</span>
                 </button>
               )}
 
               <div className="relative">
                 <button
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors"
+                  className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-lg transition-colors"
                   style={{ color: '#F7F8F8' }}
                   onClick={() => setShowMenu(!showMenu)}
                   onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'rgba(255,255,255,0.07)'; }}
@@ -215,7 +215,7 @@ export function Header() {
                   >
                     <User size={14} style={{ color: '#828FFF' }} />
                   </div>
-                  <div className="text-left">
+                  <div className="hidden sm:block text-left">
                     <p className="text-sm font-medium" style={{ color: '#F7F8F8' }}>{user.full_name || user.email}</p>
                     <p className="text-xs" style={{ color: user.meta_connected ? '#27A644' : '#FC7840' }}>
                       {user.meta_connected ? 'Meta 연동됨' : 'Meta 연동 필요'}

@@ -46,12 +46,12 @@ export function NaverQueriesCard() {
             </span>
           )}
         </h3>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <input
             value={keywordsInput}
             onChange={(e: ChangeEvent<HTMLInputElement>) => setKeywordsInput(e.target.value)}
             placeholder="키워드 (쉼표 구분, 최대 5개)"
-            className="px-3 py-1.5 bg-[#08090A] border border-[#23252A] rounded-lg text-xs text-[#D0D6E0] w-64 focus:outline-none focus:border-[#5E6AD2]"
+            className="px-3 py-1.5 bg-[#08090A] border border-[#23252A] rounded-lg text-xs text-[#D0D6E0] w-full sm:w-64 focus:outline-none focus:border-[#5E6AD2]"
           />
           <button
             onClick={() => refetchNaver()}

@@ -270,15 +270,15 @@ export function NaverGFADashboard() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
               <p className="text-xs text-[#8A8F98] mb-2">비용 추이</p>
-              <MiniLineChart data={trendSpend} color="#2DB400" width={280} height={60} />
+              <div className="overflow-x-auto"><MiniLineChart data={trendSpend} color="#2DB400" width={280} height={60} /></div>
             </div>
             <div>
               <p className="text-xs text-[#8A8F98] mb-2">노출수 추이</p>
-              <MiniLineChart data={trendImpressions} color="#8B5CF6" width={280} height={60} />
+              <div className="overflow-x-auto"><MiniLineChart data={trendImpressions} color="#8B5CF6" width={280} height={60} /></div>
             </div>
             <div>
               <p className="text-xs text-[#8A8F98] mb-2">클릭수 추이</p>
-              <MiniLineChart data={trendClicks} color="#3B82F6" width={280} height={60} />
+              <div className="overflow-x-auto"><MiniLineChart data={trendClicks} color="#3B82F6" width={280} height={60} /></div>
             </div>
           </div>
         </div>
@@ -304,7 +304,7 @@ export function NaverGFADashboard() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm min-w-[1000px]">
               <thead className="bg-[#08090A]">
                 <tr>
                   <th className="text-left px-4 py-3 text-xs font-medium text-[#8A8F98] uppercase">캠페인명</th>
@@ -519,7 +519,8 @@ function GFACampaignRow({ campaign, campaignId, isExpanded, status, onToggleExpa
               ) : adgroups.length === 0 ? (
                 <p className="text-sm text-[#62666D] py-2">광고그룹이 없습니다.</p>
               ) : (
-                <table className="w-full text-sm">
+                <div className="overflow-x-auto">
+                <table className="w-full text-sm min-w-[700px]">
                   <thead>
                     <tr className="text-xs text-[#8A8F98] uppercase">
                       <th className="text-left px-3 py-2">광고그룹명</th>
@@ -557,6 +558,7 @@ function GFACampaignRow({ campaign, campaignId, isExpanded, status, onToggleExpa
                     })}
                   </tbody>
                 </table>
+                </div>
               )}
             </div>
           </td>

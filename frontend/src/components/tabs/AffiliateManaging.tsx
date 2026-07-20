@@ -1809,7 +1809,7 @@ function DashboardSection() {
                     </div>
                     <span className="text-[10px] px-2 py-0.5 bg-emerald-500/20 text-emerald-400 rounded">활성</span>
                   </div>
-                  <div className="grid grid-cols-4 gap-2 text-center">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
                     <div><p className="text-[10px] text-gray-500">파트너</p><p className="text-xs font-medium text-white">{c.partner_count}</p></div>
                     <div><p className="text-[10px] text-gray-500">클릭</p><p className="text-xs font-medium text-white">{fmt(c.click_count)}</p></div>
                     <div><p className="text-[10px] text-gray-500">전환</p><p className="text-xs font-medium text-white">{c.conversion_count}건</p></div>
@@ -2240,7 +2240,7 @@ function CampaignDebugPanel({
         <code className="text-gray-300">{data.domain || '(없음)'}</code>
       </div>
 
-      <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-1">
         <div><span className="text-gray-500">cafe24_category_no:</span> <code className={data.db_state.cafe24_category_no ? 'text-emerald-300' : 'text-red-300'}>{String(data.db_state.cafe24_category_no ?? 'NULL')}</code></div>
         <div><span className="text-gray-500">cafe24_product_no:</span> <code className="text-gray-300">{String(data.db_state.cafe24_product_no ?? 'NULL')}</code></div>
         <div><span className="text-gray-500">cafe24_category_name:</span> <code className="text-gray-300">{data.db_state.cafe24_category_name ?? 'NULL'}</code></div>
@@ -2256,7 +2256,7 @@ function CampaignDebugPanel({
             <p className="text-red-300">카테고리가 카페24에 존재하지 않음 — {live.error}</p>
           ) : (
             <>
-              <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-1">
                 <div>use_display: <code className={live.use_display === 'T' ? 'text-emerald-300' : 'text-red-300'}>{live.use_display ?? '?'}</code></div>
                 <div>display_type: <code className="text-gray-300">{live.display_type ?? '?'}</code></div>
                 <div>use_main: <code className="text-gray-300">{live.use_main ?? '?'}</code></div>
@@ -2280,7 +2280,7 @@ function CampaignDebugPanel({
       {data.mode === 'category' && (data.expected_product_nos !== undefined) && (
         <div className="border-t border-[#2a2d35] pt-2">
           <p className="font-medium text-gray-300 mb-1">카테고리 상품 첨부 상태</p>
-          <div className="grid grid-cols-3 gap-x-3 gap-y-1">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-3 gap-y-1">
             <div>예상(DB): <code className="text-gray-300">{data.expected_product_nos?.length ?? 0}개</code></div>
             <div>실제(카페24): <code className={(data.live_product_nos?.length ?? 0) > 0 ? 'text-emerald-300' : 'text-red-300'}>{data.live_product_nos?.length ?? 0}개</code></div>
             <div>누락: <code className={(data.missing_in_category?.length ?? 0) > 0 ? 'text-amber-300' : 'text-emerald-300'}>{data.missing_in_category?.length ?? 0}개</code></div>
@@ -3053,7 +3053,7 @@ function CampaignsSection() {
                   </button>
                 </div>
               </div>
-              <div className="grid grid-cols-5 gap-3 text-center bg-[#141516] rounded-lg p-3">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-center bg-[#141516] rounded-lg p-3">
                 <div><p className="text-[10px] text-gray-500">파트너</p><p className="text-sm font-bold text-white">{c.partner_count}명</p></div>
                 <div><p className="text-[10px] text-gray-500">클릭</p><p className="text-sm font-bold text-white">{fmt(c.click_count)}</p></div>
                 <div><p className="text-[10px] text-gray-500">전환</p><p className="text-sm font-bold text-cyan-400">{c.conversion_count}건</p></div>
@@ -3372,15 +3372,16 @@ function PartnerDailyLog({
                         )}
                       </div>
                     </div>
-                    <table className="w-full text-[11px]">
+                    <div className="overflow-x-auto">
+                    <table className="w-full text-[11px] min-w-[560px]">
                       <thead>
                         <tr className="bg-[#141516] text-gray-500 border-b border-[#2a2d35]">
-                          <th className="text-left py-1.5 px-3">시각</th>
-                          <th className="text-left py-1.5 px-3">주문번호</th>
-                          <th className="text-left py-1.5 px-3">캠페인</th>
-                          <th className="text-right py-1.5 px-3">주문액</th>
-                          <th className="text-right py-1.5 px-3">커미션</th>
-                          <th className="text-right py-1.5 px-3">상태</th>
+                          <th className="text-left py-1.5 px-3 whitespace-nowrap">시각</th>
+                          <th className="text-left py-1.5 px-3 whitespace-nowrap">주문번호</th>
+                          <th className="text-left py-1.5 px-3 whitespace-nowrap">캠페인</th>
+                          <th className="text-right py-1.5 px-3 whitespace-nowrap">주문액</th>
+                          <th className="text-right py-1.5 px-3 whitespace-nowrap">커미션</th>
+                          <th className="text-right py-1.5 px-3 whitespace-nowrap">상태</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -3413,6 +3414,7 @@ function PartnerDailyLog({
                         })}
                       </tbody>
                     </table>
+                    </div>
                   </div>
                 );
               })}
@@ -3544,15 +3546,15 @@ function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalP
               <p className="text-xs text-gray-500 text-center py-6">참여 중인 캠페인이 없습니다</p>
             ) : (
               <div className="overflow-x-auto rounded-xl border border-[#2a2d35]">
-                <table className="w-full text-xs">
+                <table className="w-full text-xs min-w-[640px]">
                   <thead>
                     <tr className="bg-[#141516] text-gray-500 border-b border-[#2a2d35]">
-                      <th className="text-left py-2.5 px-3">캠페인명</th>
-                      <th className="text-left py-2.5 px-3">전용 링크</th>
-                      <th className="text-right py-2.5 px-3">클릭</th>
-                      <th className="text-right py-2.5 px-3">전환</th>
-                      <th className="text-right py-2.5 px-3">매출</th>
-                      <th className="text-right py-2.5 px-3">커미션</th>
+                      <th className="text-left py-2.5 px-3 whitespace-nowrap">캠페인명</th>
+                      <th className="text-left py-2.5 px-3 whitespace-nowrap">전용 링크</th>
+                      <th className="text-right py-2.5 px-3 whitespace-nowrap">클릭</th>
+                      <th className="text-right py-2.5 px-3 whitespace-nowrap">전환</th>
+                      <th className="text-right py-2.5 px-3 whitespace-nowrap">매출</th>
+                      <th className="text-right py-2.5 px-3 whitespace-nowrap">커미션</th>
                       <th className="py-2.5 px-3" />
                     </tr>
                   </thead>
@@ -3677,7 +3679,7 @@ function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalP
                   </div>
                 ) : (
                   <>
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                       <div className="bg-[#141516] border border-[#2a2d35] rounded-lg p-2.5">
                         <p className="text-[10px] text-gray-500">순매출 (paid only)</p>
                         <p className="text-sm font-bold text-emerald-400 mt-0.5">₩{fmt(audit.summary.net_sales_paid_only)}</p>
@@ -3692,14 +3694,14 @@ function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalP
                       </div>
                     </div>
                     <div className="overflow-x-auto rounded-lg border border-[#2a2d35]">
-                      <table className="w-full text-xs">
+                      <table className="w-full text-xs min-w-[560px]">
                         <thead>
                           <tr className="bg-[#141516] text-gray-500 border-b border-[#2a2d35]">
-                            <th className="text-left py-2 px-3">상태값(raw)</th>
-                            <th className="text-left py-2 px-3">정규화</th>
-                            <th className="text-right py-2 px-3">건수</th>
-                            <th className="text-right py-2 px-3">order_amount 합</th>
-                            <th className="text-right py-2 px-3">commission 합</th>
+                            <th className="text-left py-2 px-3 whitespace-nowrap">상태값(raw)</th>
+                            <th className="text-left py-2 px-3 whitespace-nowrap">정규화</th>
+                            <th className="text-right py-2 px-3 whitespace-nowrap">건수</th>
+                            <th className="text-right py-2 px-3 whitespace-nowrap">order_amount 합</th>
+                            <th className="text-right py-2 px-3 whitespace-nowrap">commission 합</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -3899,7 +3901,7 @@ function PartnerEditModal({ partner, onClose, onSave, isSaving }: PartnerEditMod
                 </span>
               )}
             </label>
-            <div className="mt-2 grid grid-cols-4 gap-1.5">
+            <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-1.5">
               {CHANNEL_OPTIONS.map(opt => {
                 const checked = editForm.channels.includes(opt.key);
                 return (
@@ -4282,7 +4284,7 @@ function PartnersSection() {
                     </span>
                   )}
                 </label>
-                <div className="mt-2 grid grid-cols-4 gap-1.5">
+                <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                   {CHANNEL_OPTIONS.map(opt => {
                     const checked = inviteForm.channels.includes(opt.key);
                     return (
@@ -4535,7 +4537,7 @@ function PartnersSection() {
 
                 {p.status === 'approved' && (
                   <>
-                    <div className="grid grid-cols-5 gap-3 text-center bg-[#141516] rounded-lg p-3 mb-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-center bg-[#141516] rounded-lg p-3 mb-2">
                       <div><p className="text-[10px] text-gray-500">클릭</p><p className="text-sm font-bold text-white">{fmt(p.click_count)}</p></div>
                       <div><p className="text-[10px] text-gray-500">전환</p><p className="text-sm font-bold text-cyan-400">{p.conversion_count}건</p></div>
                       <div><p className="text-[10px] text-gray-500">매출</p><p className="text-sm font-bold text-emerald-400">₩{fmt(p.total_sales)}</p></div>
@@ -4890,13 +4892,13 @@ function MyPointsSection() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-xs">
+            <table className="w-full text-xs min-w-[420px]">
               <thead>
                 <tr className="text-gray-500 border-b border-[#2a2d35]">
-                  <th className="text-left py-2 px-2">날짜</th>
-                  <th className="text-left py-2 px-2">사유</th>
-                  <th className="text-right py-2 px-2">금액</th>
-                  <th className="text-left py-2 px-2">메모</th>
+                  <th className="text-left py-2 px-2 whitespace-nowrap">날짜</th>
+                  <th className="text-left py-2 px-2 whitespace-nowrap">사유</th>
+                  <th className="text-right py-2 px-2 whitespace-nowrap">금액</th>
+                  <th className="text-left py-2 px-2 whitespace-nowrap">메모</th>
                 </tr>
               </thead>
               <tbody>
@@ -5036,14 +5038,14 @@ function SettlementSection() {
         <div className="bg-[#1a1b1e] rounded-xl p-4 border border-[#2a2d35]">
           <h3 className="text-sm font-semibold text-white mb-3">미정산 파트너</h3>
           <div className="overflow-x-auto">
-            <table className="w-full text-xs">
+            <table className="w-full text-xs min-w-[520px]">
               <thead>
                 <tr className="text-gray-500 border-b border-[#2a2d35]">
-                  <th className="text-left py-2 px-2">파트너</th>
-                  <th className="text-right py-2 px-2">총 매출</th>
-                  <th className="text-right py-2 px-2">총 커미션</th>
-                  <th className="text-right py-2 px-2">미정산</th>
-                  <th className="text-center py-2 px-2">액션</th>
+                  <th className="text-left py-2 px-2 whitespace-nowrap">파트너</th>
+                  <th className="text-right py-2 px-2 whitespace-nowrap">총 매출</th>
+                  <th className="text-right py-2 px-2 whitespace-nowrap">총 커미션</th>
+                  <th className="text-right py-2 px-2 whitespace-nowrap">미정산</th>
+                  <th className="text-center py-2 px-2 whitespace-nowrap">액션</th>
                 </tr>
               </thead>
               <tbody>
@@ -5099,14 +5101,14 @@ function SettlementSection() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-xs">
+            <table className="w-full text-xs min-w-[560px]">
               <thead>
                 <tr className="text-gray-500 border-b border-[#2a2d35]">
-                  <th className="text-left py-2 px-2">파트너</th>
-                  <th className="text-right py-2 px-2">금액</th>
-                  <th className="text-center py-2 px-2">상태</th>
-                  <th className="text-left py-2 px-2">생성일</th>
-                  <th className="text-left py-2 px-2">완료일</th>
+                  <th className="text-left py-2 px-2 whitespace-nowrap">파트너</th>
+                  <th className="text-right py-2 px-2 whitespace-nowrap">금액</th>
+                  <th className="text-center py-2 px-2 whitespace-nowrap">상태</th>
+                  <th className="text-left py-2 px-2 whitespace-nowrap">생성일</th>
+                  <th className="text-left py-2 px-2 whitespace-nowrap">완료일</th>
                   <th className="text-center py-2 px-2">액션</th>
                 </tr>
               </thead>

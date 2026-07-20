@@ -232,16 +232,16 @@ export function InfluencerSeedingCard() {
         <p className="text-xs text-[#EB5757] py-6 text-center">시딩 데이터를 불러오지 못했습니다.</p>
       ) : (
         <div className="overflow-x-auto mb-4">
-          <table className="w-full text-left">
+          <table className="w-full min-w-[760px] text-left">
             <thead>
               <tr className="border-b border-[#23252A] text-[10px] text-[#62666D] uppercase tracking-wide">
-                <th className="px-3 py-2">일자</th>
-                <th className="px-3 py-2">이름</th>
-                <th className="px-3 py-2">채널</th>
-                <th className="px-3 py-2">팔로워</th>
-                <th className="px-3 py-2">비용</th>
-                <th className="px-3 py-2">제품</th>
-                <th className="px-3 py-2">AI 타겟</th>
+                <th className="px-3 py-2 whitespace-nowrap">일자</th>
+                <th className="px-3 py-2 whitespace-nowrap">이름</th>
+                <th className="px-3 py-2 whitespace-nowrap">채널</th>
+                <th className="px-3 py-2 whitespace-nowrap">팔로워</th>
+                <th className="px-3 py-2 whitespace-nowrap">비용</th>
+                <th className="px-3 py-2 whitespace-nowrap">제품</th>
+                <th className="px-3 py-2 whitespace-nowrap">AI 타겟</th>
                 <th className="px-3 py-2" />
               </tr>
             </thead>

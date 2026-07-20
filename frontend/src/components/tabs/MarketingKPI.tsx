@@ -566,14 +566,14 @@ export function MarketingKPI() {
             {isMonthMode && (
               <>
                 <div className="overflow-x-auto mt-4">
-                  <table className="w-full text-left">
+                  <table className="w-full min-w-[640px] text-left">
                     <thead>
                       <tr className="border-b border-[#23252A] text-[10px] text-[#62666D] uppercase tracking-wide">
-                        <th className="px-3 py-2">월</th>
-                        <th className="px-3 py-2">채널</th>
-                        <th className="px-3 py-2">예산</th>
-                        <th className="px-3 py-2">실적</th>
-                        <th className="px-3 py-2">메모</th>
+                        <th className="px-3 py-2 whitespace-nowrap">월</th>
+                        <th className="px-3 py-2 whitespace-nowrap">채널</th>
+                        <th className="px-3 py-2 whitespace-nowrap">예산</th>
+                        <th className="px-3 py-2 whitespace-nowrap">실적</th>
+                        <th className="px-3 py-2 whitespace-nowrap">메모</th>
                         <th className="px-3 py-2" />
                       </tr>
                     </thead>
