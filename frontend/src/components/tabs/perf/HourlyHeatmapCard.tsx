@@ -1,9 +1,10 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Clock3, Loader2 } from 'lucide-react';
 import { insightsApi } from '@/lib/api';
+import { HeatmapGrid } from '@/components/ui/HeatmapGrid';
 
 const WEEKDAYS = ['월', '화', '수', '목', '금', '토', '일'];
 
@@ -25,19 +26,9 @@ function fmtMetric(metric: MetricKey, v: number): string {
   return `${Math.round(v).toLocaleString('ko-KR')}${unit}`;
 }
 
-/** 값 → 배경색 (0=투명, max=보라 최대 농도) */
-function cellColor(value: number, max: number): string {
-  if (!value || max <= 0) return 'rgba(255,255,255,0.02)';
-  const t = Math.min(1, value / max);
-  const alpha = 0.12 + t * 0.83;
-  return `rgba(94,106,210,${alpha.toFixed(2)})`;
-}
-
 export function HourlyHeatmapCard() {
   const [days, setDays] = useState<7 | 30 | 90>(30);
   const [metric, setMetric] = useState<MetricKey>('spend');
-  const gridRef = useRef<HTMLDivElement>(null);
-  const [hover, setHover] = useState<{ w: number; h: number; x: number; y: number } | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['insight-hourly-heatmap', days],
@@ -66,6 +57,8 @@ export function HourlyHeatmapCard() {
     }
     return null;
   }, [matrix, max]);
+
+  const formatValue = useCallback((v: number) => fmtMetric(metric, v), [metric]);
 
   const visibleMetrics = METRICS.filter((m) => !m.needsActions || data?.actions_available !== false);
 
@@ -115,50 +108,7 @@ export function HourlyHeatmapCard() {
         <p className="text-xs text-[#62666D] py-8 text-center">{data.reason || '데이터를 불러오지 못했습니다.'}</p>
       ) : (
         <>
-          <div className="overflow-x-auto">
-            <div ref={gridRef} className="min-w-[640px] relative">
-              {hover && (
-                <div
-                  className="pointer-events-none absolute z-10 -translate-x-1/2 whitespace-nowrap rounded-md border border-[#2E3035] bg-[#1C1D21] px-2 py-1 text-[10px] text-[#D0D6E0] shadow-lg"
-                  style={
-                    hover.y < 30
-                      ? { left: hover.x, top: hover.y + 24 }
-                      : { left: hover.x, top: hover.y - 4, transform: 'translate(-50%, -100%)' }
-                  }
-                >
-                  {WEEKDAYS[hover.w]}요일 {hover.h}시 ·{' '}
-                  <b className="text-white">{fmtMetric(metric, matrix[hover.w][hover.h])}</b>
-                </div>
-              )}
-              <div className="grid mb-1" style={{ gridTemplateColumns: '28px repeat(24, 1fr)' }}>
-                <div />
-                {Array.from({ length: 24 }, (_, h) => (
-                  <div key={h} className="text-center text-[9px] text-[#62666D]">
-                    {h % 3 === 0 ? h : ''}
-                  </div>
-                ))}
-              </div>
-              {WEEKDAYS.map((day, w) => (
-                <div key={day} className="grid gap-[2px] mb-[2px]" style={{ gridTemplateColumns: '28px repeat(24, 1fr)' }}>
-                  <div className="text-[10px] text-[#8A8F98] flex items-center">{day}</div>
-                  {Array.from({ length: 24 }, (_, h) => (
-                    <div
-                      key={h}
-                      className="h-5 rounded-[3px] cursor-default hover:ring-1 hover:ring-[#7070FF]"
-                      style={{ background: cellColor(matrix[w][h], max) }}
-                      onMouseEnter={(e) => {
-                        const grid = gridRef.current?.getBoundingClientRect();
-                        if (!grid) return;
-                        const cell = e.currentTarget.getBoundingClientRect();
-                        setHover({ w, h, x: cell.left - grid.left + cell.width / 2, y: cell.top - grid.top });
-                      }}
-                      onMouseLeave={() => setHover(null)}
-                    />
-                  ))}
-                </div>
-              ))}
-            </div>
-          </div>
+          <HeatmapGrid matrix={matrix} max={max} formatValue={formatValue} />
 
           <div className="flex items-center justify-between flex-wrap gap-2 mt-3 text-[11px] text-[#8A8F98]">
             <span>
