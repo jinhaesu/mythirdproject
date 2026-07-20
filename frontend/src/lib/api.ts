@@ -666,6 +666,28 @@ export interface InsightRefreshResponse {
   as_of: string;
 }
 
+/** GET /insights/hourly-heatmap 응답 */
+export interface InsightHourlyHeatmapResponse {
+  available: boolean;
+  reason?: string;
+  since?: string;
+  until?: string;
+  days?: number;
+  /** 각 지표별 7(월~일)×24 매트릭스 */
+  matrices?: {
+    spend: number[][];
+    impressions: number[][];
+    clicks: number[][];
+    purchases: number[][];
+    revenue: number[][];
+  };
+  actions_available?: boolean;
+  totals?: { spend: number; impressions: number; clicks: number; purchases: number; revenue: number };
+  weekday_spend?: number[];
+  hour_spend?: number[];
+  basis?: { spend: string; attribution: string; period: string };
+}
+
 export const insightsApi = {
   /** DB 스냅샷 기반 추세 데이터 조회 — days 또는 since/until 커스텀 범위 + daily/weekly */
   getTrend: async (params: number | InsightTrendParams = 30): Promise<InsightTrendResponse> => {
@@ -683,6 +705,14 @@ export const insightsApi = {
   /** 수집기 상태 조회 (토큰 만료 여부 포함) */
   getStatus: async (): Promise<InsightStatusResponse> => {
     const { data } = await api.get<InsightStatusResponse>('/insights/status');
+    return data;
+  },
+
+  /** 요일×시간대별 실집행 히트맵 (Meta 라이브, 6h 서버 캐시) */
+  getHourlyHeatmap: async (days: number = 30): Promise<InsightHourlyHeatmapResponse> => {
+    const { data } = await api.get<InsightHourlyHeatmapResponse>('/insights/hourly-heatmap', {
+      params: { days },
+    });
     return data;
   },
 };

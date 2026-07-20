@@ -222,6 +222,157 @@ async def get_insights_trend(
     return await _build_insights_trend(db, current_user, since_date, until_date, granularity)
 
 
+# ── GET /hourly-heatmap ──────────────────────────────────────────────────────
+
+# Meta 시간대 breakdown 캐시 (모듈 레벨, TTL 6시간)
+_hourly_heatmap_cache: Dict[Any, Any] = {}
+
+_PURCHASE_PRIORITY = ("omni_purchase", "purchase", "offsite_conversion.fb_pixel_purchase")
+
+
+def _pick_purchase(items: Optional[List[Dict[str, Any]]]) -> float:
+    """Meta가 같은 구매를 purchase/omni_purchase/fb_pixel_purchase로 3중 보고 → 단일 선택."""
+    if not items:
+        return 0.0
+    by_type = {str(i.get("action_type")): float(i.get("value") or 0) for i in items}
+    for t in _PURCHASE_PRIORITY:
+        if t in by_type:
+            return by_type[t]
+    return 0.0
+
+
+@router.get("/hourly-heatmap")
+async def get_hourly_heatmap(
+    days: int = Query(default=30, ge=1, le=92, description="조회 일수 (오늘 포함)"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """요일×시간대별 Meta 실집행 지표 히트맵 — 광고비/노출/클릭/구매/매출.
+
+    Meta 인사이트 breakdowns=hourly_stats_aggregated_by_advertiser_time_zone +
+    time_increment=1 라이브 호출(6h 캐시). 광고 계정 타임존(KST) 기준.
+    주의: Meta는 일예산 자동 페이싱이므로 이 분포는 '설정한 예산 배분'이 아니라
+    Meta가 실제 지출한 시간대 분포다.
+    """
+    import time as _time
+
+    import httpx
+
+    from app.api.v1.endpoints.auth import get_shared_meta_credentials
+    from app.core.config import get_settings
+
+    until_date = date.today()
+    since_date = until_date - timedelta(days=days - 1)
+
+    meta_user: Optional[User] = (
+        current_user if current_user.meta_access_token
+        else await get_shared_meta_credentials(db)
+    )
+    if not meta_user or not meta_user.meta_access_token or not meta_user.meta_ad_account_id:
+        return {"available": False, "reason": "Meta 계정이 연결되지 않았습니다."}
+
+    ad_account_id = meta_user.meta_ad_account_id
+    if not ad_account_id.startswith("act_"):
+        ad_account_id = f"act_{ad_account_id}"
+
+    cache_key = (ad_account_id, since_date.isoformat(), until_date.isoformat())
+    cached = _hourly_heatmap_cache.get(cache_key)
+    if cached and (_time.time() - cached[0] < 6 * 3600):
+        return cached[1]
+
+    settings = get_settings()
+    base = f"{settings.META_GRAPH_API_BASE}/{settings.META_API_VERSION}"
+    fields_full = "spend,impressions,clicks,actions,action_values"
+    fields_lite = "spend,impressions,clicks"
+
+    def _zero_matrix() -> List[List[float]]:
+        return [[0.0] * 24 for _ in range(7)]
+
+    matrices: Dict[str, List[List[float]]] = {
+        k: _zero_matrix() for k in ("spend", "impressions", "clicks", "purchases", "revenue")
+    }
+    actions_available = True
+
+    async def _fetch(fields: str) -> Optional[str]:
+        """히트맵 행 누적. 성공 시 None, Meta 에러 시 에러 메시지 반환."""
+        params: Dict[str, Any] = {
+            "access_token": meta_user.meta_access_token,
+            "level": "account",
+            "fields": fields,
+            "breakdowns": "hourly_stats_aggregated_by_advertiser_time_zone",
+            "time_increment": 1,
+            "time_range": f'{{"since":"{since_date.isoformat()}","until":"{until_date.isoformat()}"}}',
+            "limit": 500,
+        }
+        async with httpx.AsyncClient(timeout=90) as client:
+            url = f"{base}/{ad_account_id}/insights"
+            while True:
+                resp = await client.get(url, params=params)
+                body = resp.json()
+                if body.get("error"):
+                    return str(body["error"].get("message") or body["error"])
+                for row in body.get("data", []):
+                    try:
+                        weekday = date.fromisoformat(str(row.get("date_start"))).weekday()
+                        hour = int(str(row.get("hourly_stats_aggregated_by_advertiser_time_zone", "0"))[:2])
+                    except (ValueError, TypeError):
+                        continue
+                    if not (0 <= hour <= 23):
+                        continue
+                    matrices["spend"][weekday][hour] += float(row.get("spend") or 0)
+                    matrices["impressions"][weekday][hour] += float(row.get("impressions") or 0)
+                    matrices["clicks"][weekday][hour] += float(row.get("clicks") or 0)
+                    matrices["purchases"][weekday][hour] += _pick_purchase(row.get("actions"))
+                    matrices["revenue"][weekday][hour] += _pick_purchase(row.get("action_values"))
+                next_url = (body.get("paging") or {}).get("next")
+                if not next_url:
+                    return None
+                url, params = next_url, {}
+
+    try:
+        err = await _fetch(fields_full)
+        if err:
+            # 일부 계정은 hourly breakdown + actions 조합을 거부 → 기본 지표만 재시도
+            logger.warning(f"[Insights] hourly+actions 실패({err}) — 기본 지표로 재시도")
+            actions_available = False
+            for m in matrices.values():
+                for r in m:
+                    r[:] = [0.0] * 24
+            err = await _fetch(fields_lite)
+            if err:
+                logger.error(f"[Insights] hourly heatmap 호출 실패: {err}")
+                return {"available": False, "reason": f"Meta API 오류: {err}"}
+    except Exception as e:
+        logger.error(f"[Insights] hourly heatmap 예외: {e}")
+        return {"available": False, "reason": f"Meta API 호출 실패: {e}"}
+
+    for key in ("spend", "revenue"):
+        matrices[key] = [[round(v, 2) for v in r] for r in matrices[key]]
+    for key in ("impressions", "clicks", "purchases"):
+        matrices[key] = [[int(v) for v in r] for r in matrices[key]]
+
+    spend_m = matrices["spend"]
+    result = {
+        "available": True,
+        "since": since_date.isoformat(),
+        "until": until_date.isoformat(),
+        "days": days,
+        "matrices": matrices,
+        "actions_available": actions_available,
+        "totals": {k: round(sum(sum(r) for r in m), 2) for k, m in matrices.items()},
+        "weekday_spend": [round(sum(r), 2) for r in spend_m],
+        "hour_spend": [round(sum(spend_m[w][h] for w in range(7)), 2) for h in range(24)],
+        "basis": {
+            "spend": "Meta 광고 계정 타임존(KST) 기준, 해당 요일×시간대에 실제 집행된 광고비 합계. "
+                     "Meta는 일예산을 자동 페이싱하므로 '설정한 예산 배분'이 아니라 실지출 분포입니다.",
+            "attribution": "구매·매출은 노출 발생 시간대 기준 귀속(omni_purchase 우선 단일 선택, 3중 보고 합산 제외).",
+            "period": f"{since_date.isoformat()} ~ {until_date.isoformat()} ({days}일, 오늘 포함) 합산. 6시간 캐시.",
+        },
+    }
+    _hourly_heatmap_cache[cache_key] = (_time.time(), result)
+    return result
+
+
 # ── POST /refresh ────────────────────────────────────────────────────────────
 
 @router.post("/refresh")

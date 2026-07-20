@@ -14,6 +14,7 @@ import { analyticsApi, downloadFile, insightsApi, clearAnalysisCache } from '@/l
 import type { InsightTrendPoint, InsightTrendCampaign } from '@/lib/api';
 import toast from 'react-hot-toast';
 import type { PerformanceFeedback, CampaignStatusFilter } from '@/types';
+import { HourlyHeatmapCard } from '@/components/tabs/perf/HourlyHeatmapCard';
 import {
   LineChart, Line, BarChart, Bar, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
@@ -726,6 +727,9 @@ export default function PerformanceDashboard() {
               </>)}
             </div>
           )}
+
+          {/* 요일×시간대 광고 집행 히트맵 */}
+          <HourlyHeatmapCard />
 
           {/* Conversion Actions */}
           {accountInsights.actions && accountInsights.actions.length > 0 && (
