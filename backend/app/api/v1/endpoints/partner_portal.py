@@ -18,10 +18,14 @@ from app.models.affiliate import (
     ReferralConversion,
 )
 from app.models.partner_campaign import PartnerCampaign
+from app.services.attribution import CONFIRMED_SOURCES
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+# 확정 귀속만 매출·전환 집계에 포함 (관리자 화면과 동일 기준, 2026-07-20)
+CONFIRMED_ATTR = ReferralConversion.attribution_source.in_(sorted(CONFIRMED_SOURCES))
 
 
 # ---------------------------------------------------------------------------
@@ -128,6 +132,7 @@ async def get_partner_dashboard(
             func.coalesce(func.sum(ReferralConversion.commission_amount), 0),
         ).where(
             ReferralConversion.partner_id == partner_id,
+            CONFIRMED_ATTR,
         ).group_by(ReferralConversion.status)
     )
     total_conversions = 0
@@ -254,6 +259,7 @@ async def get_partner_campaigns(
             ).where(
                 ReferralConversion.partner_id == partner_id,
                 ReferralConversion.campaign_id == pc.campaign_id,
+                CONFIRMED_ATTR,
             ).group_by(ReferralConversion.status)
         )
         paid_cnt = 0
@@ -349,6 +355,7 @@ async def get_partner_timeseries(
             ReferralConversion.partner_id == partner_id,
             ReferralConversion.converted_at >= start_dt,
             ReferralConversion.status == "paid",
+            CONFIRMED_ATTR,
         )
         .group_by(func.date(ReferralConversion.converted_at))
     )

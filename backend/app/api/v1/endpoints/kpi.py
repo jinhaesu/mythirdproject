@@ -49,6 +49,7 @@ from app.models.kpi import (
 from app.models.meta_insight import MetaInsightDaily
 from app.models.user import User
 from app.services import cafe24 as cafe24_svc
+from app.services.attribution import CONFIRMED_SOURCES
 from app.services.kpi_collectors import collect_mall_visitors, collect_naver_spend
 from app.services.mall_order_sync import (
     extract_member_id_or_none,
@@ -595,6 +596,8 @@ async def _external_summary_monthly(db: AsyncSession, months: int) -> dict:
                 ReferralConversion.campaign_id,
             ).where(
                 ReferralConversion.status == "paid",
+                # 확정 귀속만 집계 — 추정 라스트클릭은 오가닉 주문까지 흡수 (2026-07-20)
+                ReferralConversion.attribution_source.in_(sorted(CONFIRMED_SOURCES)),
                 ReferralConversion.converted_at >= range_start_dt,
                 ReferralConversion.converted_at <= range_end_dt,
             )

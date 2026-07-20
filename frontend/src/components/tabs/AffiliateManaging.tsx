@@ -1341,7 +1341,7 @@ function DashboardSection() {
   const hasRefunds = d.refunded_count > 0;
 
   const kpis = [
-    { label: '순매출 (취소·환불 제외)', value: fmtMan(d.total_sales), icon: <ShoppingBag size={16} />, color: 'text-blue-400', bg: 'bg-blue-500/10', ring: 'ring-blue-500/20', glow: 'from-blue-500/15', showRefund: true },
+    { label: '순매출 (확정 귀속만, 취소·환불 제외)', value: fmtMan(d.total_sales), icon: <ShoppingBag size={16} />, color: 'text-blue-400', bg: 'bg-blue-500/10', ring: 'ring-blue-500/20', glow: 'from-blue-500/15', showRefund: true },
     { label: '총 커미션', value: fmtMan(d.total_commission), icon: <DollarSign size={16} />, color: 'text-emerald-400', bg: 'bg-emerald-500/10', ring: 'ring-emerald-500/20', glow: 'from-emerald-500/15', showRefund: false },
     { label: '활성 파트너', value: `${d.active_partners}명`, icon: <Users size={16} />, color: 'text-violet-400', bg: 'bg-violet-500/10', ring: 'ring-violet-500/20', glow: 'from-violet-500/15', showRefund: false },
     { label: '총 클릭', value: fmt(d.total_clicks), icon: <Eye size={16} />, color: 'text-cyan-400', bg: 'bg-cyan-500/10', ring: 'ring-cyan-500/20', glow: 'from-cyan-500/15', showRefund: false },
@@ -5377,8 +5377,9 @@ function TrackingStatusCard() {
       </div>
       {ts.mode === 'loose' && (
         <p className="mt-2 text-[11px] leading-relaxed text-gray-500">
-          추정 귀속(라스트클릭)은 매출 기여 집계에만 반영되고 <span className="text-gray-300">커미션은 0원으로 적립</span>됩니다.
-          주문완료 페이지 바인딩이 7일 {ts.auto_threshold_7d}건 이상 쌓이면 추정 귀속이 자동 중단되고 확정 신호만 인정됩니다.
+          모든 매출·전환·커미션 집계는 <span className="text-gray-300">확정 귀속(주문완료 바인딩·ref코드·회원연결)만</span> 포함합니다.
+          추정 귀속(라스트클릭)은 집계에서 제외되며 위의 소스 분포에서만 참고용으로 확인할 수 있습니다.
+          주문완료 페이지 바인딩이 7일 {ts.auto_threshold_7d}건 이상 쌓이면 추정 귀속 기록 자체가 자동 중단됩니다.
         </p>
       )}
       {ts.binds_by_day.length > 0 && (

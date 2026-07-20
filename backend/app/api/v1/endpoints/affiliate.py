@@ -25,8 +25,13 @@ from app.models.affiliate import (
 from app.models.partner_campaign import PartnerCampaign
 from app.models.points import PointTransaction
 from app.models.user import User
+from app.services.attribution import CONFIRMED_SOURCES
 
 _settings = get_settings()
+
+# 확정 귀속(bind/ref/회원연결)만 매출·전환 집계에 포함 — 추정 라스트클릭은
+# 오가닉/메타 주문까지 흡수해 매출을 부풀리므로 모든 집계에서 제외한다 (2026-07-20).
+CONFIRMED_ATTR = ReferralConversion.attribution_source.in_(sorted(CONFIRMED_SOURCES))
 
 logger = logging.getLogger(__name__)
 
@@ -393,6 +398,7 @@ async def list_campaigns(
         conv_conditions = [
             ReferralConversion.campaign_id == c.id,
             ReferralConversion.status == "paid",
+            CONFIRMED_ATTR,
         ]
         if active_partner_ids:
             click_conditions.append(ReferralClick.partner_id.in_(active_partner_ids))
@@ -822,6 +828,7 @@ async def list_partners(
             ).where(
                 ReferralConversion.partner_id == p.id,
                 ReferralConversion.status == "paid",
+                CONFIRMED_ATTR,
             )
         )
         conv_row = conv_r.one()
@@ -1141,6 +1148,7 @@ async def get_dashboard(
         paid_conds = [
             ReferralConversion.partner_id.in_(partner_ids),
             ReferralConversion.status == "paid",
+            CONFIRMED_ATTR,
         ]
         if since is not None:
             paid_conds.append(_conv_period_cond(since, basis, until))
@@ -1160,6 +1168,7 @@ async def get_dashboard(
         rc_conds = [
             ReferralConversion.partner_id.in_(partner_ids),
             ReferralConversion.status.in_(["refunded", "cancelled"]),
+            CONFIRMED_ATTR,
         ]
         if since is not None:
             rc_conds.append(_conv_period_cond(since, basis, until))
@@ -1176,7 +1185,7 @@ async def get_dashboard(
                 cancelled_count = srow[1]
 
         # 총 gross (모든 상태 합, 참고용)
-        gross_conds = [ReferralConversion.partner_id.in_(partner_ids)]
+        gross_conds = [ReferralConversion.partner_id.in_(partner_ids), CONFIRMED_ATTR]
         if since is not None:
             gross_conds.append(_conv_period_cond(since, basis, until))
         gross_result = await db.execute(
@@ -1229,6 +1238,7 @@ async def get_dashboard(
         camp_conv_conds = [
             ReferralConversion.campaign_id == c.id,
             ReferralConversion.status == "paid",
+            CONFIRMED_ATTR,
         ]
         if since is not None:
             camp_click_conds.append(ReferralClick.clicked_at >= since)
@@ -1266,6 +1276,7 @@ async def get_dashboard(
     top_join_cond = (
         (ReferralConversion.partner_id == AffiliatePartner.id)
         & (ReferralConversion.status == "paid")
+        & CONFIRMED_ATTR
     )
     if since is not None:
         top_join_cond = top_join_cond & _conv_period_cond(since, basis, until)
@@ -1361,6 +1372,7 @@ async def get_dashboard_timeseries(
         conv_where = [
             ReferralConversion.partner_id.in_(partner_ids),
             ReferralConversion.converted_at >= since,
+            CONFIRMED_ATTR,
         ]
         if until is not None:
             conv_where.append(ReferralConversion.converted_at < until)
@@ -1462,6 +1474,7 @@ async def get_dashboard_by_campaign(
         conv_conds = [
             ReferralConversion.campaign_id == campaign.id,
             ReferralConversion.status == "paid",
+            CONFIRMED_ATTR,
         ]
         if since is not None:
             click_conds.append(ReferralClick.clicked_at >= since)
@@ -1539,6 +1552,7 @@ async def get_dashboard_hourly(
     conds = [
         ReferralConversion.converted_at >= since,
         ReferralConversion.status == "paid",
+        CONFIRMED_ATTR,
     ]
     if active_partner_ids:
         conds.append(ReferralConversion.partner_id.in_(active_partner_ids))
@@ -1616,6 +1630,7 @@ async def get_dashboard_top_products(
     join_cond = (
         (ReferralConversion.campaign_id == AffiliateCampaign.id)
         & (ReferralConversion.status == "paid")
+        & CONFIRMED_ATTR
     )
     if since is not None:
         join_cond = join_cond & _conv_period_cond(since, basis, until)
@@ -1750,9 +1765,9 @@ async def export_partner_settlement(
     end: Optional[str] = Query(None, description="YYYY-MM-DD"),
     seller_type: str = Query("freelancer", description="freelancer | business"),
     confirmed_only: bool = Query(
-        False,
-        description="True면 확정 귀속(bind/ref/회원연결)만 포함 — 커미션 정산용. "
-        "False면 추정 귀속 포함(매출 기여 리포트용).",
+        True,
+        description="True(기본)면 확정 귀속(bind/ref/회원연결)만 포함. "
+        "False면 추정 귀속까지 포함(참고용 — 부풀려진 수치).",
     ),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -2890,6 +2905,7 @@ async def get_partner_performance(
                 ReferralConversion.partner_id == partner_id,
                 ReferralConversion.campaign_id == pc.campaign_id,
                 ReferralConversion.status == "paid",
+                CONFIRMED_ATTR,
             )
         )
         conv_row = conv_result.one()
@@ -3248,6 +3264,7 @@ async def get_partner_timeseries(
         .where(
             ReferralConversion.partner_id == partner_id,
             ReferralConversion.converted_at >= start_dt,
+            CONFIRMED_ATTR,
         )
         .group_by(func.date(ReferralConversion.converted_at), ReferralConversion.status)
     )
