@@ -728,8 +728,12 @@ export default function PerformanceDashboard() {
             </div>
           )}
 
-          {/* 요일×시간대 광고 집행 히트맵 */}
-          <HourlyHeatmapCard />
+          {/* 요일×시간대 광고 집행 히트맵 — 상단 기간 설정과 연동 */}
+          <HourlyHeatmapCard
+            params={isDateRange
+              ? { since: effectiveSince, until: effectiveUntil }
+              : { days: daysMap[datePreset] || 30 }}
+          />
 
           {/* Conversion Actions */}
           {accountInsights.actions && accountInsights.actions.length > 0 && (

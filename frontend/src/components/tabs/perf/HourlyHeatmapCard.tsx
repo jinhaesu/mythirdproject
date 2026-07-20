@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useCallback, useMemo, useState, useTransition } from 'react';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Clock3, Loader2 } from 'lucide-react';
 import { insightsApi } from '@/lib/api';
 import { HeatmapGrid } from '@/components/ui/HeatmapGrid';
@@ -9,6 +9,8 @@ import { HeatmapGrid } from '@/components/ui/HeatmapGrid';
 const WEEKDAYS = ['월', '화', '수', '목', '금', '토', '일'];
 
 type MetricKey = 'spend' | 'impressions' | 'clicks' | 'purchases' | 'revenue' | 'roas';
+
+const METRIC_KEYS = ['spend', 'impressions', 'clicks', 'purchases', 'revenue'] as const;
 
 const METRICS: { key: MetricKey; label: string; needsActions: boolean }[] = [
   { key: 'spend', label: '광고비', needsActions: false },
@@ -26,41 +28,55 @@ function fmtMetric(metric: MetricKey, v: number): string {
   return `${Math.round(v).toLocaleString('ko-KR')}${unit}`;
 }
 
-export function HourlyHeatmapCard() {
-  const [days, setDays] = useState<7 | 30 | 90>(30);
-  const [metric, setMetric] = useState<MetricKey>('spend');
+export interface HourlyHeatmapParams {
+  days?: number;
+  since?: string;
+  until?: string;
+}
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['insight-hourly-heatmap', days],
-    queryFn: () => insightsApi.getHourlyHeatmap(days),
+/** 성과분석 상단 기간 설정과 연동 — params는 트렌드 조회와 동일 기준으로 전달받는다. */
+export function HourlyHeatmapCard({ params }: { params: HourlyHeatmapParams }) {
+  const [metric, setMetric] = useState<MetricKey>('spend');
+  const [isPending, startTransition] = useTransition();
+
+  const { data, isLoading, isFetching } = useQuery({
+    queryKey: ['insight-hourly-heatmap', params.days ?? null, params.since ?? null, params.until ?? null],
+    queryFn: () => insightsApi.getHourlyHeatmap(params),
+    placeholderData: keepPreviousData,
     staleTime: 30 * 60 * 1000,
   });
 
-  const matrix = useMemo<number[][] | null>(() => {
+  // 지표 6종 매트릭스·최대값을 데이터 도착 시 1회 사전 계산 — 토글 클릭 시 계산 0
+  const metricData = useMemo(() => {
     if (!data?.available || !data.matrices) return null;
-    if (metric === 'roas') {
-      return data.matrices.spend.map((row, w) =>
-        row.map((s, h) => (s > 0 ? (data.matrices!.revenue[w][h] || 0) / s : 0)),
-      );
-    }
-    return data.matrices[metric];
-  }, [data, metric]);
+    const out = {} as Record<MetricKey, { matrix: number[][]; max: number }>;
+    METRIC_KEYS.forEach((k) => {
+      const m = data.matrices![k];
+      out[k] = { matrix: m, max: Math.max(0, ...m.flat()) };
+    });
+    const roas = data.matrices.spend.map((row, w) =>
+      row.map((s, h) => (s > 0 ? (data.matrices!.revenue[w][h] || 0) / s : 0)),
+    );
+    out.roas = { matrix: roas, max: Math.max(0, ...roas.flat()) };
+    return out;
+  }, [data]);
 
-  const max = useMemo(() => (matrix ? Math.max(0, ...matrix.flat()) : 0), [matrix]);
+  const current = metricData?.[metric] ?? null;
 
   const peak = useMemo(() => {
-    if (!matrix || max <= 0) return null;
+    if (!current || current.max <= 0) return null;
     for (let w = 0; w < 7; w += 1) {
       for (let h = 0; h < 24; h += 1) {
-        if (matrix[w][h] === max) return { w, h };
+        if (current.matrix[w][h] === current.max) return { w, h };
       }
     }
     return null;
-  }, [matrix, max]);
+  }, [current]);
 
   const formatValue = useCallback((v: number) => fmtMetric(metric, v), [metric]);
 
   const visibleMetrics = METRICS.filter((m) => !m.needsActions || data?.actions_available !== false);
+  const refreshing = isFetching && !!data;
 
   return (
     <div className="bg-[#0F1011] border border-[#23252A] rounded-xl p-4">
@@ -68,35 +84,25 @@ export function HourlyHeatmapCard() {
         <h3 className="text-sm font-semibold text-[#D0D6E0] flex items-center gap-1.5">
           <Clock3 size={14} className="text-[#7070FF]" />
           요일×시간대 광고 집행 히트맵
-          <span className="text-[10px] font-normal text-[#62666D]">Meta 실집행 · KST</span>
+          <span className="text-[10px] font-normal text-[#62666D]">Meta 실집행 · KST · 상단 기간 연동</span>
+          {refreshing && (
+            <span className="flex items-center gap-1 text-[10px] font-normal text-[#7070FF]">
+              <Loader2 size={10} className="animate-spin" /> 기간 적용 중…
+            </span>
+          )}
         </h3>
-        <div className="flex items-center flex-wrap gap-y-2 gap-x-2">
-          <div className="flex items-center bg-[#141516] rounded-lg p-0.5 flex-wrap">
-            {visibleMetrics.map((m) => (
-              <button
-                key={m.key}
-                onClick={() => setMetric(m.key)}
-                className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-all ${
-                  metric === m.key ? 'bg-[#0F1011] text-[#7070FF] shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'text-[#8A8F98] hover:text-[#D0D6E0]'
-                }`}
-              >
-                {m.label}
-              </button>
-            ))}
-          </div>
-          <div className="flex items-center bg-[#141516] rounded-lg p-0.5">
-            {([7, 30, 90] as const).map((n) => (
-              <button
-                key={n}
-                onClick={() => setDays(n)}
-                className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-all ${
-                  days === n ? 'bg-[#0F1011] text-[#7070FF] shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'text-[#8A8F98] hover:text-[#D0D6E0]'
-                }`}
-              >
-                {n}일
-              </button>
-            ))}
-          </div>
+        <div className="flex items-center bg-[#141516] rounded-lg p-0.5 flex-wrap">
+          {visibleMetrics.map((m) => (
+            <button
+              key={m.key}
+              onClick={() => startTransition(() => setMetric(m.key))}
+              className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-all ${
+                metric === m.key ? 'bg-[#0F1011] text-[#7070FF] shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'text-[#8A8F98] hover:text-[#D0D6E0]'
+              }`}
+            >
+              {m.label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -104,18 +110,20 @@ export function HourlyHeatmapCard() {
         <div className="flex items-center justify-center h-40">
           <Loader2 size={24} className="animate-spin text-[#7070FF]" />
         </div>
-      ) : !data.available || !matrix ? (
+      ) : !data.available || !current ? (
         <p className="text-xs text-[#62666D] py-8 text-center">{data.reason || '데이터를 불러오지 못했습니다.'}</p>
       ) : (
         <>
-          <HeatmapGrid matrix={matrix} max={max} formatValue={formatValue} />
+          <div className={`transition-opacity duration-150 ${isPending || refreshing ? 'opacity-50' : 'opacity-100'}`}>
+            <HeatmapGrid matrix={current.matrix} max={current.max} formatValue={formatValue} />
+          </div>
 
           <div className="flex items-center justify-between flex-wrap gap-2 mt-3 text-[11px] text-[#8A8F98]">
             <span>
               {data.since} ~ {data.until} 합산
               {peak && (
                 <span className="text-[#D0D6E0]">
-                  {' '}· 피크 {WEEKDAYS[peak.w]}요일 {peak.h}시 ({fmtMetric(metric, max)})
+                  {' '}· 피크 {WEEKDAYS[peak.w]}요일 {peak.h}시 ({fmtMetric(metric, current.max)})
                 </span>
               )}
               {metric === 'spend' && data.totals && (
@@ -130,6 +138,12 @@ export function HourlyHeatmapCard() {
               많음
             </span>
           </div>
+
+          {data.clamped && (
+            <p className="text-[10px] text-[#F0BF00] mt-2">
+              ⚠ 시간대 분석은 최대 92일까지 지원되어 선택 기간이 최근 92일로 잘렸습니다.
+            </p>
+          )}
 
           {data.basis && (
             <div className="mt-3 bg-[#141516] border border-[#23252A] rounded-lg p-3 text-[10px] text-[#8A8F98] leading-relaxed space-y-1">

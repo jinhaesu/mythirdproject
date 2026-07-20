@@ -673,6 +673,8 @@ export interface InsightHourlyHeatmapResponse {
   since?: string;
   until?: string;
   days?: number;
+  /** 요청 범위가 92일을 초과해 최근 92일로 잘렸는지 */
+  clamped?: boolean;
   /** 각 지표별 7(월~일)×24 매트릭스 */
   matrices?: {
     spend: number[][];
@@ -708,10 +710,12 @@ export const insightsApi = {
     return data;
   },
 
-  /** 요일×시간대별 실집행 히트맵 (Meta 라이브, 6h 서버 캐시) */
-  getHourlyHeatmap: async (days: number = 30): Promise<InsightHourlyHeatmapResponse> => {
+  /** 요일×시간대별 실집행 히트맵 (Meta 라이브, 6h 서버 캐시) — days 또는 since/until */
+  getHourlyHeatmap: async (
+    params: { days?: number; since?: string; until?: string } = {},
+  ): Promise<InsightHourlyHeatmapResponse> => {
     const { data } = await api.get<InsightHourlyHeatmapResponse>('/insights/hourly-heatmap', {
-      params: { days },
+      params,
     });
     return data;
   },

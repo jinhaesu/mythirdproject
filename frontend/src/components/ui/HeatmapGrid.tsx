@@ -12,6 +12,34 @@ export function heatmapCellColor(value: number, max: number): string {
   return `rgba(94,106,210,${alpha.toFixed(2)})`;
 }
 
+/** 행 단위 메모 — 같은 지표로 되돌아오면(동일 배열 identity) 행 재렌더 생략 */
+const HeatmapRow = memo(function HeatmapRow({
+  day,
+  w,
+  row,
+  max,
+}: {
+  day: string;
+  w: number;
+  row: number[];
+  max: number;
+}) {
+  return (
+    <div className="grid gap-[2px] mb-[2px]" style={{ gridTemplateColumns: '28px repeat(24, 1fr)' }}>
+      <div className="text-[10px] text-[#8A8F98] flex items-center">{day}</div>
+      {Array.from({ length: 24 }, (_, h) => (
+        <div
+          key={h}
+          data-w={w}
+          data-h={h}
+          className="h-5 rounded-[3px] cursor-default hover:ring-1 hover:ring-[#7070FF]"
+          style={{ background: heatmapCellColor(row[h] ?? 0, max) }}
+        />
+      ))}
+    </div>
+  );
+});
+
 interface HeatmapGridProps {
   /** 7(월~일) × 24시간 매트릭스 */
   matrix: number[][];
@@ -86,18 +114,7 @@ export const HeatmapGrid = memo(function HeatmapGrid({ matrix, max, formatValue 
           ))}
         </div>
         {WEEKDAYS.map((day, w) => (
-          <div key={day} className="grid gap-[2px] mb-[2px]" style={{ gridTemplateColumns: '28px repeat(24, 1fr)' }}>
-            <div className="text-[10px] text-[#8A8F98] flex items-center">{day}</div>
-            {Array.from({ length: 24 }, (_, h) => (
-              <div
-                key={h}
-                data-w={w}
-                data-h={h}
-                className="h-5 rounded-[3px] cursor-default hover:ring-1 hover:ring-[#7070FF]"
-                style={{ background: heatmapCellColor(matrix[w]?.[h] ?? 0, max) }}
-              />
-            ))}
-          </div>
+          <HeatmapRow key={day} day={day} w={w} row={matrix[w] ?? []} max={max} />
         ))}
       </div>
     </div>

@@ -243,7 +243,9 @@ def _pick_purchase(items: Optional[List[Dict[str, Any]]]) -> float:
 
 @router.get("/hourly-heatmap")
 async def get_hourly_heatmap(
-    days: int = Query(default=30, ge=1, le=92, description="조회 일수 (오늘 포함)"),
+    days: int = Query(default=30, ge=1, le=92, description="조회 일수 (오늘 포함, since/until 미지정 시)"),
+    since: Optional[str] = Query(default=None, description="시작일 YYYY-MM-DD (커스텀 범위)"),
+    until: Optional[str] = Query(default=None, description="종료일 YYYY-MM-DD (커스텀 범위)"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -261,8 +263,15 @@ async def get_hourly_heatmap(
     from app.api.v1.endpoints.auth import get_shared_meta_credentials
     from app.core.config import get_settings
 
-    until_date = date.today()
-    since_date = until_date - timedelta(days=days - 1)
+    since_date, until_date = _resolve_trend_range(days, since, until)
+    if since is None:
+        since_date = until_date - timedelta(days=days - 1)
+    # hourly breakdown은 일×24행이라 범위를 92일로 제한 (초과 시 최근 92일로 클램프)
+    clamped = False
+    if (until_date - since_date).days > 91:
+        since_date = until_date - timedelta(days=91)
+        clamped = True
+    range_days = (until_date - since_date).days + 1
 
     meta_user: Optional[User] = (
         current_user if current_user.meta_access_token
@@ -356,7 +365,8 @@ async def get_hourly_heatmap(
         "available": True,
         "since": since_date.isoformat(),
         "until": until_date.isoformat(),
-        "days": days,
+        "days": range_days,
+        "clamped": clamped,
         "matrices": matrices,
         "actions_available": actions_available,
         "totals": {k: round(sum(sum(r) for r in m), 2) for k, m in matrices.items()},
@@ -366,7 +376,8 @@ async def get_hourly_heatmap(
             "spend": "Meta 광고 계정 타임존(KST) 기준, 해당 요일×시간대에 실제 집행된 광고비 합계. "
                      "Meta는 일예산을 자동 페이싱하므로 '설정한 예산 배분'이 아니라 실지출 분포입니다.",
             "attribution": "구매·매출은 노출 발생 시간대 기준 귀속(omni_purchase 우선 단일 선택, 3중 보고 합산 제외).",
-            "period": f"{since_date.isoformat()} ~ {until_date.isoformat()} ({days}일, 오늘 포함) 합산. 6시간 캐시.",
+            "period": f"{since_date.isoformat()} ~ {until_date.isoformat()} ({range_days}일) 합산. 6시간 캐시."
+                      + (" 시간대 분석은 최대 92일까지 지원되어 최근 92일로 잘렸습니다." if clamped else ""),
         },
     }
     _hourly_heatmap_cache[cache_key] = (_time.time(), result)
