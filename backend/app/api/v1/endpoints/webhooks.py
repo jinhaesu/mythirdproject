@@ -266,12 +266,14 @@ async def cafe24_order_webhook(request: Request):
         from app.models.partner_campaign import PartnerCampaign as PC
         from app.core.config import get_settings as _gs
         from app.services.attribution import (
+            effective_strict,
             get_member_link,
             get_order_bind,
+            is_confirmed_source,
             upsert_member_link,
         )
 
-        strict = _gs().ATTRIBUTION_STRICT
+        strict = await effective_strict(db)
         member_id = str(buyer_id or "").strip()
 
         campaign = None
@@ -398,8 +400,9 @@ async def cafe24_order_webhook(request: Request):
             return {"status": "no_partner_match"}
 
         # 커미션 계산 (bind 귀속은 campaign이 없을 수 있음)
+        # 추정 귀속(coupon_lastclick 등)은 매출 집계만 하고 커미션 0 — bind 승격 시 재계산.
         commission_amount = 0.0
-        if campaign:
+        if campaign and is_confirmed_source(attribution_source):
             if campaign.commission_type == "percentage":
                 commission_amount = total_price * (campaign.commission_rate / 100)
             else:

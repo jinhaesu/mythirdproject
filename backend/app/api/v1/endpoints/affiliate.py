@@ -1749,6 +1749,11 @@ async def export_partner_settlement(
     start: Optional[str] = Query(None, description="YYYY-MM-DD"),
     end: Optional[str] = Query(None, description="YYYY-MM-DD"),
     seller_type: str = Query("freelancer", description="freelancer | business"),
+    confirmed_only: bool = Query(
+        False,
+        description="True면 확정 귀속(bind/ref/회원연결)만 포함 — 커미션 정산용. "
+        "False면 추정 귀속 포함(매출 기여 리포트용).",
+    ),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -1801,6 +1806,12 @@ async def export_partner_settlement(
     conv_query = select(ReferralConversion).where(
         ReferralConversion.partner_id == partner_id
     )
+    if confirmed_only:
+        from app.services.attribution import CONFIRMED_SOURCES
+
+        conv_query = conv_query.where(
+            ReferralConversion.attribution_source.in_(list(CONFIRMED_SOURCES))
+        )
     if range_start is not None:
         conv_query = conv_query.where(ReferralConversion.converted_at >= range_start)
     if range_end_excl is not None:
@@ -2099,9 +2110,11 @@ async def export_partner_settlement(
     DETAIL_HEADER = [
         "주문번호", "주문일시", "상품명", "캠페인",
         "주문금액(원)", "주문수량", "수수료(%)", "수수료(원)",
-        "환불금액(원)", "상태", "환불일시",
+        "환불금액(원)", "상태", "환불일시", "귀속",
     ]
     NUM_COLS = {"E": 5, "F": 6, "G": 7, "H": 8, "I": 9}
+
+    from app.services.attribution import CONFIRMED_SOURCES as _CONFIRMED
 
     def _detail_row(c: ReferralConversion) -> list:
         info = _camp_info(c.campaign_id)
@@ -2117,6 +2130,7 @@ async def export_partner_settlement(
             int(c.refunded_amount or 0),
             STATUS_KOR.get(c.status or "paid", c.status or "paid"),
             _fmt_dt(c.refunded_at),
+            "확정" if c.attribution_source in _CONFIRMED else "추정",
         ]
 
     def _write_detail_sheet(ws, rows: list[list], title: str, summary_label: str):
@@ -2154,7 +2168,7 @@ async def export_partner_settlement(
                     start_color="F2F2F2", end_color="F2F2F2", fill_type="solid"
                 )
         # 컬럼 폭
-        widths = [20, 17, 26, 22, 14, 10, 10, 14, 14, 10, 17]
+        widths = [20, 17, 26, 22, 14, 10, 10, 14, 14, 10, 17, 8]
         for i, w in enumerate(widths, start=1):
             ws.column_dimensions[get_column_letter(i)].width = w
         ws.freeze_panes = "A2"
@@ -2467,10 +2481,108 @@ async def bind_order_click(request: Request, db: AsyncSession = Depends(get_db))
         if click.campaign_id:
             conv.campaign_id = click.campaign_id
         conv.attribution_source = "bind"
+        # 추정 귀속으로 커미션 0 처리돼 있던 전환이 확정으로 승격 → 커미션 재계산
+        if conv.campaign_id:
+            camp_r = await db.execute(
+                select(AffiliateCampaign).where(AffiliateCampaign.id == conv.campaign_id)
+            )
+            camp = camp_r.scalar_one_or_none()
+            if camp:
+                if camp.commission_type == "percentage":
+                    conv.commission_amount = round(
+                        (conv.order_amount or 0) * (camp.commission_rate / 100), 2
+                    )
+                else:
+                    conv.commission_amount = camp.commission_rate
 
     await db.commit()
     logger.info(f"[ClickBind] order={order_id} click={click.id} partner={click.partner_id}")
     return {"status": "bound", "click_id": click.id}
+
+
+@router.get("/tracking-status")
+async def get_tracking_status(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """구매자 식별 추적(tracker.js 바인딩) 현황 + 귀속 모드.
+
+    어필리에이트 탭 모니터링 카드용 — 바인딩 적재 추이, 귀속 소스 분포,
+    현재 strict 모드 여부(자동 전환 포함)를 한 번에 반환.
+    """
+    from app.core.config import get_settings as _gs
+    from app.models.affiliate import AffiliateOrderBind
+    from app.services.attribution import CONFIRMED_SOURCES, effective_strict
+
+    now = datetime.utcnow()
+
+    total_r = await db.execute(select(func.count(AffiliateOrderBind.id)))
+    binds_total = total_r.scalar() or 0
+
+    b7_r = await db.execute(
+        select(func.count(AffiliateOrderBind.id)).where(
+            AffiliateOrderBind.created_at >= now - timedelta(days=7)
+        )
+    )
+    binds_7d = b7_r.scalar() or 0
+
+    day_r = await db.execute(
+        select(
+            func.date(AffiliateOrderBind.created_at).label("d"),
+            func.count(AffiliateOrderBind.id),
+        )
+        .where(AffiliateOrderBind.created_at >= now - timedelta(days=14))
+        .group_by(func.date(AffiliateOrderBind.created_at))
+        .order_by(func.date(AffiliateOrderBind.created_at))
+    )
+    binds_by_day = [{"date": str(r[0]), "count": int(r[1])} for r in day_r.all()]
+
+    src_r = await db.execute(
+        select(
+            ReferralConversion.attribution_source,
+            func.count(ReferralConversion.id),
+            func.coalesce(func.sum(ReferralConversion.order_amount), 0),
+        )
+        .where(
+            ReferralConversion.converted_at >= now - timedelta(days=30),
+            ReferralConversion.status == "paid",
+        )
+        .group_by(ReferralConversion.attribution_source)
+    )
+    sources_30d = []
+    confirmed_amt = 0.0
+    total_amt = 0.0
+    for src, cnt, amt in src_r.all():
+        amt = float(amt or 0)
+        confirmed = src in CONFIRMED_SOURCES
+        sources_30d.append({
+            "source": src or "unknown",
+            "confirmed": confirmed,
+            "count": int(cnt),
+            "order_amount": amt,
+        })
+        total_amt += amt
+        if confirmed:
+            confirmed_amt += amt
+    sources_30d.sort(key=lambda x: -x["order_amount"])
+
+    settings = _gs()
+    threshold = settings.ATTRIBUTION_AUTO_STRICT_MIN_BINDS_7D
+    strict_now = await effective_strict(db)
+    mode = (
+        "strict_env" if settings.ATTRIBUTION_STRICT
+        else ("strict_auto" if strict_now else "loose")
+    )
+
+    return {
+        "mode": mode,
+        "auto_threshold_7d": threshold,
+        "binds_total": binds_total,
+        "binds_7d": binds_7d,
+        "binds_by_day": binds_by_day,
+        "sources_30d": sources_30d,
+        "confirmed_share_30d": round(confirmed_amt / total_amt * 100, 1) if total_amt else 0.0,
+    }
 
 
 # ---------------------------------------------------------------------------

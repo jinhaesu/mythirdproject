@@ -24,9 +24,11 @@ from app.models.partner_campaign import PartnerCampaign
 from app.models.user import User
 from app.services import cafe24 as cafe24_svc
 from app.services.attribution import (
+    effective_strict,
     extract_member_id,
     get_member_link,
     get_order_bind,
+    is_confirmed_source,
     upsert_member_link,
 )
 
@@ -157,7 +159,7 @@ async def _process_order(db, order: dict) -> dict:
     # Attribution 매칭 — 구매자 식별 우선순위:
     # 0) tracker.js 세션 바인딩(확정) → 1) ref 코드(확정) → 2) 쿠폰(캠페인) + 회원연결(파트너)
     # → 3) 상품 매칭 + 회원연결 → (strict OFF일 때만) 라스트클릭 추정
-    strict = get_settings().ATTRIBUTION_STRICT
+    strict = await effective_strict(db)
     member_id = extract_member_id(order)
     attribution_source: Optional[str] = None
 
@@ -401,9 +403,10 @@ async def _process_order(db, order: dict) -> dict:
     if not partner:
         return {"status": "no_partner", "order_id": order_id, "campaign_id": campaign.id if campaign else None}
 
-    # 커미션 계산
+    # 커미션 계산 — 추정 귀속(lastclick 계열·미상)은 매출 집계만 하고 커미션은 0.
+    # 이후 tracker.js 바인딩이 도착해 bind로 승격되면 click-bind 쪽에서 재계산한다.
     commission = 0.0
-    if campaign:
+    if campaign and is_confirmed_source(attribution_source):
         if campaign.commission_type == "percentage":
             commission = actual_payment * (campaign.commission_rate / 100)
         else:

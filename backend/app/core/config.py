@@ -79,6 +79,9 @@ class Settings(BaseSettings):
     # 상품→2h내 클릭)을 중단하고 확정 신호(세션 바인딩·ref코드·회원 연결)만 인정.
     # 트래커 스크립트가 스토어에 설치되어 바인딩이 쌓인 뒤 켜는 것을 권장.
     ATTRIBUTION_STRICT: bool = False
+    # 자동 strict 전환 임계치 — 최근 7일 확정 바인딩(affiliate_order_binds)이 이 값
+    # 이상이면 env와 무관하게 추정 귀속을 중단한다. 0이면 자동 전환 비활성화.
+    ATTRIBUTION_AUTO_STRICT_MIN_BINDS_7D: int = 20
 
     # Allowed emails (comma-separated, empty = allow all)
     ALLOWED_EMAILS: str = ""
