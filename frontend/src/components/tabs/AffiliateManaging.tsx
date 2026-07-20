@@ -5337,6 +5337,65 @@ const NAV_ITEMS: { key: SectionKey; label: string; icon: React.ReactNode }[] = [
   { key: 'settings', label: '설정', icon: <Settings size={14} /> },
 ];
 
+// ─── 구매자 식별 추적 현황 카드 ───────────────────────────────────────────────
+// tracker.js 주문완료 바인딩 적재 추이 + 귀속 모드(추정 허용/자동 엄격) 모니터링.
+// 바인딩이 임계치 이상 쌓이면 서버가 자동으로 추정 귀속을 중단한다.
+function TrackingStatusCard() {
+  const { data: ts } = useQuery({
+    queryKey: ['affiliate', 'tracking-status'],
+    queryFn: () => affiliateApi.getTrackingStatus(),
+    refetchInterval: 300000,
+    retry: 1,
+  });
+  if (!ts) return null;
+
+  const modeInfo = {
+    strict_env: { label: '엄격 (env 강제)', cls: 'bg-emerald-500/10 text-emerald-300 ring-emerald-500/20' },
+    strict_auto: { label: '엄격 (자동 전환됨)', cls: 'bg-emerald-500/10 text-emerald-300 ring-emerald-500/20' },
+    loose: { label: '추정 허용 (바인딩 적재 대기)', cls: 'bg-amber-500/10 text-amber-300 ring-amber-500/20' },
+  }[ts.mode] || { label: ts.mode, cls: 'bg-gray-500/10 text-gray-300 ring-gray-500/20' };
+
+  return (
+    <div className="bg-[#1a1b1e] rounded-xl p-4 ring-1 ring-white/5">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <span className="text-sm font-semibold text-white">구매자 식별 추적</span>
+        <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ring-1 ${modeInfo.cls}`}>
+          귀속 모드: {modeInfo.label}
+        </span>
+        <span className="text-xs text-gray-400">
+          확정 바인딩 <span className="text-white font-semibold">{ts.binds_total.toLocaleString()}</span>건
+          <span className="text-gray-500"> · 최근 7일 </span>
+          <span className="text-white font-semibold">{ts.binds_7d.toLocaleString()}</span>
+          <span className="text-gray-500">/{ts.auto_threshold_7d}건 (자동 엄격 전환 기준)</span>
+        </span>
+        <span className="text-xs text-gray-400">
+          최근 30일 매출귀속 중 확정 비중{' '}
+          <span className={ts.confirmed_share_30d >= 50 ? 'text-emerald-300 font-semibold' : 'text-amber-300 font-semibold'}>
+            {ts.confirmed_share_30d}%
+          </span>
+        </span>
+      </div>
+      {ts.mode === 'loose' && (
+        <p className="mt-2 text-[11px] leading-relaxed text-gray-500">
+          추정 귀속(라스트클릭)은 매출 기여 집계에만 반영되고 <span className="text-gray-300">커미션은 0원으로 적립</span>됩니다.
+          주문완료 페이지 바인딩이 7일 {ts.auto_threshold_7d}건 이상 쌓이면 추정 귀속이 자동 중단되고 확정 신호만 인정됩니다.
+        </p>
+      )}
+      {ts.binds_by_day.length > 0 && (
+        <div className="mt-2 flex items-end gap-1 h-8">
+          {ts.binds_by_day.map((b) => {
+            const max = Math.max(...ts.binds_by_day.map((x) => x.count), 1);
+            return (
+              <div key={b.date} className="flex-1 max-w-[24px] bg-emerald-500/40 rounded-sm" title={`${b.date}: ${b.count}건`}
+                style={{ height: `${Math.max(8, (b.count / max) * 100)}%` }} />
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Error boundary wrapper
 function SafeSection({ children }: { children: React.ReactNode }) {
   const [hasError, setHasError] = useState(false);
@@ -5365,6 +5424,7 @@ export function AffiliateManaging() {
       {/* 연결 상태등 + Cafe24 연결 배너 */}
       <ConnectionStatusIndicator />
       <Cafe24Banner />
+      <TrackingStatusCard />
 
       {/* 탭 네비게이션 */}
       <div className="flex items-center gap-1 bg-[#1a1b1e] rounded-xl p-1 overflow-x-auto">

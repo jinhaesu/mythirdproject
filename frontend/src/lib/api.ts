@@ -1087,7 +1087,21 @@ export const affiliateApi = {
     });
     return data;
   },
+  getTrackingStatus: async (): Promise<AffiliateTrackingStatus> => {
+    const { data } = await api.get('/affiliate/tracking-status');
+    return data;
+  },
 };
+
+export interface AffiliateTrackingStatus {
+  mode: 'strict_env' | 'strict_auto' | 'loose';
+  auto_threshold_7d: number;
+  binds_total: number;
+  binds_7d: number;
+  binds_by_day: { date: string; count: number }[];
+  sources_30d: { source: string; confirmed: boolean; count: number; order_amount: number }[];
+  confirmed_share_30d: number;
+}
 
 // Cafe24 API
 export const cafe24Api = {
