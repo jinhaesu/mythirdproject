@@ -360,42 +360,45 @@ async def sync_mall_members(db: AsyncSession, limit: int = 300) -> dict:
 async def backfill_members_privacy(db: AsyncSession, since: date, until: date) -> dict:
     """customersprivacy API로 가입일 범위 전체 회원(비구매자 포함) 백필.
 
-    mall.read_privacy 스코프 재동의 후 사용 가능. 월 단위 청크 × offset 페이징.
+    mall.read_privacy 스코프 필요. offset이 search_type과 병용 시 무시되므로
+    마지막 가입시각을 커서로 삼는 슬라이딩 방식으로 페이징한다 (응답 오름차순).
     """
     cafe24_user = await get_shared_cafe24_user_or_none(db)
     if not cafe24_user:
         return {"upserted": 0, "error": "Cafe24 연결 계정 없음"}
 
     upserted = 0
-    for chunk_start, chunk_end in _chunk_date_range_monthly(since, until):
-        offset = 0
-        while True:
-            rows = await cafe24_svc.list_customersprivacy(
-                cafe24_user, db,
-                chunk_start.isoformat(), chunk_end.isoformat(),
-                offset=offset, limit=100,
-            )
-            if not rows:
-                break
-            for row in rows:
-                mid = row.get("member_id")
-                if not mid:
-                    continue
-                existing = (
-                    await db.execute(select(MallMember).where(MallMember.member_id == mid))
-                ).scalar_one_or_none()
-                new_row = _apply_member_row(existing, mid, row, "privacy")
-                if new_row:
-                    db.add(new_row)
-                upserted += 1
-            await db.commit()
-            if len(rows) < 100:
-                break
-            offset += 100
-            if offset >= 7900:  # 카페24 offset 하드 상한 8000 — 초과분은 범위를 좁혀야 함
-                logger.warning(f"[KPI Collector] privacy 백필 offset 상한(8000) 도달: {chunk_start}")
-                break
-            await asyncio.sleep(0.4)
+    page_limit = 500
+    cursor_dt = datetime.combine(since, datetime.min.time())
+    while True:
+        rows = await cafe24_svc.list_customersprivacy(
+            cafe24_user, db,
+            cursor_dt.strftime("%Y-%m-%dT%H:%M:%S"), until.isoformat(),
+            limit=page_limit,
+        )
+        if not rows:
+            break
+        last_ts = cursor_dt
+        for row in rows:
+            mid = row.get("member_id")
+            created = _parse_kst_datetime(row.get("created_date"))
+            if created and created > last_ts:
+                last_ts = created
+            if not mid:
+                continue
+            existing = (
+                await db.execute(select(MallMember).where(MallMember.member_id == mid))
+            ).scalar_one_or_none()
+            new_row = _apply_member_row(existing, mid, row, "privacy")
+            if new_row:
+                db.add(new_row)
+            upserted += 1
+        await db.commit()
+        if len(rows) < page_limit:
+            break
+        # 마지막 가입시각(포함)에서 재시작 — 초 경계 유실 방지, 미전진 시 +1s
+        cursor_dt = last_ts if last_ts > cursor_dt else cursor_dt + timedelta(seconds=1)
+        await asyncio.sleep(0.4)
 
     logger.info(f"[KPI Collector] privacy 회원 백필 완료: {upserted}명 ({since}~{until})")
     return {"upserted": upserted}

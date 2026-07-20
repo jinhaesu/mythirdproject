@@ -374,21 +374,25 @@ async def get_customer(user, db, member_id: str) -> Optional[dict]:
 
 
 async def list_customersprivacy(
-    user, db, created_start: str, created_end: str, offset: int = 0, limit: int = 100,
+    user, db, created_start: str, created_end: str, limit: int = 500,
 ) -> list:
     """가입일 범위로 회원 개인정보 목록 조회 (scope: mall.read_privacy — 재동의 필요).
 
     비구매 가입자 포함 전체 회원 + birthday("YYYY-MM-DD")/gender/created_date 반환.
     스코프 미허용 시 403 HTTPStatusError 전파.
+
+    실측 확인된 API 특성 (2026-07-20):
+    - search_type=created_date 필수 (없으면 422 parameter.search_type)
+    - created_start_date는 시분초("YYYY-MM-DDTHH:MM:SS") 지원, 응답은 가입시각 오름차순
+    - offset은 search_type과 병용 시 무시됨(같은 페이지 반복) → 호출측은 마지막
+      created_date를 커서로 삼아 재조회하는 방식으로 페이징해야 함. limit 최대 1000.
     """
     data = await api_request(
         user, db, "GET", "/api/v2/admin/customersprivacy",
         params={
-            # search_type 없이 created_* 를 주면 422 (parameter.search_type)
             "search_type": "created_date",
             "created_start_date": created_start,
             "created_end_date": created_end,
-            "offset": offset,
             "limit": limit,
         },
     )
