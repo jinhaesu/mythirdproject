@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { CalendarClock, Loader2 } from 'lucide-react';
 import { kpiApi } from '@/lib/api';
@@ -19,6 +19,8 @@ function cellColor(value: number, max: number): string {
 
 export function SignupHeatmapCard() {
   const [months, setMonths] = useState<1 | 3 | 6>(3);
+  const gridRef = useRef<HTMLDivElement>(null);
+  const [hover, setHover] = useState<{ w: number; h: number; x: number; y: number } | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['kpi-signup-heatmap', months],
@@ -75,7 +77,20 @@ export function SignupHeatmapCard() {
       ) : (
         <>
           <div className="overflow-x-auto">
-            <div className="min-w-[640px]">
+            <div ref={gridRef} className="min-w-[640px] relative">
+              {hover && (
+                <div
+                  className="pointer-events-none absolute z-10 -translate-x-1/2 whitespace-nowrap rounded-md border border-[#2E3035] bg-[#1C1D21] px-2 py-1 text-[10px] text-[#D0D6E0] shadow-lg"
+                  style={
+                    hover.y < 30
+                      ? { left: hover.x, top: hover.y + 24 }
+                      : { left: hover.x, top: hover.y - 4, transform: 'translate(-50%, -100%)' }
+                  }
+                >
+                  {WEEKDAYS[hover.w]}요일 {hover.h}시 ·{' '}
+                  <b className="text-white">{data.matrix[hover.w][hover.h].toLocaleString('ko-KR')}명</b>
+                </div>
+              )}
               {/* 시간 라벨 */}
               <div className="grid mb-1" style={{ gridTemplateColumns: '28px repeat(24, 1fr)' }}>
                 <div />
@@ -93,9 +108,20 @@ export function SignupHeatmapCard() {
                     return (
                       <div
                         key={h}
-                        title={`${day}요일 ${h}시: ${v.toLocaleString('ko-KR')}명`}
-                        className="h-5 rounded-[3px] cursor-default"
+                        className="h-5 rounded-[3px] cursor-default hover:ring-1 hover:ring-[#7070FF]"
                         style={{ background: cellColor(v, max) }}
+                        onMouseEnter={(e) => {
+                          const grid = gridRef.current?.getBoundingClientRect();
+                          if (!grid) return;
+                          const cell = e.currentTarget.getBoundingClientRect();
+                          setHover({
+                            w,
+                            h,
+                            x: cell.left - grid.left + cell.width / 2,
+                            y: cell.top - grid.top,
+                          });
+                        }}
+                        onMouseLeave={() => setHover(null)}
                       />
                     );
                   })}
