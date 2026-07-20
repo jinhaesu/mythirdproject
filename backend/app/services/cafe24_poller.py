@@ -100,6 +100,10 @@ async def _process_order(db, order: dict) -> dict:
     )
     paid_flag = str(order.get("paid") or "").upper() == "T"
 
+    # 환불/취소 판별 — 아래 MallOrder 적립과 conversion 상태 갱신 양쪽에서 사용
+    is_refund = refund_amount > 0 or order_status.startswith("R")  # R40/R50 등
+    is_cancel = bool(cancel_date) or order_status.startswith("C")  # C40/C50 등
+
     # ── MallOrder 적립 (Marketing KPI 모듈) ─────────────────────────────────
     # 귀속(ReferralConversion) 성공 여부와 무관하게 몰 전체 주문을 스냅샷으로 기록.
     # 웹훅이 amount=0으로 먼저 적립해뒀을 수 있는 것을 실금액으로 보강하는 구조.
@@ -127,10 +131,6 @@ async def _process_order(db, order: dict) -> dict:
         select(ReferralConversion).where(ReferralConversion.cafe24_order_id == order_id)
     )
     existing = existing_r.scalar_one_or_none()
-
-    # 환불/취소 처리
-    is_refund = refund_amount > 0 or order_status.startswith("R")  # R40/R50 등
-    is_cancel = bool(cancel_date) or order_status.startswith("C")  # C40/C50 등
 
     if existing:
         new_status = None
