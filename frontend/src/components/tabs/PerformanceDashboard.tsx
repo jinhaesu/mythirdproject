@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { memo, useState, useMemo, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import {
   BarChart3, DollarSign, Download, Eye, MousePointer, Target,
@@ -32,6 +32,11 @@ function formatCurrency(amount: number, currency: string = 'KRW'): string {
   }
   return `$${amount.toFixed(2)}`;
 }
+
+// MiniLineChart(memo)에 넘기는 안정 참조 포맷터 — 인라인 화살표는 memo를 무력화함
+const fmtMoneyValue = (v: number) => formatCurrency(v || 0);
+const fmtPercentValue = (v: number) => `${v.toFixed(2)}%`;
+const fmtCPCValue = (v: number) => formatCurrency(v || 0);
 
 // Meta action_type → 한국어 번역
 const ACTION_TYPE_KO: Record<string, string> = {
@@ -144,7 +149,7 @@ export default function PerformanceDashboard() {
     queryFn: () => isDateRange
       ? analyticsApi.getAccountOverview('last_7d', effectiveSince, effectiveUntil)
       : analyticsApi.getAccountOverview(datePreset),
-    refetchInterval: 60000,
+    refetchInterval: 300000,
     retry: 1,
     enabled: datePreset !== 'custom' || (!!customSince && !!customUntil),
   });
@@ -260,7 +265,7 @@ export default function PerformanceDashboard() {
   const { data: insightStatus } = useQuery({
     queryKey: ['insight-status'],
     queryFn: () => insightsApi.getStatus(),
-    refetchInterval: 60000,
+    refetchInterval: 300000,
     retry: 1,
   });
 
@@ -386,7 +391,31 @@ export default function PerformanceDashboard() {
 
   const analysis = aiAnalysis?.analysis;
   const accountInsights = overview?.account_insights || {};
-  const trendDays = trendData?.account?.series || [];
+  const trendDays = useMemo(() => trendData?.account?.series || [], [trendData]);
+
+  // 차트 data를 렌더 중 인라인 .map()으로 만들면 매 렌더 새 배열 → Recharts가
+  // 데이터 변경으로 오인해 전 차트 재계산·재애니메이션 (탭 전체 랙의 주범)
+  const trendChartRows = useMemo(
+    () =>
+      trendDays.map((d) => ({
+        label: trendView === 'weekly' ? `${d.date.slice(5)}~${d.date_end.slice(5)}` : d.date.slice(5),
+        spend: d.spend,
+        roas: d.roas,
+        revenue: d.revenue,
+      })),
+    [trendDays, trendView],
+  );
+
+  const miniChartRows = useMemo(() => {
+    const label = (d: InsightTrendPoint) =>
+      trendView === 'weekly' ? `${d.date.slice(5)}~${d.date_end.slice(5)}` : d.date.slice(5);
+    return {
+      revenue: trendDays.map((d) => ({ label: label(d), value: d.revenue })),
+      cpa: trendDays.filter((d) => d.cpa > 0).map((d) => ({ label: label(d), value: d.cpa })),
+      ctr: trendDays.map((d) => ({ label: label(d), value: d.ctr })),
+      cpc: trendDays.map((d) => ({ label: label(d), value: d.cpc })),
+    };
+  }, [trendDays, trendView]);
 
   const formatNum = (v: any) => {
     if (!v) return '0';
@@ -613,12 +642,7 @@ export default function PerformanceDashboard() {
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart
-                    data={trendDays.map((d) => ({
-                      label: trendView === 'weekly' ? `${d.date.slice(5)}~${d.date_end.slice(5)}` : d.date.slice(5),
-                      spend: d.spend,
-                      roas: d.roas,
-                      revenue: d.revenue,
-                    }))}
+                    data={trendChartRows}
                     margin={{ top: 8, right: 8, left: 8, bottom: 0 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke="#23252A" />
@@ -627,7 +651,7 @@ export default function PerformanceDashboard() {
                       tickFormatter={(v: number) => v >= 10000 ? `${Math.round(v / 10000)}만` : String(Math.round(v))} />
                     <YAxis yAxisId="roas" orientation="right" tick={{ fontSize: 10, fill: '#F2994A' }}
                       tickFormatter={(v: number) => `${v.toFixed(1)}x`} />
-                    <RechartsTooltip
+                    <RechartsTooltip isAnimationActive={false}
                       contentStyle={{ backgroundColor: '#141516', border: '1px solid #23252A', borderRadius: 8, fontSize: 11 }}
                       labelStyle={{ color: '#D0D6E0' }}
                       formatter={(value: any, name: any) => {
@@ -636,8 +660,8 @@ export default function PerformanceDashboard() {
                       }}
                     />
                     <Legend wrapperStyle={{ fontSize: 11 }} />
-                    <Bar yAxisId="spend" dataKey="spend" name="지출" fill="#4EA7FC" radius={[3, 3, 0, 0]} maxBarSize={26} />
-                    <Line yAxisId="roas" type="monotone" dataKey="roas" name="ROAS" stroke="#F2994A" strokeWidth={2} dot={trendDays.length <= 40} />
+                    <Bar yAxisId="spend" dataKey="spend" name="지출" fill="#4EA7FC" radius={[3, 3, 0, 0]} maxBarSize={26} isAnimationActive={false} />
+                    <Line yAxisId="roas" type="monotone" dataKey="roas" name="ROAS" stroke="#F2994A" strokeWidth={2} dot={trendDays.length <= 40} isAnimationActive={false} />
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
@@ -646,47 +670,19 @@ export default function PerformanceDashboard() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
                 <div className="bg-[#141516] rounded-lg p-2.5">
                   <p className="text-[10px] text-[#8A8F98] mb-1">전환값 (매출)</p>
-                  <MiniLineChart
-                    data={trendDays.map((d) => ({
-                      label: trendView === 'weekly' ? `${d.date.slice(5)}~${d.date_end.slice(5)}` : d.date.slice(5),
-                      value: d.revenue,
-                    }))}
-                    color="green"
-                    formatValue={(v) => formatMoney(v)}
-                  />
+                  <MiniLineChart data={miniChartRows.revenue} color="green" formatValue={fmtMoneyValue} />
                 </div>
                 <div className="bg-[#141516] rounded-lg p-2.5">
                   <p className="text-[10px] text-[#8A8F98] mb-1">CPA (전환당 비용)</p>
-                  <MiniLineChart
-                    data={trendDays.filter((d) => d.cpa > 0).map((d) => ({
-                      label: trendView === 'weekly' ? `${d.date.slice(5)}~${d.date_end.slice(5)}` : d.date.slice(5),
-                      value: d.cpa,
-                    }))}
-                    color="orange"
-                    formatValue={(v) => formatMoney(v)}
-                  />
+                  <MiniLineChart data={miniChartRows.cpa} color="orange" formatValue={fmtMoneyValue} />
                 </div>
                 <div className="bg-[#141516] rounded-lg p-2.5">
                   <p className="text-[10px] text-[#8A8F98] mb-1">CTR (%)</p>
-                  <MiniLineChart
-                    data={trendDays.map((d) => ({
-                      label: trendView === 'weekly' ? `${d.date.slice(5)}~${d.date_end.slice(5)}` : d.date.slice(5),
-                      value: d.ctr,
-                    }))}
-                    color="green"
-                    formatValue={(v) => `${v.toFixed(2)}%`}
-                  />
+                  <MiniLineChart data={miniChartRows.ctr} color="green" formatValue={fmtPercentValue} />
                 </div>
                 <div className="bg-[#141516] rounded-lg p-2.5">
                   <p className="text-[10px] text-[#8A8F98] mb-1">CPC</p>
-                  <MiniLineChart
-                    data={trendDays.map((d) => ({
-                      label: trendView === 'weekly' ? `${d.date.slice(5)}~${d.date_end.slice(5)}` : d.date.slice(5),
-                      value: d.cpc,
-                    }))}
-                    color="purple"
-                    formatValue={(v) => formatCPC(v)}
-                  />
+                  <MiniLineChart data={miniChartRows.cpc} color="purple" formatValue={fmtCPCValue} />
                 </div>
               </div>
 
@@ -703,7 +699,7 @@ export default function PerformanceDashboard() {
                       <XAxis dataKey="label" tick={{ fontSize: 9, fill: '#8A8F98' }} stroke="#2a2d35" tickLine={false} interval="preserveStartEnd" minTickGap={24} />
                       <YAxis tick={{ fontSize: 9, fill: '#8A8F98' }} stroke="#2a2d35" tickLine={false} axisLine={false} width={48}
                         tickFormatter={(v: number) => v >= 10000 ? `${Math.round(v / 10000)}만` : String(Math.round(v))} />
-                      <RechartsTooltip
+                      <RechartsTooltip isAnimationActive={false}
                         contentStyle={{ backgroundColor: '#141516', border: '1px solid #23252A', borderRadius: 8, fontSize: 11 }}
                         labelStyle={{ color: '#D0D6E0' }}
                         formatter={(v: number, name: string) => [formatSpend(Number(v)), name]}
@@ -718,6 +714,7 @@ export default function PerformanceDashboard() {
                           strokeWidth={1.8}
                           dot={false}
                           activeDot={{ r: 3 }}
+                          isAnimationActive={false}
                         />
                       ))}
                     </LineChart>
@@ -1485,11 +1482,11 @@ export default function PerformanceDashboard() {
                     <CartesianGrid strokeDasharray="3 3" stroke="#2a2d35" horizontal={false} />
                     <XAxis type="number" tick={{ fontSize: 10, fill: '#9ca3af' }} stroke="#2a2d35" tickLine={false} />
                     <YAxis type="category" dataKey="name" tick={{ fontSize: 10, fill: '#d1d5db' }} width={130} stroke="#2a2d35" tickLine={false} />
-                    <RechartsTooltip
+                    <RechartsTooltip isAnimationActive={false}
                       contentStyle={{ fontSize: '11px', borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', background: '#1f2937', color: '#f9fafb' }}
                       formatter={(v: number) => [`${v.toFixed(2)}x`, 'ROAS']}
                     />
-                    <Bar dataKey="roas" fill="#8b5cf6" radius={[0, 4, 4, 0]} barSize={20} />
+                    <Bar dataKey="roas" fill="#8b5cf6" radius={[0, 4, 4, 0]} barSize={20} isAnimationActive={false} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -1574,7 +1571,7 @@ const MINI_CHART_COLOR_MAP: Record<string, { stroke: string; gradientId: string 
   orange: { stroke: '#f97316', gradientId: 'grad-orange' },
 };
 
-function MiniLineChart({ data, color, formatValue }: {
+const MiniLineChart = memo(function MiniLineChart({ data, color, formatValue }: {
   data: { label: string; value: number }[];
   color: string;
   formatValue: (v: number) => string;
@@ -1582,11 +1579,10 @@ function MiniLineChart({ data, color, formatValue }: {
   if (data.length === 0) return null;
 
   const c = MINI_CHART_COLOR_MAP[color] || MINI_CHART_COLOR_MAP.blue;
-  const chartData = data.map(d => ({ label: d.label, value: d.value }));
 
   return (
     <ResponsiveContainer width="100%" height={180}>
-      <AreaChart data={chartData} margin={{ top: 8, right: 8, bottom: 16, left: 44 }}>
+      <AreaChart data={data} margin={{ top: 8, right: 8, bottom: 16, left: 44 }}>
         <defs>
           <linearGradient id={c.gradientId} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={c.stroke} stopOpacity={0.25} />
@@ -1613,7 +1609,7 @@ function MiniLineChart({ data, color, formatValue }: {
           }}
           width={40}
         />
-        <RechartsTooltip
+        <RechartsTooltip isAnimationActive={false}
           contentStyle={{
             fontSize: '11px',
             padding: '4px 8px',
@@ -1634,11 +1630,12 @@ function MiniLineChart({ data, color, formatValue }: {
           fill={`url(#${c.gradientId})`}
           dot={false}
           activeDot={{ r: 4, fill: c.stroke, strokeWidth: 0 }}
+          isAnimationActive={false}
         />
       </AreaChart>
     </ResponsiveContainer>
   );
-}
+});
 
 // ─── Insight Trend Section (DB 스냅샷 기반 추세 차트) ───
 
@@ -2244,11 +2241,11 @@ function CreativePerformanceDashboard({
           <CartesianGrid strokeDasharray="3 3" stroke="#2a2d35" vertical={false} />
           <XAxis dataKey="date" tick={{ fontSize: 8, fill: '#9ca3af' }} stroke="#2a2d35" tickLine={false} interval={2} />
           <YAxis hide />
-          <RechartsTooltip
+          <RechartsTooltip isAnimationActive={false}
             contentStyle={{ fontSize: '11px', padding: '4px 8px', borderRadius: '6px', border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.3)', background: '#1f2937', color: '#f9fafb' }}
             formatter={(v: number) => [formatSpend(v), '지출']}
           />
-          <Bar dataKey="spend" fill="#8b5cf6" opacity={0.85} radius={[3, 3, 0, 0]} maxBarSize={20} />
+          <Bar dataKey="spend" fill="#8b5cf6" opacity={0.85} radius={[3, 3, 0, 0]} maxBarSize={20} isAnimationActive={false} />
         </BarChart>
       </ResponsiveContainer>
     );
@@ -2377,7 +2374,7 @@ function CreativePerformanceDashboard({
                       <td className="py-2 px-2">
                         <div className="flex items-center gap-2">
                           {ad.thumbnail_url && (
-                            <img src={ad.thumbnail_url} alt="" className="w-8 h-8 rounded object-cover" />
+                            <img src={ad.thumbnail_url} alt="" loading="lazy" decoding="async" className="w-8 h-8 rounded object-cover" />
                           )}
                           <div>
                             <p className="font-medium text-[#F7F8F8] truncate max-w-[180px]">{ad.name}</p>
@@ -2518,7 +2515,7 @@ function CreativePerformanceDashboard({
               ) : (
                 <div className="space-y-2">
                   {postInfoQuery.data?.thumbnail_url && (
-                    <img src={postInfoQuery.data.thumbnail_url} alt="" className="w-16 h-16 rounded-lg object-cover" />
+                    <img src={postInfoQuery.data.thumbnail_url} alt="" loading="lazy" decoding="async" className="w-16 h-16 rounded-lg object-cover" />
                   )}
                   <p className="text-xs text-[#8A8F98]">
                     게시물 ID: <span className="font-mono text-[#62666D]">{postInfoQuery.data.post_id}</span>
