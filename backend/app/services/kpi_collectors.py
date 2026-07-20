@@ -392,8 +392,8 @@ async def backfill_members_privacy(db: AsyncSession, since: date, until: date) -
             if len(rows) < 100:
                 break
             offset += 100
-            if offset > 20000:  # 방어적 상한 (월 2만명 초과 가입은 비정상)
-                logger.warning(f"[KPI Collector] privacy 백필 offset 상한 도달: {chunk_start}")
+            if offset >= 7900:  # 카페24 offset 하드 상한 8000 — 초과분은 범위를 좁혀야 함
+                logger.warning(f"[KPI Collector] privacy 백필 offset 상한(8000) 도달: {chunk_start}")
                 break
             await asyncio.sleep(0.4)
 

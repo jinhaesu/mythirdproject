@@ -384,6 +384,8 @@ async def list_customersprivacy(
     data = await api_request(
         user, db, "GET", "/api/v2/admin/customersprivacy",
         params={
+            # search_type 없이 created_* 를 주면 422 (parameter.search_type)
+            "search_type": "created_date",
             "created_start_date": created_start,
             "created_end_date": created_end,
             "offset": offset,
