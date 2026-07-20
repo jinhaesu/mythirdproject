@@ -1312,6 +1312,8 @@ export interface KPISignupHeatmapResponse {
     privacy_source: number;
     /** true면 비구매 가입자 포함 전체 가입 데이터 (개인정보 스코프 백필 완료) */
     full_signup_data: boolean;
+    members_with_gender?: number;
+    members_with_birthyear?: number;
   };
 }
 
@@ -1371,8 +1373,14 @@ export const kpiApi = {
   },
 
   /** 회원가입 시간대 히트맵 (요일×시간) */
-  getSignupHeatmap: async (months = 3): Promise<KPISignupHeatmapResponse> => {
-    const { data } = await api.get<KPISignupHeatmapResponse>('/kpi/signup-heatmap', { params: { months } });
+  getSignupHeatmap: async (
+    months = 3,
+    gender: 'all' | 'M' | 'F' = 'all',
+    ageBand = 'all',
+  ): Promise<KPISignupHeatmapResponse> => {
+    const { data } = await api.get<KPISignupHeatmapResponse>('/kpi/signup-heatmap', {
+      params: { months, gender, age_band: ageBand },
+    });
     return data;
   },
 

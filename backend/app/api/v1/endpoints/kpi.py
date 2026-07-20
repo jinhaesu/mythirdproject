@@ -1135,35 +1135,47 @@ async def backfill_members(
 @router.get("/signup-heatmap")
 async def get_signup_heatmap(
     months: int = Query(default=3, ge=1, le=24),
+    gender: str = Query(default="all", description="all | M | F"),
+    age_band: str = Query(default="all", description="all | 13-17 | 18-24 | 25-34 | 35-44 | 45-54 | 55-64 | 65+"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """기간 내 회원가입 시간대 히트맵 — 요일(월=0)×시간(0~23) 매트릭스.
 
     데이터 소스: mall_members.joined_at (카페24 회원 가입일시, KST).
-    개인정보 스코프 재동의 전에는 구매 이력이 있는 회원만 포함된다 (coverage 참고).
+    gender/age_band 필터는 privacy 데이터(성별·생년) 보강 회원에만 적용 가능 —
+    미보강 회원은 필터 선택 시 집계에서 제외된다.
     """
+    if gender not in ("all", "M", "F"):
+        raise HTTPException(status_code=422, detail="gender 는 all|M|F 여야 합니다.")
+    if age_band != "all" and age_band not in _AGE_BANDS:
+        raise HTTPException(status_code=422, detail=f"age_band 는 all 또는 {_AGE_BANDS} 중 하나여야 합니다.")
+
     month_list = _recent_months(months)
     range_start, _ = _month_bounds(month_list[0])
     _, range_end = _month_bounds(month_list[-1])
     start_dt = datetime.combine(range_start, datetime.min.time())
     end_dt = datetime.combine(range_end + timedelta(days=1), datetime.min.time())
 
-    rows = (
-        await db.execute(
-            select(MallMember.joined_at).where(
-                MallMember.joined_at.isnot(None),
-                MallMember.joined_at >= start_dt,
-                MallMember.joined_at < end_dt,
-            )
-        )
-    ).scalars().all()
+    stmt = select(MallMember.joined_at, MallMember.birthyear).where(
+        MallMember.joined_at.isnot(None),
+        MallMember.joined_at >= start_dt,
+        MallMember.joined_at < end_dt,
+    )
+    if gender != "all":
+        stmt = stmt.where(MallMember.gender == gender)
+    member_rows = (await db.execute(stmt)).all()
 
+    as_of = date.today()
     matrix = [[0] * 24 for _ in range(7)]
     monthly_counts: dict[str, int] = defaultdict(int)
-    for joined in rows:
+    filtered_total = 0
+    for joined, birthyear in member_rows:
+        if age_band != "all" and _age_band(birthyear, as_of) != age_band:
+            continue
         matrix[joined.weekday()][joined.hour] += 1
         monthly_counts[f"{joined.year:04d}-{joined.month:02d}"] += 1
+        filtered_total += 1
 
     total_members = (
         await db.execute(select(func.count()).select_from(MallMember))
@@ -1183,12 +1195,22 @@ async def get_signup_heatmap(
             select(func.count(func.distinct(MallOrder.member_id))).where(MallOrder.member_id.isnot(None))
         )
     ).scalar() or 0
+    with_gender = (
+        await db.execute(
+            select(func.count()).select_from(MallMember).where(MallMember.gender.isnot(None))
+        )
+    ).scalar() or 0
+    with_birthyear = (
+        await db.execute(
+            select(func.count()).select_from(MallMember).where(MallMember.birthyear.isnot(None))
+        )
+    ).scalar() or 0
 
     return {
         "since": range_start.isoformat(),
         "until": range_end.isoformat(),
         "matrix": matrix,
-        "total": len(rows),
+        "total": filtered_total,
         "weekday_totals": [sum(r) for r in matrix],
         "hour_totals": [sum(matrix[w][h] for w in range(7)) for h in range(24)],
         "monthly_counts": [{"month": m, "count": monthly_counts.get(m, 0)} for m in month_list],
@@ -1198,6 +1220,8 @@ async def get_signup_heatmap(
             "buyers_total": buyers_total,
             "privacy_source": privacy_members,
             "full_signup_data": privacy_members > 0,
+            "members_with_gender": with_gender,
+            "members_with_birthyear": with_birthyear,
         },
     }
 

@@ -8,6 +8,7 @@ import { HeatmapGrid } from '@/components/ui/HeatmapGrid';
 import { fmtNum } from './format';
 
 const WEEKDAYS = ['월', '화', '수', '목', '금', '토', '일'];
+const AGE_BANDS = ['13-17', '18-24', '25-34', '35-44', '45-54', '55-64', '65+'];
 
 function fmtMembers(v: number): string {
   return `${v.toLocaleString('ko-KR')}명`;
@@ -15,12 +16,16 @@ function fmtMembers(v: number): string {
 
 export function SignupHeatmapCard() {
   const [months, setMonths] = useState<1 | 3 | 6>(3);
+  const [gender, setGender] = useState<'all' | 'F' | 'M'>('all');
+  const [ageBand, setAgeBand] = useState('all');
 
   const { data, isLoading } = useQuery({
-    queryKey: ['kpi-signup-heatmap', months],
-    queryFn: () => kpiApi.getSignupHeatmap(months),
+    queryKey: ['kpi-signup-heatmap', months, gender, ageBand],
+    queryFn: () => kpiApi.getSignupHeatmap(months, gender, ageBand),
     staleTime: 5 * 60 * 1000,
   });
+
+  const filtered = gender !== 'all' || ageBand !== 'all';
 
   const max = useMemo(() => {
     if (!data) return 0;
@@ -45,18 +50,49 @@ export function SignupHeatmapCard() {
           회원가입 시간대 히트맵
           <span className="text-[10px] font-normal text-[#62666D]">요일 × 시간 (KST)</span>
         </h3>
-        <div className="flex items-center bg-[#141516] rounded-lg p-0.5">
-          {([1, 3, 6] as const).map((n) => (
-            <button
-              key={n}
-              onClick={() => setMonths(n)}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                months === n ? 'bg-[#0F1011] text-[#7070FF] shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'text-[#8A8F98] hover:text-[#D0D6E0]'
-              }`}
-            >
-              최근 {n}개월
-            </button>
-          ))}
+        <div className="flex items-center flex-wrap gap-y-2 gap-x-2">
+          <div className="flex items-center bg-[#141516] rounded-lg p-0.5">
+            {(
+              [
+                ['all', '전체'],
+                ['F', '여성'],
+                ['M', '남성'],
+              ] as const
+            ).map(([g, label]) => (
+              <button
+                key={g}
+                onClick={() => setGender(g)}
+                className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-all ${
+                  gender === g ? 'bg-[#0F1011] text-[#7070FF] shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'text-[#8A8F98] hover:text-[#D0D6E0]'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <select
+            value={ageBand}
+            onChange={(e) => setAgeBand(e.target.value)}
+            className="bg-[#141516] border border-[#23252A] rounded-lg px-2 py-1.5 text-xs text-[#D0D6E0] focus:outline-none"
+          >
+            <option value="all">전체 연령</option>
+            {AGE_BANDS.map((b) => (
+              <option key={b} value={b}>{b}세</option>
+            ))}
+          </select>
+          <div className="flex items-center bg-[#141516] rounded-lg p-0.5">
+            {([1, 3, 6] as const).map((n) => (
+              <button
+                key={n}
+                onClick={() => setMonths(n)}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                  months === n ? 'bg-[#0F1011] text-[#7070FF] shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'text-[#8A8F98] hover:text-[#D0D6E0]'
+                }`}
+              >
+                최근 {n}개월
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -66,7 +102,9 @@ export function SignupHeatmapCard() {
         </div>
       ) : data.total === 0 ? (
         <p className="text-xs text-[#62666D] py-8 text-center">
-          해당 기간의 가입 데이터가 없습니다. 회원 정보 수집(백필)이 진행 중일 수 있습니다.
+          {filtered
+            ? '선택한 성별·연령 조건의 가입 데이터가 없습니다. 개인정보 보강이 진행 중일 수 있습니다.'
+            : '해당 기간의 가입 데이터가 없습니다. 회원 정보 수집(백필)이 진행 중일 수 있습니다.'}
         </p>
       ) : (
         <>
@@ -89,6 +127,13 @@ export function SignupHeatmapCard() {
               많음
             </span>
           </div>
+
+          {filtered && (
+            <p className="text-[10px] text-[#62666D] mt-2">
+              성별·연령 필터는 개인정보가 보강된 회원(성별 {fmtNum(data.coverage.members_with_gender ?? 0)}명
+              {ageBand !== 'all' && ` · 생년 ${fmtNum(data.coverage.members_with_birthyear ?? 0)}명`})만 집계합니다.
+            </p>
+          )}
 
           {!data.coverage.full_signup_data && (
             <p className="text-[10px] text-[#F0BF00] mt-2 leading-relaxed">

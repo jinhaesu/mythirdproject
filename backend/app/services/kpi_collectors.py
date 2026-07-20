@@ -407,6 +407,18 @@ async def get_shared_cafe24_user_or_none(db: AsyncSession):
     return await get_shared_cafe24_user(db)
 
 
+async def sync_recent_members_privacy(db: AsyncSession, days: int = 7) -> dict:
+    """최근 N일 가입 회원(비구매자 포함)을 customersprivacy로 증분 동기화.
+
+    read_privacy 스코프가 토큰에 없으면 조용히 생략 — 6시간 루프에서 호출.
+    """
+    cafe24_user = await get_shared_cafe24_user_or_none(db)
+    if not cafe24_user or "mall.read_privacy" not in (cafe24_user.cafe24_scopes or ""):
+        return {"upserted": 0, "skipped": "no_privacy_scope"}
+    today = date.today()
+    return await backfill_members_privacy(db, today - timedelta(days=days), today)
+
+
 # ── 6시간 주기 수집 루프 ────────────────────────────────────────────────────
 
 async def run_kpi_collector_loop() -> None:
@@ -442,5 +454,12 @@ async def run_kpi_collector_loop() -> None:
                 logger.info(f"[KPI Collector] 회원 동기화 완료: {m}")
         except Exception as e:
             logger.error(f"[KPI Collector] 회원 동기화 루프 에러: {e}", exc_info=True)
+
+        try:
+            async with AsyncSessionLocal() as db:
+                p = await sync_recent_members_privacy(db, days=7)
+                logger.info(f"[KPI Collector] privacy 증분 동기화 완료: {p}")
+        except Exception as e:
+            logger.error(f"[KPI Collector] privacy 증분 동기화 루프 에러: {e}", exc_info=True)
 
         await asyncio.sleep(6 * 3600)
