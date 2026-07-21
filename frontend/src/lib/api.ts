@@ -1099,10 +1099,42 @@ export const affiliateApi = {
     const { data } = await api.get('/affiliate/tracking-status');
     return data;
   },
+  getRetroAnalysis: async (refresh = false): Promise<AffiliateRetroAnalysis> => {
+    const { data } = await api.get('/affiliate/retro-analysis', { params: refresh ? { refresh: true } : {} });
+    return data;
+  },
+  setPartnerCampaignCoupon: async (partnerId: number, pcId: number, couponCode: string | null) => {
+    const { data } = await api.patch(`/affiliate/partners/${partnerId}/campaigns/${pcId}/coupon`, { coupon_code: couponCode });
+    return data;
+  },
 };
 
+export interface AffiliateRetroAnalysis {
+  as_of: string;
+  tracker_installed_at: string;
+  calibration: {
+    window_start: string;
+    confirmed_revenue: number;
+    confirmed_count: number;
+    shadow_total_revenue: number;
+    shadow_total_count: number;
+    min_required_confirmed: number;
+    ready: boolean;
+    ratio: number | null;
+  };
+  months: { month: string; estimated_orders: number; estimated_revenue: number; corrected_revenue: number | null }[];
+  chain_bounds: {
+    window_minutes: number;
+    real: { members: number; revenue_30d: number };
+    placebo_72h: { members: number; revenue_30d: number };
+    net_members: number;
+    net_revenue_30d: number;
+    note: string;
+  };
+}
+
 export interface AffiliateTrackingStatus {
-  mode: 'strict_env' | 'strict_auto' | 'loose';
+  mode: 'strict_env' | 'strict_auto' | 'loose' | 'confirmed_first';
   auto_threshold_7d: number;
   binds_total: number;
   binds_7d: number;

@@ -215,6 +215,31 @@ async def _process_order(db, order: dict) -> dict:
             if partner:
                 attribution_source = "ref"
 
+    # 1.5) 파트너 전용 쿠폰 — 특정 파트너의 전용 쿠폰 사용 주문은 확정 귀속
+    if not partner and coupon_codes:
+        for code in coupon_codes:
+            pc_r = await db.execute(
+                select(PartnerCampaign).where(PartnerCampaign.cafe24_coupon_code == code)
+            )
+            pc = pc_r.scalar_one_or_none()
+            if not pc:
+                continue
+            p_r = await db.execute(
+                select(AffiliatePartner).where(
+                    AffiliatePartner.id == pc.partner_id,
+                    AffiliatePartner.deleted_at.is_(None),
+                )
+            )
+            partner = p_r.scalar_one_or_none()
+            if partner:
+                c_r = await db.execute(
+                    select(AffiliateCampaign).where(AffiliateCampaign.id == pc.campaign_id)
+                )
+                campaign = c_r.scalar_one_or_none()
+                attribution_source = "coupon"
+                logger.info(f"[Poller] order={order_id} 파트너 쿠폰 확정 귀속: coupon={code} partner={partner.id}")
+                break
+
     # 2) 쿠폰 코드로 캠페인 매칭
     if not campaign:
         for code in coupon_codes:

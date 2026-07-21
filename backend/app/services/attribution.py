@@ -10,10 +10,10 @@
 가 True면 호출측에서 중단한다.
 """
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.affiliate import (
@@ -28,9 +28,13 @@ logger = logging.getLogger(__name__)
 # 확정 신호로 인정하는 귀속 소스 — 이 소스로 귀속된 주문만 member link를 생성한다.
 STRONG_SOURCES = {"bind", "ref"}
 
-# 커미션 적립을 인정하는 귀속 계보 — bind/ref 직접 신호이거나, 그 신호로 만들어진
-# 회원 연결(member link)에서 파생된 준확정 신호. lastclick 추정·null(구버전)은 제외.
-CONFIRMED_SOURCES = {"bind", "ref", "coupon_member", "member"}
+# 커미션 적립·매출 집계를 인정하는 귀속 계보:
+# - bind/ref: 직접 확정 신호
+# - coupon: 파트너 전용 쿠폰 사용 (PartnerCampaign.cafe24_coupon_code 매칭)
+# - coupon_member/member: bind/ref로 만들어진 회원 연결에서 파생된 준확정 신호
+# lastclick 추정·null(구버전)은 제외 — 기록은 계속 쌓되(참고·캘리브레이션용 텔레메트리)
+# 모든 집계·정산에서 배제된다.
+CONFIRMED_SOURCES = {"bind", "ref", "coupon", "coupon_member", "member"}
 
 
 def is_confirmed_source(source: Optional[str]) -> bool:
@@ -39,27 +43,18 @@ def is_confirmed_source(source: Optional[str]) -> bool:
 
 
 async def effective_strict(db: AsyncSession) -> bool:
-    """추정 귀속(lastclick 계열)을 중단해야 하는가.
+    """추정 귀속(lastclick 계열)의 '기록'까지 중단해야 하는가.
 
-    - env ATTRIBUTION_STRICT=true → 무조건 strict.
-    - 아니면 자동 판단: 최근 7일 tracker.js 확정 바인딩이 임계치 이상 쌓이면
-      확정 신호 파이프라인이 살아있다고 보고 strict 전환. 주문완료 페이지에서
-      스크립트가 빠지는 등 바인딩이 다시 끊기면 자동으로 loose로 복귀한다.
+    기본은 False — 추정 귀속은 집계·정산에서 이미 전면 배제되므로 기록 자체는
+    무해하고, 오히려 두 가지 용도로 계속 쌓는다:
+      1) 대시보드 '추정 포함(참고)' 조회
+      2) 캘리브레이션 백캐스팅: 확정 매출 ÷ (확정+추정) 배율을 실측해
+         과거(추적 설치 전) 추정치를 보정하는 데 분모로 사용
+    env ATTRIBUTION_STRICT=true로만 기록을 완전히 끌 수 있다 (kill switch).
     """
     from app.core.config import get_settings
 
-    settings = get_settings()
-    if settings.ATTRIBUTION_STRICT:
-        return True
-    threshold = getattr(settings, "ATTRIBUTION_AUTO_STRICT_MIN_BINDS_7D", 20)
-    if threshold <= 0:
-        return False
-    r = await db.execute(
-        select(func.count(AffiliateOrderBind.id)).where(
-            AffiliateOrderBind.created_at >= datetime.utcnow() - timedelta(days=7)
-        )
-    )
-    return (r.scalar() or 0) >= threshold
+    return bool(get_settings().ATTRIBUTION_STRICT)
 
 
 def extract_member_id(order: dict) -> str:

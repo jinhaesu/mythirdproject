@@ -18,6 +18,8 @@ class PartnerCampaign(Base):
     campaign_id: Mapped[int] = mapped_column(Integer, ForeignKey("affiliate_campaigns.id"), index=True)
     referral_code: Mapped[str] = mapped_column(String(50), unique=True)
     referral_link: Mapped[Optional[str]] = mapped_column(String(500))
+    # 파트너 전용 카페24 쿠폰 코드 — 이 쿠폰을 쓴 주문은 해당 파트너에 확정 귀속
+    cafe24_coupon_code: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     __table_args__ = (

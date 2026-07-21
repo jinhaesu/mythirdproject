@@ -340,8 +340,34 @@ async def cafe24_order_webhook(request: Request):
         if partner and not attribution_source:
             attribution_source = "ref"
 
-        # 쿠폰 코드로 캠페인 보완/덮어쓰기
         coupon_codes = [c.get("coupon_code") or c.get("code") for c in used_coupons if c.get("coupon_code") or c.get("code")]
+
+        # 파트너 전용 쿠폰 — 특정 파트너의 전용 쿠폰 사용 주문은 확정 귀속
+        if not partner and coupon_codes:
+            for coupon_code in coupon_codes:
+                pc_result = await db.execute(
+                    select(PC).where(PC.cafe24_coupon_code == coupon_code)
+                )
+                pcc = pc_result.scalar_one_or_none()
+                if not pcc:
+                    continue
+                p_result = await db.execute(
+                    select(AffiliatePartner).where(
+                        AffiliatePartner.id == pcc.partner_id,
+                        AffiliatePartner.deleted_at.is_(None),
+                    )
+                )
+                partner = p_result.scalar_one_or_none()
+                if partner:
+                    camp_result = await db.execute(
+                        select(AffiliateCampaign).where(AffiliateCampaign.id == pcc.campaign_id)
+                    )
+                    campaign = camp_result.scalar_one_or_none()
+                    attribution_source = "coupon"
+                    logger.info(f"[Webhook] order={order_id} 파트너 쿠폰 확정 귀속: coupon={coupon_code} partner={partner.id}")
+                    break
+
+        # 쿠폰 코드로 캠페인 보완/덮어쓰기
         if not campaign:
             for coupon_code in coupon_codes:
                 camp_result = await db.execute(

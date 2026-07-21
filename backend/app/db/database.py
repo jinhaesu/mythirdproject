@@ -434,6 +434,18 @@ async def init_db():
             except Exception as te:
                 logger.warning(f"{tbl_name} create skipped: {te}")
 
+    # 파트너 전용 쿠폰 — 쿠폰 사용 주문을 파트너에 확정 귀속 (2026-07-21)
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(
+                __import__('sqlalchemy').text(
+                    "ALTER TABLE partner_campaigns ADD COLUMN IF NOT EXISTS cafe24_coupon_code VARCHAR(100)"
+                )
+            )
+        logger.info("[init_db] partner_campaigns.cafe24_coupon_code ensured")
+    except Exception as e:
+        logger.warning(f"[init_db] partner_campaigns.cafe24_coupon_code skipped: {e}")
+
     # Phase 6 — ReferralConversion status / refunded_amount / refunded_at
     for col, col_type in [
         ("status", "VARCHAR(20) DEFAULT 'paid'"),

@@ -2599,11 +2599,7 @@ async def get_tracking_status(
 
     settings = _gs()
     threshold = settings.ATTRIBUTION_AUTO_STRICT_MIN_BINDS_7D
-    strict_now = await effective_strict(db)
-    mode = (
-        "strict_env" if settings.ATTRIBUTION_STRICT
-        else ("strict_auto" if strict_now else "loose")
-    )
+    mode = "strict_env" if settings.ATTRIBUTION_STRICT else "confirmed_first"
 
     return {
         "mode": mode,
@@ -2614,6 +2610,145 @@ async def get_tracking_status(
         "sources_30d": sources_30d,
         "confirmed_share_30d": round(confirmed_amt / total_amt * 100, 1) if total_amt else 0.0,
     }
+
+
+# ---------------------------------------------------------------------------
+# 과거 회고 — 추정치 상·하한 + 캘리브레이션 백캐스팅
+# ---------------------------------------------------------------------------
+
+# 추적 설치일 — 이날 이후 확정/추정 병행 데이터로 보정 배율을 실측한다
+_TRACKER_INSTALLED_AT = datetime(2026, 7, 20)
+# 배율 신뢰 최소 확정 전환 수
+_CALIBRATION_MIN_CONFIRMED = 30
+_retro_cache: dict = {"ts": None, "data": None}
+
+
+@router.get("/retro-analysis")
+async def get_retro_analysis(
+    refresh: bool = Query(default=False),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """과거(추적 설치 전) 어필리에이트 성과 회고.
+
+    - months: 월별 추정 귀속 매출(상한) + 보정치(캘리브레이션 배율 적용)
+    - calibration: 설치일 이후 확정 vs 추정 병행 데이터로 실측한 배율
+    - chain_bounds: 클릭→5분 내 가입 체인 실제 vs 플라시보(+72h) — 하한 근거
+    캐시 6시간 (chain 쿼리가 무거움), refresh=true로 강제 갱신.
+    """
+    from sqlalchemy import text as sa_text
+    from app.services.attribution import CONFIRMED_SOURCES as _CS
+
+    now = datetime.utcnow()
+    if (
+        not refresh
+        and _retro_cache["ts"] is not None
+        and (now - _retro_cache["ts"]).total_seconds() < 6 * 3600
+        and _retro_cache["data"] is not None
+    ):
+        return _retro_cache["data"]
+
+    confirmed_list = sorted(_CS)
+
+    # ── 캘리브레이션: 설치일 이후 확정 vs 전체(확정+추정) ──────────────────
+    cal_r = await db.execute(
+        select(
+            func.coalesce(
+                func.sum(ReferralConversion.order_amount).filter(
+                    ReferralConversion.attribution_source.in_(confirmed_list)
+                ),
+                0,
+            ),
+            func.count(ReferralConversion.id).filter(
+                ReferralConversion.attribution_source.in_(confirmed_list)
+            ),
+            func.coalesce(func.sum(ReferralConversion.order_amount), 0),
+            func.count(ReferralConversion.id),
+        ).where(
+            ReferralConversion.status == "paid",
+            ReferralConversion.converted_at >= _TRACKER_INSTALLED_AT,
+        )
+    )
+    conf_rev, conf_n, all_rev, all_n = cal_r.one()
+    conf_rev, all_rev = float(conf_rev), float(all_rev)
+    ratio = (conf_rev / all_rev) if (all_rev > 0 and conf_n >= _CALIBRATION_MIN_CONFIRMED) else None
+
+    calibration = {
+        "window_start": _TRACKER_INSTALLED_AT.date().isoformat(),
+        "confirmed_revenue": conf_rev,
+        "confirmed_count": int(conf_n),
+        "shadow_total_revenue": all_rev,
+        "shadow_total_count": int(all_n),
+        "min_required_confirmed": _CALIBRATION_MIN_CONFIRMED,
+        "ready": ratio is not None,
+        "ratio": round(ratio, 4) if ratio is not None else None,
+    }
+
+    # ── 월별 추정(상한) + 보정치 ─────────────────────────────────────────
+    month_r = await db.execute(
+        select(
+            func.to_char(ReferralConversion.converted_at, "YYYY-MM").label("m"),
+            func.count(ReferralConversion.id),
+            func.coalesce(func.sum(ReferralConversion.order_amount), 0),
+        )
+        .where(
+            ReferralConversion.status == "paid",
+            ReferralConversion.converted_at < _TRACKER_INSTALLED_AT,
+        )
+        .group_by("m")
+        .order_by("m")
+    )
+    months = []
+    for m, cnt, rev in month_r.all():
+        rev = float(rev)
+        months.append({
+            "month": m,
+            "estimated_orders": int(cnt),
+            "estimated_revenue": rev,  # 상한 (추정 — 부풀려짐)
+            "corrected_revenue": round(rev * ratio) if ratio is not None else None,
+        })
+
+    # ── 하한 근거: 클릭→5분 내 가입 체인 (실제 vs 플라시보 +72h) ─────────
+    async def _chain(shift_hours: int) -> dict:
+        r = await db.execute(sa_text(f"""
+            WITH chain AS (
+                SELECT DISTINCT ON (m.member_id) m.member_id, m.joined_at
+                FROM mall_members m
+                JOIN referral_clicks c
+                  ON m.joined_at >= c.clicked_at + interval '9 hours' + interval '{shift_hours} hours'
+                 AND m.joined_at <  c.clicked_at + interval '9 hours' + interval '{shift_hours} hours' + interval '5 minutes'
+                ORDER BY m.member_id, c.clicked_at DESC
+            )
+            SELECT COUNT(*),
+                   (SELECT COALESCE(SUM(o.amount),0) FROM chain ch
+                    JOIN mall_orders o ON o.member_id = ch.member_id AND o.status='paid'
+                     AND o.order_date >= ch.joined_at::date AND o.order_date <= ch.joined_at::date + 30)
+            FROM chain
+        """))
+        n, rev = r.one()
+        return {"members": int(n or 0), "revenue_30d": float(rev or 0)}
+
+    real = await _chain(0)
+    placebo = await _chain(72)
+    chain_bounds = {
+        "window_minutes": 5,
+        "real": real,
+        "placebo_72h": placebo,
+        "net_members": real["members"] - placebo["members"],
+        "net_revenue_30d": max(0.0, real["revenue_30d"] - placebo["revenue_30d"]),
+        "note": "순신호(실제-플라시보)는 확실한 하한. 플라시보 비중이 클수록 시간 기반 소급 식별이 불가능한 구간.",
+    }
+
+    data = {
+        "as_of": now.isoformat(),
+        "tracker_installed_at": _TRACKER_INSTALLED_AT.date().isoformat(),
+        "calibration": calibration,
+        "months": months,
+        "chain_bounds": chain_bounds,
+    }
+    _retro_cache["ts"] = now
+    _retro_cache["data"] = data
+    return data
 
 
 # ---------------------------------------------------------------------------
@@ -2865,6 +3000,62 @@ async def remove_partner_campaign(
     await db.commit()
 
 
+class PartnerCouponUpdate(BaseModel):
+    coupon_code: Optional[str] = None  # None/빈 문자열 = 해제
+
+
+@router.patch("/partners/{partner_id}/campaigns/{pc_id}/coupon")
+async def set_partner_campaign_coupon(
+    partner_id: int,
+    pc_id: int,
+    payload: PartnerCouponUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """파트너-캠페인 연결에 전용 카페24 쿠폰 코드 설정/해제.
+
+    이 쿠폰을 사용한 주문은 클릭·바인딩 없이도 해당 파트너에 확정 귀속된다
+    (attribution_source='coupon', 커미션 정산 포함). 쿠폰은 카페24 어드민에서
+    파트너별로 발급한 뒤 코드를 여기 연결한다.
+    """
+    code = (payload.coupon_code or "").strip() or None
+
+    pc_r = await db.execute(
+        select(PartnerCampaign).where(
+            PartnerCampaign.id == pc_id,
+            PartnerCampaign.partner_id == partner_id,
+        )
+    )
+    pc = pc_r.scalar_one_or_none()
+    if not pc:
+        raise HTTPException(status_code=404, detail="PartnerCampaign not found")
+
+    if code:
+        # 쿠폰 코드는 파트너 전용이어야 함 — 다른 연결에서 이미 쓰면 거절
+        dup_r = await db.execute(
+            select(PartnerCampaign).where(
+                PartnerCampaign.cafe24_coupon_code == code,
+                PartnerCampaign.id != pc_id,
+            )
+        )
+        dup = dup_r.scalar_one_or_none()
+        if dup:
+            raise HTTPException(
+                status_code=409,
+                detail=f"이미 다른 파트너 연결(pc_id={dup.id}, partner={dup.partner_id})에 등록된 쿠폰 코드입니다.",
+            )
+        # 캠페인 공용 쿠폰과의 충돌도 방지
+        camp_dup_r = await db.execute(
+            select(AffiliateCampaign).where(AffiliateCampaign.cafe24_coupon_code == code)
+        )
+        if camp_dup_r.scalar_one_or_none():
+            raise HTTPException(status_code=409, detail="캠페인 공용 쿠폰으로 이미 등록된 코드입니다.")
+
+    pc.cafe24_coupon_code = code
+    await db.commit()
+    return {"pc_id": pc.id, "partner_id": partner_id, "coupon_code": code}
+
+
 @router.get("/partners/{partner_id}/performance")
 async def get_partner_performance(
     partner_id: int,
@@ -2895,6 +3086,7 @@ async def get_partner_performance(
             campaign_id = partner_obj.campaign_id
             referral_code = partner_obj.referral_code
             referral_link = partner_obj.referral_link
+            cafe24_coupon_code = None
         pcs.append(_VirtualPC())
 
     result_rows = []
@@ -2935,6 +3127,7 @@ async def get_partner_performance(
             "campaign_name": campaign.name if campaign else "",
             "referral_code": pc.referral_code,
             "referral_link": fresh_link,
+            "coupon_code": getattr(pc, "cafe24_coupon_code", None),
             "clicks": clicks,
             "conversions": conv_row[0] or 0,
             "sales": float(conv_row[1]),

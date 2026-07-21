@@ -210,6 +210,7 @@ interface PartnerPerformanceRow {
   pc_id: number;
   referral_code?: string | null;
   referral_link?: string | null;
+  coupon_code?: string | null;
 }
 
 type SectionKey = 'dashboard' | 'campaigns' | 'partners' | 'referral' | 'points' | 'settlement' | 'settings';
@@ -2159,6 +2160,77 @@ function DashboardSection() {
           </div>
         )}
       </div>
+
+      {/* 과거 회고 — 추정치 상·하한 + 캘리브레이션 보정 */}
+      <RetroAnalysisCard />
+    </div>
+  );
+}
+
+// ─── 과거 회고 카드 ───────────────────────────────────────────────────────────
+// 추적 설치(2026-07-20) 이전 기간의 어필리에이트 성과를 상한(추정)·하한(체인 순신호)·
+// 보정치(설치 후 확정/추정 배율 백캐스팅)로 표시.
+function RetroAnalysisCard() {
+  const { data: retro } = useQuery({
+    queryKey: ['affiliate', 'retro-analysis'],
+    queryFn: () => affiliateApi.getRetroAnalysis(),
+    staleTime: 3600_000,
+    retry: 1,
+  });
+  if (!retro) return null;
+
+  const cal = retro.calibration;
+  return (
+    <div className="bg-[#1a1b1e] rounded-2xl p-5 border border-white/[0.06]">
+      <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+        <h3 className="text-sm font-semibold text-white">과거 회고 — 추적 설치({retro.tracker_installed_at}) 이전 성과</h3>
+        {cal.ready ? (
+          <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-500/10 text-emerald-300 ring-1 ring-emerald-500/20">
+            보정 배율 실측됨: 추정의 {(cal.ratio! * 100).toFixed(1)}%가 실제 기여
+          </span>
+        ) : (
+          <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-500/10 text-amber-300 ring-1 ring-amber-500/20">
+            캘리브레이션 대기 — 확정 전환 {cal.confirmed_count}/{cal.min_required_confirmed}건
+          </span>
+        )}
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="text-gray-500 border-b border-white/5">
+              <th className="text-left py-1.5 pr-3 font-medium">월</th>
+              <th className="text-right py-1.5 px-3 font-medium">추정 매출 (상한)</th>
+              <th className="text-right py-1.5 px-3 font-medium">추정 주문</th>
+              <th className="text-right py-1.5 pl-3 font-medium">보정 추정치</th>
+            </tr>
+          </thead>
+          <tbody>
+            {retro.months.map(m => (
+              <tr key={m.month} className="border-b border-white/5 last:border-0">
+                <td className="py-1.5 pr-3 text-gray-300">{m.month}</td>
+                <td className="py-1.5 px-3 text-right text-amber-300/80">₩{m.estimated_revenue.toLocaleString()}</td>
+                <td className="py-1.5 px-3 text-right text-gray-400">{m.estimated_orders.toLocaleString()}</td>
+                <td className="py-1.5 pl-3 text-right">
+                  {m.corrected_revenue != null
+                    ? <span className="text-emerald-300 font-medium">₩{m.corrected_revenue.toLocaleString()}</span>
+                    : <span className="text-gray-600">배율 실측 대기</span>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <p className="mt-3 text-[11px] leading-relaxed text-gray-500">
+        <span className="text-gray-400 font-medium">읽는 법:</span> 추정 매출은 라스트클릭 추정이라 오가닉·메타 주문이 섞인
+        <span className="text-amber-300/80"> 상한선</span>입니다. 하한선은 클릭 5분 내 가입 체인의 순신호
+        (실제 {retro.chain_bounds.real.members.toLocaleString()}명 − 플라시보 {retro.chain_bounds.placebo_72h.members.toLocaleString()}명 =
+        순 {retro.chain_bounds.net_members.toLocaleString()}명, 매출 ~₩{Math.round(retro.chain_bounds.net_revenue_30d).toLocaleString()}) 수준입니다.
+        {cal.ready
+          ? ' 보정 추정치는 추적 설치 이후 실측한 확정/추정 배율을 과거 추정치에 곱한 값으로, 파트너·월 총량 수준의 근사치입니다.'
+          : ` 설치 이후 확정 전환이 ${cal.min_required_confirmed}건 이상 쌓이면 실측 배율로 월별 보정 추정치가 자동 계산됩니다.`}
+      </p>
     </div>
   );
 }
@@ -3510,6 +3582,19 @@ function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalP
     onError: () => toast.error('캠페인 제거에 실패했습니다'),
   });
 
+  const couponMutation = useMutation({
+    mutationFn: ({ pcId, code }: { pcId: number; code: string | null }) =>
+      affiliateApi.setPartnerCampaignCoupon(partner.id, pcId, code),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['affiliate', 'partner-performance', partner.id] });
+      toast.success('전용 쿠폰이 저장되었습니다 — 이 쿠폰 사용 주문은 확정 귀속됩니다');
+    },
+    onError: (e: unknown) => {
+      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      toast.error(detail || '쿠폰 저장에 실패했습니다');
+    },
+  });
+
   const totals = performance.reduce(
     (acc, r) => ({
       clicks: acc.clicks + n(r.clicks),
@@ -3584,6 +3669,7 @@ function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalP
                     <tr className="bg-[#141516] text-gray-500 border-b border-[#2a2d35]">
                       <th className="text-left py-2.5 px-3 whitespace-nowrap">캠페인명</th>
                       <th className="text-left py-2.5 px-3 whitespace-nowrap">전용 링크</th>
+                      <th className="text-left py-2.5 px-3 whitespace-nowrap">전용 쿠폰</th>
                       <th className="text-right py-2.5 px-3 whitespace-nowrap">클릭</th>
                       <th className="text-right py-2.5 px-3 whitespace-nowrap">전환</th>
                       <th className="text-right py-2.5 px-3 whitespace-nowrap">매출</th>
@@ -3615,6 +3701,28 @@ function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalP
                             <span className="text-[10px] text-gray-600">(미생성)</span>
                           )}
                         </td>
+                        <td className="py-2.5 px-3">
+                          <button
+                            onClick={() => {
+                              if (row.pc_id === -1) { toast.error('레거시 연결에는 쿠폰을 걸 수 없습니다 — 캠페인을 다시 연결해주세요'); return; }
+                              const code = window.prompt(
+                                '이 파트너 전용 카페24 쿠폰 코드를 입력하세요.\n(카페24 어드민에서 발급한 쿠폰 코드. 비우고 확인하면 해제)',
+                                row.coupon_code || ''
+                              );
+                              if (code === null) return;
+                              couponMutation.mutate({ pcId: row.pc_id, code: code.trim() || null });
+                            }}
+                            disabled={couponMutation.isPending}
+                            className={`px-2 py-1 rounded text-[10px] font-medium transition-colors ${
+                              row.coupon_code
+                                ? 'bg-emerald-500/10 text-emerald-300 ring-1 ring-emerald-500/20 hover:bg-emerald-500/20'
+                                : 'bg-[#141516] text-gray-500 border border-[#2a2d35] hover:text-white'
+                            }`}
+                            title="이 쿠폰을 사용한 주문은 클릭 추적 없이도 이 파트너에 확정 귀속됩니다"
+                          >
+                            {row.coupon_code || '+ 쿠폰 연결'}
+                          </button>
+                        </td>
                         <td className="py-2.5 px-3 text-right">{fmt(row.clicks)}</td>
                         <td className="py-2.5 px-3 text-right text-cyan-400">{fmt(row.conversions)}</td>
                         <td className="py-2.5 px-3 text-right text-emerald-400">₩{fmt(row.sales)}</td>
@@ -3638,6 +3746,7 @@ function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalP
                     {/* 합계 행 */}
                     <tr className="bg-[#141516] font-semibold text-white text-xs">
                       <td className="py-2.5 px-3">합계</td>
+                      <td />
                       <td />
                       <td className="py-2.5 px-3 text-right">{fmt(totals.clicks)}</td>
                       <td className="py-2.5 px-3 text-right text-cyan-400">{fmt(totals.conversions)}</td>
@@ -5383,9 +5492,10 @@ function TrackingStatusCard() {
   if (!ts) return null;
 
   const modeInfo = {
-    strict_env: { label: '엄격 (env 강제)', cls: 'bg-emerald-500/10 text-emerald-300 ring-emerald-500/20' },
+    strict_env: { label: '엄격 (추정 기록도 중단)', cls: 'bg-emerald-500/10 text-emerald-300 ring-emerald-500/20' },
     strict_auto: { label: '엄격 (자동 전환됨)', cls: 'bg-emerald-500/10 text-emerald-300 ring-emerald-500/20' },
     loose: { label: '추정 허용 (바인딩 적재 대기)', cls: 'bg-amber-500/10 text-amber-300 ring-amber-500/20' },
+    confirmed_first: { label: '확정 우선 (추정은 참고 기록만)', cls: 'bg-emerald-500/10 text-emerald-300 ring-emerald-500/20' },
   }[ts.mode] || { label: ts.mode, cls: 'bg-gray-500/10 text-gray-300 ring-gray-500/20' };
 
   return (
@@ -5408,11 +5518,11 @@ function TrackingStatusCard() {
           </span>
         </span>
       </div>
-      {ts.mode === 'loose' && (
+      {ts.mode !== 'strict_env' && (
         <p className="mt-2 text-[11px] leading-relaxed text-gray-500">
-          모든 매출·전환·커미션 집계는 <span className="text-gray-300">확정 귀속(주문완료 바인딩·ref코드·회원연결)만</span> 포함합니다.
-          추정 귀속(라스트클릭)은 집계에서 제외되며 위의 소스 분포에서만 참고용으로 확인할 수 있습니다.
-          주문완료 페이지 바인딩이 7일 {ts.auto_threshold_7d}건 이상 쌓이면 추정 귀속 기록 자체가 자동 중단됩니다.
+          모든 매출·전환·커미션 집계는 <span className="text-gray-300">확정 귀속(주문완료 바인딩·ref코드·파트너 쿠폰·회원연결)만</span> 포함합니다.
+          추정 귀속(라스트클릭)은 집계·정산에서 영구 제외되지만, 기록은 계속 쌓입니다 —
+          과거 성과 보정(캘리브레이션)의 분모와 &quot;추정 포함(참고)&quot; 조회에 사용됩니다.
         </p>
       )}
       {ts.binds_by_day.length > 0 && (
