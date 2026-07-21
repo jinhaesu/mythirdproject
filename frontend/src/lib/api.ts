@@ -943,11 +943,12 @@ export interface TopProduct {
 
 // Affiliate API (TAB: 어필리에이트 관리)
 export const affiliateApi = {
-  getDashboard: async (days?: number, basis?: 'converted' | 'clicked', range?: { since: string; until: string }) => {
+  getDashboard: async (days?: number, basis?: 'converted' | 'clicked', range?: { since: string; until: string }, attribution?: 'confirmed' | 'all') => {
     const { data } = await api.get('/affiliate/dashboard', {
       params: {
         ...(range ? { since: range.since, until: range.until } : days ? { days } : {}),
         ...(basis === 'clicked' ? { basis } : {}),
+        ...(attribution === 'all' ? { attribution } : {}),
       },
     });
     return data;
@@ -1058,31 +1059,38 @@ export const affiliateApi = {
     const { data } = await api.post(`/affiliate/campaigns/${campaignId}/reattach-products`);
     return data;
   },
-  getDashboardTimeseries: async (days = 30, range?: { since: string; until: string }): Promise<AffiliateTimeseriesPoint[]> => {
+  getDashboardTimeseries: async (days = 30, range?: { since: string; until: string }, attribution?: 'confirmed' | 'all'): Promise<AffiliateTimeseriesPoint[]> => {
     const { data } = await api.get('/affiliate/dashboard/timeseries', {
-      params: range ? { days, since: range.since, until: range.until } : { days },
-    });
-    return data;
-  },
-  getDashboardByCampaign: async (days?: number, basis?: 'converted' | 'clicked', range?: { since: string; until: string }): Promise<AffiliateByCampaign[]> => {
-    const { data } = await api.get('/affiliate/dashboard/by-campaign', {
       params: {
-        ...(range ? { since: range.since, until: range.until } : days ? { days } : {}),
-        ...(basis === 'clicked' ? { basis } : {}),
+        ...(range ? { days, since: range.since, until: range.until } : { days }),
+        ...(attribution === 'all' ? { attribution } : {}),
       },
     });
     return data;
   },
-  getDashboardHourly: async (days = 30): Promise<HourlyConversion[]> => {
-    const { data } = await api.get('/affiliate/dashboard/hourly', { params: { days } });
+  getDashboardByCampaign: async (days?: number, basis?: 'converted' | 'clicked', range?: { since: string; until: string }, attribution?: 'confirmed' | 'all'): Promise<AffiliateByCampaign[]> => {
+    const { data } = await api.get('/affiliate/dashboard/by-campaign', {
+      params: {
+        ...(range ? { since: range.since, until: range.until } : days ? { days } : {}),
+        ...(basis === 'clicked' ? { basis } : {}),
+        ...(attribution === 'all' ? { attribution } : {}),
+      },
+    });
     return data;
   },
-  getTopProducts: async (limit = 10, days?: number, basis?: 'converted' | 'clicked', range?: { since: string; until: string }): Promise<TopProduct[]> => {
+  getDashboardHourly: async (days = 30, attribution?: 'confirmed' | 'all'): Promise<HourlyConversion[]> => {
+    const { data } = await api.get('/affiliate/dashboard/hourly', {
+      params: { days, ...(attribution === 'all' ? { attribution } : {}) },
+    });
+    return data;
+  },
+  getTopProducts: async (limit = 10, days?: number, basis?: 'converted' | 'clicked', range?: { since: string; until: string }, attribution?: 'confirmed' | 'all'): Promise<TopProduct[]> => {
     const { data } = await api.get('/affiliate/dashboard/top-products', {
       params: {
         limit,
         ...(range ? { since: range.since, until: range.until } : days ? { days } : {}),
         ...(basis === 'clicked' ? { basis } : {}),
+        ...(attribution === 'all' ? { attribution } : {}),
       },
     });
     return data;

@@ -1096,6 +1096,8 @@ async def get_dashboard(
     since: Optional[str] = Query(default=None, description="시작일 YYYY-MM-DD (커스텀 범위, days보다 우선)"),
     until: Optional[str] = Query(default=None, description="종료일 YYYY-MM-DD (포함)"),
     basis: str = Query(default="converted"),
+    attribution: str = Query(default="confirmed", pattern="^(confirmed|all)$",
+                             description="confirmed=확정 귀속만(기본) | all=추정 포함(참고, 과거 데이터 조회용)"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -1148,8 +1150,9 @@ async def get_dashboard(
         paid_conds = [
             ReferralConversion.partner_id.in_(partner_ids),
             ReferralConversion.status == "paid",
-            CONFIRMED_ATTR,
         ]
+        if attribution != "all":
+            paid_conds.append(CONFIRMED_ATTR)
         if since is not None:
             paid_conds.append(_conv_period_cond(since, basis, until))
         conv_result = await db.execute(
@@ -1168,8 +1171,9 @@ async def get_dashboard(
         rc_conds = [
             ReferralConversion.partner_id.in_(partner_ids),
             ReferralConversion.status.in_(["refunded", "cancelled"]),
-            CONFIRMED_ATTR,
         ]
+        if attribution != "all":
+            rc_conds.append(CONFIRMED_ATTR)
         if since is not None:
             rc_conds.append(_conv_period_cond(since, basis, until))
         status_result = await db.execute(
@@ -1185,7 +1189,9 @@ async def get_dashboard(
                 cancelled_count = srow[1]
 
         # 총 gross (모든 상태 합, 참고용)
-        gross_conds = [ReferralConversion.partner_id.in_(partner_ids), CONFIRMED_ATTR]
+        gross_conds = [ReferralConversion.partner_id.in_(partner_ids)]
+        if attribution != "all":
+            gross_conds.append(CONFIRMED_ATTR)
         if since is not None:
             gross_conds.append(_conv_period_cond(since, basis, until))
         gross_result = await db.execute(
@@ -1238,8 +1244,9 @@ async def get_dashboard(
         camp_conv_conds = [
             ReferralConversion.campaign_id == c.id,
             ReferralConversion.status == "paid",
-            CONFIRMED_ATTR,
         ]
+        if attribution != "all":
+            camp_conv_conds.append(CONFIRMED_ATTR)
         if since is not None:
             camp_click_conds.append(ReferralClick.clicked_at >= since)
             if until is not None:
@@ -1276,8 +1283,9 @@ async def get_dashboard(
     top_join_cond = (
         (ReferralConversion.partner_id == AffiliatePartner.id)
         & (ReferralConversion.status == "paid")
-        & CONFIRMED_ATTR
     )
+    if attribution != "all":
+        top_join_cond = top_join_cond & CONFIRMED_ATTR
     if since is not None:
         top_join_cond = top_join_cond & _conv_period_cond(since, basis, until)
     top_result = await db.execute(
@@ -1330,6 +1338,7 @@ async def get_dashboard_timeseries(
     days: int = Query(default=30, ge=1, le=365),
     since: Optional[str] = Query(default=None, description="시작일 YYYY-MM-DD (days보다 우선)"),
     until: Optional[str] = Query(default=None, description="종료일 YYYY-MM-DD (포함)"),
+    attribution: str = Query(default="confirmed", pattern="^(confirmed|all)$"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -1372,8 +1381,9 @@ async def get_dashboard_timeseries(
         conv_where = [
             ReferralConversion.partner_id.in_(partner_ids),
             ReferralConversion.converted_at >= since,
-            CONFIRMED_ATTR,
         ]
+        if attribution != "all":
+            conv_where.append(CONFIRMED_ATTR)
         if until is not None:
             conv_where.append(ReferralConversion.converted_at < until)
         conv_rows = await db.execute(
@@ -1440,6 +1450,7 @@ async def get_dashboard_by_campaign(
     since: Optional[str] = Query(default=None, description="시작일 YYYY-MM-DD (days보다 우선)"),
     until: Optional[str] = Query(default=None, description="종료일 YYYY-MM-DD (포함)"),
     basis: str = Query(default="converted"),
+    attribution: str = Query(default="confirmed", pattern="^(confirmed|all)$"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -1474,8 +1485,9 @@ async def get_dashboard_by_campaign(
         conv_conds = [
             ReferralConversion.campaign_id == campaign.id,
             ReferralConversion.status == "paid",
-            CONFIRMED_ATTR,
         ]
+        if attribution != "all":
+            conv_conds.append(CONFIRMED_ATTR)
         if since is not None:
             click_conds.append(ReferralClick.clicked_at >= since)
             if until is not None:
@@ -1520,6 +1532,7 @@ async def get_dashboard_by_campaign(
 @router.get("/dashboard/hourly")
 async def get_dashboard_hourly(
     days: int = Query(default=30, ge=1, le=365),
+    attribution: str = Query(default="confirmed", pattern="^(confirmed|all)$"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -1552,8 +1565,9 @@ async def get_dashboard_hourly(
     conds = [
         ReferralConversion.converted_at >= since,
         ReferralConversion.status == "paid",
-        CONFIRMED_ATTR,
     ]
+    if attribution != "all":
+        conds.append(CONFIRMED_ATTR)
     if active_partner_ids:
         conds.append(ReferralConversion.partner_id.in_(active_partner_ids))
     else:
@@ -1607,6 +1621,7 @@ async def get_dashboard_top_products(
     since: Optional[str] = Query(default=None, description="시작일 YYYY-MM-DD (days보다 우선)"),
     until: Optional[str] = Query(default=None, description="종료일 YYYY-MM-DD (포함)"),
     basis: str = Query(default="converted"),
+    attribution: str = Query(default="confirmed", pattern="^(confirmed|all)$"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -1630,8 +1645,9 @@ async def get_dashboard_top_products(
     join_cond = (
         (ReferralConversion.campaign_id == AffiliateCampaign.id)
         & (ReferralConversion.status == "paid")
-        & CONFIRMED_ATTR
     )
+    if attribution != "all":
+        join_cond = join_cond & CONFIRMED_ATTR
     if since is not None:
         join_cond = join_cond & _conv_period_cond(since, basis, until)
     if active_partner_ids:

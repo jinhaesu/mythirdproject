@@ -1234,6 +1234,8 @@ function DashboardSection() {
   const [customUntil, setCustomUntil] = useState('');
   /** 전환 귀속 기준: 전환(주문) 발생일 vs 클릭 발생일 */
   const [basis, setBasis] = useState<'converted' | 'clicked'>('converted');
+  /** 집계 기준: 확정 귀속만(기본) vs 추정 포함(참고 — 주문완료 추적 설치 전 과거 데이터 조회용) */
+  const [attribution, setAttribution] = useState<'confirmed' | 'all'>('confirmed');
   const [heatmapDays, setHeatmapDays] = useState<7 | 30 | 90>(30);
   /** 히트맵 hover cell: "dow_hour" 키 */
   const [hoveredCell, setHoveredCell] = useState<string | null>(null);
@@ -1244,8 +1246,8 @@ function DashboardSection() {
   const rangeKey = range ? `${range.since}~${range.until}` : days;
 
   const { data, isLoading, isError } = useQuery<DashboardData>({
-    queryKey: ['affiliate', 'dashboard', rangeKey, basis],
-    queryFn: () => affiliateApi.getDashboard(days, basis, range),
+    queryKey: ['affiliate', 'dashboard', rangeKey, basis, attribution],
+    queryFn: () => affiliateApi.getDashboard(days, basis, range, attribution),
     retry: 1,
   });
 
@@ -1253,8 +1255,8 @@ function DashboardSection() {
     data: timeseriesRaw = [],
     isLoading: tsLoading,
   } = useQuery<AffiliateTimeseriesPoint[]>({
-    queryKey: ['affiliate-timeseries', rangeKey],
-    queryFn: () => affiliateApi.getDashboardTimeseries(days, range),
+    queryKey: ['affiliate-timeseries', rangeKey, attribution],
+    queryFn: () => affiliateApi.getDashboardTimeseries(days, range, attribution),
     retry: 1,
   });
 
@@ -1298,8 +1300,8 @@ function DashboardSection() {
     data: byCampaign = [],
     isLoading: bcLoading,
   } = useQuery<AffiliateByCampaign[]>({
-    queryKey: ['affiliate-by-campaign', rangeKey, basis],
-    queryFn: () => affiliateApi.getDashboardByCampaign(days, basis, range),
+    queryKey: ['affiliate-by-campaign', rangeKey, basis, attribution],
+    queryFn: () => affiliateApi.getDashboardByCampaign(days, basis, range, attribution),
     retry: 1,
   });
 
@@ -1307,8 +1309,8 @@ function DashboardSection() {
     data: hourlyRaw = [],
     isLoading: hourlyLoading,
   } = useQuery<HourlyConversion[]>({
-    queryKey: ['affiliate-hourly', heatmapDays],
-    queryFn: () => affiliateApi.getDashboardHourly(heatmapDays),
+    queryKey: ['affiliate-hourly', heatmapDays, attribution],
+    queryFn: () => affiliateApi.getDashboardHourly(heatmapDays, attribution),
     retry: 1,
   });
 
@@ -1316,8 +1318,8 @@ function DashboardSection() {
     data: topProducts = [],
     isLoading: topProductsLoading,
   } = useQuery<TopProduct[]>({
-    queryKey: ['affiliate-top-products', rangeKey, basis],
-    queryFn: () => affiliateApi.getTopProducts(10, days, basis, range),
+    queryKey: ['affiliate-top-products', rangeKey, basis, attribution],
+    queryFn: () => affiliateApi.getTopProducts(10, days, basis, range, attribution),
     retry: 1,
   });
 
@@ -1341,7 +1343,7 @@ function DashboardSection() {
   const hasRefunds = d.refunded_count > 0;
 
   const kpis = [
-    { label: '순매출 (확정 귀속만, 취소·환불 제외)', value: fmtMan(d.total_sales), icon: <ShoppingBag size={16} />, color: 'text-blue-400', bg: 'bg-blue-500/10', ring: 'ring-blue-500/20', glow: 'from-blue-500/15', showRefund: true },
+    { label: attribution === 'all' ? '순매출 (추정 포함 · 참고용)' : '순매출 (확정 귀속만, 취소·환불 제외)', value: fmtMan(d.total_sales), icon: <ShoppingBag size={16} />, color: 'text-blue-400', bg: 'bg-blue-500/10', ring: 'ring-blue-500/20', glow: 'from-blue-500/15', showRefund: true },
     { label: '총 커미션', value: fmtMan(d.total_commission), icon: <DollarSign size={16} />, color: 'text-emerald-400', bg: 'bg-emerald-500/10', ring: 'ring-emerald-500/20', glow: 'from-emerald-500/15', showRefund: false },
     { label: '활성 파트너', value: `${d.active_partners}명`, icon: <Users size={16} />, color: 'text-violet-400', bg: 'bg-violet-500/10', ring: 'ring-violet-500/20', glow: 'from-violet-500/15', showRefund: false },
     { label: '총 클릭', value: fmt(d.total_clicks), icon: <Eye size={16} />, color: 'text-cyan-400', bg: 'bg-cyan-500/10', ring: 'ring-cyan-500/20', glow: 'from-cyan-500/15', showRefund: false },
@@ -1461,10 +1463,41 @@ function DashboardSection() {
             {b.label}
           </button>
         ))}
+        <span className="mx-1 h-4 w-px bg-[#2a2d35]" />
+        <span className="text-xs text-gray-500">집계:</span>
+        {([
+          { key: 'confirmed', label: '확정 귀속' },
+          { key: 'all', label: '추정 포함 (참고)' },
+        ] as const).map(a => (
+          <button
+            key={a.key}
+            onClick={() => setAttribution(a.key)}
+            title={a.key === 'all'
+              ? '주문완료 추적 설치(2026-07-20) 이전 과거 데이터 조회용 — 라스트클릭 추정이 섞여 실제보다 부풀려질 수 있습니다'
+              : '주문완료 바인딩·ref코드·회원연결로 확정된 전환만 집계 (정확한 기여분)'}
+            className={`px-3 py-1 text-xs rounded-lg font-medium transition-colors ${
+              attribution === a.key
+                ? a.key === 'all' ? 'bg-amber-600 text-white' : 'bg-emerald-600 text-white'
+                : 'bg-[#1a1b1e] text-gray-400 border border-[#2a2d35] hover:text-white hover:border-gray-500'
+            }`}
+          >
+            {a.label}
+          </button>
+        ))}
         <span className="text-[10px] text-gray-600 ml-1">
           아래 모든 지표는 {range ? `${range.since} ~ ${range.until}` : `최근 ${days}일`} · {basis === 'clicked' ? '클릭일' : '전환일'} 기준
         </span>
       </div>
+
+      {attribution === 'all' && (
+        <div className="flex items-center gap-2 px-4 py-2 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+          <AlertCircle size={14} className="text-amber-400 shrink-0" />
+          <p className="text-xs text-amber-300">
+            추정 포함 모드입니다. 주문완료 추적 설치(2026-07-20) 이전 데이터는 라스트클릭 추정이라 오가닉·메타 주문이 섞여
+            실제 기여보다 부풀려질 수 있습니다 — 과거 추세 참고용으로만 사용하고, 정산·의사결정은 확정 귀속 기준을 사용하세요.
+          </p>
+        </div>
+      )}
 
       {/* KPI 카드 */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
