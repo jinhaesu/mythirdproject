@@ -162,6 +162,66 @@ export function DataDashboard() {
         </div>
       </div>
 
+      {/* 표 0 — 전 채널 월별 광고비 매트릭스 */}
+      <div className="bg-[#1a1b1e] rounded-2xl p-4 border border-white/[0.06]">
+        <h3 className="text-sm font-semibold text-white mb-1">채널별 월별 광고비</h3>
+        <p className="text-[11px] text-gray-500 mb-3">집행 채널 전체(관여 + 비관여)의 월별 광고비. 자동 집계 채널은 실집행액 기준.</p>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs min-w-[560px]">
+            <thead>
+              <tr className="text-gray-500 border-b border-white/5">
+                <th className="text-left py-2 pr-3 font-medium whitespace-nowrap">채널</th>
+                {monthsData.map(m => (
+                  <th key={m.month} className="text-right py-2 px-3 font-medium whitespace-nowrap">{m.month.slice(2)}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {involvedChannels.map(ch => (
+                <tr key={`inv-${ch.channel}`} className="border-b border-white/5">
+                  <td className="py-2 pr-3 text-gray-300 whitespace-nowrap">
+                    {ch.label}
+                    <span className="ml-1.5 text-[9px] font-semibold bg-emerald-500/10 text-emerald-300 px-1.5 py-0.5 rounded-full">관여</span>
+                  </td>
+                  {monthsData.map(m => {
+                    const e = m.involved.find(x => x.channel === ch.channel);
+                    return (
+                      <td key={m.month} className="py-2 px-3 text-right whitespace-nowrap">
+                        {e ? <span className="text-white font-medium">{fmtWon(e.spend)}</span> : <span className="text-gray-700">—</span>}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+              {uninvolvedChannels.map(ch => (
+                <tr key={`uni-${ch.channel}`} className="border-b border-white/5">
+                  <td className="py-2 pr-3 text-gray-300 whitespace-nowrap">
+                    {ch.label}
+                    <span className="ml-1.5 text-[9px] font-semibold bg-amber-500/10 text-amber-300 px-1.5 py-0.5 rounded-full">비관여</span>
+                  </td>
+                  {monthsData.map(m => {
+                    const e = m.uninvolved.find(x => x.channel === ch.channel);
+                    return (
+                      <td key={m.month} className="py-2 px-3 text-right whitespace-nowrap">
+                        {e ? <span className="text-white font-medium">{fmtWon(e.spend)}</span> : <span className="text-gray-700">—</span>}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+              <tr className="bg-white/[0.03] font-semibold">
+                <td className="py-2 pr-3 text-white">합계 (전체 광고비)</td>
+                {monthsData.map(m => (
+                  <td key={m.month} className="py-2 px-3 text-right whitespace-nowrap text-blue-300">
+                    {fmtWon(m.totals.total_spend)}
+                  </td>
+                ))}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       {/* 표 1 — 지표 관여 채널: 월별 ROAS·광고비·매출 */}
       <div className="bg-[#1a1b1e] rounded-2xl p-4 border border-white/[0.06]">
         <h3 className="text-sm font-semibold text-white mb-1">지표 관여 채널 — 월별 ROAS</h3>
