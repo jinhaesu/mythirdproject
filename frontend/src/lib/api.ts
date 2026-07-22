@@ -1245,6 +1245,8 @@ export interface KPIChannelSpend {
   revenue_linked?: boolean;
   /** 매출 관여 채널의 채널 매출 (revenue_linked=true일 때만 유효) */
   revenue?: number | null;
+  /** 비관여(브랜딩) 채널의 월 조회수 */
+  views?: number | null;
 }
 
 export interface KPIMallMetrics {
@@ -1327,6 +1329,8 @@ export interface KPIChannelSpendUpdatePayload {
   revenue_linked?: boolean;
   /** 매출 관여 채널의 채널 매출 (revenue_linked=true일 때만 유효) */
   revenue?: number | null;
+  /** 비관여(브랜딩) 채널의 월 조회수 */
+  views?: number | null;
 }
 
 export interface KPIBackfillOrdersResponse {
@@ -1396,10 +1400,51 @@ export interface KPIDemographicsResponse {
   basis: Record<string, string>;
 }
 
+export interface DataDashboardInvolvedEntry {
+  channel: string;
+  label: string;
+  spend: number;
+  revenue: number | null;
+  roas: number | null;
+  is_auto: boolean;
+}
+
+export interface DataDashboardUninvolvedEntry {
+  channel: string;
+  label: string;
+  spend: number;
+  views: number | null;
+}
+
+export interface DataDashboardMonth {
+  month: string;
+  involved: DataDashboardInvolvedEntry[];
+  uninvolved: DataDashboardUninvolvedEntry[];
+  totals: {
+    involved_spend: number;
+    involved_revenue: number;
+    blended_roas: number | null;
+    uninvolved_spend: number;
+    uninvolved_views: number;
+    total_spend: number;
+    mall_revenue: number;
+  };
+}
+
+export interface DataDashboardResponse {
+  months: DataDashboardMonth[];
+}
+
 export const kpiApi = {
   /** KPI 요약 (채널 광고비, 자사몰 지표, CAC/LTV, 목표). granularity=month|week|day */
   getSummary: async (params: KPISummaryParams = { granularity: 'month', months: 6 }): Promise<KPISummaryResponse> => {
     const { data } = await api.get<KPISummaryResponse>('/kpi/summary', { params });
+    return data;
+  },
+
+  /** 데이터 대시보드 — 판매채널 월별 ROAS(관여) + 브랜딩 채널 광고비·조회수(비관여) */
+  getDataDashboard: async (months = 6): Promise<DataDashboardResponse> => {
+    const { data } = await api.get<DataDashboardResponse>('/kpi/data-dashboard', { params: { months } });
     return data;
   },
 

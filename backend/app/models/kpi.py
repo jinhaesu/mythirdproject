@@ -65,6 +65,7 @@ class MonthlyChannelSpend(Base):
     revenue_linked: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")  # 매출 관여 여부
     revenue: Mapped[Optional[float]] = mapped_column(Float, nullable=True)  # 관여 시 해당 채널 매출
     channel_label: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)  # channel='etc'일 때 표시명
+    views: Mapped[Optional[float]] = mapped_column(Float, nullable=True)  # 비관여(브랜딩) 채널 월 조회수
 
     __table_args__ = (
         UniqueConstraint("month", "channel", "scope", name="uq_monthly_channel_spend_month_channel_scope"),

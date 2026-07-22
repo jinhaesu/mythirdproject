@@ -150,6 +150,7 @@ def _merge_channel_spend(
                 "channel_label": None if is_auto else row.channel_label,
                 "revenue_linked": False if is_auto else bool(row.revenue_linked),
                 "revenue": None if is_auto else row.revenue,
+                "views": row.views,
             }
         )
         total += resolved
@@ -166,6 +167,7 @@ def _merge_channel_spend(
                 "channel_label": None,
                 "revenue_linked": False,
                 "revenue": None,
+                "views": None,
             }
         )
         total += auto_value
@@ -680,6 +682,7 @@ async def _external_summary_monthly(db: AsyncSession, months: int) -> dict:
                     "channel_label": row.channel_label,
                     "revenue_linked": bool(row.revenue_linked),
                     "revenue": row.revenue,
+                    "views": row.views,
                 }
             )
             total_spend += resolved
@@ -839,6 +842,194 @@ async def list_external_marketing_goals(
     return {"goals": [_serialize_external_goal(g) for g in goals]}
 
 
+# ── 데이터 대시보드 ──────────────────────────────────────────────────────────
+
+_DD_CHANNEL_LABELS = {
+    "meta": "메타",
+    "naver_sa": "네이버 검색광고",
+    "naver_gfa": "네이버 GFA",
+    "kakao": "카카오",
+    "google": "구글",
+    "youtube": "유튜브",
+    "tiktok": "틱톡",
+    "instagram": "인스타그램",
+}
+
+
+@router.get("/data-dashboard")
+async def get_data_dashboard(
+    months: int = Query(default=6, ge=1, le=24),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """데이터 대시보드 — 판매/집행 채널별 월 지표 통합 뷰.
+
+    - involved(지표 관여): ROAS를 따지는 채널 — meta(자동: 인사이츠 spend/귀속매출),
+      naver_sa(자동 spend), 그리고 KPI 탭에서 revenue_linked=True로 입력한 채널.
+    - uninvolved(지표 비관여): 브랜딩 집행 — revenue_linked=False로 입력한 채널의
+      광고비·조회수(views). 유튜브·메타 브랜딩 등.
+    자사몰/그 외 마케팅 KPI 탭의 수기 입력(MonthlyChannelSpend)과 실시간 연동된다.
+    """
+    month_list = _recent_months(months)
+    range_start, _ = _month_bounds(month_list[0])
+    _, range_end = _month_bounds(month_list[-1])
+
+    # ── 자동값: 메타 spend/귀속매출 월별 ──
+    meta_rows = (
+        await db.execute(
+            select(
+                func.to_char(MetaInsightDaily.date, "YYYY-MM").label("m"),
+                func.coalesce(func.sum(MetaInsightDaily.spend), 0),
+                func.coalesce(func.sum(MetaInsightDaily.revenue), 0),
+            )
+            .where(
+                MetaInsightDaily.level == "campaign",
+                MetaInsightDaily.date >= range_start,
+                MetaInsightDaily.date <= range_end,
+            )
+            .group_by("m")
+        )
+    ).all()
+    meta_by_month = {m: (float(s), float(r)) for m, s, r in meta_rows}
+
+    # ── 자동값: 네이버 검색광고 spend 월별 ──
+    naver_by_month = await _daily_channel_spend_by_month(db, "naver_sa", range_start, range_end)
+
+    # ── 자사몰 총매출 월별 (컨텍스트) ──
+    mall_rows = (
+        await db.execute(
+            select(
+                func.to_char(MallOrder.order_date, "YYYY-MM").label("m"),
+                func.coalesce(func.sum(MallOrder.amount), 0),
+            )
+            .where(
+                MallOrder.order_date >= range_start,
+                MallOrder.order_date <= range_end,
+                MallOrder.status == "paid",
+            )
+            .group_by("m")
+        )
+    ).all()
+    mall_rev_by_month = {m: float(v) for m, v in mall_rows}
+
+    # ── 수동 입력 (mall + external 전체) ──
+    spend_rows = (
+        await db.execute(
+            select(MonthlyChannelSpend).where(MonthlyChannelSpend.month.in_(month_list))
+        )
+    ).scalars().all()
+    rows_by_month: dict[str, list[MonthlyChannelSpend]] = defaultdict(list)
+    for row in spend_rows:
+        rows_by_month[row.month].append(row)
+
+    def _label(channel: str, channel_label: Optional[str]) -> str:
+        return channel_label or _DD_CHANNEL_LABELS.get(channel, channel)
+
+    months_out = []
+    for month_key in month_list:
+        involved: list[dict] = []
+        uninvolved: list[dict] = []
+        rows_this = rows_by_month.get(month_key, [])
+
+        # 메타 — 수동 행(scope=mall, channel=meta)이 있으면 spend/revenue 오버라이드
+        meta_auto_spend, meta_auto_rev = meta_by_month.get(month_key, (0.0, 0.0))
+        meta_manual = next((r for r in rows_this if r.channel == "meta" and r.scope == "mall"), None)
+        meta_spend = (
+            meta_manual.actual_amount
+            if meta_manual is not None and meta_manual.actual_amount is not None
+            else meta_auto_spend
+        )
+        meta_rev = (
+            meta_manual.revenue
+            if meta_manual is not None and meta_manual.revenue_linked and meta_manual.revenue is not None
+            else meta_auto_rev
+        )
+        if meta_spend or meta_rev:
+            involved.append({
+                "channel": "meta",
+                "label": "메타 (자사몰)",
+                "spend": round(meta_spend, 2),
+                "revenue": round(meta_rev, 2),
+                "roas": round(meta_rev / meta_spend, 2) if meta_spend else None,
+                "is_auto": meta_manual is None or meta_manual.actual_amount is None,
+            })
+
+        # 네이버 검색광고 — 자동 spend, 수동 행 있으면 관여 여부/매출 반영
+        naver_auto = round(naver_by_month.get(month_key, 0.0), 2)
+        naver_manual = next((r for r in rows_this if r.channel == "naver_sa"), None)
+        naver_spend = (
+            naver_manual.actual_amount
+            if naver_manual is not None and naver_manual.actual_amount is not None
+            else naver_auto
+        )
+        if naver_spend:
+            if naver_manual is not None and not naver_manual.revenue_linked:
+                uninvolved.append({
+                    "channel": "naver_sa",
+                    "label": "네이버 검색광고",
+                    "spend": round(naver_spend, 2),
+                    "views": naver_manual.views,
+                })
+            else:
+                nrev = naver_manual.revenue if (naver_manual and naver_manual.revenue_linked) else None
+                involved.append({
+                    "channel": "naver_sa",
+                    "label": "네이버 검색광고",
+                    "spend": round(naver_spend, 2),
+                    "revenue": nrev,
+                    "roas": round(nrev / naver_spend, 2) if (nrev and naver_spend) else None,
+                    "is_auto": naver_manual is None or naver_manual.actual_amount is None,
+                })
+
+        # 나머지 수동 채널
+        for row in rows_this:
+            if row.channel == "naver_sa":
+                continue  # 위에서 자동값과 병합 처리됨
+            if row.channel == "meta" and row.scope == "mall":
+                continue  # 위에서 자동값과 병합 처리됨
+            spend = row.actual_amount or 0.0
+            entry_label = _label(row.channel, row.channel_label)
+            if row.revenue_linked:
+                rev = row.revenue or 0.0
+                involved.append({
+                    "channel": row.channel,
+                    "label": entry_label,
+                    "spend": round(spend, 2),
+                    "revenue": round(rev, 2),
+                    "roas": round(rev / spend, 2) if spend else None,
+                    "is_auto": False,
+                })
+            else:
+                uninvolved.append({
+                    "channel": row.channel,
+                    "label": entry_label,
+                    "spend": round(spend, 2),
+                    "views": row.views,
+                })
+
+        inv_spend = round(sum(e["spend"] for e in involved), 2)
+        inv_rev = round(sum((e["revenue"] or 0.0) for e in involved), 2)
+        uninv_spend = round(sum(e["spend"] for e in uninvolved), 2)
+        uninv_views = round(sum((e["views"] or 0.0) for e in uninvolved), 0)
+
+        months_out.append({
+            "month": month_key,
+            "involved": sorted(involved, key=lambda e: -e["spend"]),
+            "uninvolved": sorted(uninvolved, key=lambda e: -e["spend"]),
+            "totals": {
+                "involved_spend": inv_spend,
+                "involved_revenue": inv_rev,
+                "blended_roas": round(inv_rev / inv_spend, 2) if inv_spend else None,
+                "uninvolved_spend": uninv_spend,
+                "uninvolved_views": uninv_views,
+                "total_spend": round(inv_spend + uninv_spend, 2),
+                "mall_revenue": round(mall_rev_by_month.get(month_key, 0.0), 2),
+            },
+        })
+
+    return {"months": months_out}
+
+
 # ── Channel spend ────────────────────────────────────────────────────────────
 
 class ChannelSpendUpsert(BaseModel):
@@ -851,6 +1042,7 @@ class ChannelSpendUpsert(BaseModel):
     revenue_linked: Optional[bool] = None  # 매출 관여 여부 (True면 해당 채널 매출도 등록)
     revenue: Optional[float] = None  # 관여 시 해당 채널 매출
     channel_label: Optional[str] = None  # channel='etc' 등 커스텀 채널명
+    views: Optional[float] = None  # 비관여(브랜딩) 채널 월 조회수
 
 
 @router.put("/channel-spend")
@@ -897,6 +1089,8 @@ async def upsert_channel_spend(
         row.revenue = payload.revenue
     if payload.channel_label is not None:
         row.channel_label = payload.channel_label
+    if payload.views is not None:
+        row.views = payload.views
 
     await db.commit()
     await db.refresh(row)
@@ -911,6 +1105,7 @@ async def upsert_channel_spend(
         "channel_label": row.channel_label,
         "revenue_linked": row.revenue_linked,
         "revenue": row.revenue,
+        "views": row.views,
     }
 
 

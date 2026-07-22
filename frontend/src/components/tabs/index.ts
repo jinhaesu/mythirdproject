@@ -1,4 +1,5 @@
 export { MarketIntelligence } from './MarketIntelligence';
+export { DataDashboard } from './DataDashboard';
 export { CreativeStudio } from './CreativeStudio';
 export { CampaignPlanner } from './CampaignPlanner';
 export { AdsController } from './AdsController';

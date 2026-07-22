@@ -434,6 +434,18 @@ async def init_db():
             except Exception as te:
                 logger.warning(f"{tbl_name} create skipped: {te}")
 
+    # 비관여(브랜딩) 채널 월 조회수 — 데이터 대시보드용 (2026-07-22)
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(
+                __import__('sqlalchemy').text(
+                    "ALTER TABLE monthly_channel_spends ADD COLUMN IF NOT EXISTS views DOUBLE PRECISION"
+                )
+            )
+        logger.info("[init_db] monthly_channel_spends.views ensured")
+    except Exception as e:
+        logger.warning(f"[init_db] monthly_channel_spends.views skipped: {e}")
+
     # 파트너 전용 쿠폰 — 쿠폰 사용 주문을 파트너에 확정 귀속 (2026-07-21)
     try:
         async with engine.begin() as conn:

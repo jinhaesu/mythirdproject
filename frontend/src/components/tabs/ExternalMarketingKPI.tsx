@@ -107,14 +107,16 @@ function ExternalChannelSpendRow({
   const [planned, setPlanned] = useState(item.planned_amount != null ? String(item.planned_amount) : '');
   const [actual, setActual] = useState(item.actual_amount != null ? String(item.actual_amount) : '');
   const [revenue, setRevenue] = useState(item.revenue != null ? String(item.revenue) : '');
+  const [views, setViews] = useState(item.views != null ? String(item.views) : '');
   const [memo, setMemo] = useState(item.memo ?? '');
 
   useEffect(() => {
     setPlanned(item.planned_amount != null ? String(item.planned_amount) : '');
     setActual(item.actual_amount != null ? String(item.actual_amount) : '');
     setRevenue(item.revenue != null ? String(item.revenue) : '');
+    setViews(item.views != null ? String(item.views) : '');
     setMemo(item.memo ?? '');
-  }, [item.id, item.planned_amount, item.actual_amount, item.revenue, item.memo]);
+  }, [item.id, item.planned_amount, item.actual_amount, item.revenue, item.views, item.memo]);
 
   const isAuto = item.is_auto === true;
   const isRevenueLinked = item.revenue_linked === true;
@@ -129,6 +131,7 @@ function ExternalChannelSpendRow({
       planned_amount: planned.trim() === '' ? null : parseFloat(planned),
       actual_amount: isAuto ? undefined : (actual.trim() === '' ? null : parseFloat(actual)),
       revenue: isRevenueLinked ? (revenue.trim() === '' ? null : parseFloat(revenue)) : undefined,
+      views: !isRevenueLinked ? (views.trim() === '' ? null : parseFloat(views)) : undefined,
       memo: memo.trim() === '' ? null : memo,
     });
   };
@@ -200,7 +203,19 @@ function ExternalChannelSpendRow({
             placeholder="0"
           />
         ) : (
-          <span className="text-xs text-[#62666D]">-</span>
+          <span className="inline-flex items-center gap-1">
+            <input
+              value={views}
+              onChange={(e: ChangeEvent<HTMLInputElement>) => setViews(e.target.value)}
+              onBlur={commit}
+              onKeyDown={onKeyDown}
+              type="number"
+              title="조회수(view) — 데이터 대시보드의 비관여 채널 지표로 표시됩니다"
+              className="w-24 bg-[#08090A] border border-[#23252A] rounded-lg px-2 py-1 text-xs text-[#F7F8F8] focus:outline-none focus:border-[#F2994A]"
+              placeholder="조회수"
+            />
+            <span className="text-[9px] text-[#8A8F98]">view</span>
+          </span>
         )}
       </td>
       <td className="px-3 py-2 text-xs text-[#8A8F98] whitespace-nowrap">{roasText}</td>
@@ -537,7 +552,7 @@ export function ExternalMarketingKPI() {
                     <th className="px-3 py-2 whitespace-nowrap">유형</th>
                     <th className="px-3 py-2 whitespace-nowrap">예산</th>
                     <th className="px-3 py-2 whitespace-nowrap">광고비</th>
-                    <th className="px-3 py-2 whitespace-nowrap">매출</th>
+                    <th className="px-3 py-2 whitespace-nowrap">매출 / 조회수</th>
                     <th className="px-3 py-2 whitespace-nowrap">ROAS</th>
                     <th className="px-3 py-2 whitespace-nowrap">메모</th>
                     <th className="px-3 py-2" />
