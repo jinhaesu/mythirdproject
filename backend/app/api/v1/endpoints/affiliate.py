@@ -2425,7 +2425,7 @@ _TRACKER_JS_TEMPLATE = r"""
     if (!isDone) return;
     var token = localStorage.getItem('nd_ref_token');
     var ts = parseInt(localStorage.getItem('nd_ref_ts') || '0', 10);
-    if (!token || !ts || Date.now() - ts > 30 * 24 * 3600 * 1000) return;
+    if (!token || !ts || Date.now() - ts > 30 * 24 * 3600 * 1000) token = null;
     var oid = qs.get('order_id');
     if (!oid) {
       var m = document.documentElement.innerHTML.match(/20\d{6}-\d{7}/);
@@ -2434,17 +2434,25 @@ _TRACKER_JS_TEMPLATE = r"""
     if (!oid) return;
     var url = '__BACKEND__/api/v1/affiliate/click-bind';
     // text/plain — CORS preflight 없이 전송 (서버는 raw body를 JSON 파싱)
+    // token이 없어도 전송 — 서버가 "주문완료 페이지 도달" 진단 핑으로 집계
     var payload = JSON.stringify({ order_id: oid, token: token });
     if (navigator.sendBeacon) {
       navigator.sendBeacon(url, new Blob([payload], { type: 'text/plain' }));
     } else {
       fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: payload, keepalive: true });
     }
-    localStorage.removeItem('nd_ref_token');
-    localStorage.removeItem('nd_ref_ts');
+    if (token) {
+      localStorage.removeItem('nd_ref_token');
+      localStorage.removeItem('nd_ref_ts');
+    }
   } catch (e) { /* 추적 실패는 조용히 무시 */ }
 })();
 """
+
+# 주문완료 페이지 도달 진단 카운터 (배포 후 리셋 — 바인딩 0건 원인 구분용)
+# ping_no_token: 스크립트는 실행됐지만 localStorage에 클릭 토큰 없음
+# ping_unknown_token: 토큰이 왔지만 클릭 기록과 불일치
+_order_page_pings = {"no_token": 0, "unknown_token": 0, "bound": 0, "since": None}
 
 
 @router.get("/tracker.js")
@@ -2481,11 +2489,21 @@ async def bind_order_click(request: Request, db: AsyncSession = Depends(get_db))
 
     order_id = str(data.get("order_id") or "").strip()[:100]
     token = str(data.get("token") or "").strip()[:100]
-    if not order_id or not token:
+    if _order_page_pings["since"] is None:
+        _order_page_pings["since"] = datetime.utcnow().isoformat()
+    if not order_id:
         return {"status": "missing_fields"}
+    if not token:
+        # 진단 핑: 주문완료 페이지에서 스크립트는 실행됐지만 클릭 토큰이 없음
+        # (오가닉 주문이거나, 인앱브라우저 등에서 localStorage 유실)
+        _order_page_pings["no_token"] += 1
+        logger.info(f"[ClickBind] ping(no_token): order={order_id}")
+        return {"status": "no_token_ping"}
 
     click = await find_click_by_token(db, token)
     if not click:
+        _order_page_pings["unknown_token"] += 1
+        logger.info(f"[ClickBind] ping(unknown_token): order={order_id}")
         return {"status": "unknown_token"}
 
     existing_r = await db.execute(
@@ -2527,6 +2545,7 @@ async def bind_order_click(request: Request, db: AsyncSession = Depends(get_db))
                     conv.commission_amount = camp.commission_rate
 
     await db.commit()
+    _order_page_pings["bound"] += 1
     logger.info(f"[ClickBind] order={order_id} click={click.id} partner={click.partner_id}")
     return {"status": "bound", "click_id": click.id}
 
@@ -2609,6 +2628,9 @@ async def get_tracking_status(
         "binds_by_day": binds_by_day,
         "sources_30d": sources_30d,
         "confirmed_share_30d": round(confirmed_amt / total_amt * 100, 1) if total_amt else 0.0,
+        # 주문완료 페이지 진단 핑 (배포 후 누적) — 바인딩 0건 원인 구분:
+        # no_token만 쌓이면 스크립트는 실행되나 토큰 유실/오가닉, 전부 0이면 스크립트 미실행
+        "order_page_pings": dict(_order_page_pings),
     }
 
 
