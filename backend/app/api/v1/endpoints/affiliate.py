@@ -2415,10 +2415,15 @@ _TRACKER_JS_TEMPLATE = r"""
 (function () {
   try {
     var qs = new URLSearchParams(location.search);
+    // 루트 도메인 쿠키 — m.도메인/www.도메인 사이에서도 토큰 공유 (localStorage는 origin별 분리)
+    var root = location.hostname.replace(/^(m|www)\./i, '');
     var t = qs.get('nref');
     if (t && /^[0-9a-f]{16,64}$/i.test(t)) {
       localStorage.setItem('nd_ref_token', t);
       localStorage.setItem('nd_ref_ts', String(Date.now()));
+      try {
+        document.cookie = 'nd_ref=' + t + '; domain=.' + root + '; path=/; max-age=' + (30 * 24 * 3600) + '; SameSite=Lax';
+      } catch (ce) {}
     }
     // 주문완료 페이지 감지 (Cafe24: /order/order_result.html?order_id=YYYYMMDD-NNNNNNN)
     var isDone = /order_result/i.test(location.pathname);
@@ -2426,6 +2431,11 @@ _TRACKER_JS_TEMPLATE = r"""
     var token = localStorage.getItem('nd_ref_token');
     var ts = parseInt(localStorage.getItem('nd_ref_ts') || '0', 10);
     if (!token || !ts || Date.now() - ts > 30 * 24 * 3600 * 1000) token = null;
+    if (!token) {
+      // localStorage에 없으면 도메인 공유 쿠키에서 복구 (m./www. 교차 케이스)
+      var cm = document.cookie.match(/(?:^|;\s*)nd_ref=([0-9a-f]{16,64})/i);
+      if (cm) token = cm[1];
+    }
     var oid = qs.get('order_id');
     if (!oid) {
       var m = document.documentElement.innerHTML.match(/20\d{6}-\d{7}/);
@@ -2444,6 +2454,9 @@ _TRACKER_JS_TEMPLATE = r"""
     if (token) {
       localStorage.removeItem('nd_ref_token');
       localStorage.removeItem('nd_ref_ts');
+      try {
+        document.cookie = 'nd_ref=; domain=.' + root + '; path=/; max-age=0';
+      } catch (ce2) {}
     }
   } catch (e) { /* 추적 실패는 조용히 무시 */ }
 })();
