@@ -7,9 +7,6 @@ import { authApi } from '@/lib/api';
 import { Header, TabNav, NaverTabNav } from '@/components/layout';
 import { Button, Input, Card } from '@/components/ui';
 import {
-  CreativeStudio,
-  CampaignPlanner,
-  AdsController,
   PerformanceDashboard,
   AutoManagement,
   AffiliateManaging,
@@ -38,7 +35,11 @@ export default function Home() {
   const { activeTab, activePlatform, naverActiveTab, setActiveTab } = useAppStore();
   const [verifying, setVerifying] = useState(false);
 
-  // 탭 id 0은 데이터 대시보드로 재사용 (구 시장 분석 자리)
+  // 탭 id 0은 데이터 대시보드로 재사용 (구 시장 분석 자리).
+  // 소재 제작(1)·캠페인 기획(2)·광고 집행(3) 메뉴 제거 — 저장된 탭 상태는 대시보드로
+  useEffect(() => {
+    if (activeTab === 1 || activeTab === 2 || activeTab === 3) setActiveTab(0);
+  }, [activeTab, setActiveTab]);
 
   // 인터셉터의 401 발생 알림을 받아 로그아웃 처리 — 강제 reload 대신
   useEffect(() => {
@@ -143,9 +144,6 @@ export default function Home() {
         {activePlatform === 'meta' && (
           <>
             {activeTab === 0 && <DataDashboard />}
-            {activeTab === 1 && <CreativeStudio />}
-            {activeTab === 2 && <CampaignPlanner />}
-            {activeTab === 3 && <AdsController />}
             {activeTab === 4 && <PerformanceDashboard />}
             {activeTab === 5 && <AutoManagement />}
             {activeTab === 6 && <MarketingKPI />}

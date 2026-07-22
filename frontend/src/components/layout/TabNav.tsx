@@ -1,6 +1,6 @@
 'use client';
 
-import { Palette, Target, BarChart2, ClipboardList, Shield, Gauge, Share2, Database } from 'lucide-react';
+import { BarChart2, Shield, Gauge, Share2, Database } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { clsx } from 'clsx';
 
@@ -9,14 +9,11 @@ const tabs = [
   { id: 4, name: '성과 분석', icon: BarChart2, description: 'KPI 대시보드' },
   { id: 6, name: '자사몰 마케팅 KPI', icon: Gauge, description: '목표·CAC·LTV 관리' },
   { id: 7, name: '그 외 마케팅 KPI', icon: Share2, description: '외부 채널·시딩·협찬' },
-  { id: 1, name: '소재 제작', icon: Palette, description: '이미지/영상 생성' },
-  { id: 2, name: '캠페인 기획', icon: ClipboardList, description: '구조/타겟/카피 설계' },
-  { id: 3, name: '광고 집행', icon: Target, description: '캠페인 생성 및 관리' },
   { id: 5, name: '자동 관리', icon: Shield, description: '룰 기반 자동 최적화' },
 ];
 
 export function TabNav() {
-  const { activeTab, setActiveTab, selectedCreatives } = useAppStore();
+  const { activeTab, setActiveTab } = useAppStore();
 
   return (
     <div style={{ backgroundColor: '#0F1011', borderBottom: '1px solid #23252A' }}>
@@ -64,18 +61,6 @@ export function TabNav() {
                   </p>
                 </div>
                 <span className="sm:hidden">{tab.name}</span>
-                {tab.id === 3 && selectedCreatives.length > 0 && (
-                  <span
-                    className="ml-1 px-1.5 py-0.5 text-xs rounded-full"
-                    style={{
-                      backgroundColor: 'rgba(94,106,210,0.18)',
-                      color: '#828FFF',
-                      border: '1px solid rgba(130,143,255,0.3)',
-                    }}
-                  >
-                    {selectedCreatives.length}
-                  </span>
-                )}
               </button>
             );
           })}
