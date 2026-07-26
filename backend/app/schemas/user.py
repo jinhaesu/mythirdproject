@@ -64,6 +64,11 @@ class MagicLinkVerifyRequest(BaseModel):
     ref: Optional[str] = None  # 친구 추천 코드 (가입 시 포인트 적립)
 
 
+class SSOLoginRequest(BaseModel):
+    """Request to log in via central SSO hub token."""
+    token: str
+
+
 class Token(BaseModel):
     """JWT token response."""
     access_token: str

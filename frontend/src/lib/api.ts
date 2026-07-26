@@ -108,6 +108,11 @@ export const authApi = {
     return data;
   },
 
+  sso: async (token: string) => {
+    const { data } = await api.post<{ access_token: string; token_type: string }>('/auth/sso', { token });
+    return data;
+  },
+
   getMe: async () => {
     const { data } = await api.get<User>('/auth/me');
     return data;

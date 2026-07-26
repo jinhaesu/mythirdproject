@@ -3,9 +3,11 @@ import logging
 from datetime import timedelta
 from typing import Annotated, Optional
 
+import httpx
 import resend
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
+from jose import JWTError, jwt as hub_jwt
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, select
 
@@ -13,13 +15,81 @@ from app.core.config import get_settings
 from app.core.security import create_access_token, create_magic_link_token, decode_token
 from app.db.database import get_db
 from app.models.user import User
-from app.schemas.user import UserResponse, Token, MetaConnectionRequest, MagicLinkRequest, MagicLinkVerifyRequest
+from app.schemas.user import UserResponse, Token, MetaConnectionRequest, MagicLinkRequest, MagicLinkVerifyRequest, SSOLoginRequest
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 settings = get_settings()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/verify-magic-link")
+
+# --- Central SSO hub (auth.nuldam.com) config ---
+SSO_HUB_JWKS_URL = "https://auth-api.nuldam.com/.well-known/jwks.json"
+SSO_HUB_ISSUER = "https://auth.nuldam.com"
+SSO_HUB_AUDIENCE = "marketing"
+
+# Module-level JWKS cache. Populated lazily on first /auth/sso call — no network at import.
+_sso_jwks_cache: Optional[dict] = None
+
+
+def _fetch_sso_jwks(force_refresh: bool = False) -> dict:
+    """Fetch (and cache) the SSO hub JWKS. Refresh on demand for key rotation."""
+    global _sso_jwks_cache
+    if _sso_jwks_cache is None or force_refresh:
+        resp = httpx.get(SSO_HUB_JWKS_URL, timeout=10.0)
+        resp.raise_for_status()
+        _sso_jwks_cache = resp.json()
+    return _sso_jwks_cache
+
+
+def _select_sso_jwk(jwks: dict, kid: Optional[str]) -> Optional[dict]:
+    """Select the JWK matching the token's kid (fall back to first key)."""
+    keys = jwks.get("keys", []) if isinstance(jwks, dict) else []
+    if kid:
+        for key in keys:
+            if key.get("kid") == kid:
+                return key
+    return keys[0] if keys else None
+
+
+def _verify_sso_token(token: str) -> dict:
+    """Verify a hub-issued RS256 token against the hub JWKS. Raises 401 on failure."""
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="유효하지 않은 SSO 토큰입니다.",
+    )
+    try:
+        kid = hub_jwt.get_unverified_header(token).get("kid")
+    except JWTError:
+        raise credentials_exception
+
+    last_error: Optional[Exception] = None
+    # Try cached JWKS first, then force a refresh in case keys rotated.
+    for attempt in range(2):
+        try:
+            jwks = _fetch_sso_jwks(force_refresh=(attempt == 1))
+        except Exception as e:  # network / fetch failure
+            last_error = e
+            continue
+        jwk = _select_sso_jwk(jwks, kid)
+        if jwk is None:
+            last_error = ValueError("matching JWK not found")
+            continue
+        try:
+            return hub_jwt.decode(
+                token,
+                jwk,
+                algorithms=["RS256"],
+                audience=SSO_HUB_AUDIENCE,
+                issuer=SSO_HUB_ISSUER,
+            )
+        except JWTError as e:
+            # Signature/claims invalid with this key set — a refresh may help once.
+            last_error = e
+            continue
+
+    logger.warning(f"[SSO] token verification failed: {last_error}")
+    raise credentials_exception
 
 
 async def get_shared_meta_credentials(db: AsyncSession):
@@ -267,6 +337,56 @@ async def verify_magic_link(
     access_token = create_access_token(
         data={"sub": str(user.id)},
         expires_delta=timedelta(days=7)
+    )
+
+    return Token(access_token=access_token)
+
+
+@router.post("/sso", response_model=Token)
+async def sso_login(
+    request: SSOLoginRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    회사 계정(SSO) 로그인.
+
+    중앙 SSO 허브(auth.nuldam.com)가 발급한 RS256 토큰을 검증한 뒤,
+    이메일 기준 find-or-create 로 앱 사용자를 확보하고 이 앱의 세션 토큰을 발급한다.
+    매직링크 흐름을 미러링하되 추천/포인트 부가 로직은 수행하지 않는다.
+    """
+    payload = _verify_sso_token(request.token)
+
+    email = (payload.get("email") or "").lower().strip()
+    if not email:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="SSO 토큰에 이메일이 없습니다.",
+        )
+
+    # Find or create user — minimal, no referral/points side-effects.
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalar_one_or_none()
+
+    if not user:
+        user = User(
+            email=email,
+            hashed_password="",
+            is_active=True,
+            full_name=payload.get("name"),
+        )
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="비활성화된 계정입니다.",
+        )
+
+    access_token = create_access_token(
+        data={"sub": str(user.id)},
+        expires_delta=timedelta(days=7),
     )
 
     return Token(access_token=access_token)

@@ -255,6 +255,24 @@ function LoginPage() {
               >
                 로그인 링크 받기
               </Button>
+
+              <div className="flex items-center gap-3 py-1">
+                <div className="flex-1 h-px bg-[#23252A]" />
+                <span className="text-xs text-[#62666D]">또는</span>
+                <div className="flex-1 h-px bg-[#23252A]" />
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  window.location.href =
+                    'https://auth.nuldam.com/authorize?app=marketing&return=' +
+                    encodeURIComponent('https://marketing.nuldam.com/sso');
+                }}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-[#23252A] bg-[#1A1B1E] text-[#F7F8F8] text-sm font-medium hover:bg-[#23252A] transition-colors duration-150"
+              >
+                회사 계정으로 로그인
+              </button>
             </form>
           ) : (
             <div className="text-center py-4">
