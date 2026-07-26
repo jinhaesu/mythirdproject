@@ -37,12 +37,28 @@ export default function SSOPage() {
     authApi
       .sso(token)
       .then(async (data) => {
+        // 매직링크 핸들러(page.tsx)와 동일한 순서로 처리:
+        // 1) access_token 을 먼저 저장해야 api 클라이언트 인터셉터가
+        //    이어지는 getMe() 요청에 Authorization: Bearer 를 첨부한다.
         localStorage.setItem('token', data.access_token);
+        // 2) 저장된 토큰으로 사용자 정보 조회 (cross-origin GET /auth/me)
         const user = await authApi.getMe();
+        // 3) 스토어 반영 후 홈으로 이동
         useAuthStore.getState().setAuth(user, data.access_token);
         router.push('/');
       })
-      .catch(() => {
+      .catch((err) => {
+        // 실패 원인 진단용 상세 로깅 (CORS/401/네트워크 구분)
+        // eslint-disable-next-line no-console
+        console.error(
+          '[SSO] 로그인 실패 — status:',
+          err?.response?.status,
+          'data:',
+          err?.response?.data,
+          'message:',
+          err?.message,
+          err,
+        );
         setError('회사 계정 로그인에 실패했습니다. 다시 시도해 주세요.');
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps

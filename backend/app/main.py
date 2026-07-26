@@ -244,10 +244,31 @@ app = FastAPI(
 )
 
 # CORS middleware
+# 프론트(marketing.nuldam.com)와 SSO 허브(auth.nuldam.com)는 Railway 백엔드와
+# 다른 오리진이므로, POST /api/v1/auth/sso 와 GET /api/v1/auth/me 모두 CORS 허용이
+# 필요하다. (curl 로는 Origin 헤더가 없어 CORS가 적용되지 않아 200이 떴지만,
+# 브라우저에서는 Origin 미허용 시 응답이 차단되어 getMe 가 실패했다.)
+# CORS_ORIGINS env 설정과 무관하게 필수 오리진을 항상 포함시킨다 — additive.
+_required_cors_origins = [
+    "https://marketing.nuldam.com",
+    "https://auth.nuldam.com",
+]
+_configured_cors_origins = settings.cors_origins_list
+if "*" in _configured_cors_origins:
+    # 와일드카드 사용 시엔 자격증명(credentials)을 켤 수 없다 (브라우저 규약).
+    _cors_allow_origins = ["*"]
+    _cors_allow_credentials = False
+else:
+    # 설정된 오리진 + 필수 오리진 합집합 (순서 유지, 중복 제거)
+    _cors_allow_origins = list(
+        dict.fromkeys([*_configured_cors_origins, *_required_cors_origins])
+    )
+    _cors_allow_credentials = True
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins_list,
-    allow_credentials=("*" not in settings.cors_origins_list),
+    allow_origins=_cors_allow_origins,
+    allow_credentials=_cors_allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )

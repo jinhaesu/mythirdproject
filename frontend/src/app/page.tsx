@@ -1,11 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useMutation } from '@tanstack/react-query';
 import { useAuthStore, useAppStore } from '@/store';
 import { authApi } from '@/lib/api';
 import { Header, TabNav, NaverTabNav } from '@/components/layout';
-import { Button, Input, Card } from '@/components/ui';
 import {
   PerformanceDashboard,
   AutoManagement,
@@ -170,137 +168,37 @@ export default function Home() {
 }
 
 function LoginPage() {
-  const [email, setEmail] = useState('');
-  const [sent, setSent] = useState(false);
-  const [refCode, setRefCode] = useState<string | null>(null);
-  const [showRefBanner, setShowRefBanner] = useState(false);
-
+  // 통합 SSO 자동 포워드 — 미인증 시 중앙 허브(auth.nuldam.com)로 즉시 이동.
+  // 단, 인바운드 토큰(매직링크 ?token= 또는 /sso 콜백)을 처리 중일 때는
+  // 리다이렉트하지 않는다 (상위 Home 이펙트 / SSOPage 가 처리 중).
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+
+    // 추천(ref) 코드가 있으면 가입 흐름 호환을 위해 저장만 해둔다.
     const ref = params.get('ref');
     if (ref) {
-      setRefCode(ref);
-      setShowRefBanner(true);
       localStorage.setItem('pending_ref', ref);
     }
-  }, []);
 
-  const sendMagicLinkMutation = useMutation({
-    mutationFn: () => authApi.sendMagicLink(email),
-    onSuccess: () => {
-      setSent(true);
-      toast.success('로그인 링크가 이메일로 전송되었습니다!');
-    },
-    onError: (error: any) => {
-      const msg = error?.response?.data?.detail || '이메일 전송에 실패했습니다. 다시 시도해주세요.';
-      toast.error(msg);
-    },
-  });
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (email) {
-      sendMagicLinkMutation.mutate();
+    // 매직링크 토큰이 URL에 남아 있으면 상위 Home 이펙트가 검증 중 → 대기.
+    const hasMagicToken = params.has('token');
+    // /sso 경로는 SSOPage 가 별도로 콜백을 처리 → 대기.
+    const isSsoRoute = window.location.pathname.startsWith('/sso');
+    if (hasMagicToken || isSsoRoute) {
+      return;
     }
-  };
+
+    // 미인증 + 처리 중인 토큰 없음 → 중앙 SSO 허브로 즉시 포워드.
+    window.location.href =
+      'https://auth.nuldam.com/authorize?app=marketing&return=' +
+      encodeURIComponent('https://marketing.nuldam.com/sso');
+  }, []);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#08090A] p-4">
-      <div className="w-full max-w-md">
-        {showRefBanner && refCode && (
-          <div className="mb-4 flex items-start gap-3 px-4 py-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl">
-            <span className="text-emerald-400 text-base leading-none mt-0.5">&#127881;</span>
-            <div className="flex-1">
-              <p className="text-sm font-medium text-emerald-300">친구 추천 링크로 접속하셨습니다</p>
-              <p className="text-xs text-emerald-400/70 mt-0.5">가입 완료 시 포인트가 지급됩니다.</p>
-            </div>
-            <button
-              onClick={() => setShowRefBanner(false)}
-              className="text-emerald-400/50 hover:text-emerald-300 transition-colors"
-              aria-label="닫기"
-            >
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1 1l12 12M13 1L1 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
-            </button>
-          </div>
-        )}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-3 mb-4">
-            <div className="w-12 h-12 bg-[#5E6AD2] rounded-xl flex items-center justify-center shadow-[0px_4px_24px_rgba(0,0,0,0.4)]">
-              <span className="text-white font-bold text-xl">M</span>
-            </div>
-            <h1 className="text-3xl font-semibold text-[#F7F8F8] tracking-tight">Meta-Commander</h1>
-          </div>
-          <p className="text-[#8A8F98] text-sm">AI 기반 Meta 마케팅 올인원 플랫폼</p>
-        </div>
-
-        <div className="bg-[#0F1011] border border-[#23252A] rounded-2xl p-6 shadow-[0px_7px_32px_rgba(0,0,0,0.35)]">
-          {!sent ? (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="text-center mb-2">
-                <h2 className="text-base font-semibold text-[#F7F8F8]">이메일로 시작하기</h2>
-                <p className="text-sm text-[#8A8F98] mt-1">로그인 링크를 이메일로 보내드립니다</p>
-              </div>
-              <Input
-                label="이메일"
-                type="email"
-                placeholder="email@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-              <Button
-                type="submit"
-                className="w-full"
-                loading={sendMagicLinkMutation.isPending}
-              >
-                로그인 링크 받기
-              </Button>
-
-              <div className="flex items-center gap-3 py-1">
-                <div className="flex-1 h-px bg-[#23252A]" />
-                <span className="text-xs text-[#62666D]">또는</span>
-                <div className="flex-1 h-px bg-[#23252A]" />
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  window.location.href =
-                    'https://auth.nuldam.com/authorize?app=marketing&return=' +
-                    encodeURIComponent('https://marketing.nuldam.com/sso');
-                }}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-[#23252A] bg-[#1A1B1E] text-[#F7F8F8] text-sm font-medium hover:bg-[#23252A] transition-colors duration-150"
-              >
-                회사 계정으로 로그인
-              </button>
-            </form>
-          ) : (
-            <div className="text-center py-4">
-              <div className="w-16 h-16 bg-[#27A644]/10 border border-[#27A644]/30 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-[#27A644]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
-              </div>
-              <h2 className="text-base font-semibold text-[#F7F8F8] mb-2">이메일을 확인하세요</h2>
-              <p className="text-sm text-[#8A8F98] mb-1">
-                <span className="font-medium text-[#D0D6E0]">{email}</span>
-              </p>
-              <p className="text-sm text-[#8A8F98] mb-6">
-                로 로그인 링크를 보냈습니다
-              </p>
-              <button
-                className="text-sm text-[#7070FF] hover:text-[#828FFF] font-medium transition-colors duration-150"
-                onClick={() => { setSent(false); setEmail(''); }}
-              >
-                다른 이메일로 시도
-              </button>
-            </div>
-          )}
-        </div>
-
-        <p className="text-center text-sm text-[#62666D] mt-6">
-          시장 분석부터 광고 집행까지, AI가 도와드립니다
-        </p>
+      <div className="text-center">
+        <div className="w-12 h-12 border-4 border-[#5E6AD2] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+        <p className="text-[#8A8F98] text-lg">회사 계정으로 이동 중...</p>
       </div>
     </div>
   );
