@@ -23,6 +23,7 @@ import {
   NaverReviewMonitor,
 } from '@/components/tabs/naver';
 import { AICommandCenter } from '@/components/chat/AICommandCenter';
+import NuldamSystemBar from '@/components/NuldamSystemBar';
 import toast from 'react-hot-toast';
 
 // React strict mode의 effect double-invoke 방어용 — 동일 매직링크 토큰은 1회만 verify
@@ -136,6 +137,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-[#08090A]">
+      <NuldamSystemBar current="marketing" />
       <Header />
       {activePlatform === 'meta' ? <TabNav /> : activePlatform === 'naver' ? <NaverTabNav /> : null}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
