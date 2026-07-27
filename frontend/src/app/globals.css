@@ -91,7 +91,8 @@
    --------------------------------------------------------------- */
 
 html {
-  font-size: 14px;
+  /* 전체 UI 한 단계 축소(14px→12px). Tailwind rem 기반이라 폰트·간격·크기 비례 축소 */
+  font-size: 12px;
   /* Use system font until Inter Variable loads */
   font-family: var(--font-sans);
   color-scheme: dark;
@@ -101,7 +102,7 @@ body {
   background-color: var(--color-bg-level-0);
   color: var(--color-text-primary);
   font-family: var(--font-sans);
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 400;
   line-height: 1.6;
   letter-spacing: var(--tracking-body);
