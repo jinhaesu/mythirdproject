@@ -1163,7 +1163,7 @@ function ReportNewsletter({ data, onEmail }: { data: any; onEmail?: () => void }
                       {daily.map((row: any, i: number) => {
                         const roas = parseFloat(row.roas || 0);
                         return (
-                          <tr key={i} className={`hover:bg-blue/60 transition-colors ${i % 2 === 0 ? 'bg-bg-1' : 'bg-bg-0/40'}`}>
+                          <tr key={i} className={`hover:bg-bg-2/5 transition-colors ${i % 2 === 0 ? 'bg-bg-1' : 'bg-bg-0/40'}`}>
                             <td className="py-2.5 px-4 text-text-secondary font-medium">{row.date_stop || row.date || '-'}</td>
                             <td className="py-2.5 px-3 text-right font-semibold text-text-primary">{formatSpend(row.spend)}</td>
                             <td className="py-2.5 px-3 text-right text-text-tertiary">{formatNum(row.impressions)}</td>

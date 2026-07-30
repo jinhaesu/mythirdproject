@@ -1142,7 +1142,7 @@ function Cafe24ProductBrowserModal({ onClose, onPick, multi = false, alreadySele
                     className={`group text-left rounded-xl p-3 transition-all relative ${
                       isSelected
                         ? 'bg-green/10 border border-green/40'
-                        : 'bg-bg-2 border border-border-primary hover:border-[#3B82F6] hover:bg-[#3B82F6]/5'
+                        : 'bg-bg-2 border border-border-primary hover:border-blue/50 hover:bg-[rgb(var(--color-overlay-rgb)/0.06)]'
                     }`}
                   >
                     {isSelected && (
@@ -1730,7 +1730,7 @@ function DashboardSection() {
                       const el = document.getElementById(`campaign-card-${c.campaign_id}`);
                       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     }}
-                    className="group w-full text-left bg-bg-2 hover:bg-[#1a1d20] rounded-lg p-2.5 border border-border-primary hover:border-green/30 transition-all"
+                    className="group w-full text-left bg-bg-2 hover:bg-[rgb(var(--color-overlay-rgb)/0.06)] rounded-lg p-2.5 border border-border-primary hover:border-green/30 transition-all"
                   >
                     <div className="flex items-center gap-2 mb-1.5">
                       <span className="text-[10px] font-bold text-text-tertiary w-5 shrink-0">{idx + 1}.</span>
