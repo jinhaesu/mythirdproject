@@ -122,10 +122,10 @@ export default function Home() {
 
   if (verifying) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#08090A]">
+      <div className="min-h-screen flex items-center justify-center bg-bg-0">
         <div className="text-center">
-          <div className="w-12 h-12 border-4 border-[#5E6AD2] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-[#8A8F98] text-lg">로그인 확인 중...</p>
+          <div className="w-12 h-12 border-4 border-brand border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-text-tertiary text-lg">로그인 확인 중...</p>
         </div>
       </div>
     );
@@ -136,7 +136,7 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-[#08090A]">
+    <div className="min-h-screen bg-bg-0">
       <NuldamSystemBar current="marketing" />
       <Header />
       {activePlatform === 'meta' ? <TabNav /> : activePlatform === 'naver' ? <NaverTabNav /> : null}
@@ -197,10 +197,10 @@ function LoginPage() {
   }, []);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#08090A] p-4">
+    <div className="min-h-screen flex items-center justify-center bg-bg-0 p-4">
       <div className="text-center">
-        <div className="w-12 h-12 border-4 border-[#5E6AD2] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-        <p className="text-[#8A8F98] text-lg">회사 계정으로 이동 중...</p>
+        <div className="w-12 h-12 border-4 border-brand border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+        <p className="text-text-tertiary text-lg">회사 계정으로 이동 중...</p>
       </div>
     </div>
   );

@@ -65,18 +65,18 @@ export function achievementBadge(
   inverse = false,
 ): { label: string; color: string } {
   if (target === null || target === undefined) {
-    return { label: '목표 미설정', color: 'bg-[#23252A] text-[#8A8F98]' };
+    return { label: '목표 미설정', color: 'bg-border-primary text-text-tertiary' };
   }
   if (actual === null || actual === undefined) {
-    return { label: '실적 없음', color: 'bg-[#23252A] text-[#8A8F98]' };
+    return { label: '실적 없음', color: 'bg-border-primary text-text-tertiary' };
   }
   const divisor = inverse ? actual : target;
   if (!divisor) {
-    return { label: '-', color: 'bg-[#23252A] text-[#8A8F98]' };
+    return { label: '-', color: 'bg-border-primary text-text-tertiary' };
   }
   const pct = inverse ? (target / actual) * 100 : (actual / target) * 100;
   const color =
-    pct >= 100 ? 'bg-[#27A644]/15 text-[#27A644]' :
-    pct >= 80 ? 'bg-[#F0BF00]/15 text-[#F0BF00]' : 'bg-[#EB5757]/15 text-[#EB5757]';
+    pct >= 100 ? 'bg-green/15 text-green' :
+    pct >= 80 ? 'bg-yellow/15 text-yellow' : 'bg-red/15 text-red';
   return { label: `${pct.toFixed(0)}%`, color };
 }

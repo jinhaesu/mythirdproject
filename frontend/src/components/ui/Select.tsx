@@ -34,7 +34,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
       <div className="w-full">
         {label && (
           <label
-            className="block mb-1 text-[13px] text-[#D0D6E0] tracking-[-0.01em]"
+            className="block mb-1 text-[13px] text-text-secondary tracking-[-0.01em]"
             style={{ fontWeight: 510 }}
           >
             {label}
@@ -45,17 +45,17 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
             ref={ref}
             className={clsx(
               // Base surface — identical to Input
-              'block w-full appearance-none rounded-xl border bg-[#141516] text-[#F7F8F8]',
+              'block w-full appearance-none rounded-xl border bg-bg-2 text-text-primary',
               'text-[14px] tracking-[-0.013em]',
               'min-h-[40px] px-3 pr-10',
               // Default border
-              'border-[#23252A]',
+              'border-border-primary',
               // Focus: indigo ring
-              'focus:outline-none focus:border-[#5E6AD2] focus:ring-1 focus:ring-[#5E6AD2]',
+              'focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand',
               // Disabled state
               'disabled:opacity-50 disabled:cursor-not-allowed',
               // Error override
-              error && 'border-[#EB5757] focus:border-[#EB5757] focus:ring-[#EB5757]',
+              error && 'border-red focus:border-red focus:ring-red',
               className
             )}
             {...props}
@@ -66,7 +66,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
               <option
                 key={option.value}
                 value={option.value}
-                style={{ background: '#141516', color: '#F7F8F8' }}
+                style={{ background: 'var(--color-bg-level-2)', color: 'var(--color-text-primary)' }}
               >
                 {option.label}
               </option>
@@ -74,13 +74,13 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
           </select>
 
           {/* Custom chevron replaces the native dropdown arrow */}
-          <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-[#62666D]">
+          <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-text-quaternary">
             <ChevronDown size={16} />
           </div>
         </div>
 
         {error && (
-          <p className="mt-1 text-[13px] text-[#EB5757] tracking-[-0.01em]">{error}</p>
+          <p className="mt-1 text-[13px] text-red tracking-[-0.01em]">{error}</p>
         )}
       </div>
     );

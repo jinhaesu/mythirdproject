@@ -112,7 +112,7 @@ export function DataDashboard() {
               key={mm}
               onClick={() => setMonths(mm)}
               className={`px-3 py-1 text-xs rounded-lg font-medium transition-colors ${
-                months === mm ? 'bg-blue-600 text-white' : 'bg-[#1a1b1e] text-gray-400 border border-[#2a2d35] hover:text-white'
+                months === mm ? 'bg-blue-600 text-white' : 'bg-bg-3 text-gray-400 border border-border-primary hover:text-white'
               }`}
             >
               {mm}개월
@@ -124,7 +124,7 @@ export function DataDashboard() {
       {/* KPI 카드 */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {kpis.map((k, i) => (
-          <div key={i} className="bg-[#1a1b1e] rounded-2xl p-4 border border-white/[0.06]">
+          <div key={i} className="bg-bg-3 rounded-2xl p-4 border border-white/[0.06]">
             <div className={`inline-flex items-center justify-center w-8 h-8 rounded-lg ${k.bg} ${k.color} mb-2`}>{k.icon}</div>
             <p className="text-[11px] text-gray-500">{k.label}</p>
             <p className="text-lg font-semibold text-white mt-0.5">{k.value}</p>
@@ -134,18 +134,18 @@ export function DataDashboard() {
       </div>
 
       {/* 차트 — 관여 광고비 스택 + 블렌디드 ROAS */}
-      <div className="bg-[#1a1b1e] rounded-2xl p-4 border border-white/[0.06]">
+      <div className="bg-bg-3 rounded-2xl p-4 border border-white/[0.06]">
         <h3 className="text-sm font-semibold text-white mb-3">월별 광고비 (지표 관여 채널) · 블렌디드 ROAS</h3>
         <div className="h-72">
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={chartRows} margin={{ top: 4, right: 8, bottom: 0, left: 8 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#23252A" vertical={false} />
-              <XAxis dataKey="month" tick={{ fill: '#8A8F98', fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis yAxisId="spend" tickFormatter={(v: number) => `${Math.round(v / 10000).toLocaleString()}만`} tick={{ fill: '#8A8F98', fontSize: 10 }} axisLine={false} tickLine={false} width={52} />
-              <YAxis yAxisId="roas" orientation="right" tick={{ fill: '#27A644', fontSize: 10 }} axisLine={false} tickLine={false} width={34} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-primary)" vertical={false} />
+              <XAxis dataKey="month" tick={{ fill: 'var(--color-text-tertiary)', fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis yAxisId="spend" tickFormatter={(v: number) => `${Math.round(v / 10000).toLocaleString()}만`} tick={{ fill: 'var(--color-text-tertiary)', fontSize: 10 }} axisLine={false} tickLine={false} width={52} />
+              <YAxis yAxisId="roas" orientation="right" tick={{ fill: 'var(--color-green)', fontSize: 10 }} axisLine={false} tickLine={false} width={34} />
               <RechartsTooltip
                 isAnimationActive={false}
-                contentStyle={{ backgroundColor: '#141516', border: '1px solid #2a2d35', borderRadius: 8, fontSize: 11 }}
+                contentStyle={{ backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)', borderRadius: 8, fontSize: 11 }}
                 formatter={(value, name) => {
                   const num = value == null ? null : Number(value);
                   if (name === '블렌디드 ROAS') return [num != null && !Number.isNaN(num) ? num.toFixed(2) : '—', name];
@@ -156,14 +156,14 @@ export function DataDashboard() {
               {involvedChannels.map((ch, i) => (
                 <Bar key={ch.channel} yAxisId="spend" dataKey={ch.channel} name={ch.label} stackId="spend" fill={STACK_COLORS[i % STACK_COLORS.length]} isAnimationActive={false} />
               ))}
-              <Line yAxisId="roas" type="monotone" dataKey="roas" name="블렌디드 ROAS" stroke="#27A644" strokeWidth={2} dot={{ r: 3 }} isAnimationActive={false} connectNulls />
+              <Line yAxisId="roas" type="monotone" dataKey="roas" name="블렌디드 ROAS" stroke="var(--color-green)" strokeWidth={2} dot={{ r: 3 }} isAnimationActive={false} connectNulls />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
       </div>
 
       {/* 표 0 — 전 채널 월별 광고비 매트릭스 */}
-      <div className="bg-[#1a1b1e] rounded-2xl p-4 border border-white/[0.06]">
+      <div className="bg-bg-3 rounded-2xl p-4 border border-white/[0.06]">
         <h3 className="text-sm font-semibold text-white mb-1">채널별 월별 광고비</h3>
         <p className="text-[11px] text-gray-500 mb-3">집행 채널 전체(관여 + 비관여)의 월별 광고비. 자동 집계 채널은 실집행액 기준.</p>
         <div className="overflow-x-auto">
@@ -223,7 +223,7 @@ export function DataDashboard() {
       </div>
 
       {/* 표 1 — 지표 관여 채널: 월별 ROAS·광고비·매출 */}
-      <div className="bg-[#1a1b1e] rounded-2xl p-4 border border-white/[0.06]">
+      <div className="bg-bg-3 rounded-2xl p-4 border border-white/[0.06]">
         <h3 className="text-sm font-semibold text-white mb-1">지표 관여 채널 — 월별 ROAS</h3>
         <p className="text-[11px] text-gray-500 mb-3">셀: ROAS (광고비 → 매출). 메타·네이버 검색광고는 자동 집계, 그 외는 KPI 탭 수기 입력.</p>
         <div className="overflow-x-auto">
@@ -272,7 +272,7 @@ export function DataDashboard() {
       </div>
 
       {/* 표 2 — 지표 비관여(브랜딩) 채널: 월별 광고비·조회수 */}
-      <div className="bg-[#1a1b1e] rounded-2xl p-4 border border-white/[0.06]">
+      <div className="bg-bg-3 rounded-2xl p-4 border border-white/[0.06]">
         <h3 className="text-sm font-semibold text-white mb-1">지표 비관여 채널 (브랜딩) — 월별 광고비 · 조회수</h3>
         <p className="text-[11px] text-gray-500 mb-3">유튜브·메타 브랜딩 등 매출 비관여 집행. &quot;그 외 마케팅 KPI&quot; 탭에서 채널 광고비를 매출 비관여로 입력하고 조회수를 함께 기록하면 여기 반영됩니다.</p>
         {uninvolvedChannels.length === 0 ? (

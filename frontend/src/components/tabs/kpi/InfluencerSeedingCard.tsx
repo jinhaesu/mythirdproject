@@ -25,7 +25,7 @@ const INFLUENCER_CHANNEL_OPTIONS: Array<{ value: InfluencerChannel; label: strin
   { value: 'youtube', label: '유튜브', color: '#FF0000' },
   { value: 'blog', label: '블로그', color: '#03C75A' },
   { value: 'tiktok', label: '틱톡', color: '#69C9D0' },
-  { value: 'etc', label: '기타', color: '#8A8F98' },
+  { value: 'etc', label: '기타', color: 'var(--color-text-tertiary)' },
 ];
 
 const INFLUENCER_CHANNEL_LABELS: Record<string, string> = Object.fromEntries(
@@ -145,45 +145,45 @@ export function InfluencerSeedingCard() {
   const byMonthData = (summary?.by_month ?? []).map((m) => ({ ...m, monthLabel: shortMonth(m.month) }));
 
   return (
-    <div className="bg-[#0F1011] border border-[#23252A] rounded-xl p-4">
+    <div className="bg-bg-1 border border-border-primary rounded-xl p-4">
       <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
         <div>
-          <h3 className="text-sm font-semibold text-[#D0D6E0] flex items-center gap-1.5">
+          <h3 className="text-sm font-semibold text-text-secondary flex items-center gap-1.5">
             <Megaphone size={14} className="text-[#E1306C]" />
             인플루언서 시딩
           </h3>
           <div className="flex items-center gap-3 mt-2 flex-wrap">
-            <span className="text-xs text-[#8A8F98]">
-              총 비용 <b className="text-[#F7F8F8]">{fmtWon(summary?.total?.cost ?? 0)}</b>
+            <span className="text-xs text-text-tertiary">
+              총 비용 <b className="text-text-primary">{fmtWon(summary?.total?.cost ?? 0)}</b>
             </span>
-            <span className="text-xs text-[#8A8F98]">
-              총 건수 <b className="text-[#F7F8F8]">{fmtNum(summary?.total?.count ?? 0)}건</b>
+            <span className="text-xs text-text-tertiary">
+              총 건수 <b className="text-text-primary">{fmtNum(summary?.total?.count ?? 0)}건</b>
             </span>
-            <span className="text-xs text-[#8A8F98]">
-              분석완료 <b className="text-[#F7F8F8]">{fmtNum(summary?.total?.analyzed_count ?? 0)}건</b>
+            <span className="text-xs text-text-tertiary">
+              분석완료 <b className="text-text-primary">{fmtNum(summary?.total?.analyzed_count ?? 0)}건</b>
             </span>
           </div>
         </div>
         <button
           onClick={handleExport}
-          className="flex items-center gap-1.5 px-3 py-2 border border-[#23252A] rounded-lg text-sm text-[#D0D6E0] hover:bg-[#141516] transition-all"
+          className="flex items-center gap-1.5 px-3 py-2 border border-border-primary rounded-lg text-sm text-text-secondary hover:bg-bg-2 transition-all"
         >
           <Download size={14} /> 엑셀
         </button>
       </div>
 
       {/* 등록 폼 */}
-      <div className="flex items-center gap-2 flex-wrap mb-4 pb-4 border-b border-[#23252A]">
+      <div className="flex items-center gap-2 flex-wrap mb-4 pb-4 border-b border-border-primary">
         <input
           value={name}
           onChange={(e: ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
           placeholder="이름"
-          className="w-32 px-2 py-1.5 bg-[#08090A] border border-[#23252A] rounded-lg text-xs text-[#D0D6E0] focus:outline-none focus:border-[#5E6AD2]"
+          className="w-32 px-2 py-1.5 bg-bg-0 border border-border-primary rounded-lg text-xs text-text-secondary focus:outline-none focus:border-brand"
         />
         <select
           value={channel}
           onChange={(e: ChangeEvent<HTMLSelectElement>) => setChannel(e.target.value as InfluencerChannel)}
-          className="px-2 py-1.5 bg-[#08090A] border border-[#23252A] rounded-lg text-xs text-[#D0D6E0] focus:outline-none focus:border-[#5E6AD2]"
+          className="px-2 py-1.5 bg-bg-0 border border-border-primary rounded-lg text-xs text-text-secondary focus:outline-none focus:border-brand"
         >
           {INFLUENCER_CHANNEL_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>{o.label}</option>
@@ -193,31 +193,31 @@ export function InfluencerSeedingCard() {
           value={url}
           onChange={(e: ChangeEvent<HTMLInputElement>) => setUrl(e.target.value)}
           placeholder="URL"
-          className="w-40 px-2 py-1.5 bg-[#08090A] border border-[#23252A] rounded-lg text-xs text-[#D0D6E0] focus:outline-none focus:border-[#5E6AD2]"
+          className="w-40 px-2 py-1.5 bg-bg-0 border border-border-primary rounded-lg text-xs text-text-secondary focus:outline-none focus:border-brand"
         />
         <input
           value={cost}
           onChange={(e: ChangeEvent<HTMLInputElement>) => setCost(e.target.value)}
           type="number"
           placeholder="비용"
-          className="w-24 px-2 py-1.5 bg-[#08090A] border border-[#23252A] rounded-lg text-xs text-[#D0D6E0] focus:outline-none focus:border-[#5E6AD2]"
+          className="w-24 px-2 py-1.5 bg-bg-0 border border-border-primary rounded-lg text-xs text-text-secondary focus:outline-none focus:border-brand"
         />
         <input
           value={seededAt}
           onChange={(e: ChangeEvent<HTMLInputElement>) => setSeededAt(e.target.value)}
           type="date"
-          className="px-2 py-1.5 bg-[#08090A] border border-[#23252A] rounded-lg text-xs text-[#D0D6E0] focus:outline-none focus:border-[#5E6AD2]"
+          className="px-2 py-1.5 bg-bg-0 border border-border-primary rounded-lg text-xs text-text-secondary focus:outline-none focus:border-brand"
         />
         <input
           value={product}
           onChange={(e: ChangeEvent<HTMLInputElement>) => setProduct(e.target.value)}
           placeholder="제품"
-          className="w-32 px-2 py-1.5 bg-[#08090A] border border-[#23252A] rounded-lg text-xs text-[#D0D6E0] focus:outline-none focus:border-[#5E6AD2]"
+          className="w-32 px-2 py-1.5 bg-bg-0 border border-border-primary rounded-lg text-xs text-text-secondary focus:outline-none focus:border-brand"
         />
         <button
           onClick={handleAdd}
           disabled={createMutation.isPending}
-          className="flex items-center gap-1 px-3 py-1.5 bg-[#5E6AD2] text-white text-xs font-medium rounded-lg hover:bg-[#828FFF] disabled:opacity-50"
+          className="flex items-center gap-1 px-3 py-1.5 bg-brand text-white text-xs font-medium rounded-lg hover:bg-accent-hover disabled:opacity-50"
         >
           {createMutation.isPending ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />} 추가
         </button>
@@ -226,15 +226,15 @@ export function InfluencerSeedingCard() {
       {/* 목록 테이블 */}
       {seedingsLoading ? (
         <div className="flex items-center justify-center h-24">
-          <Loader2 size={24} className="animate-spin text-[#7070FF]" />
+          <Loader2 size={24} className="animate-spin text-accent" />
         </div>
       ) : seedingsError ? (
-        <p className="text-xs text-[#EB5757] py-6 text-center">시딩 데이터를 불러오지 못했습니다.</p>
+        <p className="text-xs text-red py-6 text-center">시딩 데이터를 불러오지 못했습니다.</p>
       ) : (
         <div className="overflow-x-auto mb-4">
           <table className="w-full min-w-[760px] text-left">
             <thead>
-              <tr className="border-b border-[#23252A] text-[10px] text-[#62666D] uppercase tracking-wide">
+              <tr className="border-b border-border-primary text-[10px] text-text-quaternary uppercase tracking-wide">
                 <th className="px-3 py-2 whitespace-nowrap">일자</th>
                 <th className="px-3 py-2 whitespace-nowrap">이름</th>
                 <th className="px-3 py-2 whitespace-nowrap">채널</th>
@@ -253,9 +253,9 @@ export function InfluencerSeedingCard() {
                   <Fragment key={item.id}>
                     <tr
                       onClick={() => setExpandedId(isExpanded ? null : item.id)}
-                      className="border-b border-[#23252A] hover:bg-[#141516]/40 cursor-pointer"
+                      className="border-b border-border-primary hover:bg-bg-2/40 cursor-pointer"
                     >
-                      <td className="px-3 py-2 text-xs text-[#8A8F98] whitespace-nowrap">{item.seeded_at}</td>
+                      <td className="px-3 py-2 text-xs text-text-tertiary whitespace-nowrap">{item.seeded_at}</td>
                       <td className="px-3 py-2 text-xs whitespace-nowrap">
                         {item.url ? (
                           <a
@@ -263,28 +263,28 @@ export function InfluencerSeedingCard() {
                             target="_blank"
                             rel="noreferrer"
                             onClick={(e) => e.stopPropagation()}
-                            className="text-[#4EA7FC] hover:underline inline-flex items-center gap-1"
+                            className="text-blue hover:underline inline-flex items-center gap-1"
                           >
                             {item.name} <ExternalLink size={10} />
                           </a>
                         ) : (
-                          <span className="text-[#D0D6E0]">{item.name}</span>
+                          <span className="text-text-secondary">{item.name}</span>
                         )}
                       </td>
                       <td className="px-3 py-2"><InfluencerChannelBadge channel={item.channel} /></td>
-                      <td className="px-3 py-2 text-xs text-[#D0D6E0] whitespace-nowrap">{fmtNum(item.follower_count ?? null)}</td>
-                      <td className="px-3 py-2 text-xs text-[#D0D6E0] whitespace-nowrap">{fmtWon(item.cost ?? null)}</td>
-                      <td className="px-3 py-2 text-xs text-[#D0D6E0] whitespace-nowrap">{item.product || '-'}</td>
+                      <td className="px-3 py-2 text-xs text-text-secondary whitespace-nowrap">{fmtNum(item.follower_count ?? null)}</td>
+                      <td className="px-3 py-2 text-xs text-text-secondary whitespace-nowrap">{fmtWon(item.cost ?? null)}</td>
+                      <td className="px-3 py-2 text-xs text-text-secondary whitespace-nowrap">{item.product || '-'}</td>
                       <td className="px-3 py-2 whitespace-nowrap">
                         {item.ai_target_segment ? (
-                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#7070FF]/15 text-[#7070FF]">
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-accent/15 text-accent">
                             {item.ai_target_segment}
                           </span>
                         ) : (
                           <button
                             onClick={(e) => { e.stopPropagation(); analyzeMutation.mutate(item.id); }}
                             disabled={isAnalyzing}
-                            className="flex items-center gap-1 px-2 py-1 border border-[#23252A] rounded-lg text-[10px] text-[#D0D6E0] hover:bg-[#141516] disabled:opacity-50"
+                            className="flex items-center gap-1 px-2 py-1 border border-border-primary rounded-lg text-[10px] text-text-secondary hover:bg-bg-2 disabled:opacity-50"
                           >
                             {isAnalyzing ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />}
                             {isAnalyzing ? '분석 중...' : 'AI 분석'}
@@ -294,15 +294,15 @@ export function InfluencerSeedingCard() {
                       <td className="px-3 py-2 text-right">
                         <button
                           onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(item.id); }}
-                          className="text-[#8A8F98] hover:text-[#EB5757] transition-colors"
+                          className="text-text-tertiary hover:text-red transition-colors"
                         >
                           <Trash2 size={14} />
                         </button>
                       </td>
                     </tr>
                     {isExpanded && (
-                      <tr className="border-b border-[#23252A] bg-[#141516]/30">
-                        <td colSpan={8} className="px-3 py-3 text-xs text-[#8A8F98] leading-relaxed">
+                      <tr className="border-b border-border-primary bg-bg-2/30">
+                        <td colSpan={8} className="px-3 py-3 text-xs text-text-tertiary leading-relaxed">
                           {item.ai_audience_summary || (item.notes ? item.notes : '오디언스 요약이 없습니다. AI 분석을 실행해주세요.')}
                         </td>
                       </tr>
@@ -312,7 +312,7 @@ export function InfluencerSeedingCard() {
               })}
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-3 py-6 text-center text-xs text-[#62666D]">
+                  <td colSpan={8} className="px-3 py-6 text-center text-xs text-text-quaternary">
                     등록된 시딩이 없습니다.
                   </td>
                 </tr>
@@ -324,27 +324,27 @@ export function InfluencerSeedingCard() {
 
       {/* 채널별 / 세그먼트별 비용 차트 */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-[#08090A] border border-[#23252A] rounded-xl p-3">
-          <h4 className="text-xs font-semibold text-[#D0D6E0] mb-2">채널별 시딩 비용</h4>
+        <div className="bg-bg-0 border border-border-primary rounded-xl p-3">
+          <h4 className="text-xs font-semibold text-text-secondary mb-2">채널별 시딩 비용</h4>
           <div className="h-48">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={byChannelData} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#23252A" />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-primary)" />
                 <XAxis
                   type="number"
-                  tick={{ fontSize: 10, fill: '#8A8F98' }}
+                  tick={{ fontSize: 10, fill: 'var(--color-text-tertiary)' }}
                   tickFormatter={(v: number) => (v >= 10000 ? `${Math.round(v / 10000)}만` : String(v))}
                 />
                 <YAxis
                   type="category"
                   dataKey="channel"
-                  tick={{ fontSize: 10, fill: '#8A8F98' }}
+                  tick={{ fontSize: 10, fill: 'var(--color-text-tertiary)' }}
                   tickFormatter={(v: string) => INFLUENCER_CHANNEL_LABELS[v] || v}
                   width={64}
                 />
                 <RechartsTooltip
-                  contentStyle={{ backgroundColor: '#141516', border: '1px solid #23252A', borderRadius: 8, fontSize: 11 }}
-                  labelStyle={{ color: '#D0D6E0' }}
+                  contentStyle={{ backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)', borderRadius: 8, fontSize: 11 }}
+                  labelStyle={{ color: 'var(--color-text-secondary)' }}
                   formatter={(value: any) => [fmtWon(Number(value)), '비용']}
                   labelFormatter={(v: string) => INFLUENCER_CHANNEL_LABELS[v] || v}
                 />
@@ -358,42 +358,42 @@ export function InfluencerSeedingCard() {
           </div>
         </div>
 
-        <div className="bg-[#08090A] border border-[#23252A] rounded-xl p-3">
-          <h4 className="text-xs font-semibold text-[#D0D6E0] mb-2">
+        <div className="bg-bg-0 border border-border-primary rounded-xl p-3">
+          <h4 className="text-xs font-semibold text-text-secondary mb-2">
             타겟 세그먼트별 비용
             {unanalyzedSeg && (
-              <span className="ml-1.5 text-[10px] font-normal text-[#62666D]">
+              <span className="ml-1.5 text-[10px] font-normal text-text-quaternary">
                 (미분석 {unanalyzedSeg.count}건 · {fmtWon(unanalyzedSeg.total_cost)} 제외)
               </span>
             )}
           </h4>
           {bySegmentData.length === 0 ? (
             <div className="h-48 flex items-center justify-center">
-              <p className="text-xs text-[#62666D]">AI 분석 완료된 시딩이 아직 없습니다.</p>
+              <p className="text-xs text-text-quaternary">AI 분석 완료된 시딩이 아직 없습니다.</p>
             </div>
           ) : (
           <div className="h-48">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={bySegmentData} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#23252A" />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-primary)" />
                 <XAxis
                   type="number"
-                  tick={{ fontSize: 10, fill: '#8A8F98' }}
+                  tick={{ fontSize: 10, fill: 'var(--color-text-tertiary)' }}
                   tickFormatter={(v: number) => (v >= 10000 ? `${Math.round(v / 10000)}만` : String(v))}
                 />
                 <YAxis
                   type="category"
                   dataKey="segment"
-                  tick={{ fontSize: 10, fill: '#8A8F98' }}
+                  tick={{ fontSize: 10, fill: 'var(--color-text-tertiary)' }}
                   tickFormatter={segmentTickFormatter}
                   width={80}
                 />
                 <RechartsTooltip
-                  contentStyle={{ backgroundColor: '#141516', border: '1px solid #23252A', borderRadius: 8, fontSize: 11 }}
-                  labelStyle={{ color: '#D0D6E0' }}
+                  contentStyle={{ backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)', borderRadius: 8, fontSize: 11 }}
+                  labelStyle={{ color: 'var(--color-text-secondary)' }}
                   formatter={(value: any) => [fmtWon(Number(value)), '비용']}
                 />
-                <Bar dataKey="total_cost" fill="#7070FF" radius={[0, 3, 3, 0]} maxBarSize={20} />
+                <Bar dataKey="total_cost" fill="var(--color-link-primary)" radius={[0, 3, 3, 0]} maxBarSize={20} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -402,20 +402,20 @@ export function InfluencerSeedingCard() {
       </div>
 
       {/* 월별 시딩 비용 추이 */}
-      <div className="bg-[#08090A] border border-[#23252A] rounded-xl p-3 mt-4">
-        <h4 className="text-xs font-semibold text-[#D0D6E0] mb-2">월별 시딩 비용 추이</h4>
+      <div className="bg-bg-0 border border-border-primary rounded-xl p-3 mt-4">
+        <h4 className="text-xs font-semibold text-text-secondary mb-2">월별 시딩 비용 추이</h4>
         <div className="h-40">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={byMonthData} margin={{ top: 4, right: 8, left: 8, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#23252A" />
-              <XAxis dataKey="monthLabel" tick={{ fontSize: 10, fill: '#8A8F98' }} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-primary)" />
+              <XAxis dataKey="monthLabel" tick={{ fontSize: 10, fill: 'var(--color-text-tertiary)' }} />
               <YAxis
-                tick={{ fontSize: 10, fill: '#8A8F98' }}
+                tick={{ fontSize: 10, fill: 'var(--color-text-tertiary)' }}
                 tickFormatter={(v: number) => (v >= 10000 ? `${Math.round(v / 10000)}만` : String(v))}
               />
               <RechartsTooltip
-                contentStyle={{ backgroundColor: '#141516', border: '1px solid #23252A', borderRadius: 8, fontSize: 11 }}
-                labelStyle={{ color: '#D0D6E0' }}
+                contentStyle={{ backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)', borderRadius: 8, fontSize: 11 }}
+                labelStyle={{ color: 'var(--color-text-secondary)' }}
                 formatter={(value: any) => [fmtWon(Number(value)), '비용']}
               />
               <Bar dataKey="total_cost" fill="#E1306C" radius={[3, 3, 0, 0]} maxBarSize={24} />

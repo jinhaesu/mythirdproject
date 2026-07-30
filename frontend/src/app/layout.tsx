@@ -10,14 +10,31 @@ export const metadata: Metadata = {
   description: 'Meta(Facebook, Instagram) 기반 AI 마케팅 올인원 플랫폼',
 };
 
+// Runs before hydration to set the theme attribute from localStorage (falls back to
+// dark, the product default) and avoid a light/dark flash-of-incorrect-theme on load.
+const themeInitScript = `
+(function() {
+  try {
+    var theme = localStorage.getItem('theme');
+    if (theme !== 'light' && theme !== 'dark') theme = 'dark';
+    document.documentElement.dataset.theme = theme;
+  } catch (e) {
+    document.documentElement.dataset.theme = 'dark';
+  }
+})();
+`;
+
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   return (
-    <html lang="ko">
-      <body className={`${inter.className} bg-[#08090A] text-[#F7F8F8] antialiased`}>
+    <html lang="ko" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+      </head>
+      <body className={`${inter.className} bg-bg-0 text-text-primary antialiased`} suppressHydrationWarning>
         <Providers>{children}</Providers>
       </body>
     </html>

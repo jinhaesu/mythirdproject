@@ -9,45 +9,49 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // --- Linear Dark Foundations ---
+        // --- Linear Foundations ---
+        // Bound to CSS custom properties (see globals.css :root / [data-theme]) via the
+        // `rgb(var(--x-rgb) / <alpha-value>)` pattern so both plain utilities (bg-bg-0) AND
+        // Tailwind's opacity modifiers (bg-bg-0/50) resolve correctly and react to the
+        // active [data-theme] at runtime — this is what powers the light/dark toggle.
         bg: {
-          0: '#08090A',   // Deepest app background
-          1: '#0F1011',   // Main panel background
-          2: '#141516',   // Elevated containers
-          3: '#1C1C1F',   // Secondary cards and embedded panels
-          4: '#232326',   // Higher-elevation dark surface
-          5: '#28282C',   // Menus, popovers, strong containers
+          0: 'rgb(var(--color-bg-level-0-rgb) / <alpha-value>)',   // Deepest app background
+          1: 'rgb(var(--color-bg-level-1-rgb) / <alpha-value>)',   // Main panel background
+          2: 'rgb(var(--color-bg-level-2-rgb) / <alpha-value>)',   // Elevated containers
+          3: 'rgb(var(--color-bg-secondary-rgb) / <alpha-value>)', // Secondary cards and embedded panels
+          4: 'rgb(var(--color-bg-tertiary-rgb) / <alpha-value>)',  // Higher-elevation surface
+          5: 'rgb(var(--color-bg-quaternary-rgb) / <alpha-value>)', // Menus, popovers, strong containers
         },
 
         // --- Text System ---
         text: {
-          primary:    '#F7F8F8',  // Primary headings and main copy
-          secondary:  '#D0D6E0',  // Secondary UI text
-          tertiary:   '#8A8F98',  // Metadata, helper text
-          quaternary: '#62666D',  // Muted labels and lower-emphasis UI
+          primary:    'rgb(var(--color-text-primary-rgb) / <alpha-value>)',    // Primary headings and main copy
+          secondary:  'rgb(var(--color-text-secondary-rgb) / <alpha-value>)',  // Secondary UI text
+          tertiary:   'rgb(var(--color-text-tertiary-rgb) / <alpha-value>)',   // Metadata, helper text
+          quaternary: 'rgb(var(--color-text-quaternary-rgb) / <alpha-value>)', // Muted labels and lower-emphasis UI
         },
 
         // --- Borders ---
         border: {
-          primary:   '#23252A',  // Standard divider and card border
-          secondary: '#34343A',  // Stronger boundary
-          tertiary:  '#3E3E44',  // High-emphasis dark outline
+          primary:   'rgb(var(--color-border-primary-rgb) / <alpha-value>)',   // Standard divider and card border
+          secondary: 'rgb(var(--color-border-secondary-rgb) / <alpha-value>)', // Stronger boundary
+          tertiary:  'rgb(var(--color-border-tertiary-rgb) / <alpha-value>)',  // High-emphasis outline
         },
 
-        // --- Brand & Accent ---
-        brand:  '#5E6AD2',  // Main brand/action color
+        // --- Brand & Accent (constant across themes) ---
+        brand:  'rgb(var(--color-brand-bg-rgb) / <alpha-value>)',  // Main brand/action color
         accent: {
-          DEFAULT: '#7070FF',  // Links and bright active emphasis
-          hover:   '#828FFF',  // Hover/focus accent
+          DEFAULT: 'rgb(var(--color-link-primary-rgb) / <alpha-value>)',  // Links and bright active emphasis
+          hover:   'rgb(var(--color-accent-hover-rgb) / <alpha-value>)',  // Hover/focus accent
         },
 
-        // --- Functional Colors ---
-        blue:   '#4EA7FC',  // Info and secondary UI accent
-        teal:   '#00B8CC',  // Analytics / AI / support accent
-        green:  '#27A644',  // Success / healthy state
-        yellow: '#F0BF00',  // Warning or at-risk state
-        orange: '#FC7840',  // Changelog and warm highlight accent
-        red:    '#EB5757',  // Destructive or critical issue state
+        // --- Functional Colors (constant across themes) ---
+        blue:   'rgb(var(--color-blue-rgb) / <alpha-value>)',   // Info and secondary UI accent
+        teal:   'rgb(var(--color-teal-rgb) / <alpha-value>)',   // Analytics / AI / support accent
+        green:  'rgb(var(--color-green-rgb) / <alpha-value>)',  // Success / healthy state
+        yellow: 'rgb(var(--color-yellow-rgb) / <alpha-value>)', // Warning or at-risk state
+        orange: 'rgb(var(--color-orange-rgb) / <alpha-value>)', // Changelog and warm highlight accent
+        red:    'rgb(var(--color-red-rgb) / <alpha-value>)',    // Destructive or critical issue state
 
         // --- Product-Specific ---
         linear: {

@@ -6,7 +6,7 @@ const WEEKDAYS = ['월', '화', '수', '목', '금', '토', '일'];
 
 /** 값 → 배경색 (0=투명, max=보라 최대 농도) */
 export function heatmapCellColor(value: number, max: number): string {
-  if (!value || max <= 0) return 'rgba(255,255,255,0.02)';
+  if (!value || max <= 0) return 'rgb(var(--color-overlay-rgb) / 0.02)';
   const t = Math.min(1, value / max);
   const alpha = 0.12 + t * 0.83;
   return `rgba(94,106,210,${alpha.toFixed(2)})`;
@@ -26,13 +26,13 @@ const HeatmapRow = memo(function HeatmapRow({
 }) {
   return (
     <div className="grid gap-[2px] mb-[2px]" style={{ gridTemplateColumns: '28px repeat(24, 1fr)' }}>
-      <div className="text-[10px] text-[#8A8F98] flex items-center">{day}</div>
+      <div className="text-[10px] text-text-tertiary flex items-center">{day}</div>
       {Array.from({ length: 24 }, (_, h) => (
         <div
           key={h}
           data-w={w}
           data-h={h}
-          className="h-5 rounded-[3px] cursor-default hover:ring-1 hover:ring-[#7070FF]"
+          className="h-5 rounded-[3px] cursor-default hover:ring-1 hover:ring-accent"
           style={{ background: heatmapCellColor(row[h] ?? 0, max) }}
         />
       ))}
@@ -99,7 +99,7 @@ export const HeatmapGrid = memo(function HeatmapGrid({ matrix, max, formatValue 
       >
         <div
           ref={tipRef}
-          className="pointer-events-none absolute z-10 whitespace-nowrap rounded-md border border-[#2E3035] bg-[#1C1D21] px-2 py-1 text-[10px] text-[#D0D6E0] shadow-lg"
+          className="pointer-events-none absolute z-10 whitespace-nowrap rounded-md border border-[#2E3035] bg-[#1C1D21] px-2 py-1 text-[10px] text-text-secondary shadow-lg"
           style={{ opacity: 0 }}
         >
           <span ref={tipLabelRef} />
@@ -108,7 +108,7 @@ export const HeatmapGrid = memo(function HeatmapGrid({ matrix, max, formatValue 
         <div className="grid mb-1" style={{ gridTemplateColumns: '28px repeat(24, 1fr)' }}>
           <div />
           {Array.from({ length: 24 }, (_, h) => (
-            <div key={h} className="text-center text-[9px] text-[#62666D]">
+            <div key={h} className="text-center text-[9px] text-text-quaternary">
               {h % 3 === 0 ? h : ''}
             </div>
           ))}

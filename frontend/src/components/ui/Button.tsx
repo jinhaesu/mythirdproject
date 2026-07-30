@@ -36,7 +36,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       'inline-flex items-center justify-center rounded-full ' +
       'transition-[background,transform] duration-[150ms,100ms] ease-[ease,ease] ' +
       'active:scale-[0.97] ' +
-      'focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#08090A] focus:ring-[#5E6AD2] ' +
+      'focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-bg-0 focus:ring-brand ' +
       'disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100';
 
     const variants: Record<NonNullable<ButtonProps['variant']>, string> = {
@@ -45,36 +45,36 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
        * Box-shadow gives subtle depth without looking glossy.
        */
       primary:
-        'bg-[#5E6AD2] hover:bg-[#828FFF] text-white border border-transparent ' +
+        'bg-brand hover:bg-accent-hover text-white border border-transparent ' +
         'shadow-[0px_4px_24px_rgba(0,0,0,0.20)]',
 
       /**
        * Secondary: nearly-invisible translucent surface with a fine white border.
        */
       secondary:
-        'bg-[rgba(255,255,255,0.03)] hover:bg-[rgba(255,255,255,0.07)] ' +
-        'text-[#F7F8F8] border border-[rgba(255,255,255,0.08)]',
+        'bg-[rgb(var(--color-overlay-rgb)/0.03)] hover:bg-[rgb(var(--color-overlay-rgb)/0.07)] ' +
+        'text-text-primary border border-[rgb(var(--color-overlay-rgb)/0.08)]',
 
       /**
        * Outline maps to secondary styling — pill shape, subtle border.
        * Kept for API compatibility.
        */
       outline:
-        'bg-transparent hover:bg-[rgba(255,255,255,0.07)] ' +
-        'text-[#F7F8F8] border border-[#23252A]',
+        'bg-transparent hover:bg-[rgb(var(--color-overlay-rgb)/0.07)] ' +
+        'text-text-primary border border-border-primary',
 
       /**
        * Ghost: fully transparent, only shows a muted fill on hover.
        */
       ghost:
-        'bg-transparent hover:bg-[rgba(255,255,255,0.07)] ' +
-        'text-[#F7F8F8] border border-transparent',
+        'bg-transparent hover:bg-[rgb(var(--color-overlay-rgb)/0.07)] ' +
+        'text-text-primary border border-transparent',
 
       /**
        * Danger: Linear red (#EB5757) for destructive actions.
        */
       danger:
-        'bg-[#EB5757] hover:bg-[#F07070] text-white border border-transparent ' +
+        'bg-red hover:bg-[#F07070] text-white border border-transparent ' +
         'shadow-[0px_4px_24px_rgba(0,0,0,0.20)]',
     };
 

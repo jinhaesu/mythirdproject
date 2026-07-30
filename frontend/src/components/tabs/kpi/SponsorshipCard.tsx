@@ -21,11 +21,11 @@ import { fmtNum, fmtWon, shortMonth } from './format';
 // ─── Constants ───
 
 const SPONSORSHIP_EVENT_TYPE_OPTIONS: Array<{ value: SponsorshipEventType; label: string; color: string }> = [
-  { value: 'festival', label: '대학축제', color: '#7070FF' },
-  { value: 'club', label: '동아리', color: '#4EA7FC' },
-  { value: 'marathon', label: '마라톤', color: '#27A644' },
+  { value: 'festival', label: '대학축제', color: 'var(--color-link-primary)' },
+  { value: 'club', label: '동아리', color: 'var(--color-blue)' },
+  { value: 'marathon', label: '마라톤', color: 'var(--color-green)' },
   { value: 'conference', label: '학회', color: '#F2994A' },
-  { value: 'etc', label: '기타', color: '#8A8F98' },
+  { value: 'etc', label: '기타', color: 'var(--color-text-tertiary)' },
 ];
 
 const SPONSORSHIP_EVENT_TYPE_LABELS: Record<string, string> = Object.fromEntries(
@@ -54,7 +54,7 @@ function SponsorshipEventTypeBadge({ eventType }: { eventType: string }) {
 
 function SponsorshipConditionChips({ conditions }: { conditions?: string | null }) {
   const parts = (conditions ?? '').split(',').map((c) => c.trim()).filter(Boolean);
-  if (parts.length === 0) return <span className="text-xs text-[#62666D]">-</span>;
+  if (parts.length === 0) return <span className="text-xs text-text-quaternary">-</span>;
   const shown = parts.slice(0, 3);
   const rest = parts.length - shown.length;
   return (
@@ -62,13 +62,13 @@ function SponsorshipConditionChips({ conditions }: { conditions?: string | null 
       {shown.map((c, i) => (
         <span
           key={`${c}-${i}`}
-          className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-[#23252A] text-[#D0D6E0] whitespace-nowrap"
+          className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-border-primary text-text-secondary whitespace-nowrap"
         >
           {c}
         </span>
       ))}
       {rest > 0 && (
-        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-[#23252A] text-[#8A8F98] whitespace-nowrap">
+        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-border-primary text-text-tertiary whitespace-nowrap">
           +{rest}
         </span>
       )}
@@ -186,46 +186,46 @@ export function SponsorshipCard() {
   const eventTypeChartData = summary?.by_event_type ?? [];
 
   return (
-    <div className="bg-[#0F1011] border border-[#23252A] rounded-xl p-4">
+    <div className="bg-bg-1 border border-border-primary rounded-xl p-4">
       <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
         <div>
-          <h3 className="text-sm font-semibold text-[#D0D6E0] flex items-center gap-1.5">
-            <HeartHandshake size={14} className="text-[#7070FF]" />
+          <h3 className="text-sm font-semibold text-text-secondary flex items-center gap-1.5">
+            <HeartHandshake size={14} className="text-accent" />
             협찬 관리
           </h3>
           <div className="flex items-center gap-3 mt-2 flex-wrap">
-            <span className="text-xs text-[#8A8F98]">
-              총 협찬 <b className="text-[#F7F8F8]">{fmtNum(summary?.total?.count ?? 0)}건</b>
+            <span className="text-xs text-text-tertiary">
+              총 협찬 <b className="text-text-primary">{fmtNum(summary?.total?.count ?? 0)}건</b>
             </span>
-            <span className="text-xs text-[#8A8F98]">
-              총 수량 <b className="text-[#F7F8F8]">{fmtNum(summary?.total?.quantity ?? 0)}개</b>
+            <span className="text-xs text-text-tertiary">
+              총 수량 <b className="text-text-primary">{fmtNum(summary?.total?.quantity ?? 0)}개</b>
             </span>
-            <span className="text-xs text-[#8A8F98]">
-              환산 <b className="text-[#F7F8F8]">{fmtWon(summary?.total?.estimated_value ?? 0)}</b>
+            <span className="text-xs text-text-tertiary">
+              환산 <b className="text-text-primary">{fmtWon(summary?.total?.estimated_value ?? 0)}</b>
             </span>
           </div>
         </div>
         <button
           onClick={handleExport}
-          className="flex items-center gap-1.5 px-3 py-2 border border-[#23252A] rounded-lg text-sm text-[#D0D6E0] hover:bg-[#141516] transition-all"
+          className="flex items-center gap-1.5 px-3 py-2 border border-border-primary rounded-lg text-sm text-text-secondary hover:bg-bg-2 transition-all"
         >
           <Download size={14} /> 엑셀
         </button>
       </div>
 
       {/* 등록 폼 */}
-      <div className="mb-4 pb-4 border-b border-[#23252A] space-y-2">
+      <div className="mb-4 pb-4 border-b border-border-primary space-y-2">
         <div className="flex items-center gap-2 flex-wrap">
           <input
             value={targetName}
             onChange={(e: ChangeEvent<HTMLInputElement>) => setTargetName(e.target.value)}
             placeholder="대상 명칭"
-            className="w-36 px-2 py-1.5 bg-[#08090A] border border-[#23252A] rounded-lg text-xs text-[#D0D6E0] focus:outline-none focus:border-[#5E6AD2]"
+            className="w-36 px-2 py-1.5 bg-bg-0 border border-border-primary rounded-lg text-xs text-text-secondary focus:outline-none focus:border-brand"
           />
           <select
             value={eventType}
             onChange={(e: ChangeEvent<HTMLSelectElement>) => setEventType(e.target.value as SponsorshipEventType)}
-            className="px-2 py-1.5 bg-[#08090A] border border-[#23252A] rounded-lg text-xs text-[#D0D6E0] focus:outline-none focus:border-[#5E6AD2]"
+            className="px-2 py-1.5 bg-bg-0 border border-border-primary rounded-lg text-xs text-text-secondary focus:outline-none focus:border-brand"
           >
             {SPONSORSHIP_EVENT_TYPE_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>{o.label}</option>
@@ -235,27 +235,27 @@ export function SponsorshipCard() {
             value={sponsoredAt}
             onChange={(e: ChangeEvent<HTMLInputElement>) => setSponsoredAt(e.target.value)}
             type="date"
-            className="px-2 py-1.5 bg-[#08090A] border border-[#23252A] rounded-lg text-xs text-[#D0D6E0] focus:outline-none focus:border-[#5E6AD2]"
+            className="px-2 py-1.5 bg-bg-0 border border-border-primary rounded-lg text-xs text-text-secondary focus:outline-none focus:border-brand"
           />
           <input
             value={product}
             onChange={(e: ChangeEvent<HTMLInputElement>) => setProduct(e.target.value)}
             placeholder="제품명"
-            className="w-32 px-2 py-1.5 bg-[#08090A] border border-[#23252A] rounded-lg text-xs text-[#D0D6E0] focus:outline-none focus:border-[#5E6AD2]"
+            className="w-32 px-2 py-1.5 bg-bg-0 border border-border-primary rounded-lg text-xs text-text-secondary focus:outline-none focus:border-brand"
           />
           <input
             value={quantity}
             onChange={(e: ChangeEvent<HTMLInputElement>) => setQuantity(e.target.value)}
             type="number"
             placeholder="수량"
-            className="w-20 px-2 py-1.5 bg-[#08090A] border border-[#23252A] rounded-lg text-xs text-[#D0D6E0] focus:outline-none focus:border-[#5E6AD2]"
+            className="w-20 px-2 py-1.5 bg-bg-0 border border-border-primary rounded-lg text-xs text-text-secondary focus:outline-none focus:border-brand"
           />
           <input
             value={estimatedValue}
             onChange={(e: ChangeEvent<HTMLInputElement>) => setEstimatedValue(e.target.value)}
             type="number"
             placeholder="환산금액(선택)"
-            className="w-28 px-2 py-1.5 bg-[#08090A] border border-[#23252A] rounded-lg text-xs text-[#D0D6E0] focus:outline-none focus:border-[#5E6AD2]"
+            className="w-28 px-2 py-1.5 bg-bg-0 border border-border-primary rounded-lg text-xs text-text-secondary focus:outline-none focus:border-brand"
           />
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -263,24 +263,24 @@ export function SponsorshipCard() {
             value={reason}
             onChange={(e: ChangeEvent<HTMLInputElement>) => setReason(e.target.value)}
             placeholder="협찬 사유"
-            className="w-52 px-2 py-1.5 bg-[#08090A] border border-[#23252A] rounded-lg text-xs text-[#D0D6E0] focus:outline-none focus:border-[#5E6AD2]"
+            className="w-52 px-2 py-1.5 bg-bg-0 border border-border-primary rounded-lg text-xs text-text-secondary focus:outline-none focus:border-brand"
           />
           <input
             value={expectedEffect}
             onChange={(e: ChangeEvent<HTMLInputElement>) => setExpectedEffect(e.target.value)}
             placeholder="기대효과"
-            className="w-52 px-2 py-1.5 bg-[#08090A] border border-[#23252A] rounded-lg text-xs text-[#D0D6E0] focus:outline-none focus:border-[#5E6AD2]"
+            className="w-52 px-2 py-1.5 bg-bg-0 border border-border-primary rounded-lg text-xs text-text-secondary focus:outline-none focus:border-brand"
           />
         </div>
         <div className="flex items-center gap-3 flex-wrap">
-          <span className="text-[11px] text-[#62666D]">협찬 조건</span>
+          <span className="text-[11px] text-text-quaternary">협찬 조건</span>
           {SPONSORSHIP_CONDITION_OPTIONS.map((label) => (
-            <label key={label} className="flex items-center gap-1 text-xs text-[#D0D6E0] cursor-pointer">
+            <label key={label} className="flex items-center gap-1 text-xs text-text-secondary cursor-pointer">
               <input
                 type="checkbox"
                 checked={conditions.includes(label)}
                 onChange={() => toggleCondition(label)}
-                className="accent-[#5E6AD2]"
+                className="accent-brand"
               />
               {label}
             </label>
@@ -290,7 +290,7 @@ export function SponsorshipCard() {
               value={etcConditionText}
               onChange={(e: ChangeEvent<HTMLInputElement>) => setEtcConditionText(e.target.value)}
               placeholder="기타 조건 입력"
-              className="w-40 px-2 py-1.5 bg-[#08090A] border border-[#23252A] rounded-lg text-xs text-[#D0D6E0] focus:outline-none focus:border-[#5E6AD2]"
+              className="w-40 px-2 py-1.5 bg-bg-0 border border-border-primary rounded-lg text-xs text-text-secondary focus:outline-none focus:border-brand"
             />
           )}
         </div>
@@ -298,7 +298,7 @@ export function SponsorshipCard() {
           <button
             onClick={handleAdd}
             disabled={createMutation.isPending}
-            className="flex items-center gap-1 px-3 py-1.5 bg-[#5E6AD2] text-white text-xs font-medium rounded-lg hover:bg-[#828FFF] disabled:opacity-50"
+            className="flex items-center gap-1 px-3 py-1.5 bg-brand text-white text-xs font-medium rounded-lg hover:bg-accent-hover disabled:opacity-50"
           >
             {createMutation.isPending ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />} 등록
           </button>
@@ -307,11 +307,11 @@ export function SponsorshipCard() {
 
       {/* 필터 */}
       <div className="flex items-center gap-2 flex-wrap mb-3">
-        <span className="text-[11px] text-[#62666D]">행사 유형</span>
+        <span className="text-[11px] text-text-quaternary">행사 유형</span>
         <select
           value={eventTypeFilter}
           onChange={(e: ChangeEvent<HTMLSelectElement>) => setEventTypeFilter(e.target.value)}
-          className="px-2 py-1.5 bg-[#08090A] border border-[#23252A] rounded-lg text-xs text-[#D0D6E0] focus:outline-none focus:border-[#5E6AD2]"
+          className="px-2 py-1.5 bg-bg-0 border border-border-primary rounded-lg text-xs text-text-secondary focus:outline-none focus:border-brand"
         >
           <option value="">전체</option>
           {SPONSORSHIP_EVENT_TYPE_OPTIONS.map((o) => (
@@ -323,15 +323,15 @@ export function SponsorshipCard() {
       {/* 목록 테이블 */}
       {eventsLoading ? (
         <div className="flex items-center justify-center h-24">
-          <Loader2 size={24} className="animate-spin text-[#7070FF]" />
+          <Loader2 size={24} className="animate-spin text-accent" />
         </div>
       ) : eventsError ? (
-        <p className="text-xs text-[#EB5757] py-6 text-center">협찬 데이터를 불러오지 못했습니다.</p>
+        <p className="text-xs text-red py-6 text-center">협찬 데이터를 불러오지 못했습니다.</p>
       ) : (
         <div className="overflow-x-auto mb-4">
           <table className="w-full min-w-[700px] text-left">
             <thead>
-              <tr className="border-b border-[#23252A] text-[10px] text-[#62666D] uppercase tracking-wide">
+              <tr className="border-b border-border-primary text-[10px] text-text-quaternary uppercase tracking-wide">
                 <th className="px-3 py-2 whitespace-nowrap">일자</th>
                 <th className="px-3 py-2 whitespace-nowrap">대상명</th>
                 <th className="px-3 py-2 whitespace-nowrap">행사유형</th>
@@ -348,31 +348,31 @@ export function SponsorshipCard() {
                   <Fragment key={item.id}>
                     <tr
                       onClick={() => setExpandedId(isExpanded ? null : item.id)}
-                      className="border-b border-[#23252A] hover:bg-[#141516]/40 cursor-pointer"
+                      className="border-b border-border-primary hover:bg-bg-2/40 cursor-pointer"
                     >
-                      <td className="px-3 py-2 text-xs text-[#8A8F98] whitespace-nowrap">{item.sponsored_at}</td>
-                      <td className="px-3 py-2 text-xs text-[#D0D6E0] whitespace-nowrap">{item.target_name}</td>
+                      <td className="px-3 py-2 text-xs text-text-tertiary whitespace-nowrap">{item.sponsored_at}</td>
+                      <td className="px-3 py-2 text-xs text-text-secondary whitespace-nowrap">{item.target_name}</td>
                       <td className="px-3 py-2"><SponsorshipEventTypeBadge eventType={item.event_type} /></td>
-                      <td className="px-3 py-2 text-xs text-[#D0D6E0] whitespace-nowrap">{item.product}</td>
-                      <td className="px-3 py-2 text-xs text-[#D0D6E0] whitespace-nowrap">{fmtNum(item.quantity)}</td>
+                      <td className="px-3 py-2 text-xs text-text-secondary whitespace-nowrap">{item.product}</td>
+                      <td className="px-3 py-2 text-xs text-text-secondary whitespace-nowrap">{fmtNum(item.quantity)}</td>
                       <td className="px-3 py-2"><SponsorshipConditionChips conditions={item.conditions} /></td>
                       <td className="px-3 py-2 text-right">
                         <button
                           onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(item.id); }}
-                          className="text-[#8A8F98] hover:text-[#EB5757] transition-colors"
+                          className="text-text-tertiary hover:text-red transition-colors"
                         >
                           <Trash2 size={14} />
                         </button>
                       </td>
                     </tr>
                     {isExpanded && (
-                      <tr className="border-b border-[#23252A] bg-[#141516]/30">
-                        <td colSpan={7} className="px-3 py-3 text-xs text-[#8A8F98] leading-relaxed space-y-1">
-                          <p><span className="text-[#62666D]">사유</span> {item.reason || '-'}</p>
-                          <p><span className="text-[#62666D]">기대효과</span> {item.expected_effect || '-'}</p>
-                          <p><span className="text-[#62666D]">메모</span> {item.notes || '-'}</p>
+                      <tr className="border-b border-border-primary bg-bg-2/30">
+                        <td colSpan={7} className="px-3 py-3 text-xs text-text-tertiary leading-relaxed space-y-1">
+                          <p><span className="text-text-quaternary">사유</span> {item.reason || '-'}</p>
+                          <p><span className="text-text-quaternary">기대효과</span> {item.expected_effect || '-'}</p>
+                          <p><span className="text-text-quaternary">메모</span> {item.notes || '-'}</p>
                           {item.estimated_value != null && (
-                            <p><span className="text-[#62666D]">환산금액</span> {fmtWon(item.estimated_value)}</p>
+                            <p><span className="text-text-quaternary">환산금액</span> {fmtWon(item.estimated_value)}</p>
                           )}
                         </td>
                       </tr>
@@ -382,7 +382,7 @@ export function SponsorshipCard() {
               })}
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-3 py-6 text-center text-xs text-[#62666D]">
+                  <td colSpan={7} className="px-3 py-6 text-center text-xs text-text-quaternary">
                     등록된 협찬이 없습니다.
                   </td>
                 </tr>
@@ -394,63 +394,63 @@ export function SponsorshipCard() {
 
       {/* 차트 */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-[#08090A] border border-[#23252A] rounded-xl p-3 md:col-span-2">
-          <h4 className="text-xs font-semibold text-[#D0D6E0] mb-2">월별 협찬 횟수 & 수량</h4>
+        <div className="bg-bg-0 border border-border-primary rounded-xl p-3 md:col-span-2">
+          <h4 className="text-xs font-semibold text-text-secondary mb-2">월별 협찬 횟수 & 수량</h4>
           <div className="h-56">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={monthlyChartData} margin={{ top: 4, right: 16, left: 8, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#23252A" />
-                <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#8A8F98' }} />
-                <YAxis yAxisId="left" tick={{ fontSize: 10, fill: '#8A8F98' }} />
-                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: '#7070FF' }} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-primary)" />
+                <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'var(--color-text-tertiary)' }} />
+                <YAxis yAxisId="left" tick={{ fontSize: 10, fill: 'var(--color-text-tertiary)' }} />
+                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: 'var(--color-link-primary)' }} />
                 <RechartsTooltip
-                  contentStyle={{ backgroundColor: '#141516', border: '1px solid #23252A', borderRadius: 8, fontSize: 11 }}
-                  labelStyle={{ color: '#D0D6E0' }}
+                  contentStyle={{ backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)', borderRadius: 8, fontSize: 11 }}
+                  labelStyle={{ color: 'var(--color-text-secondary)' }}
                 />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Bar yAxisId="left" dataKey="count" name="협찬 횟수" fill="#4EA7FC" radius={[3, 3, 0, 0]} maxBarSize={30} />
-                <Line yAxisId="right" type="monotone" dataKey="quantity" name="수량" stroke="#7070FF" strokeWidth={2} />
+                <Bar yAxisId="left" dataKey="count" name="협찬 횟수" fill="var(--color-blue)" radius={[3, 3, 0, 0]} maxBarSize={30} />
+                <Line yAxisId="right" type="monotone" dataKey="quantity" name="수량" stroke="var(--color-link-primary)" strokeWidth={2} />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        <div className="bg-[#08090A] border border-[#23252A] rounded-xl p-3">
-          <h4 className="text-xs font-semibold text-[#D0D6E0] mb-2">제품별 협찬 수량</h4>
+        <div className="bg-bg-0 border border-border-primary rounded-xl p-3">
+          <h4 className="text-xs font-semibold text-text-secondary mb-2">제품별 협찬 수량</h4>
           <div className="h-48">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={productChartData} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#23252A" />
-                <XAxis type="number" tick={{ fontSize: 10, fill: '#8A8F98' }} />
-                <YAxis type="category" dataKey="product" tick={{ fontSize: 10, fill: '#8A8F98' }} width={72} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-primary)" />
+                <XAxis type="number" tick={{ fontSize: 10, fill: 'var(--color-text-tertiary)' }} />
+                <YAxis type="category" dataKey="product" tick={{ fontSize: 10, fill: 'var(--color-text-tertiary)' }} width={72} />
                 <RechartsTooltip
-                  contentStyle={{ backgroundColor: '#141516', border: '1px solid #23252A', borderRadius: 8, fontSize: 11 }}
-                  labelStyle={{ color: '#D0D6E0' }}
+                  contentStyle={{ backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)', borderRadius: 8, fontSize: 11 }}
+                  labelStyle={{ color: 'var(--color-text-secondary)' }}
                   formatter={(value: any) => [fmtNum(Number(value)), '수량']}
                 />
-                <Bar dataKey="quantity" fill="#27A644" radius={[0, 3, 3, 0]} maxBarSize={20} />
+                <Bar dataKey="quantity" fill="var(--color-green)" radius={[0, 3, 3, 0]} maxBarSize={20} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        <div className="bg-[#08090A] border border-[#23252A] rounded-xl p-3">
-          <h4 className="text-xs font-semibold text-[#D0D6E0] mb-2">행사 유형별 협찬 횟수</h4>
+        <div className="bg-bg-0 border border-border-primary rounded-xl p-3">
+          <h4 className="text-xs font-semibold text-text-secondary mb-2">행사 유형별 협찬 횟수</h4>
           <div className="h-48">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={eventTypeChartData} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#23252A" />
-                <XAxis type="number" tick={{ fontSize: 10, fill: '#8A8F98' }} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-primary)" />
+                <XAxis type="number" tick={{ fontSize: 10, fill: 'var(--color-text-tertiary)' }} />
                 <YAxis
                   type="category"
                   dataKey="event_type"
-                  tick={{ fontSize: 10, fill: '#8A8F98' }}
+                  tick={{ fontSize: 10, fill: 'var(--color-text-tertiary)' }}
                   tickFormatter={(v: string) => SPONSORSHIP_EVENT_TYPE_LABELS[v] || v}
                   width={72}
                 />
                 <RechartsTooltip
-                  contentStyle={{ backgroundColor: '#141516', border: '1px solid #23252A', borderRadius: 8, fontSize: 11 }}
-                  labelStyle={{ color: '#D0D6E0' }}
+                  contentStyle={{ backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)', borderRadius: 8, fontSize: 11 }}
+                  labelStyle={{ color: 'var(--color-text-secondary)' }}
                   formatter={(value: any) => [fmtNum(Number(value)), '횟수']}
                   labelFormatter={(v: string) => SPONSORSHIP_EVENT_TYPE_LABELS[v] || v}
                 />

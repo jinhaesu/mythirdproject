@@ -55,11 +55,11 @@ function ExternalGoalCard({
   showTarget?: boolean;
 }) {
   return (
-    <div className="bg-[#0F1011] border border-[#23252A] rounded-xl p-3">
+    <div className="bg-bg-1 border border-border-primary rounded-xl p-3">
       <div className="flex items-center justify-between mb-1.5">
         <div className="flex items-center gap-1.5">
-          <div className="p-1 rounded-lg bg-[#5E6AD2]/10 text-[#7070FF]">{icon}</div>
-          <span className="text-xs text-[#8A8F98]">{label}</span>
+          <div className="p-1 rounded-lg bg-brand/10 text-accent">{icon}</div>
+          <span className="text-xs text-text-tertiary">{label}</span>
         </div>
         {showTarget && badge && (
           <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full whitespace-nowrap ${badge.color}`}>
@@ -67,8 +67,8 @@ function ExternalGoalCard({
           </span>
         )}
       </div>
-      <p className="text-lg font-bold text-[#F7F8F8]">{value}</p>
-      {showTarget && targetLabel && <p className="text-[11px] text-[#62666D] mt-0.5">{targetLabel}</p>}
+      <p className="text-lg font-bold text-text-primary">{value}</p>
+      {showTarget && targetLabel && <p className="text-[11px] text-text-quaternary mt-0.5">{targetLabel}</p>}
     </div>
   );
 }
@@ -83,14 +83,14 @@ function GoalInput({
 }) {
   return (
     <div>
-      <label className="text-xs text-[#8A8F98] block mb-1">{label}</label>
+      <label className="text-xs text-text-tertiary block mb-1">{label}</label>
       <input
         type="number"
         step={step || '1'}
         value={value}
         onChange={(e: ChangeEvent<HTMLInputElement>) => onChange(e.target.value)}
         placeholder="미입력"
-        className="w-full bg-[#08090A] border border-[#23252A] rounded-lg px-2 py-1.5 text-xs text-[#F7F8F8] focus:outline-none focus:border-[#5E6AD2]"
+        className="w-full bg-bg-0 border border-border-primary rounded-lg px-2 py-1.5 text-xs text-text-primary focus:outline-none focus:border-brand"
       />
     </div>
   );
@@ -147,19 +147,19 @@ function ExternalChannelSpendRow({
     : `${(revenueNum / actualNum).toFixed(1)}x`;
 
   return (
-    <tr className="border-b border-[#23252A] hover:bg-[#141516]/40">
-      <td className="px-3 py-2 text-xs text-[#8A8F98] whitespace-nowrap">{month}</td>
+    <tr className="border-b border-border-primary hover:bg-bg-2/40">
+      <td className="px-3 py-2 text-xs text-text-tertiary whitespace-nowrap">{month}</td>
       <td className="px-3 py-2 text-xs whitespace-nowrap">
         <span className="inline-flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-full" style={{ background: CHANNEL_COLORS[item.channel] || '#8A8F98' }} />
-          <span className="text-[#D0D6E0]">{displayLabel}</span>
+          <span className="text-text-secondary">{displayLabel}</span>
         </span>
       </td>
       <td className="px-3 py-2 whitespace-nowrap">
         {isRevenueLinked ? (
-          <span className="text-[9px] font-semibold bg-[#27A644]/15 text-[#27A644] px-1.5 py-0.5 rounded-full">매출 관여</span>
+          <span className="text-[9px] font-semibold bg-green/15 text-green px-1.5 py-0.5 rounded-full">매출 관여</span>
         ) : (
-          <span className="text-[9px] font-semibold bg-[#23252A] text-[#8A8F98] px-1.5 py-0.5 rounded-full">비관여</span>
+          <span className="text-[9px] font-semibold bg-border-primary text-text-tertiary px-1.5 py-0.5 rounded-full">비관여</span>
         )}
       </td>
       <td className="px-3 py-2">
@@ -169,15 +169,15 @@ function ExternalChannelSpendRow({
           onBlur={commit}
           onKeyDown={onKeyDown}
           type="number"
-          className="w-24 bg-[#08090A] border border-[#23252A] rounded-lg px-2 py-1 text-xs text-[#F7F8F8] focus:outline-none focus:border-[#5E6AD2]"
+          className="w-24 bg-bg-0 border border-border-primary rounded-lg px-2 py-1 text-xs text-text-primary focus:outline-none focus:border-brand"
           placeholder="0"
         />
       </td>
       <td className="px-3 py-2">
         {isAuto ? (
           <span className="inline-flex items-center gap-1.5">
-            <span className="text-xs text-[#8A8F98]">{fmtWon(item.actual_amount ?? null)}</span>
-            <span className="text-[9px] font-semibold bg-[#4EA7FC]/15 text-[#4EA7FC] px-1.5 py-0.5 rounded-full">자동</span>
+            <span className="text-xs text-text-tertiary">{fmtWon(item.actual_amount ?? null)}</span>
+            <span className="text-[9px] font-semibold bg-blue/15 text-blue px-1.5 py-0.5 rounded-full">자동</span>
           </span>
         ) : (
           <input
@@ -186,7 +186,7 @@ function ExternalChannelSpendRow({
             onBlur={commit}
             onKeyDown={onKeyDown}
             type="number"
-            className="w-24 bg-[#08090A] border border-[#23252A] rounded-lg px-2 py-1 text-xs text-[#F7F8F8] focus:outline-none focus:border-[#5E6AD2]"
+            className="w-24 bg-bg-0 border border-border-primary rounded-lg px-2 py-1 text-xs text-text-primary focus:outline-none focus:border-brand"
             placeholder="0"
           />
         )}
@@ -199,7 +199,7 @@ function ExternalChannelSpendRow({
             onBlur={commit}
             onKeyDown={onKeyDown}
             type="number"
-            className="w-24 bg-[#08090A] border border-[#23252A] rounded-lg px-2 py-1 text-xs text-[#F7F8F8] focus:outline-none focus:border-[#5E6AD2]"
+            className="w-24 bg-bg-0 border border-border-primary rounded-lg px-2 py-1 text-xs text-text-primary focus:outline-none focus:border-brand"
             placeholder="0"
           />
         ) : (
@@ -211,14 +211,14 @@ function ExternalChannelSpendRow({
               onKeyDown={onKeyDown}
               type="number"
               title="조회수(view) — 데이터 대시보드의 비관여 채널 지표로 표시됩니다"
-              className="w-24 bg-[#08090A] border border-[#23252A] rounded-lg px-2 py-1 text-xs text-[#F7F8F8] focus:outline-none focus:border-[#F2994A]"
+              className="w-24 bg-bg-0 border border-border-primary rounded-lg px-2 py-1 text-xs text-text-primary focus:outline-none focus:border-[#F2994A]"
               placeholder="조회수"
             />
-            <span className="text-[9px] text-[#8A8F98]">view</span>
+            <span className="text-[9px] text-text-tertiary">view</span>
           </span>
         )}
       </td>
-      <td className="px-3 py-2 text-xs text-[#8A8F98] whitespace-nowrap">{roasText}</td>
+      <td className="px-3 py-2 text-xs text-text-tertiary whitespace-nowrap">{roasText}</td>
       <td className="px-3 py-2">
         <input
           value={memo}
@@ -226,13 +226,13 @@ function ExternalChannelSpendRow({
           onBlur={commit}
           onKeyDown={onKeyDown}
           type="text"
-          className="w-36 bg-[#08090A] border border-[#23252A] rounded-lg px-2 py-1 text-xs text-[#D0D6E0] focus:outline-none focus:border-[#5E6AD2]"
+          className="w-36 bg-bg-0 border border-border-primary rounded-lg px-2 py-1 text-xs text-text-secondary focus:outline-none focus:border-brand"
           placeholder="메모"
         />
       </td>
       <td className="px-3 py-2 text-right">
         {item.id != null && (
-          <button onClick={() => onDelete(item.id!)} className="text-[#8A8F98] hover:text-[#EB5757] transition-colors">
+          <button onClick={() => onDelete(item.id!)} className="text-text-tertiary hover:text-red transition-colors">
             <Trash2 size={14} />
           </button>
         )}
@@ -427,17 +427,17 @@ export function ExternalMarketingKPI() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-xl font-bold text-[#F7F8F8]">그 외 마케팅 KPI</h2>
-          <p className="text-xs text-[#8A8F98] mt-1">외부 채널 광고비, 공동구매 매출, 시딩·협찬을 한눈에 관리합니다.</p>
+          <h2 className="text-xl font-bold text-text-primary">그 외 마케팅 KPI</h2>
+          <p className="text-xs text-text-tertiary mt-1">외부 채널 광고비, 공동구매 매출, 시딩·협찬을 한눈에 관리합니다.</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center bg-[#141516] rounded-lg p-0.5">
+          <div className="flex items-center bg-bg-2 rounded-lg p-0.5">
             {([6, 12] as const).map((n) => (
               <button
                 key={n}
                 onClick={() => setMonthsRange(n)}
                 className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                  monthsRange === n ? 'bg-[#0F1011] text-[#7070FF] shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'text-[#8A8F98] hover:text-[#D0D6E0]'
+                  monthsRange === n ? 'bg-bg-1 text-accent shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'text-text-tertiary hover:text-text-secondary'
                 }`}
               >
                 최근 {n}개월
@@ -446,7 +446,7 @@ export function ExternalMarketingKPI() {
           </div>
           <button
             onClick={handleExportKpi}
-            className="flex items-center gap-1.5 px-3 py-2 border border-[#23252A] rounded-lg text-sm text-[#D0D6E0] hover:bg-[#141516] transition-all"
+            className="flex items-center gap-1.5 px-3 py-2 border border-border-primary rounded-lg text-sm text-text-secondary hover:bg-bg-2 transition-all"
           >
             <Download size={14} /> 엑셀
           </button>
@@ -455,15 +455,15 @@ export function ExternalMarketingKPI() {
 
       {summaryLoading ? (
         <div className="flex items-center justify-center h-40">
-          <Loader2 size={32} className="animate-spin text-[#7070FF]" />
-          <span className="ml-3 text-[#8A8F98]">KPI 데이터 로딩 중...</span>
+          <Loader2 size={32} className="animate-spin text-accent" />
+          <span className="ml-3 text-text-tertiary">KPI 데이터 로딩 중...</span>
         </div>
       ) : summaryError ? (
         <div className="flex items-center justify-center h-40">
           <div className="text-center">
-            <AlertTriangle size={32} className="text-[#EB5757] mx-auto mb-2" />
-            <p className="text-sm text-[#8A8F98] mb-3">KPI 데이터를 불러오지 못했습니다.</p>
-            <button onClick={() => refetchSummary()} className="text-xs bg-[#5E6AD2] text-white px-4 py-2 rounded-lg hover:bg-[#828FFF]">
+            <AlertTriangle size={32} className="text-red mx-auto mb-2" />
+            <p className="text-sm text-text-tertiary mb-3">KPI 데이터를 불러오지 못했습니다.</p>
+            <button onClick={() => refetchSummary()} className="text-xs bg-brand text-white px-4 py-2 rounded-lg hover:bg-accent-hover">
               다시 시도
             </button>
           </div>
@@ -501,31 +501,31 @@ export function ExternalMarketingKPI() {
           </div>
 
           {/* 채널 광고비 관리 */}
-          <div className="bg-[#0F1011] border border-[#23252A] rounded-xl p-4">
-            <h3 className="text-sm font-semibold text-[#D0D6E0] mb-3 flex items-center gap-1.5">
-              <Layers size={14} className="text-[#4EA7FC]" />
+          <div className="bg-bg-1 border border-border-primary rounded-xl p-4">
+            <h3 className="text-sm font-semibold text-text-secondary mb-3 flex items-center gap-1.5">
+              <Layers size={14} className="text-blue" />
               채널 광고비 관리
-              <span className="text-[10px] font-normal text-[#62666D]">우측 축: 총 매출</span>
+              <span className="text-[10px] font-normal text-text-quaternary">우측 축: 총 매출</span>
             </h3>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={channelChartData} margin={{ top: 8, right: 16, left: 8, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#23252A" />
-                  <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#8A8F98' }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-primary)" />
+                  <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'var(--color-text-tertiary)' }} />
                   <YAxis
                     yAxisId="left"
-                    tick={{ fontSize: 10, fill: '#8A8F98' }}
+                    tick={{ fontSize: 10, fill: 'var(--color-text-tertiary)' }}
                     tickFormatter={(v: number) => (v >= 10000 ? `${Math.round(v / 10000)}만` : String(v))}
                   />
                   <YAxis
                     yAxisId="right"
                     orientation="right"
-                    tick={{ fontSize: 10, fill: '#27A644' }}
+                    tick={{ fontSize: 10, fill: 'var(--color-green)' }}
                     tickFormatter={(v: number) => (v >= 10000 ? `${Math.round(v / 10000)}만` : String(v))}
                   />
                   <RechartsTooltip
-                    contentStyle={{ backgroundColor: '#141516', border: '1px solid #23252A', borderRadius: 8, fontSize: 11 }}
-                    labelStyle={{ color: '#D0D6E0' }}
+                    contentStyle={{ backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)', borderRadius: 8, fontSize: 11 }}
+                    labelStyle={{ color: 'var(--color-text-secondary)' }}
                     formatter={(value: any, name: any) => [
                       fmtWon(Number(value)),
                       name === 'revenue' ? '총 매출' : (CHANNEL_LABELS[name as string] || name),
@@ -538,7 +538,7 @@ export function ExternalMarketingKPI() {
                   {EXTERNAL_CHANNEL_KEYS.map((ch) => (
                     <Bar key={ch} yAxisId="left" dataKey={ch} name={ch} stackId="spend" fill={CHANNEL_COLORS[ch]} />
                   ))}
-                  <Line yAxisId="right" type="monotone" dataKey="revenue" name="revenue" stroke="#27A644" strokeWidth={2} />
+                  <Line yAxisId="right" type="monotone" dataKey="revenue" name="revenue" stroke="var(--color-green)" strokeWidth={2} />
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
@@ -546,7 +546,7 @@ export function ExternalMarketingKPI() {
             <div className="overflow-x-auto mt-4">
               <table className="w-full min-w-[880px] text-left">
                 <thead>
-                  <tr className="border-b border-[#23252A] text-[10px] text-[#62666D] uppercase tracking-wide">
+                  <tr className="border-b border-border-primary text-[10px] text-text-quaternary uppercase tracking-wide">
                     <th className="px-3 py-2 whitespace-nowrap">월</th>
                     <th className="px-3 py-2 whitespace-nowrap">채널</th>
                     <th className="px-3 py-2 whitespace-nowrap">유형</th>
@@ -570,7 +570,7 @@ export function ExternalMarketingKPI() {
                   ))}
                   {spendRows.length === 0 && (
                     <tr>
-                      <td colSpan={9} className="px-3 py-6 text-center text-xs text-[#62666D]">
+                      <td colSpan={9} className="px-3 py-6 text-center text-xs text-text-quaternary">
                         등록된 채널 광고비가 없습니다.
                       </td>
                     </tr>
@@ -579,14 +579,14 @@ export function ExternalMarketingKPI() {
               </table>
             </div>
 
-            <div className="mt-3 pt-3 border-t border-[#23252A] space-y-2">
+            <div className="mt-3 pt-3 border-t border-border-primary space-y-2">
               <div className="flex items-center gap-2 flex-wrap">
-                <div className="flex items-center bg-[#141516] rounded-lg p-0.5">
+                <div className="flex items-center bg-bg-2 rounded-lg p-0.5">
                   <button
                     type="button"
                     onClick={() => setNewRevenueLinked(true)}
                     className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                      newRevenueLinked ? 'bg-[#27A644]/15 text-[#27A644]' : 'text-[#8A8F98] hover:text-[#D0D6E0]'
+                      newRevenueLinked ? 'bg-green/15 text-green' : 'text-text-tertiary hover:text-text-secondary'
                     }`}
                   >
                     매출 관여
@@ -595,7 +595,7 @@ export function ExternalMarketingKPI() {
                     type="button"
                     onClick={() => setNewRevenueLinked(false)}
                     className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                      !newRevenueLinked ? 'bg-[#23252A] text-[#D0D6E0]' : 'text-[#8A8F98] hover:text-[#D0D6E0]'
+                      !newRevenueLinked ? 'bg-border-primary text-text-secondary' : 'text-text-tertiary hover:text-text-secondary'
                     }`}
                   >
                     비관여
@@ -605,7 +605,7 @@ export function ExternalMarketingKPI() {
                 <select
                   value={newChannel}
                   onChange={(e: ChangeEvent<HTMLSelectElement>) => setNewChannel(e.target.value)}
-                  className="px-2 py-1.5 bg-[#08090A] border border-[#23252A] rounded-lg text-xs text-[#D0D6E0] focus:outline-none focus:border-[#5E6AD2]"
+                  className="px-2 py-1.5 bg-bg-0 border border-border-primary rounded-lg text-xs text-text-secondary focus:outline-none focus:border-brand"
                 >
                   {ADDABLE_CHANNEL_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value} disabled={opt.disabled}>{opt.label}</option>
@@ -618,7 +618,7 @@ export function ExternalMarketingKPI() {
                     onChange={(e: ChangeEvent<HTMLInputElement>) => setNewChannelLabel(e.target.value)}
                     type="text"
                     placeholder="채널명 입력"
-                    className="w-32 px-2 py-1.5 bg-[#08090A] border border-[#23252A] rounded-lg text-xs text-[#D0D6E0] focus:outline-none focus:border-[#5E6AD2]"
+                    className="w-32 px-2 py-1.5 bg-bg-0 border border-border-primary rounded-lg text-xs text-text-secondary focus:outline-none focus:border-brand"
                   />
                 )}
 
@@ -626,7 +626,7 @@ export function ExternalMarketingKPI() {
                   type="month"
                   value={newMonth}
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setNewMonth(e.target.value)}
-                  className="px-2 py-1.5 bg-[#08090A] border border-[#23252A] rounded-lg text-xs text-[#D0D6E0] focus:outline-none focus:border-[#5E6AD2]"
+                  className="px-2 py-1.5 bg-bg-0 border border-border-primary rounded-lg text-xs text-text-secondary focus:outline-none focus:border-brand"
                 />
               </div>
 
@@ -636,47 +636,47 @@ export function ExternalMarketingKPI() {
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setNewPlanned(e.target.value)}
                   type="number"
                   placeholder="예산 (₩)"
-                  className="w-28 px-2 py-1.5 bg-[#08090A] border border-[#23252A] rounded-lg text-xs text-[#D0D6E0] focus:outline-none focus:border-[#5E6AD2]"
+                  className="w-28 px-2 py-1.5 bg-bg-0 border border-border-primary rounded-lg text-xs text-text-secondary focus:outline-none focus:border-brand"
                 />
                 <input
                   value={newActual}
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setNewActual(e.target.value)}
                   type="number"
                   placeholder="광고비 (₩)"
-                  className="w-28 px-2 py-1.5 bg-[#08090A] border border-[#23252A] rounded-lg text-xs text-[#D0D6E0] focus:outline-none focus:border-[#5E6AD2]"
+                  className="w-28 px-2 py-1.5 bg-bg-0 border border-border-primary rounded-lg text-xs text-text-secondary focus:outline-none focus:border-brand"
                 />
                 <input
                   value={newMemo}
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setNewMemo(e.target.value)}
                   type="text"
                   placeholder="메모"
-                  className="w-40 px-2 py-1.5 bg-[#08090A] border border-[#23252A] rounded-lg text-xs text-[#D0D6E0] focus:outline-none focus:border-[#5E6AD2]"
+                  className="w-40 px-2 py-1.5 bg-bg-0 border border-border-primary rounded-lg text-xs text-text-secondary focus:outline-none focus:border-brand"
                 />
                 <button
                   onClick={addSpend}
                   disabled={updateChannelSpendMutation.isPending}
-                  className="flex items-center gap-1 px-3 py-1.5 bg-[#5E6AD2] text-white text-xs font-medium rounded-lg hover:bg-[#828FFF] disabled:opacity-50"
+                  className="flex items-center gap-1 px-3 py-1.5 bg-brand text-white text-xs font-medium rounded-lg hover:bg-accent-hover disabled:opacity-50"
                 >
                   <Plus size={12} /> 채널 추가
                 </button>
-                <span className="text-[10px] text-[#62666D]">매출은 아래 "채널 매출 기입"에서 별도 입력</span>
+                <span className="text-[10px] text-text-quaternary">매출은 아래 "채널 매출 기입"에서 별도 입력</span>
               </div>
             </div>
 
             {/* 채널 매출 별도 기입 — 광고비 등록과 분리 (월 마감 후 매출 확정 시 입력) */}
-            <div className="mt-3 pt-3 border-t border-[#23252A]">
-              <p className="text-[11px] font-medium text-[#27A644] mb-2">채널 매출 기입 (매출 관여 채널 전용)</p>
+            <div className="mt-3 pt-3 border-t border-border-primary">
+              <p className="text-[11px] font-medium text-green mb-2">채널 매출 기입 (매출 관여 채널 전용)</p>
               <div className="flex items-center gap-2 flex-wrap">
                 <input
                   type="month"
                   value={revMonth}
                   onChange={(e: ChangeEvent<HTMLInputElement>) => { setRevMonth(e.target.value); setRevChannel(''); }}
-                  className="px-2 py-1.5 bg-[#08090A] border border-[#23252A] rounded-lg text-xs text-[#D0D6E0] focus:outline-none focus:border-[#5E6AD2]"
+                  className="px-2 py-1.5 bg-bg-0 border border-border-primary rounded-lg text-xs text-text-secondary focus:outline-none focus:border-brand"
                 />
                 <select
                   value={revChannel}
                   onChange={(e: ChangeEvent<HTMLSelectElement>) => setRevChannel(e.target.value)}
-                  className="px-2 py-1.5 bg-[#08090A] border border-[#23252A] rounded-lg text-xs text-[#D0D6E0] focus:outline-none focus:border-[#5E6AD2]"
+                  className="px-2 py-1.5 bg-bg-0 border border-border-primary rounded-lg text-xs text-text-secondary focus:outline-none focus:border-brand"
                 >
                   <option value="">채널 선택</option>
                   {revenueLinkedRows.map((r) => (
@@ -691,17 +691,17 @@ export function ExternalMarketingKPI() {
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setRevAmount(e.target.value)}
                   type="number"
                   placeholder="해당 월 매출 (₩)"
-                  className="w-36 px-2 py-1.5 bg-[#08090A] border border-[#23252A] rounded-lg text-xs text-[#D0D6E0] focus:outline-none focus:border-[#5E6AD2]"
+                  className="w-36 px-2 py-1.5 bg-bg-0 border border-border-primary rounded-lg text-xs text-text-secondary focus:outline-none focus:border-brand"
                 />
                 <button
                   onClick={saveChannelRevenue}
                   disabled={updateChannelSpendMutation.isPending}
-                  className="px-3 py-1.5 bg-[#27A644] text-white text-xs font-medium rounded-lg hover:bg-[#2FBF4F] disabled:opacity-50"
+                  className="px-3 py-1.5 bg-green text-white text-xs font-medium rounded-lg hover:bg-[#2FBF4F] disabled:opacity-50"
                 >
                   매출 저장
                 </button>
                 {revenueLinkedRows.length === 0 && (
-                  <span className="text-[10px] text-[#62666D]">
+                  <span className="text-[10px] text-text-quaternary">
                     {revMonth}에 등록된 매출 관여 채널이 없습니다 — 먼저 위에서 채널을 추가하세요.
                   </span>
                 )}
@@ -711,69 +711,69 @@ export function ExternalMarketingKPI() {
 
           {/* 공동구매(어필리에이트) 매출 */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-[#0F1011] border border-[#23252A] rounded-xl p-4">
-              <h3 className="text-sm font-semibold text-[#D0D6E0] mb-3 flex items-center gap-1.5">
-                <TrendingUp size={14} className="text-[#7070FF]" />
+            <div className="bg-bg-1 border border-border-primary rounded-xl p-4">
+              <h3 className="text-sm font-semibold text-text-secondary mb-3 flex items-center gap-1.5">
+                <TrendingUp size={14} className="text-accent" />
                 공동구매 매출 & 주문수
               </h3>
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={groupbuyChartData} margin={{ top: 8, right: 16, left: 8, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#23252A" />
-                    <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#8A8F98' }} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-primary)" />
+                    <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'var(--color-text-tertiary)' }} />
                     <YAxis
                       yAxisId="left"
-                      tick={{ fontSize: 10, fill: '#8A8F98' }}
+                      tick={{ fontSize: 10, fill: 'var(--color-text-tertiary)' }}
                       tickFormatter={(v: number) => (v >= 10000 ? `${Math.round(v / 10000)}만` : String(v))}
                     />
-                    <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: '#7070FF' }} />
+                    <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: 'var(--color-link-primary)' }} />
                     <RechartsTooltip
-                      contentStyle={{ backgroundColor: '#141516', border: '1px solid #23252A', borderRadius: 8, fontSize: 11 }}
-                      labelStyle={{ color: '#D0D6E0' }}
+                      contentStyle={{ backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)', borderRadius: 8, fontSize: 11 }}
+                      labelStyle={{ color: 'var(--color-text-secondary)' }}
                       formatter={(value: any, name: any) =>
                         name === '주문수' ? [fmtNum(Number(value)), name] : [fmtWon(Number(value)), name]
                       }
                     />
                     <Legend wrapperStyle={{ fontSize: 11 }} />
-                    <Bar yAxisId="left" dataKey="groupbuy_revenue" name="매출" fill="#27A644" radius={[3, 3, 0, 0]} maxBarSize={30} />
-                    <Line yAxisId="right" type="monotone" dataKey="groupbuy_orders" name="주문수" stroke="#7070FF" strokeWidth={2} />
+                    <Bar yAxisId="left" dataKey="groupbuy_revenue" name="매출" fill="var(--color-green)" radius={[3, 3, 0, 0]} maxBarSize={30} />
+                    <Line yAxisId="right" type="monotone" dataKey="groupbuy_orders" name="주문수" stroke="var(--color-link-primary)" strokeWidth={2} />
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
             </div>
 
-            <div className="bg-[#0F1011] border border-[#23252A] rounded-xl p-4">
-              <h3 className="text-sm font-semibold text-[#D0D6E0] mb-3 flex items-center gap-1.5">
-                <DollarSign size={14} className="text-[#27A644]" />
+            <div className="bg-bg-1 border border-border-primary rounded-xl p-4">
+              <h3 className="text-sm font-semibold text-text-secondary mb-3 flex items-center gap-1.5">
+                <DollarSign size={14} className="text-green" />
                 캠페인별 매출 TOP 10
               </h3>
               {campaignChartData.length === 0 ? (
                 <div className="h-64 flex items-center justify-center">
-                  <p className="text-xs text-[#62666D]">공동구매 캠페인 데이터가 없습니다.</p>
+                  <p className="text-xs text-text-quaternary">공동구매 캠페인 데이터가 없습니다.</p>
                 </div>
               ) : (
                 <div className="h-64">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={campaignChartData} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#23252A" />
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-primary)" />
                       <XAxis
                         type="number"
-                        tick={{ fontSize: 10, fill: '#8A8F98' }}
+                        tick={{ fontSize: 10, fill: 'var(--color-text-tertiary)' }}
                         tickFormatter={(v: number) => (v >= 10000 ? `${Math.round(v / 10000)}만` : String(v))}
                       />
                       <YAxis
                         type="category"
                         dataKey="campaign_name"
-                        tick={{ fontSize: 10, fill: '#8A8F98' }}
+                        tick={{ fontSize: 10, fill: 'var(--color-text-tertiary)' }}
                         tickFormatter={(v: string) => (v && v.length > 12 ? `${v.slice(0, 12)}…` : v)}
                         width={96}
                       />
                       <RechartsTooltip
-                        contentStyle={{ backgroundColor: '#141516', border: '1px solid #23252A', borderRadius: 8, fontSize: 11 }}
-                        labelStyle={{ color: '#D0D6E0' }}
+                        contentStyle={{ backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)', borderRadius: 8, fontSize: 11 }}
+                        labelStyle={{ color: 'var(--color-text-secondary)' }}
                         formatter={(value: any, name: any) => (name === '매출' ? [fmtWon(Number(value)), name] : [fmtNum(Number(value)), name])}
                       />
-                      <Bar dataKey="revenue" name="매출" fill="#7070FF" radius={[0, 3, 3, 0]} maxBarSize={20} />
+                      <Bar dataKey="revenue" name="매출" fill="var(--color-link-primary)" radius={[0, 3, 3, 0]} maxBarSize={20} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -782,23 +782,23 @@ export function ExternalMarketingKPI() {
           </div>
 
           {/* 목표 설정 폼 */}
-          <div className="bg-[#0F1011] border border-[#23252A] rounded-xl p-4">
+          <div className="bg-bg-1 border border-border-primary rounded-xl p-4">
             <button onClick={() => setGoalFormOpen((v) => !v)} className="w-full flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-[#D0D6E0] flex items-center gap-1.5">
-                <Target size={14} className="text-[#7070FF]" />
+              <h3 className="text-sm font-semibold text-text-secondary flex items-center gap-1.5">
+                <Target size={14} className="text-accent" />
                 목표 설정
               </h3>
-              {goalFormOpen ? <ChevronDown size={16} className="text-[#8A8F98]" /> : <ChevronRight size={16} className="text-[#8A8F98]" />}
+              {goalFormOpen ? <ChevronDown size={16} className="text-text-tertiary" /> : <ChevronRight size={16} className="text-text-tertiary" />}
             </button>
             {goalFormOpen && (
               <div className="mt-4 space-y-3">
                 <div className="flex items-center gap-2">
-                  <label className="text-xs text-[#8A8F98] w-20">대상 월</label>
+                  <label className="text-xs text-text-tertiary w-20">대상 월</label>
                   <input
                     type="month"
                     value={goalMonth}
                     onChange={(e: ChangeEvent<HTMLInputElement>) => setGoalMonth(e.target.value)}
-                    className="px-2 py-1.5 bg-[#08090A] border border-[#23252A] rounded-lg text-xs text-[#D0D6E0] focus:outline-none focus:border-[#5E6AD2]"
+                    className="px-2 py-1.5 bg-bg-0 border border-border-primary rounded-lg text-xs text-text-secondary focus:outline-none focus:border-brand"
                   />
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -807,18 +807,18 @@ export function ExternalMarketingKPI() {
                   <GoalInput label="매출 보정(집계 외 수동 가산, ₩)" value={actualRevenueManual} onChange={setActualRevenueManual} />
                 </div>
                 <div>
-                  <label className="text-xs text-[#8A8F98] block mb-1">메모</label>
+                  <label className="text-xs text-text-tertiary block mb-1">메모</label>
                   <textarea
                     value={goalMemo}
                     onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setGoalMemo(e.target.value)}
                     rows={2}
-                    className="w-full bg-[#08090A] border border-[#23252A] rounded-lg px-3 py-2 text-xs text-[#D0D6E0] focus:outline-none focus:border-[#5E6AD2]"
+                    className="w-full bg-bg-0 border border-border-primary rounded-lg px-3 py-2 text-xs text-text-secondary focus:outline-none focus:border-brand"
                   />
                 </div>
                 <button
                   onClick={handleSaveGoal}
                   disabled={updateGoalMutation.isPending}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-[#5E6AD2] text-white text-sm font-medium rounded-lg hover:bg-[#828FFF] disabled:opacity-50 transition-all"
+                  className="flex items-center gap-1.5 px-4 py-2 bg-brand text-white text-sm font-medium rounded-lg hover:bg-accent-hover disabled:opacity-50 transition-all"
                 >
                   {updateGoalMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} 저장
                 </button>

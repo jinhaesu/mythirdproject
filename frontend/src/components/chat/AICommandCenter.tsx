@@ -105,16 +105,16 @@ export function AICommandCenter() {
   const headerGradient = isNaver
     ? 'bg-gradient-to-r from-green-600 to-green-700'
     : 'bg-gradient-to-r from-primary-600 to-purple-600';
-  const userBubble = isNaver ? 'bg-[#27A644] text-white' : 'bg-[#5E6AD2] text-white';
+  const userBubble = isNaver ? 'bg-green text-white' : 'bg-brand text-white';
   const sendBtnClass = isNaver
-    ? 'bg-[#27A644] hover:bg-green-700'
-    : 'bg-[#5E6AD2] hover:bg-[#828FFF]';
+    ? 'bg-green hover:bg-green-700'
+    : 'bg-brand hover:bg-accent-hover';
   const focusRing = isNaver
-    ? 'focus:ring-green-500 focus:border-[#27A644]'
-    : 'focus:ring-[#5E6AD2] focus:border-[#5E6AD2]';
+    ? 'focus:ring-green-500 focus:border-green'
+    : 'focus:ring-brand focus:border-brand';
   const suggestHover = isNaver
-    ? 'hover:bg-[#27A644]/10 hover:border-[#27A644]/30 hover:text-[#27A644]'
-    : 'hover:bg-[#5E6AD2]/10 hover:border-[#5E6AD2]/30 hover:text-[#828FFF]';
+    ? 'hover:bg-green/10 hover:border-green/30 hover:text-green'
+    : 'hover:bg-brand/10 hover:border-brand/30 hover:text-accent-hover';
 
   if (!isOpen) {
     return (
@@ -132,11 +132,11 @@ export function AICommandCenter() {
   const chatHeight = isExpanded ? 'h-[700px]' : 'h-[520px]';
 
   return (
-    <div className={`fixed bottom-6 right-6 ${chatWidth} ${chatHeight} bg-[#0F1011] rounded-2xl shadow-2xl flex flex-col z-50 border border-[#23252A] transition-all`}>
+    <div className={`fixed bottom-6 right-6 ${chatWidth} ${chatHeight} bg-bg-1 rounded-2xl shadow-2xl flex flex-col z-50 border border-border-primary transition-all`}>
       {/* Header */}
       <div className={`flex items-center justify-between px-4 py-3 ${headerGradient} rounded-t-2xl`}>
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-[#0F1011]/20 rounded-lg flex items-center justify-center">
+          <div className="w-8 h-8 bg-bg-1/20 rounded-lg flex items-center justify-center">
             <MessageSquare size={18} className="text-white" />
           </div>
           <div>
@@ -165,7 +165,7 @@ export function AICommandCenter() {
             <div className={`max-w-[85%] px-3 py-2 rounded-2xl text-sm leading-relaxed ${
               msg.role === 'user'
                 ? `${userBubble} rounded-br-md`
-                : 'bg-[#141516] text-[#F7F8F8] rounded-bl-md'
+                : 'bg-bg-2 text-text-primary rounded-bl-md'
             }`}>
               {msg.content.split('\n').map((line, j) => (
                 <span key={j}>
@@ -178,8 +178,8 @@ export function AICommandCenter() {
         ))}
         {loading && (
           <div className="flex justify-start">
-            <div className="bg-[#141516] px-4 py-3 rounded-2xl rounded-bl-md">
-              <div className="flex items-center gap-2 text-[#8A8F98] text-sm">
+            <div className="bg-bg-2 px-4 py-3 rounded-2xl rounded-bl-md">
+              <div className="flex items-center gap-2 text-text-tertiary text-sm">
                 <Loader2 size={14} className="animate-spin" />
                 생각하는 중...
               </div>
@@ -195,7 +195,7 @@ export function AICommandCenter() {
           <div className="flex flex-wrap gap-1.5">
             {suggestedQuestions.map((q, i) => (
               <button key={i} onClick={() => sendMessage(q)}
-                className={`px-2.5 py-1 bg-[#08090A] border border-[#23252A] rounded-full text-xs text-[#8A8F98] ${suggestHover} transition-colors`}>
+                className={`px-2.5 py-1 bg-bg-0 border border-border-primary rounded-full text-xs text-text-tertiary ${suggestHover} transition-colors`}>
                 {q}
               </button>
             ))}
@@ -204,7 +204,7 @@ export function AICommandCenter() {
       )}
 
       {/* Input */}
-      <div className="px-4 py-3 border-t border-[#23252A]">
+      <div className="px-4 py-3 border-t border-border-primary">
         <div className="flex items-end gap-2">
           <textarea
             ref={inputRef}
@@ -213,7 +213,7 @@ export function AICommandCenter() {
             onKeyDown={handleKeyDown}
             placeholder="메시지를 입력하세요... (Shift+Enter: 줄바꿈)"
             rows={1}
-            className={`flex-1 px-3 py-2 border border-[#23252A] rounded-xl text-sm resize-none ${focusRing} outline-none max-h-24`}
+            className={`flex-1 px-3 py-2 border border-border-primary rounded-xl text-sm resize-none ${focusRing} outline-none max-h-24`}
             style={{ minHeight: '40px' }}
           />
           <button

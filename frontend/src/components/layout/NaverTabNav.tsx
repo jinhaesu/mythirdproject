@@ -19,7 +19,7 @@ export function NaverTabNav() {
   const { naverActiveTab, setNaverActiveTab } = useAppStore();
 
   return (
-    <div style={{ backgroundColor: '#0F1011', borderBottom: '1px solid #23252A' }}>
+    <div style={{ backgroundColor: 'var(--color-bg-level-1)', borderBottom: '1px solid var(--color-border-primary)' }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <nav className="flex space-x-1 overflow-x-auto" aria-label="Naver Tabs">
           {naverTabs.map((tab) => {
@@ -39,14 +39,14 @@ export function NaverTabNav() {
                 }}
                 onMouseEnter={e => {
                   if (!isActive) {
-                    (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'rgba(255,255,255,0.05)';
-                    (e.currentTarget as HTMLButtonElement).style.color = '#D0D6E0';
+                    (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'rgb(var(--color-overlay-rgb) / 0.05)';
+                    (e.currentTarget as HTMLButtonElement).style.color = 'var(--color-text-secondary)';
                   }
                 }}
                 onMouseLeave={e => {
                   if (!isActive) {
                     (e.currentTarget as HTMLButtonElement).style.backgroundColor = '';
-                    (e.currentTarget as HTMLButtonElement).style.color = '#8A8F98';
+                    (e.currentTarget as HTMLButtonElement).style.color = 'var(--color-text-tertiary)';
                   }
                 }}
               >

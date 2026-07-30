@@ -26,7 +26,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
       <div className="w-full">
         {label && (
           <label
-            className="block mb-1 text-[13px] text-[#D0D6E0] tracking-[-0.01em]"
+            className="block mb-1 text-[13px] text-text-secondary tracking-[-0.01em]"
             style={{ fontWeight: 510 }}
           >
             {label}
@@ -34,7 +34,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         )}
         <div className="relative">
           {leftIcon && (
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-[#62666D]">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-text-quaternary">
               {leftIcon}
             </div>
           )}
@@ -42,34 +42,34 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             ref={ref}
             className={clsx(
               // Base surface
-              'block w-full rounded-xl border bg-[#141516] text-[#F7F8F8]',
+              'block w-full rounded-xl border bg-bg-2 text-text-primary',
               'text-[14px] tracking-[-0.013em]',
               'min-h-[40px] px-3',
               // Placeholder color via Tailwind placeholder utility
-              'placeholder-[#62666D]',
+              'placeholder-text-quaternary',
               // Default border
-              'border-[#23252A]',
+              'border-border-primary',
               // Focus: indigo ring (1px inner glow matches Linear's spec)
-              'focus:outline-none focus:border-[#5E6AD2] focus:ring-1 focus:ring-[#5E6AD2]',
+              'focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand',
               // Disabled state
               'disabled:opacity-50 disabled:cursor-not-allowed',
               // Icon padding adjustments
               leftIcon && 'pl-10',
               rightIcon && 'pr-10',
               // Error override
-              error && 'border-[#EB5757] focus:border-[#EB5757] focus:ring-[#EB5757]',
+              error && 'border-red focus:border-red focus:ring-red',
               className
             )}
             {...props}
           />
           {rightIcon && (
-            <div className="absolute inset-y-0 right-0 pr-3 flex items-center text-[#62666D]">
+            <div className="absolute inset-y-0 right-0 pr-3 flex items-center text-text-quaternary">
               {rightIcon}
             </div>
           )}
         </div>
         {error && (
-          <p className="mt-1 text-[13px] text-[#EB5757] tracking-[-0.01em]">{error}</p>
+          <p className="mt-1 text-[13px] text-red tracking-[-0.01em]">{error}</p>
         )}
       </div>
     );

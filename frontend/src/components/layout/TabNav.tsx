@@ -16,7 +16,7 @@ export function TabNav() {
   const { activeTab, setActiveTab } = useAppStore();
 
   return (
-    <div style={{ backgroundColor: '#0F1011', borderBottom: '1px solid #23252A' }}>
+    <div style={{ backgroundColor: 'var(--color-bg-level-1)', borderBottom: '1px solid var(--color-border-primary)' }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <nav className="flex space-x-1 overflow-x-auto" aria-label="Tabs">
           {tabs.map((tab) => {
@@ -31,31 +31,31 @@ export function TabNav() {
                   'group flex items-center gap-2 px-4 py-3 border-b-2 font-medium text-sm transition-colors whitespace-nowrap'
                 )}
                 style={{
-                  borderBottomColor: isActive ? '#5E6AD2' : 'transparent',
-                  color: isActive ? '#F7F8F8' : '#8A8F98',
+                  borderBottomColor: isActive ? 'var(--color-brand-bg)' : 'transparent',
+                  color: isActive ? 'var(--color-text-primary)' : 'var(--color-text-tertiary)',
                 }}
                 onMouseEnter={e => {
                   if (!isActive) {
-                    (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'rgba(255,255,255,0.05)';
-                    (e.currentTarget as HTMLButtonElement).style.color = '#D0D6E0';
+                    (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'rgb(var(--color-overlay-rgb) / 0.05)';
+                    (e.currentTarget as HTMLButtonElement).style.color = 'var(--color-text-secondary)';
                   }
                 }}
                 onMouseLeave={e => {
                   if (!isActive) {
                     (e.currentTarget as HTMLButtonElement).style.backgroundColor = '';
-                    (e.currentTarget as HTMLButtonElement).style.color = '#8A8F98';
+                    (e.currentTarget as HTMLButtonElement).style.color = 'var(--color-text-tertiary)';
                   }
                 }}
               >
                 <Icon
                   size={16}
-                  style={{ color: isActive ? '#828FFF' : '#8A8F98' }}
+                  style={{ color: isActive ? 'var(--color-accent-hover)' : 'var(--color-text-tertiary)' }}
                 />
                 <div className="hidden sm:block text-left">
                   <span>{tab.name}</span>
                   <p
                     className="text-xs font-normal"
-                    style={{ color: isActive ? '#828FFF' : '#62666D' }}
+                    style={{ color: isActive ? 'var(--color-accent-hover)' : 'var(--color-text-quaternary)' }}
                   >
                     {tab.description}
                   </p>

@@ -300,23 +300,23 @@ export function AutoManagement() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-[#F7F8F8] flex items-center gap-3">
-            <div className="p-2 bg-[#5E6AD2]/15 rounded-lg">
-              <Shield size={24} className="text-[#7070FF]" />
+          <h2 className="text-2xl font-bold text-text-primary flex items-center gap-3">
+            <div className="p-2 bg-brand/15 rounded-lg">
+              <Shield size={24} className="text-accent" />
             </div>
             자동 관리
           </h2>
-          <p className="text-sm text-[#8A8F98] mt-1">룰 기반으로 캠페인, 광고세트, 광고를 자동 최적화합니다. 조건을 설정하면 자동으로 감시하고 액션을 실행합니다.</p>
+          <p className="text-sm text-text-tertiary mt-1">룰 기반으로 캠페인, 광고세트, 광고를 자동 최적화합니다. 조건을 설정하면 자동으로 감시하고 액션을 실행합니다.</p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => aiRecommendMutation.mutate()}
             disabled={aiRecommendMutation.isPending}
-            className="text-sm bg-[#5E6AD2]/15 text-[#828FFF] px-4 py-2 rounded-lg hover:bg-purple-200 flex items-center gap-2 disabled:opacity-50 font-medium">
+            className="text-sm bg-brand/15 text-accent-hover px-4 py-2 rounded-lg hover:bg-purple-200 flex items-center gap-2 disabled:opacity-50 font-medium">
             <Bot size={16} /> {aiRecommendMutation.isPending ? 'AI 분석중...' : 'AI 추천'}
           </button>
           <button onClick={() => executeRulesMutation.mutate()}
             disabled={executeRulesMutation.isPending}
-            className="text-sm bg-[#EB5757]/15 text-[#EB5757] px-4 py-2 rounded-lg hover:bg-red-200 flex items-center gap-2 disabled:opacity-50 font-medium">
+            className="text-sm bg-red/15 text-red px-4 py-2 rounded-lg hover:bg-red-200 flex items-center gap-2 disabled:opacity-50 font-medium">
             <PlayCircle size={16} /> {executeRulesMutation.isPending ? '실행중...' : '지금 실행'}
           </button>
           <button onClick={() => setShowRuleForm(!showRuleForm)}
@@ -328,9 +328,9 @@ export function AutoManagement() {
 
       {/* Execute results */}
       {executeRulesMutation.isSuccess && (
-        <div className="bg-[#27A644]/10 border border-[#27A644]/30 rounded-xl p-4 flex items-center gap-3">
-          <Zap size={18} className="text-[#27A644]" />
-          <p className="text-sm text-[#27A644] font-medium">
+        <div className="bg-green/10 border border-green/30 rounded-xl p-4 flex items-center gap-3">
+          <Zap size={18} className="text-green" />
+          <p className="text-sm text-green font-medium">
             실행 완료: {(executeRulesMutation.data as any)?.results?.length || 0}건 처리됨
           </p>
         </div>
@@ -338,18 +338,18 @@ export function AutoManagement() {
 
       {/* AI Recommendations */}
       {aiRecommendMutation.isSuccess && (aiRecommendMutation.data as any)?.recommendations && (
-        <div className="bg-[#5E6AD2]/10 border border-[#5E6AD2]/30 rounded-xl p-5">
+        <div className="bg-brand/10 border border-brand/30 rounded-xl p-5">
           <h4 className="text-sm font-semibold text-purple-800 mb-3 flex items-center gap-2">
             <Bot size={16} /> AI 추천 룰
           </h4>
           <div className="space-y-2">
             {((aiRecommendMutation.data as any).recommendations as any[]).map((rec: any, i: number) => (
-              <div key={i} className="flex items-center justify-between bg-[#0F1011] rounded-lg border border-[#5E6AD2]/30 p-4">
+              <div key={i} className="flex items-center justify-between bg-bg-1 rounded-lg border border-brand/30 p-4">
                 <div className="flex-1">
-                  <p className="text-sm font-medium text-[#F7F8F8]">{rec.name}</p>
-                  <p className="text-xs text-[#8A8F98] mt-1">
+                  <p className="text-sm font-medium text-text-primary">{rec.name}</p>
+                  <p className="text-xs text-text-tertiary mt-1">
                     {rec.metric} {OPERATOR_SYMBOL[rec.operator] || rec.operator} {rec.threshold} → {ACTION_KO[rec.action] || rec.action}
-                    {rec.reason && <span className="ml-2 text-[#7070FF]">| {rec.reason}</span>}
+                    {rec.reason && <span className="ml-2 text-accent">| {rec.reason}</span>}
                   </p>
                 </div>
                 <button onClick={() => handleApplyRecommendation(rec)}
@@ -365,55 +365,55 @@ export function AutoManagement() {
 
       {/* Rule Form */}
       {showRuleForm && (
-        <div className="bg-[#0F1011] border border-[#23252A] rounded-xl p-5">
-          <h4 className="text-sm font-semibold text-[#D0D6E0] mb-4 flex items-center gap-2">
-            <Plus size={16} className="text-[#7070FF]" /> 새 룰 추가
+        <div className="bg-bg-1 border border-border-primary rounded-xl p-5">
+          <h4 className="text-sm font-semibold text-text-secondary mb-4 flex items-center gap-2">
+            <Plus size={16} className="text-accent" /> 새 룰 추가
           </h4>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
             <input placeholder="룰 이름 (선택)" value={ruleForm.name} onChange={(e) => setRuleForm(f => ({ ...f, name: e.target.value }))}
-              className="px-3 py-2 border border-[#23252A] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400" />
+              className="px-3 py-2 border border-border-primary rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400" />
             <select value={ruleForm.target_type} onChange={(e) => setRuleForm(f => ({ ...f, target_type: e.target.value }))}
-              className="px-3 py-2 border border-[#23252A] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400">
+              className="px-3 py-2 border border-border-primary rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400">
               <option value="campaign">캠페인</option>
               <option value="adset">광고세트</option>
               <option value="ad">광고</option>
             </select>
             <select value={ruleForm.action} onChange={(e) => setRuleForm(f => ({ ...f, action: e.target.value }))}
-              className="px-3 py-2 border border-[#23252A] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400">
+              className="px-3 py-2 border border-border-primary rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400">
               {ACTION_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
             <select value={ruleForm.metric} onChange={(e) => setRuleForm(f => ({ ...f, metric: e.target.value }))}
-              className="px-3 py-2 border border-[#23252A] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400">
+              className="px-3 py-2 border border-border-primary rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400">
               {METRIC_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
             <select value={ruleForm.operator} onChange={(e) => setRuleForm(f => ({ ...f, operator: e.target.value }))}
-              className="px-3 py-2 border border-[#23252A] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400">
+              className="px-3 py-2 border border-border-primary rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400">
               {OPERATOR_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
             <input type="number" placeholder="임계값" value={ruleForm.threshold} onChange={(e) => setRuleForm(f => ({ ...f, threshold: e.target.value }))}
-              className="px-3 py-2 border border-[#23252A] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400" />
+              className="px-3 py-2 border border-border-primary rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400" />
             {ruleForm.action !== 'pause' && (
               <input type="number" placeholder="변경량 (%)" value={ruleForm.action_value} onChange={(e) => setRuleForm(f => ({ ...f, action_value: e.target.value }))}
-                className="px-3 py-2 border border-[#23252A] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400" />
+                className="px-3 py-2 border border-border-primary rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400" />
             )}
           </div>
           {/* Secondary condition */}
           <details className="mb-4">
-            <summary className="text-xs text-[#8A8F98] cursor-pointer hover:text-[#D0D6E0]">+ AND 조건 추가</summary>
+            <summary className="text-xs text-text-tertiary cursor-pointer hover:text-text-secondary">+ AND 조건 추가</summary>
             <div className="grid grid-cols-3 gap-3 mt-2">
               <select value={ruleForm.secondary_metric} onChange={(e) => setRuleForm(f => ({ ...f, secondary_metric: e.target.value }))}
-                className="px-3 py-2 border border-[#23252A] rounded-lg text-sm">
+                className="px-3 py-2 border border-border-primary rounded-lg text-sm">
                 <option value="">선택 안함</option>
                 {METRIC_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
               <select value={ruleForm.secondary_operator} onChange={(e) => setRuleForm(f => ({ ...f, secondary_operator: e.target.value }))}
-                className="px-3 py-2 border border-[#23252A] rounded-lg text-sm">
+                className="px-3 py-2 border border-border-primary rounded-lg text-sm">
                 {OPERATOR_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
               <input type="number" placeholder="임계값" value={ruleForm.secondary_threshold} onChange={(e) => setRuleForm(f => ({ ...f, secondary_threshold: e.target.value }))}
-                className="px-3 py-2 border border-[#23252A] rounded-lg text-sm" />
+                className="px-3 py-2 border border-border-primary rounded-lg text-sm" />
             </div>
           </details>
           <div className="flex items-center gap-2">
@@ -422,18 +422,18 @@ export function AutoManagement() {
               {createRuleMutation.isPending ? '생성중...' : '룰 생성'}
             </button>
             <button onClick={() => { setShowRuleForm(false); resetRuleForm(); }}
-              className="text-[#8A8F98] px-5 py-2 rounded-lg text-sm hover:bg-[#141516]/5">취소</button>
+              className="text-text-tertiary px-5 py-2 rounded-lg text-sm hover:bg-bg-2/5">취소</button>
           </div>
         </div>
       )}
 
       {/* Active Rules List */}
-      <div className="bg-[#0F1011] border border-[#23252A] rounded-xl">
-        <div className="px-5 py-4 border-b border-[#23252A]">
-          <h3 className="font-semibold text-[#F7F8F8] flex items-center gap-2">
-            <Shield size={18} className="text-[#7070FF]" /> 활성 룰 목록
+      <div className="bg-bg-1 border border-border-primary rounded-xl">
+        <div className="px-5 py-4 border-b border-border-primary">
+          <h3 className="font-semibold text-text-primary flex items-center gap-2">
+            <Shield size={18} className="text-accent" /> 활성 룰 목록
             {Array.isArray(rules) && rules.length > 0 && (
-              <span className="text-xs bg-[#5E6AD2]/15 text-[#828FFF] px-2 py-0.5 rounded-full ml-1">{rules.length}개</span>
+              <span className="text-xs bg-brand/15 text-accent-hover px-2 py-0.5 rounded-full ml-1">{rules.length}개</span>
             )}
           </h3>
         </div>
@@ -442,57 +442,57 @@ export function AutoManagement() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-[#23252A] bg-[#08090A]">
-                  <th className="text-left py-3 px-5 text-xs font-semibold text-[#8A8F98] uppercase">룰 이름</th>
-                  <th className="text-left py-3 px-3 text-xs font-semibold text-[#8A8F98] uppercase">조건</th>
-                  <th className="text-left py-3 px-3 text-xs font-semibold text-[#8A8F98] uppercase">액션</th>
-                  <th className="text-left py-3 px-3 text-xs font-semibold text-[#8A8F98] uppercase">대상</th>
-                  <th className="text-center py-3 px-3 text-xs font-semibold text-[#8A8F98] uppercase">실행 횟수</th>
-                  <th className="text-center py-3 px-3 text-xs font-semibold text-[#8A8F98] uppercase">마지막 체크</th>
-                  <th className="text-center py-3 px-3 text-xs font-semibold text-[#8A8F98] uppercase">ON/OFF</th>
-                  <th className="text-center py-3 px-3 text-xs font-semibold text-[#8A8F98] uppercase">삭제</th>
+                <tr className="border-b border-border-primary bg-bg-0">
+                  <th className="text-left py-3 px-5 text-xs font-semibold text-text-tertiary uppercase">룰 이름</th>
+                  <th className="text-left py-3 px-3 text-xs font-semibold text-text-tertiary uppercase">조건</th>
+                  <th className="text-left py-3 px-3 text-xs font-semibold text-text-tertiary uppercase">액션</th>
+                  <th className="text-left py-3 px-3 text-xs font-semibold text-text-tertiary uppercase">대상</th>
+                  <th className="text-center py-3 px-3 text-xs font-semibold text-text-tertiary uppercase">실행 횟수</th>
+                  <th className="text-center py-3 px-3 text-xs font-semibold text-text-tertiary uppercase">마지막 체크</th>
+                  <th className="text-center py-3 px-3 text-xs font-semibold text-text-tertiary uppercase">ON/OFF</th>
+                  <th className="text-center py-3 px-3 text-xs font-semibold text-text-tertiary uppercase">삭제</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#23252A]">
+              <tbody className="divide-y divide-border-primary">
                 {rules.map((rule: any) => (
-                  <tr key={rule.id} className="hover:bg-[#141516]/5 transition-colors">
+                  <tr key={rule.id} className="hover:bg-bg-2/5 transition-colors">
                     <td className="py-3 px-5">
-                      <span className="font-medium text-[#F7F8F8]">{rule.name}</span>
+                      <span className="font-medium text-text-primary">{rule.name}</span>
                     </td>
                     <td className="py-3 px-3">
-                      <span className="text-xs bg-[#4EA7FC]/10 text-[#828FFF] px-2 py-1 rounded font-mono">
+                      <span className="text-xs bg-blue/10 text-accent-hover px-2 py-1 rounded font-mono">
                         {rule.metric?.toUpperCase()} {OPERATOR_SYMBOL[rule.operator] || rule.operator} {formatThreshold(rule.metric, rule.threshold)}
                       </span>
                       {rule.secondary_metric && (
-                        <span className="text-xs bg-[#08090A] text-[#8A8F98] px-2 py-1 rounded font-mono ml-1">
+                        <span className="text-xs bg-bg-0 text-text-tertiary px-2 py-1 rounded font-mono ml-1">
                           AND {rule.secondary_metric?.toUpperCase()} {OPERATOR_SYMBOL[rule.secondary_operator] || rule.secondary_operator} {formatThreshold(rule.secondary_metric, rule.secondary_threshold)}
                         </span>
                       )}
                     </td>
                     <td className="py-3 px-3">
                       <span className={`text-xs font-semibold px-2 py-1 rounded ${
-                        rule.action === 'pause' ? 'bg-[#EB5757]/15 text-[#EB5757]' :
-                        rule.action === 'decrease_budget' ? 'bg-[#FC7840]/15 text-[#FC7840]' :
-                        'bg-[#27A644]/15 text-[#27A644]'
+                        rule.action === 'pause' ? 'bg-red/15 text-red' :
+                        rule.action === 'decrease_budget' ? 'bg-orange/15 text-orange' :
+                        'bg-green/15 text-green'
                       }`}>
                         {ACTION_KO[rule.action] || rule.action}
                         {rule.action_value ? ` (${rule.action_value}%)` : ''}
                       </span>
                     </td>
                     <td className="py-3 px-3">
-                      <span className="text-xs bg-[#141516] text-[#8A8F98] px-2 py-1 rounded">
+                      <span className="text-xs bg-bg-2 text-text-tertiary px-2 py-1 rounded">
                         {rule.target_type === 'campaign' ? '캠페인' : rule.target_type === 'adset' ? '광고세트' : '광고'}
                       </span>
                     </td>
                     <td className="py-3 px-3 text-center">
                       {rule.times_triggered > 0 ? (
-                        <span className="text-xs bg-[#FC7840]/15 text-[#FC7840] px-2 py-1 rounded font-medium">{rule.times_triggered}회</span>
+                        <span className="text-xs bg-orange/15 text-orange px-2 py-1 rounded font-medium">{rule.times_triggered}회</span>
                       ) : (
-                        <span className="text-xs text-[#62666D]">0회</span>
+                        <span className="text-xs text-text-quaternary">0회</span>
                       )}
                     </td>
                     <td className="py-3 px-3 text-center">
-                      <span className="text-xs text-[#62666D]">
+                      <span className="text-xs text-text-quaternary">
                         {rule.last_checked_at
                           ? new Date(rule.last_checked_at).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
                           : '-'}
@@ -500,14 +500,14 @@ export function AutoManagement() {
                     </td>
                     <td className="py-3 px-3 text-center">
                       <button onClick={() => updateRuleMutation.mutate({ id: rule.id, data: { enabled: !rule.enabled } })}
-                        className={`p-1.5 rounded-lg transition-colors ${rule.enabled ? 'text-[#27A644] hover:bg-[#27A644]/10' : 'text-[#62666D] hover:bg-[#141516]/5'}`}
+                        className={`p-1.5 rounded-lg transition-colors ${rule.enabled ? 'text-green hover:bg-green/10' : 'text-text-quaternary hover:bg-bg-2/5'}`}
                         title={rule.enabled ? 'ON - 클릭하여 비활성화' : 'OFF - 클릭하여 활성화'}>
                         {rule.enabled ? <ToggleRight size={22} /> : <ToggleLeft size={22} />}
                       </button>
                     </td>
                     <td className="py-3 px-3 text-center">
                       <button onClick={() => { if (confirm('이 룰을 삭제하시겠습니까?')) deleteRuleMutation.mutate(rule.id); }}
-                        className="p-1.5 text-[#62666D] hover:text-[#EB5757] hover:bg-[#EB5757]/10 rounded-lg transition-colors">
+                        className="p-1.5 text-text-quaternary hover:text-red hover:bg-red/10 rounded-lg transition-colors">
                         <Trash2 size={15} />
                       </button>
                     </td>
@@ -518,53 +518,53 @@ export function AutoManagement() {
           </div>
         ) : (
           <div className="px-5 py-10 text-center">
-            <Shield size={32} className="text-[#62666D] mx-auto mb-3" />
-            <p className="text-[#62666D] text-sm">등록된 자동 관리 룰이 없습니다.</p>
-            <p className="text-[#62666D] text-xs mt-1">위의 "룰 추가" 또는 "AI 추천"을 사용해보세요.</p>
+            <Shield size={32} className="text-text-quaternary mx-auto mb-3" />
+            <p className="text-text-quaternary text-sm">등록된 자동 관리 룰이 없습니다.</p>
+            <p className="text-text-quaternary text-xs mt-1">위의 "룰 추가" 또는 "AI 추천"을 사용해보세요.</p>
           </div>
         )}
       </div>
 
       {/* Execution History */}
-      <div className="bg-[#0F1011] border border-[#23252A] rounded-xl">
-        <div className="px-5 py-4 border-b border-[#23252A] flex items-center justify-between cursor-pointer"
+      <div className="bg-bg-1 border border-border-primary rounded-xl">
+        <div className="px-5 py-4 border-b border-border-primary flex items-center justify-between cursor-pointer"
           onClick={() => setShowHistory(!showHistory)}>
-          <h3 className="font-semibold text-[#F7F8F8] flex items-center gap-2">
-            <Clock size={18} className="text-[#F0BF00]" /> 실행 기록
+          <h3 className="font-semibold text-text-primary flex items-center gap-2">
+            <Clock size={18} className="text-yellow" /> 실행 기록
             {Array.isArray(ruleLogs) && ruleLogs.length > 0 && (
-              <span className="text-xs bg-[#F0BF00]/15 text-[#F0BF00] px-2 py-0.5 rounded-full ml-1">{ruleLogs.length}건</span>
+              <span className="text-xs bg-yellow/15 text-yellow px-2 py-0.5 rounded-full ml-1">{ruleLogs.length}건</span>
             )}
           </h3>
-          {showHistory ? <ChevronDown size={18} className="text-[#62666D]" /> : <ChevronRight size={18} className="text-[#62666D]" />}
+          {showHistory ? <ChevronDown size={18} className="text-text-quaternary" /> : <ChevronRight size={18} className="text-text-quaternary" />}
         </div>
 
         {showHistory && (
           <div className="max-h-96 overflow-y-auto">
             {Array.isArray(ruleLogs) && ruleLogs.length > 0 ? (
-              <div className="divide-y divide-[#23252A]">
+              <div className="divide-y divide-border-primary">
                 {ruleLogs.map((log: any, i: number) => {
                   const actionColor = log.action_taken === 'paused'
-                    ? 'bg-[#EB5757]/15 text-[#EB5757] border-[#EB5757]/30'
+                    ? 'bg-red/15 text-red border-red/30'
                     : log.action_taken?.includes('decreased')
-                    ? 'bg-[#FC7840]/15 text-[#FC7840] border-[#FC7840]/30'
+                    ? 'bg-orange/15 text-orange border-orange/30'
                     : log.action_taken?.includes('increased')
-                    ? 'bg-[#27A644]/15 text-[#27A644] border-[#27A644]/30'
-                    : 'bg-[#141516] text-[#D0D6E0] border-[#23252A]';
+                    ? 'bg-green/15 text-green border-green/30'
+                    : 'bg-bg-2 text-text-secondary border-border-primary';
 
                   return (
-                    <div key={log.id || i} className="px-5 py-3 flex items-center gap-4 hover:bg-[#141516]/5 transition-colors">
+                    <div key={log.id || i} className="px-5 py-3 flex items-center gap-4 hover:bg-bg-2/5 transition-colors">
                       {/* Timeline dot */}
                       <div className="flex flex-col items-center flex-shrink-0">
                         <div className={`w-3 h-3 rounded-full ${
                           log.action_taken === 'paused' ? 'bg-red-400' :
                           log.action_taken?.includes('decreased') ? 'bg-orange-400' :
-                          log.action_taken?.includes('increased') ? 'bg-green-400' : 'bg-[#28282C]'
+                          log.action_taken?.includes('increased') ? 'bg-green-400' : 'bg-bg-5'
                         }`} />
                       </div>
 
                       {/* Timestamp */}
                       <div className="w-36 flex-shrink-0">
-                        <span className="text-xs text-[#8A8F98]">
+                        <span className="text-xs text-text-tertiary">
                           {log.triggered_at
                             ? new Date(log.triggered_at).toLocaleString('ko-KR', {
                                 year: 'numeric', month: 'short', day: 'numeric',
@@ -576,7 +576,7 @@ export function AutoManagement() {
 
                       {/* Rule name */}
                       <div className="flex-shrink-0 w-36">
-                        <span className="text-xs font-medium text-[#D0D6E0] truncate block">{log.rule_name || '-'}</span>
+                        <span className="text-xs font-medium text-text-secondary truncate block">{log.rule_name || '-'}</span>
                       </div>
 
                       {/* Action badge */}
@@ -588,14 +588,14 @@ export function AutoManagement() {
 
                       {/* Target */}
                       <div className="flex-1 min-w-0">
-                        <span className="text-xs text-[#8A8F98] truncate block">{log.target_name || log.target_id || '-'}</span>
+                        <span className="text-xs text-text-tertiary truncate block">{log.target_name || log.target_id || '-'}</span>
                       </div>
 
                       {/* Metric value */}
                       <div className="flex-shrink-0 text-right">
-                        <span className="text-xs text-[#8A8F98]">
+                        <span className="text-xs text-text-tertiary">
                           {log.metric_name && (
-                            <span className="font-medium text-[#D0D6E0]">{log.metric_name}: </span>
+                            <span className="font-medium text-text-secondary">{log.metric_name}: </span>
                           )}
                           {typeof log.metric_value === 'number' ? log.metric_value.toFixed(2) : log.metric_value || '-'}
                         </span>
@@ -606,8 +606,8 @@ export function AutoManagement() {
               </div>
             ) : (
               <div className="px-5 py-10 text-center">
-                <Clock size={32} className="text-[#62666D] mx-auto mb-3" />
-                <p className="text-[#62666D] text-sm">아직 실행 기록이 없습니다.</p>
+                <Clock size={32} className="text-text-quaternary mx-auto mb-3" />
+                <p className="text-text-quaternary text-sm">아직 실행 기록이 없습니다.</p>
               </div>
             )}
           </div>
@@ -615,28 +615,28 @@ export function AutoManagement() {
       </div>
 
       {/* Period Report */}
-      <div className="bg-[#0F1011] border border-[#23252A] rounded-xl p-5">
-        <h3 className="font-semibold text-[#F7F8F8] mb-4 flex items-center gap-2"><FileText size={18} /> 기간 리포트</h3>
+      <div className="bg-bg-1 border border-border-primary rounded-xl p-5">
+        <h3 className="font-semibold text-text-primary mb-4 flex items-center gap-2"><FileText size={18} /> 기간 리포트</h3>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <div>
-            <label className="text-xs text-[#8A8F98] mb-1 block">캠페인</label>
+            <label className="text-xs text-text-tertiary mb-1 block">캠페인</label>
             <select value={reportCampaignId} onChange={(e) => setReportCampaignId(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm">
               <option value="">전체 계정</option>
               {allCampaigns.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
           <div>
-            <label className="text-xs text-[#8A8F98] mb-1 block">시작일</label>
+            <label className="text-xs text-text-tertiary mb-1 block">시작일</label>
             <input type="date" value={reportDates.start} onChange={(e) => setReportDates(d => ({ ...d, start: e.target.value }))} className="w-full px-3 py-2 border rounded-lg text-sm" />
           </div>
           <div>
-            <label className="text-xs text-[#8A8F98] mb-1 block">종료일</label>
+            <label className="text-xs text-text-tertiary mb-1 block">종료일</label>
             <input type="date" value={reportDates.end} onChange={(e) => setReportDates(d => ({ ...d, end: e.target.value }))} className="w-full px-3 py-2 border rounded-lg text-sm" />
           </div>
           <div className="flex items-end">
             <button onClick={() => reportMutation.mutate({ meta_campaign_id: reportCampaignId || undefined, start_date: reportDates.start, end_date: reportDates.end })}
               disabled={!reportDates.start || !reportDates.end || reportMutation.isPending}
-              className="w-full bg-[#5E6AD2] text-white px-4 py-2 rounded-lg text-sm hover:bg-[#828FFF] disabled:opacity-50">
+              className="w-full bg-brand text-white px-4 py-2 rounded-lg text-sm hover:bg-accent-hover disabled:opacity-50">
               {reportMutation.isPending ? <Loader2 size={14} className="animate-spin mx-auto" /> : '리포트 생성'}
             </button>
           </div>
@@ -650,14 +650,14 @@ export function AutoManagement() {
           </button>
           <button onClick={() => testEmailMutation.mutate()}
             disabled={testEmailMutation.isPending}
-            className="bg-[#232326] text-white px-3 py-2 rounded-lg text-sm hover:bg-[#141516]/7 disabled:opacity-50 flex items-center gap-1">
+            className="bg-bg-4 text-text-primary px-3 py-2 rounded-lg text-sm hover:bg-bg-2/7 disabled:opacity-50 flex items-center gap-1">
             {testEmailMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />} 테스트
           </button>
         </div>
-        {emailMutation.isSuccess && <p className="mt-2 text-sm text-[#27A644]">{(emailMutation.data as any)?.message}</p>}
-        {emailMutation.isError && <p className="mt-2 text-sm text-[#EB5757]">이메일 발송에 실패했습니다.</p>}
+        {emailMutation.isSuccess && <p className="mt-2 text-sm text-green">{(emailMutation.data as any)?.message}</p>}
+        {emailMutation.isError && <p className="mt-2 text-sm text-red">이메일 발송에 실패했습니다.</p>}
         {testEmailMutation.isSuccess && !testEmailMutation.data?.success && (
-          <p className="mt-2 text-xs text-[#EB5757]">진단: {JSON.stringify(testEmailMutation.data?.diagnostics, null, 2)}</p>
+          <p className="mt-2 text-xs text-red">진단: {JSON.stringify(testEmailMutation.data?.diagnostics, null, 2)}</p>
         )}
 
         {savedReport && (
@@ -665,17 +665,17 @@ export function AutoManagement() {
             onEmail={reportEmail ? () => emailMutation.mutate({ meta_campaign_id: reportCampaignId || undefined, start_date: reportDates.start, end_date: reportDates.end, email: reportEmail, report_data: savedReport || undefined }) : undefined} />
         )}
         {reportMutation.isError && (
-          <div className="mt-4 bg-[#EB5757]/10 rounded-lg p-4">
-            <p className="text-sm text-[#EB5757]">리포트 생성에 실패했습니다.</p>
+          <div className="mt-4 bg-red/10 rounded-lg p-4">
+            <p className="text-sm text-red">리포트 생성에 실패했습니다.</p>
           </div>
         )}
       </div>
 
       {/* Scheduled Reports */}
-      <div className="bg-[#0F1011] border border-[#23252A] rounded-xl">
-        <div className="px-5 py-4 border-b border-[#23252A] flex items-center justify-between">
-          <h3 className="font-semibold text-[#F7F8F8] flex items-center gap-2">
-            <Calendar size={18} className="text-[#00B8CC]" /> 스케줄 리포트
+      <div className="bg-bg-1 border border-border-primary rounded-xl">
+        <div className="px-5 py-4 border-b border-border-primary flex items-center justify-between">
+          <h3 className="font-semibold text-text-primary flex items-center gap-2">
+            <Calendar size={18} className="text-teal" /> 스케줄 리포트
           </h3>
           <button onClick={() => setShowScheduleForm(!showScheduleForm)}
             className="text-sm bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 flex items-center gap-2 font-medium">
@@ -685,25 +685,25 @@ export function AutoManagement() {
 
         {/* Schedule Form */}
         {showScheduleForm && (
-          <div className="px-5 py-4 bg-[#08090A] border-b border-[#23252A]">
+          <div className="px-5 py-4 bg-bg-0 border-b border-border-primary">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
               <input placeholder="스케줄 이름" value={schedForm.name} onChange={(e) => setSchedForm(f => ({ ...f, name: e.target.value }))}
-                className="px-3 py-2 border border-[#23252A] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-200 focus:border-teal-400" />
+                className="px-3 py-2 border border-border-primary rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-200 focus:border-teal-400" />
               <select value={schedForm.schedule_type} onChange={(e) => setSchedForm(f => ({ ...f, schedule_type: e.target.value }))}
-                className="px-3 py-2 border border-[#23252A] rounded-lg text-sm">
+                className="px-3 py-2 border border-border-primary rounded-lg text-sm">
                 <option value="weekly">주간</option>
                 <option value="monthly">월간</option>
               </select>
               {schedForm.schedule_type === 'weekly' ? (
                 <select value={schedForm.day_of_week} onChange={(e) => setSchedForm(f => ({ ...f, day_of_week: parseInt(e.target.value) }))}
-                  className="px-3 py-2 border border-[#23252A] rounded-lg text-sm">
+                  className="px-3 py-2 border border-border-primary rounded-lg text-sm">
                   {['일', '월', '화', '수', '목', '금', '토'].map((d, i) => (
                     <option key={i} value={i}>{d}요일</option>
                   ))}
                 </select>
               ) : (
                 <select value={schedForm.day_of_month} onChange={(e) => setSchedForm(f => ({ ...f, day_of_month: parseInt(e.target.value) }))}
-                  className="px-3 py-2 border border-[#23252A] rounded-lg text-sm">
+                  className="px-3 py-2 border border-border-primary rounded-lg text-sm">
                   {Array.from({ length: 28 }, (_, i) => i + 1).map(d => (
                     <option key={d} value={d}>{d}일</option>
                   ))}
@@ -717,25 +717,25 @@ export function AutoManagement() {
                     const [h, m] = e.target.value.split(':').map(Number);
                     setSchedForm(f => ({ ...f, send_hour: h || 0, send_minute: m || 0 }));
                   }}
-                  className="px-3 py-2 border border-[#23252A] rounded-lg text-sm w-full focus:outline-none focus:ring-2 focus:ring-teal-200 focus:border-teal-400"
+                  className="px-3 py-2 border border-border-primary rounded-lg text-sm w-full focus:outline-none focus:ring-2 focus:ring-teal-200 focus:border-teal-400"
                 />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[#62666D] pointer-events-none">발송</span>
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-text-quaternary pointer-events-none">발송</span>
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
               <select value={schedForm.meta_campaign_id} onChange={(e) => setSchedForm(f => ({ ...f, meta_campaign_id: e.target.value }))}
-                className="px-3 py-2 border border-[#23252A] rounded-lg text-sm">
+                className="px-3 py-2 border border-border-primary rounded-lg text-sm">
                 <option value="">전체 계정</option>
                 {allCampaigns.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
               <select value={schedForm.lookback_days} onChange={(e) => setSchedForm(f => ({ ...f, lookback_days: parseInt(e.target.value) }))}
-                className="px-3 py-2 border border-[#23252A] rounded-lg text-sm">
+                className="px-3 py-2 border border-border-primary rounded-lg text-sm">
                 <option value={7}>최근 7일</option>
                 <option value={14}>최근 14일</option>
                 <option value={30}>최근 30일</option>
               </select>
               <input type="email" placeholder="수신 이메일 (선택)" value={schedForm.email_to} onChange={(e) => setSchedForm(f => ({ ...f, email_to: e.target.value }))}
-                className="px-3 py-2 border border-[#23252A] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-200 focus:border-teal-400" />
+                className="px-3 py-2 border border-border-primary rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-200 focus:border-teal-400" />
             </div>
             <div className="flex items-center gap-2">
               <button onClick={handleCreateSchedule} disabled={!schedForm.name || createScheduleMutation.isPending}
@@ -743,29 +743,29 @@ export function AutoManagement() {
                 {createScheduleMutation.isPending ? '생성중...' : '스케줄 생성'}
               </button>
               <button onClick={() => { setShowScheduleForm(false); resetScheduleForm(); }}
-                className="text-[#8A8F98] px-5 py-2 rounded-lg text-sm hover:bg-[#141516]/5">취소</button>
+                className="text-text-tertiary px-5 py-2 rounded-lg text-sm hover:bg-bg-2/5">취소</button>
             </div>
           </div>
         )}
 
         {/* Schedule List */}
-        <div className="divide-y divide-[#23252A]">
+        <div className="divide-y divide-border-primary">
           {Array.isArray(schedules) && schedules.length > 0 ? schedules.map((sched: any) => (
-            <div key={sched.id} className="px-5 py-3 hover:bg-[#141516]/5 transition-colors">
+            <div key={sched.id} className="px-5 py-3 hover:bg-bg-2/5 transition-colors">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-[#F7F8F8]">{sched.name}</span>
-                    <span className="text-xs bg-[#00B8CC]/15 text-[#00B8CC] px-2 py-0.5 rounded">
+                    <span className="text-sm font-medium text-text-primary">{sched.name}</span>
+                    <span className="text-xs bg-teal/15 text-teal px-2 py-0.5 rounded">
                       {sched.schedule_type === 'weekly' ? `매주 ${['일', '월', '화', '수', '목', '금', '토'][sched.day_of_week || 0]}요일` : `매월 ${sched.day_of_month}일`} {String(sched.send_hour ?? 9).padStart(2, '0')}:{String(sched.send_minute ?? 0).padStart(2, '0')}
                     </span>
                     {sched.enabled ? (
-                      <span className="text-xs bg-[#27A644]/15 text-[#27A644] px-1.5 py-0.5 rounded">활성</span>
+                      <span className="text-xs bg-green/15 text-green px-1.5 py-0.5 rounded">활성</span>
                     ) : (
-                      <span className="text-xs bg-[#141516] text-[#8A8F98] px-1.5 py-0.5 rounded">비활성</span>
+                      <span className="text-xs bg-bg-2 text-text-tertiary px-1.5 py-0.5 rounded">비활성</span>
                     )}
                   </div>
-                  <p className="text-xs text-[#8A8F98] mt-0.5">
+                  <p className="text-xs text-text-tertiary mt-0.5">
                     최근 {sched.lookback_days}일 | {sched.email_to || '이메일 미설정'}
                     {sched.last_run_at && ` | 마지막 실행: ${new Date(sched.last_run_at).toLocaleString('ko-KR')}`}
                     {sched.next_run_at && ` | 다음 실행: ${new Date(sched.next_run_at).toLocaleString('ko-KR')}`}
@@ -775,18 +775,18 @@ export function AutoManagement() {
                   <button
                     onClick={() => runNowMutation.mutate(sched.id)}
                     disabled={runNowMutation.isPending}
-                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium bg-[#5E6AD2]/10 text-[#828FFF] hover:bg-[#5E6AD2]/15 rounded-lg transition-colors disabled:opacity-50"
+                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium bg-brand/10 text-accent-hover hover:bg-brand/15 rounded-lg transition-colors disabled:opacity-50"
                     title="지금 실행"
                   >
                     {runNowMutation.isPending ? <Loader2 size={12} className="animate-spin" /> : <PlayCircle size={12} />}
                     수동 실행
                   </button>
                   <button onClick={() => updateScheduleMutation.mutate({ id: sched.id, data: { enabled: !sched.enabled } })}
-                    className={`p-1.5 rounded-lg transition-colors ${sched.enabled ? 'text-[#27A644] hover:bg-[#27A644]/10' : 'text-[#62666D] hover:bg-[#141516]/5'}`}>
+                    className={`p-1.5 rounded-lg transition-colors ${sched.enabled ? 'text-green hover:bg-green/10' : 'text-text-quaternary hover:bg-bg-2/5'}`}>
                     {sched.enabled ? <ToggleRight size={20} /> : <ToggleLeft size={20} />}
                   </button>
                   <button onClick={() => deleteScheduleMutation.mutate(sched.id)}
-                    className="p-1.5 text-[#62666D] hover:text-[#EB5757] hover:bg-[#EB5757]/10 rounded-lg transition-colors">
+                    className="p-1.5 text-text-quaternary hover:text-red hover:bg-red/10 rounded-lg transition-colors">
                     <Trash2 size={14} />
                   </button>
                 </div>
@@ -794,8 +794,8 @@ export function AutoManagement() {
             </div>
           )) : (
             <div className="px-5 py-8 text-center">
-              <Calendar size={32} className="text-[#62666D] mx-auto mb-3" />
-              <p className="text-[#62666D] text-sm">등록된 스케줄이 없습니다.</p>
+              <Calendar size={32} className="text-text-quaternary mx-auto mb-3" />
+              <p className="text-text-quaternary text-sm">등록된 스케줄이 없습니다.</p>
             </div>
           )}
         </div>
@@ -803,39 +803,39 @@ export function AutoManagement() {
         {/* Run Result */}
         {runNowResult && (
           <div className={`mx-5 mb-4 p-4 rounded-lg border text-sm ${
-            runNowResult.email_sent ? 'bg-[#27A644]/10 border-[#27A644]/30' :
-            runNowResult.status === 'error' ? 'bg-[#EB5757]/10 border-[#EB5757]/30' :
-            'bg-[#F0BF00]/10 border-[#F0BF00]/30'
+            runNowResult.email_sent ? 'bg-green/10 border-green/30' :
+            runNowResult.status === 'error' ? 'bg-red/10 border-red/30' :
+            'bg-yellow/10 border-yellow/30'
           }`}>
             <div className="flex items-center justify-between mb-2">
               <p className="font-medium">
                 {runNowResult.email_sent ? '✅ ' : runNowResult.status === 'error' ? '❌ ' : '⚠️ '}
                 {runNowResult.message}
               </p>
-              <button onClick={() => setRunNowResult(null)} className="text-[#62666D] hover:text-[#D0D6E0] text-xs">닫기</button>
+              <button onClick={() => setRunNowResult(null)} className="text-text-quaternary hover:text-text-secondary text-xs">닫기</button>
             </div>
             {runNowResult.summary && (
               <div className="grid grid-cols-4 gap-2 mt-2">
-                <div className="bg-[#0F1011] rounded p-2 text-center">
-                  <div className="text-xs text-[#8A8F98]">비용</div>
-                  <div className="font-semibold text-[#F7F8F8]">{Math.round(runNowResult.summary.spend).toLocaleString()}원</div>
+                <div className="bg-bg-1 rounded p-2 text-center">
+                  <div className="text-xs text-text-tertiary">비용</div>
+                  <div className="font-semibold text-text-primary">{Math.round(runNowResult.summary.spend).toLocaleString()}원</div>
                 </div>
-                <div className="bg-[#0F1011] rounded p-2 text-center">
-                  <div className="text-xs text-[#8A8F98]">노출</div>
-                  <div className="font-semibold text-[#F7F8F8]">{runNowResult.summary.impressions?.toLocaleString()}</div>
+                <div className="bg-bg-1 rounded p-2 text-center">
+                  <div className="text-xs text-text-tertiary">노출</div>
+                  <div className="font-semibold text-text-primary">{runNowResult.summary.impressions?.toLocaleString()}</div>
                 </div>
-                <div className="bg-[#0F1011] rounded p-2 text-center">
-                  <div className="text-xs text-[#8A8F98]">클릭</div>
-                  <div className="font-semibold text-[#F7F8F8]">{runNowResult.summary.clicks?.toLocaleString()}</div>
+                <div className="bg-bg-1 rounded p-2 text-center">
+                  <div className="text-xs text-text-tertiary">클릭</div>
+                  <div className="font-semibold text-text-primary">{runNowResult.summary.clicks?.toLocaleString()}</div>
                 </div>
-                <div className="bg-[#0F1011] rounded p-2 text-center">
-                  <div className="text-xs text-[#8A8F98]">CTR</div>
-                  <div className="font-semibold text-[#F7F8F8]">{runNowResult.summary.ctr?.toFixed(2)}%</div>
+                <div className="bg-bg-1 rounded p-2 text-center">
+                  <div className="text-xs text-text-tertiary">CTR</div>
+                  <div className="font-semibold text-text-primary">{runNowResult.summary.ctr?.toFixed(2)}%</div>
                 </div>
               </div>
             )}
             {runNowResult.reason && !runNowResult.email_sent && (
-              <p className="text-xs text-[#8A8F98] mt-2">
+              <p className="text-xs text-text-tertiary mt-2">
                 원인: {runNowResult.reason === 'no_meta_token' ? 'Meta 액세스 토큰이 없습니다' :
                        runNowResult.reason === 'no_ad_account' ? 'Meta 광고 계정이 설정되지 않았습니다' :
                        runNowResult.reason === 'resend_api_key_not_set' ? 'RESEND_API_KEY 환경변수가 서버에 설정되지 않았습니다' :
@@ -938,7 +938,7 @@ function ReportNewsletter({ data, onEmail }: { data: any; onEmail?: () => void }
   };
 
   const gradeColors: Record<string, string> = {
-    A: 'from-emerald-500 to-green-600', B: 'from-[#08090A]0 to-indigo-600',
+    A: 'from-emerald-500 to-green-600', B: 'from-bg-00 to-indigo-600',
     C: 'from-yellow-500 to-orange-500', D: 'from-orange-500 to-red-500', F: 'from-red-500 to-red-700',
   };
   const grade = ai?.overall_grade || 'B';
@@ -1013,7 +1013,7 @@ function ReportNewsletter({ data, onEmail }: { data: any; onEmail?: () => void }
         )}
       </div>
 
-      <div id="report-printable" className="rounded-2xl overflow-hidden border border-[#23252A] shadow-[0px_7px_32px_rgba(0,0,0,0.35)] bg-[#0F1011]">
+      <div id="report-printable" className="rounded-2xl overflow-hidden border border-border-primary shadow-[0px_7px_32px_rgba(0,0,0,0.35)] bg-bg-1">
         {/* Hero Header */}
         <div className="bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-800 px-6 sm:px-10 py-8 relative overflow-hidden">
           <div className="absolute inset-0 pointer-events-none">
@@ -1023,7 +1023,7 @@ function ReportNewsletter({ data, onEmail }: { data: any; onEmail?: () => void }
           <div className="relative z-10 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-3 mb-3">
-                <div className="w-9 h-9 bg-[#0F1011]/15 backdrop-blur-sm rounded-lg flex items-center justify-center border border-white/10">
+                <div className="w-9 h-9 bg-bg-1/15 backdrop-blur-sm rounded-lg flex items-center justify-center border border-white/10">
                   <BarChart3 size={18} className="text-white" />
                 </div>
                 <div>
@@ -1037,10 +1037,10 @@ function ReportNewsletter({ data, onEmail }: { data: any; onEmail?: () => void }
                 <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">성과 분석 리포트</h2>
               )}
               <div className="flex flex-wrap items-center gap-2 mt-2">
-                <span className="text-blue-200/80 text-xs sm:text-sm font-medium bg-[#0F1011]/10 backdrop-blur-sm px-3 py-1 rounded-lg">
+                <span className="text-blue-200/80 text-xs sm:text-sm font-medium bg-bg-1/10 backdrop-blur-sm px-3 py-1 rounded-lg">
                   {period.start} ~ {period.end}
                 </span>
-                {campaign && <span className="text-blue-200/80 text-xs sm:text-sm bg-[#0F1011]/10 backdrop-blur-sm px-3 py-1 rounded-lg truncate max-w-[200px]">{campaign.name}</span>}
+                {campaign && <span className="text-blue-200/80 text-xs sm:text-sm bg-bg-1/10 backdrop-blur-sm px-3 py-1 rounded-lg truncate max-w-[200px]">{campaign.name}</span>}
               </div>
             </div>
             {ai?.overall_grade && (
@@ -1057,12 +1057,12 @@ function ReportNewsletter({ data, onEmail }: { data: any; onEmail?: () => void }
         <div className="p-5 sm:p-8 space-y-6">
           {/* Period Summary */}
           {ai?.period_summary && (
-            <div className="bg-gradient-to-r from-[#08090A] to-indigo-50 rounded-xl p-4 border border-blue-100/80">
+            <div className="bg-gradient-to-r from-bg-0 to-indigo-50 rounded-xl p-4 border border-blue-100/80">
               <div className="flex items-start gap-3">
-                <div className="w-7 h-7 bg-[#4EA7FC]/15 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <BarChart3 size={14} className="text-[#7070FF]" />
+                <div className="w-7 h-7 bg-blue/15 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <BarChart3 size={14} className="text-accent" />
                 </div>
-                <p className="text-[#D0D6E0] text-sm leading-relaxed whitespace-pre-line break-words">{ai.period_summary}</p>
+                <p className="text-text-secondary text-sm leading-relaxed whitespace-pre-line break-words">{ai.period_summary}</p>
               </div>
             </div>
           )}
@@ -1079,20 +1079,20 @@ function ReportNewsletter({ data, onEmail }: { data: any; onEmail?: () => void }
           {/* Trend Charts */}
           {daily.length > 1 && (
             <div>
-              <h4 className="text-xs font-semibold text-[#62666D] uppercase tracking-[0.15em] mb-4 flex items-center gap-2">
+              <h4 className="text-xs font-semibold text-text-quaternary uppercase tracking-[0.15em] mb-4 flex items-center gap-2">
                 <Activity size={14} className="text-blue-500" /> 일별 추이
               </h4>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {[
-                  { label: '지출', data: spendData, color: '#3b82f6', bg: 'from-[#08090A] to-blue-100/50' },
+                  { label: '지출', data: spendData, color: '#3b82f6', bg: 'from-bg-0 to-blue-100/50' },
                   { label: 'ROAS', data: roasData, color: totals.roas >= 1 ? '#10b981' : '#ef4444', bg: totals.roas >= 1 ? 'from-emerald-50 to-green-100/50' : 'from-red-50 to-red-100/50' },
                   { label: 'CTR (%)', data: ctrData, color: '#10b981', bg: 'from-emerald-50 to-teal-100/50' },
                   { label: '클릭', data: clickData, color: '#f97316', bg: 'from-orange-50 to-amber-100/50' },
                 ].map((chart) => (
-                  <div key={chart.label} className={`bg-gradient-to-br ${chart.bg} rounded-2xl p-4 border border-[#23252A]/80`}>
-                    <h5 className="text-xs font-semibold text-[#8A8F98] mb-3">{chart.label}</h5>
+                  <div key={chart.label} className={`bg-gradient-to-br ${chart.bg} rounded-2xl p-4 border border-border-primary/80`}>
+                    <h5 className="text-xs font-semibold text-text-tertiary mb-3">{chart.label}</h5>
                     <ReportSparkline data={chart.data} color={chart.color} height={60} />
-                    <div className="flex justify-between text-[10px] text-[#62666D] mt-2 font-medium">
+                    <div className="flex justify-between text-[10px] text-text-quaternary mt-2 font-medium">
                       <span>{daily[0]?.date_stop?.slice(5) || ''}</span>
                       <span>{daily[daily.length - 1]?.date_stop?.slice(5) || ''}</span>
                     </div>
@@ -1104,32 +1104,32 @@ function ReportNewsletter({ data, onEmail }: { data: any; onEmail?: () => void }
 
           {ai?.daily_trend_insight && (
             <div className="bg-gradient-to-r from-sky-50 to-blue-50 rounded-2xl p-4 border border-sky-100">
-              <p className="text-sm text-[#828FFF] leading-relaxed">{ai.daily_trend_insight}</p>
+              <p className="text-sm text-accent-hover leading-relaxed">{ai.daily_trend_insight}</p>
             </div>
           )}
 
           {/* AI KPI Highlights */}
           {ai?.kpi_highlights && ai.kpi_highlights.length > 0 && (
             <div>
-              <h4 className="text-xs font-semibold text-[#62666D] uppercase tracking-[0.15em] mb-4 flex items-center gap-2">
+              <h4 className="text-xs font-semibold text-text-quaternary uppercase tracking-[0.15em] mb-4 flex items-center gap-2">
                 <Zap size={14} className="text-amber-500" /> KPI 하이라이트
               </h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {ai.kpi_highlights.map((kpi: any, i: number) => (
-                  <div key={i} className="flex items-center gap-4 bg-[#0F1011] rounded-xl p-4 border border-[#23252A] shadow-[0px_1px_3px_rgba(0,0,0,0.2)] hover:shadow-[0px_3px_12px_rgba(0,0,0,0.2)] transition-shadow">
+                  <div key={i} className="flex items-center gap-4 bg-bg-1 rounded-xl p-4 border border-border-primary shadow-[0px_1px_3px_rgba(0,0,0,0.2)] hover:shadow-[0px_3px_12px_rgba(0,0,0,0.2)] transition-shadow">
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
                       kpi.change?.startsWith('+') ? 'bg-gradient-to-br from-green-100 to-emerald-100' : kpi.change?.startsWith('-') ? 'bg-gradient-to-br from-red-100 to-rose-100' : 'bg-gradient-to-br from-blue-100 to-indigo-100'
                     }`}>
-                      {kpi.change?.startsWith('+') ? <ArrowUpRight size={16} className="text-[#27A644]" /> :
-                       kpi.change?.startsWith('-') ? <ArrowDownRight size={16} className="text-[#EB5757]" /> :
-                       <TrendingUp size={16} className="text-[#7070FF]" />}
+                      {kpi.change?.startsWith('+') ? <ArrowUpRight size={16} className="text-green" /> :
+                       kpi.change?.startsWith('-') ? <ArrowDownRight size={16} className="text-red" /> :
+                       <TrendingUp size={16} className="text-accent" />}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-[#F7F8F8]">{kpi.metric} {kpi.value}</span>
-                        {kpi.change && <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${kpi.change.startsWith('+') ? 'bg-[#27A644]/15 text-[#27A644]' : 'bg-[#EB5757]/15 text-[#EB5757]'}`}>{kpi.change}</span>}
+                        <span className="text-sm font-bold text-text-primary">{kpi.metric} {kpi.value}</span>
+                        {kpi.change && <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${kpi.change.startsWith('+') ? 'bg-green/15 text-green' : 'bg-red/15 text-red'}`}>{kpi.change}</span>}
                       </div>
-                      <p className="text-xs text-[#8A8F98] mt-0.5">{kpi.insight}</p>
+                      <p className="text-xs text-text-tertiary mt-0.5">{kpi.insight}</p>
                     </div>
                   </div>
                 ))}
@@ -1140,39 +1140,39 @@ function ReportNewsletter({ data, onEmail }: { data: any; onEmail?: () => void }
           {/* Daily Data Table */}
           {daily.length > 0 && (
             <div>
-              <h4 className="text-xs font-semibold text-[#62666D] uppercase tracking-[0.15em] mb-4 flex items-center gap-2">
+              <h4 className="text-xs font-semibold text-text-quaternary uppercase tracking-[0.15em] mb-4 flex items-center gap-2">
                 <Calendar size={14} className="text-indigo-500" /> 일별 데이터
               </h4>
-              <div className="rounded-2xl border border-[#23252A] overflow-hidden shadow-[0px_1px_3px_rgba(0,0,0,0.2)]">
+              <div className="rounded-2xl border border-border-primary overflow-hidden shadow-[0px_1px_3px_rgba(0,0,0,0.2)]">
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
                     <thead>
-                      <tr className="bg-gradient-to-r from-slate-50 to-[#08090A]">
-                        <th className="text-left py-3 px-4 text-[#8A8F98] font-semibold text-xs">날짜</th>
-                        <th className="text-right py-3 px-3 text-[#8A8F98] font-semibold text-xs">지출</th>
-                        <th className="text-right py-3 px-3 text-[#8A8F98] font-semibold text-xs">노출</th>
-                        <th className="text-right py-3 px-3 text-[#8A8F98] font-semibold text-xs">도달</th>
-                        <th className="text-right py-3 px-3 text-[#8A8F98] font-semibold text-xs">클릭</th>
-                        <th className="text-right py-3 px-3 text-[#8A8F98] font-semibold text-xs">CTR</th>
-                        <th className="text-right py-3 px-3 text-[#8A8F98] font-semibold text-xs">CPC</th>
-                        <th className="text-right py-3 px-3 text-[#8A8F98] font-semibold text-xs">전환매출</th>
-                        <th className="text-right py-3 px-3 text-[#8A8F98] font-semibold text-xs">ROAS</th>
+                      <tr className="bg-gradient-to-r from-slate-50 to-bg-0">
+                        <th className="text-left py-3 px-4 text-text-tertiary font-semibold text-xs">날짜</th>
+                        <th className="text-right py-3 px-3 text-text-tertiary font-semibold text-xs">지출</th>
+                        <th className="text-right py-3 px-3 text-text-tertiary font-semibold text-xs">노출</th>
+                        <th className="text-right py-3 px-3 text-text-tertiary font-semibold text-xs">도달</th>
+                        <th className="text-right py-3 px-3 text-text-tertiary font-semibold text-xs">클릭</th>
+                        <th className="text-right py-3 px-3 text-text-tertiary font-semibold text-xs">CTR</th>
+                        <th className="text-right py-3 px-3 text-text-tertiary font-semibold text-xs">CPC</th>
+                        <th className="text-right py-3 px-3 text-text-tertiary font-semibold text-xs">전환매출</th>
+                        <th className="text-right py-3 px-3 text-text-tertiary font-semibold text-xs">ROAS</th>
                       </tr>
                     </thead>
                     <tbody>
                       {daily.map((row: any, i: number) => {
                         const roas = parseFloat(row.roas || 0);
                         return (
-                          <tr key={i} className={`hover:bg-[#4EA7FC]/10/60 transition-colors ${i % 2 === 0 ? 'bg-[#0F1011]' : 'bg-[#08090A]/40'}`}>
-                            <td className="py-2.5 px-4 text-[#D0D6E0] font-medium">{row.date_stop || row.date || '-'}</td>
-                            <td className="py-2.5 px-3 text-right font-semibold text-[#F7F8F8]">{formatSpend(row.spend)}</td>
-                            <td className="py-2.5 px-3 text-right text-[#8A8F98]">{formatNum(row.impressions)}</td>
-                            <td className="py-2.5 px-3 text-right text-[#8A8F98]">{formatNum(row.reach)}</td>
-                            <td className="py-2.5 px-3 text-right text-[#8A8F98]">{formatNum(row.clicks)}</td>
-                            <td className="py-2.5 px-3 text-right text-[#8A8F98]">{parseFloat(row.ctr || '0').toFixed(2)}%</td>
-                            <td className="py-2.5 px-3 text-right text-[#8A8F98]">{formatCPC(row.cpc)}</td>
-                            <td className="py-2.5 px-3 text-right text-[#8A8F98]">{row.conversion_value ? formatSpend(row.conversion_value) : '-'}</td>
-                            <td className={`py-2.5 px-3 text-right font-bold ${roas >= 1 ? 'text-emerald-600' : roas > 0 ? 'text-[#EB5757]' : 'text-[#62666D]'}`}>{formatROAS(row.roas)}</td>
+                          <tr key={i} className={`hover:bg-blue/10/60 transition-colors ${i % 2 === 0 ? 'bg-bg-1' : 'bg-bg-0/40'}`}>
+                            <td className="py-2.5 px-4 text-text-secondary font-medium">{row.date_stop || row.date || '-'}</td>
+                            <td className="py-2.5 px-3 text-right font-semibold text-text-primary">{formatSpend(row.spend)}</td>
+                            <td className="py-2.5 px-3 text-right text-text-tertiary">{formatNum(row.impressions)}</td>
+                            <td className="py-2.5 px-3 text-right text-text-tertiary">{formatNum(row.reach)}</td>
+                            <td className="py-2.5 px-3 text-right text-text-tertiary">{formatNum(row.clicks)}</td>
+                            <td className="py-2.5 px-3 text-right text-text-tertiary">{parseFloat(row.ctr || '0').toFixed(2)}%</td>
+                            <td className="py-2.5 px-3 text-right text-text-tertiary">{formatCPC(row.cpc)}</td>
+                            <td className="py-2.5 px-3 text-right text-text-tertiary">{row.conversion_value ? formatSpend(row.conversion_value) : '-'}</td>
+                            <td className={`py-2.5 px-3 text-right font-bold ${roas >= 1 ? 'text-emerald-600' : roas > 0 ? 'text-red' : 'text-text-quaternary'}`}>{formatROAS(row.roas)}</td>
                           </tr>
                         );
                       })}
@@ -1199,7 +1199,7 @@ function ReportNewsletter({ data, onEmail }: { data: any; onEmail?: () => void }
           {/* AI Insights */}
           {ai?.key_insights?.length > 0 && (
             <div>
-              <h4 className="text-xs font-semibold text-[#62666D] uppercase tracking-[0.15em] mb-4 flex items-center gap-2">
+              <h4 className="text-xs font-semibold text-text-quaternary uppercase tracking-[0.15em] mb-4 flex items-center gap-2">
                 <AlertTriangle size={14} className="text-amber-500" /> 핵심 인사이트
               </h4>
               <div className="space-y-3">
@@ -1208,7 +1208,7 @@ function ReportNewsletter({ data, onEmail }: { data: any; onEmail?: () => void }
                     <div className="w-8 h-8 bg-gradient-to-br from-amber-500 to-orange-500 rounded-xl flex items-center justify-center flex-shrink-0 shadow-[0px_1px_3px_rgba(0,0,0,0.2)]">
                       <span className="text-white text-xs font-black">{i + 1}</span>
                     </div>
-                    <p className="text-sm text-[#F7F8F8] leading-relaxed pt-1">{insight}</p>
+                    <p className="text-sm text-text-primary leading-relaxed pt-1">{insight}</p>
                   </div>
                 ))}
               </div>
@@ -1218,26 +1218,26 @@ function ReportNewsletter({ data, onEmail }: { data: any; onEmail?: () => void }
           {/* Recommendations */}
           {ai?.recommendations?.length > 0 && (
             <div>
-              <h4 className="text-xs font-semibold text-[#62666D] uppercase tracking-[0.15em] mb-4 flex items-center gap-2">
+              <h4 className="text-xs font-semibold text-text-quaternary uppercase tracking-[0.15em] mb-4 flex items-center gap-2">
                 <CheckCircle size={14} className="text-green-500" /> 실행 추천
               </h4>
               <div className="space-y-3">
                 {ai.recommendations.map((rec: any, i: number) => (
                   <div key={i} className={`rounded-xl p-5 border-l-4 shadow-[0px_1px_3px_rgba(0,0,0,0.2)] ${
-                    rec.priority === 'high' ? 'border-l-red-500 bg-gradient-to-r from-red-50 to-[#0F1011] border border-red-100' :
-                    rec.priority === 'medium' ? 'border-l-yellow-500 bg-gradient-to-r from-yellow-50 to-[#0F1011] border border-yellow-100' :
-                    'border-l-gray-400 bg-gradient-to-r from-[#08090A] to-[#0F1011] border border-[#23252A]'
+                    rec.priority === 'high' ? 'border-l-red-500 bg-gradient-to-r from-red-50 to-bg-1 border border-red-100' :
+                    rec.priority === 'medium' ? 'border-l-yellow-500 bg-gradient-to-r from-yellow-50 to-bg-1 border border-yellow-100' :
+                    'border-l-gray-400 bg-gradient-to-r from-bg-0 to-bg-1 border border-border-primary'
                   }`}>
                     <div className="flex items-center gap-2 mb-2">
                       <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
-                        rec.priority === 'high' ? 'bg-[#EB5757] text-white' :
-                        rec.priority === 'medium' ? 'bg-[#F0BF00] text-white' : 'bg-[#232326] text-white'
+                        rec.priority === 'high' ? 'bg-red text-white' :
+                        rec.priority === 'medium' ? 'bg-yellow text-white' : 'bg-bg-4 text-white'
                       }`}>{rec.priority === 'high' ? '긴급' : rec.priority === 'medium' ? '중요' : '참고'}</span>
-                      <h5 className="text-sm font-bold text-[#F7F8F8]">{rec.title}</h5>
+                      <h5 className="text-sm font-bold text-text-primary">{rec.title}</h5>
                     </div>
-                    <p className="text-sm text-[#8A8F98] leading-relaxed">{rec.description}</p>
+                    <p className="text-sm text-text-tertiary leading-relaxed">{rec.description}</p>
                     {rec.expected_impact && (
-                      <div className="mt-2 flex items-center gap-1.5 text-xs text-[#7070FF] font-medium bg-[#4EA7FC]/10 px-3 py-1.5 rounded-lg w-fit">
+                      <div className="mt-2 flex items-center gap-1.5 text-xs text-accent font-medium bg-blue/10 px-3 py-1.5 rounded-lg w-fit">
                         <Award size={12} /> 예상 효과: {rec.expected_impact}
                       </div>
                     )}
@@ -1249,22 +1249,22 @@ function ReportNewsletter({ data, onEmail }: { data: any; onEmail?: () => void }
 
           {/* Fallback AI text */}
           {!ai && aiText && (
-            <div className="bg-gradient-to-br from-[#08090A] to-slate-50 rounded-2xl p-6 border border-[#23252A]">
-              <h4 className="text-xs font-semibold text-[#62666D] uppercase tracking-[0.15em] mb-3">AI 분석</h4>
-              <div className="text-sm text-[#D0D6E0] whitespace-pre-wrap leading-relaxed">{aiText}</div>
+            <div className="bg-gradient-to-br from-bg-0 to-slate-50 rounded-2xl p-6 border border-border-primary">
+              <h4 className="text-xs font-semibold text-text-quaternary uppercase tracking-[0.15em] mb-3">AI 분석</h4>
+              <div className="text-sm text-text-secondary whitespace-pre-wrap leading-relaxed">{aiText}</div>
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <div className="bg-gradient-to-r from-slate-50 to-[#08090A] border-t border-[#23252A] px-8 py-4 flex items-center justify-between">
+        <div className="bg-gradient-to-r from-slate-50 to-bg-0 border-t border-border-primary px-8 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-5 h-5 bg-gradient-to-r from-blue-600 to-indigo-600 rounded flex items-center justify-center">
               <span className="text-white text-[8px] font-bold">M</span>
             </div>
-            <span className="text-xs text-[#62666D] font-medium">Meta-Commander 자동 생성 리포트</span>
+            <span className="text-xs text-text-quaternary font-medium">Meta-Commander 자동 생성 리포트</span>
           </div>
-          <span className="text-xs text-[#62666D]">{new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
+          <span className="text-xs text-text-quaternary">{new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
         </div>
       </div>
     </div>
@@ -1276,24 +1276,24 @@ function ReportKPICard({ icon, label, value, sub, sparkData, sparkColor, accent,
   sparkData: number[]; sparkColor: string; accent: string; highlight?: boolean;
 }) {
   const accentBg: Record<string, string> = {
-    blue: 'bg-[#4EA7FC]/10', purple: 'bg-[#5E6AD2]/10', green: 'bg-emerald-50',
-    orange: 'bg-[#FC7840]/10', red: 'bg-[#EB5757]/10',
+    blue: 'bg-blue/10', purple: 'bg-brand/10', green: 'bg-emerald-50',
+    orange: 'bg-orange/10', red: 'bg-red/10',
   };
   const accentText: Record<string, string> = {
-    blue: 'text-[#7070FF]', purple: 'text-[#7070FF]', green: 'text-emerald-600',
-    orange: 'text-[#FC7840]', red: 'text-[#EB5757]',
+    blue: 'text-accent', purple: 'text-accent', green: 'text-emerald-600',
+    orange: 'text-orange', red: 'text-red',
   };
 
   return (
     <div className={`rounded-2xl p-4 border transition-all hover:shadow-[0px_7px_32px_rgba(0,0,0,0.35)] hover:-translate-y-0.5 ${
-      highlight ? 'border-[#5E6AD2]/30 bg-gradient-to-br from-[#08090A] via-indigo-50 to-[#08090A] ring-1 ring-blue-100 shadow-blue-100/50 shadow-[0px_3px_12px_rgba(0,0,0,0.2)]' : 'border-[#23252A] bg-[#0F1011] hover:border-[#23252A] shadow-[0px_1px_3px_rgba(0,0,0,0.2)]'
+      highlight ? 'border-brand/30 bg-gradient-to-br from-bg-0 via-indigo-50 to-bg-0 ring-1 ring-blue-100 shadow-blue-100/50 shadow-[0px_3px_12px_rgba(0,0,0,0.2)]' : 'border-border-primary bg-bg-1 hover:border-border-primary shadow-[0px_1px_3px_rgba(0,0,0,0.2)]'
     }`}>
       <div className="flex items-center gap-2 mb-3">
         <div className={`p-2 rounded-xl ${accentBg[accent]} ${accentText[accent]}`}>{icon}</div>
-        <span className="text-xs text-[#8A8F98] font-semibold">{label}</span>
+        <span className="text-xs text-text-tertiary font-semibold">{label}</span>
       </div>
-      <p className="text-2xl font-black text-[#F7F8F8] tracking-tight">{value}</p>
-      {sub && <p className="text-xs text-[#62666D] mt-1 font-medium">{sub}</p>}
+      <p className="text-2xl font-black text-text-primary tracking-tight">{value}</p>
+      {sub && <p className="text-xs text-text-quaternary mt-1 font-medium">{sub}</p>}
       {sparkData.length > 1 && (
         <div className="mt-3 -mx-1">
           <ReportSparkline data={sparkData} color={sparkColor} height={36} />

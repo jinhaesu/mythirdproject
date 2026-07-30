@@ -173,16 +173,16 @@ export function NaverAutoManagement() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-[#F7F8F8] flex items-center gap-2">
-            <Zap className="text-[#27A644]" size={28} />
+          <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
+            <Zap className="text-green" size={28} />
             네이버 자동관리
           </h1>
-          <p className="text-sm text-[#8A8F98] mt-1">조건 기반 자동 최적화 규칙 설정</p>
+          <p className="text-sm text-text-tertiary mt-1">조건 기반 자동 최적화 규칙 설정</p>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowCreateForm(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-[#27A644] text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-green text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
           >
             <Plus size={16} />
             룰 생성
@@ -190,7 +190,7 @@ export function NaverAutoManagement() {
           <button
             onClick={() => executeRulesMutation.mutate()}
             disabled={executeRulesMutation.isPending}
-            className="flex items-center gap-2 px-4 py-2 border border-green-300 text-[#27A644] rounded-lg text-sm font-medium hover:bg-[#27A644]/10 transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 border border-green-300 text-green rounded-lg text-sm font-medium hover:bg-green/10 transition-colors disabled:opacity-50"
           >
             {executeRulesMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <PlayCircle size={16} />}
             즉시 실행
@@ -200,51 +200,51 @@ export function NaverAutoManagement() {
 
       {/* Create Rule Form */}
       {showCreateForm && (
-        <div className="bg-[#0F1011] rounded-xl border border-[#23252A] p-6">
+        <div className="bg-bg-1 rounded-xl border border-border-primary p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-[#F7F8F8] flex items-center gap-2">
-              <Plus size={20} className="text-[#27A644]" />
+            <h2 className="text-lg font-semibold text-text-primary flex items-center gap-2">
+              <Plus size={20} className="text-green" />
               새 규칙 생성
             </h2>
-            <button onClick={() => { setShowCreateForm(false); resetForm(); }} className="text-[#62666D] hover:text-[#D0D6E0]">
+            <button onClick={() => { setShowCreateForm(false); resetForm(); }} className="text-text-quaternary hover:text-text-secondary">
               <Trash2 size={16} />
             </button>
           </div>
           <div className="max-w-lg space-y-4">
             <div>
-              <label className="block text-sm font-medium text-[#D0D6E0] mb-1">규칙 이름</label>
+              <label className="block text-sm font-medium text-text-secondary mb-1">규칙 이름</label>
               <input
                 type="text"
                 value={ruleForm.name}
                 onChange={(e) => setRuleForm({ ...ruleForm, name: e.target.value })}
-                className="w-full rounded-lg border border-[#23252A] px-4 py-2 text-sm focus:border-[#27A644] focus:ring-1 focus:ring-green-500 focus:outline-none"
+                className="w-full rounded-lg border border-border-primary px-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green-500 focus:outline-none"
                 placeholder="예: CPC 과다 시 알림"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-[#D0D6E0] mb-1">적용 플랫폼</label>
+              <label className="block text-sm font-medium text-text-secondary mb-1">적용 플랫폼</label>
               <select
                 value={ruleForm.platform}
                 onChange={(e) => setRuleForm({ ...ruleForm, platform: e.target.value })}
-                className="w-full rounded-lg border border-[#23252A] px-3 py-2 text-sm bg-[#0F1011] focus:border-[#27A644] focus:ring-1 focus:ring-green-500 focus:outline-none"
+                className="w-full rounded-lg border border-border-primary px-3 py-2 text-sm bg-bg-1 focus:border-green focus:ring-1 focus:ring-green-500 focus:outline-none"
               >
                 {PLATFORM_OPTIONS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
               </select>
             </div>
-            <div className="p-4 bg-[#08090A] rounded-lg">
-              <p className="text-sm font-medium text-[#D0D6E0] mb-3">조건 설정</p>
+            <div className="p-4 bg-bg-0 rounded-lg">
+              <p className="text-sm font-medium text-text-secondary mb-3">조건 설정</p>
               <div className="flex items-center gap-2 flex-wrap">
                 <select
                   value={ruleForm.metric}
                   onChange={(e) => setRuleForm({ ...ruleForm, metric: e.target.value })}
-                  className="rounded border border-[#23252A] px-3 py-1.5 text-sm bg-[#0F1011]"
+                  className="rounded border border-border-primary px-3 py-1.5 text-sm bg-bg-1"
                 >
                   {METRIC_OPTIONS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
                 </select>
                 <select
                   value={ruleForm.operator}
                   onChange={(e) => setRuleForm({ ...ruleForm, operator: e.target.value })}
-                  className="rounded border border-[#23252A] px-3 py-1.5 text-sm bg-[#0F1011] w-16"
+                  className="rounded border border-border-primary px-3 py-1.5 text-sm bg-bg-1 w-16"
                 >
                   {OPERATOR_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
@@ -252,20 +252,20 @@ export function NaverAutoManagement() {
                   type="number"
                   value={ruleForm.threshold}
                   onChange={(e) => setRuleForm({ ...ruleForm, threshold: Number(e.target.value) })}
-                  className="rounded border border-[#23252A] px-3 py-1.5 text-sm w-28 text-right"
+                  className="rounded border border-border-primary px-3 py-1.5 text-sm w-28 text-right"
                 />
-                <span className="text-xs text-[#8A8F98]">
+                <span className="text-xs text-text-tertiary">
                   {ruleForm.metric.includes('ctr') || ruleForm.metric.includes('roas') || ruleForm.metric.includes('budget_usage') ? '%' : '원'}
                 </span>
               </div>
             </div>
-            <div className="p-4 bg-[#08090A] rounded-lg">
-              <p className="text-sm font-medium text-[#D0D6E0] mb-3">액션</p>
+            <div className="p-4 bg-bg-0 rounded-lg">
+              <p className="text-sm font-medium text-text-secondary mb-3">액션</p>
               <div className="flex items-center gap-2 flex-wrap">
                 <select
                   value={ruleForm.action}
                   onChange={(e) => setRuleForm({ ...ruleForm, action: e.target.value })}
-                  className="rounded border border-[#23252A] px-3 py-1.5 text-sm bg-[#0F1011]"
+                  className="rounded border border-border-primary px-3 py-1.5 text-sm bg-bg-1"
                 >
                   {ACTION_OPTIONS.map((a) => <option key={a.value} value={a.value}>{a.label}</option>)}
                 </select>
@@ -275,9 +275,9 @@ export function NaverAutoManagement() {
                       type="number"
                       value={ruleForm.actionValue}
                       onChange={(e) => setRuleForm({ ...ruleForm, actionValue: Number(e.target.value) })}
-                      className="rounded border border-[#23252A] px-3 py-1.5 text-sm w-20 text-right"
+                      className="rounded border border-border-primary px-3 py-1.5 text-sm w-20 text-right"
                     />
-                    <span className="text-xs text-[#8A8F98]">%</span>
+                    <span className="text-xs text-text-tertiary">%</span>
                   </div>
                 )}
               </div>
@@ -285,7 +285,7 @@ export function NaverAutoManagement() {
             <div className="flex items-center justify-between">
               <button
                 onClick={() => { setShowCreateForm(false); resetForm(); }}
-                className="px-4 py-2 border border-[#23252A] rounded-lg text-sm font-medium text-[#D0D6E0] hover:bg-[#141516]/5"
+                className="px-4 py-2 border border-border-primary rounded-lg text-sm font-medium text-text-secondary hover:bg-bg-2/5"
               >
                 취소
               </button>
@@ -295,7 +295,7 @@ export function NaverAutoManagement() {
                   createRuleMutation.mutate();
                 }}
                 disabled={createRuleMutation.isPending}
-                className="flex items-center gap-2 px-4 py-2 bg-[#27A644] text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2 bg-green text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50"
               >
                 {createRuleMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
                 규칙 생성
@@ -306,37 +306,37 @@ export function NaverAutoManagement() {
       )}
 
       {/* Active Rules List */}
-      <div className="bg-[#0F1011] rounded-xl border border-[#23252A] overflow-hidden">
-        <div className="px-6 py-4 border-b border-[#23252A]">
-          <h2 className="text-base font-semibold text-[#F7F8F8] flex items-center gap-2">
-            <Zap size={18} className="text-[#27A644]" />
+      <div className="bg-bg-1 rounded-xl border border-border-primary overflow-hidden">
+        <div className="px-6 py-4 border-b border-border-primary">
+          <h2 className="text-base font-semibold text-text-primary flex items-center gap-2">
+            <Zap size={18} className="text-green" />
             활성 룰 목록
           </h2>
         </div>
         {loadingRules ? (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="animate-spin text-[#27A644]" size={24} />
-            <span className="ml-2 text-[#8A8F98]">규칙 로딩 중...</span>
+            <Loader2 className="animate-spin text-green" size={24} />
+            <span className="ml-2 text-text-tertiary">규칙 로딩 중...</span>
           </div>
         ) : rules.length === 0 ? (
-          <div className="text-center py-12 text-[#8A8F98]">
-            <Bot size={48} className="mx-auto mb-3 text-[#62666D]" />
+          <div className="text-center py-12 text-text-tertiary">
+            <Bot size={48} className="mx-auto mb-3 text-text-quaternary" />
             <p>등록된 자동 관리 규칙이 없습니다.</p>
             <button
               onClick={() => setShowCreateForm(true)}
-              className="mt-4 px-4 py-2 bg-[#27A644] text-white rounded-lg text-sm font-medium hover:bg-green-700"
+              className="mt-4 px-4 py-2 bg-green text-white rounded-lg text-sm font-medium hover:bg-green-700"
             >
               첫 규칙 만들기
             </button>
           </div>
         ) : (
-          <div className="divide-y divide-[#23252A]">
+          <div className="divide-y divide-border-primary">
             {rules.map((rule: any) => {
               const ruleId = rule.id || rule.rule_id;
               const conditions = rule.conditions || [];
               const isEnabled = rule.enabled !== false;
               return (
-                <div key={ruleId} className="px-6 py-4 hover:bg-[#141516]/5">
+                <div key={ruleId} className="px-6 py-4 hover:bg-bg-2/5">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <button
@@ -344,28 +344,28 @@ export function NaverAutoManagement() {
                         className="flex-shrink-0"
                       >
                         {isEnabled ? (
-                          <ToggleRight size={24} className="text-[#27A644]" />
+                          <ToggleRight size={24} className="text-green" />
                         ) : (
-                          <ToggleLeft size={24} className="text-[#62666D]" />
+                          <ToggleLeft size={24} className="text-text-quaternary" />
                         )}
                       </button>
                       <div>
-                        <p className="text-sm font-medium text-[#F7F8F8]">{rule.name}</p>
+                        <p className="text-sm font-medium text-text-primary">{rule.name}</p>
                         <div className="flex items-center gap-2 mt-1 flex-wrap">
                           {rule.platform && rule.platform !== 'all' && (
-                            <span className="px-1.5 py-0.5 bg-[#27A644]/10 text-[#27A644] rounded text-xs">
+                            <span className="px-1.5 py-0.5 bg-green/10 text-green rounded text-xs">
                               {rule.platform === 'search_ads' ? '검색광고' : 'GFA'}
                             </span>
                           )}
                           {conditions.map((c: any, i: number) => (
-                            <span key={i} className="text-xs text-[#8A8F98]">
+                            <span key={i} className="text-xs text-text-tertiary">
                               {METRIC_OPTIONS.find((m) => m.value === c.metric)?.label || c.metric}{' '}
                               {OPERATOR_SYMBOL[c.operator] || c.operator}{' '}
                               {c.threshold}{c.metric.includes('ctr') || c.metric.includes('roas') || c.metric.includes('budget_usage') ? '%' : '원'}
                             </span>
                           ))}
-                          <span className="text-xs text-[#62666D]">→</span>
-                          <span className="text-xs font-medium text-[#D0D6E0]">
+                          <span className="text-xs text-text-quaternary">→</span>
+                          <span className="text-xs font-medium text-text-secondary">
                             {ACTION_KO[rule.action] || rule.action}
                             {rule.action_value ? ` (${rule.action_value}%)` : ''}
                           </span>
@@ -378,7 +378,7 @@ export function NaverAutoManagement() {
                           deleteRuleMutation.mutate(ruleId);
                         }
                       }}
-                      className="p-1.5 text-red-400 hover:text-[#EB5757] hover:bg-[#EB5757]/10 rounded"
+                      className="p-1.5 text-red-400 hover:text-red hover:bg-red/10 rounded"
                     >
                       <Trash2 size={14} />
                     </button>
@@ -391,31 +391,31 @@ export function NaverAutoManagement() {
       </div>
 
       {/* Execution Logs */}
-      <div className="bg-[#0F1011] rounded-xl border border-[#23252A] overflow-hidden">
+      <div className="bg-bg-1 rounded-xl border border-border-primary overflow-hidden">
         <button
-          className="w-full px-6 py-4 border-b border-[#23252A] flex items-center justify-between hover:bg-[#141516]/5"
+          className="w-full px-6 py-4 border-b border-border-primary flex items-center justify-between hover:bg-bg-2/5"
           onClick={() => setShowLogs(!showLogs)}
         >
-          <h2 className="text-base font-semibold text-[#F7F8F8] flex items-center gap-2">
-            <Clock size={18} className="text-[#27A644]" />
+          <h2 className="text-base font-semibold text-text-primary flex items-center gap-2">
+            <Clock size={18} className="text-green" />
             실행 로그
           </h2>
-          {showLogs ? <ChevronDown size={16} className="text-[#62666D]" /> : <ChevronRight size={16} className="text-[#62666D]" />}
+          {showLogs ? <ChevronDown size={16} className="text-text-quaternary" /> : <ChevronRight size={16} className="text-text-quaternary" />}
         </button>
         {showLogs && (
           <div>
             {loadingLogs ? (
               <div className="flex items-center justify-center py-8">
-                <Loader2 className="animate-spin text-[#27A644]" size={20} />
-                <span className="ml-2 text-[#8A8F98] text-sm">로그 로딩 중...</span>
+                <Loader2 className="animate-spin text-green" size={20} />
+                <span className="ml-2 text-text-tertiary text-sm">로그 로딩 중...</span>
               </div>
             ) : logs.length === 0 ? (
-              <div className="text-center py-8 text-[#62666D]">
+              <div className="text-center py-8 text-text-quaternary">
                 <Clock size={32} className="mx-auto mb-2" />
                 <p className="text-sm">실행 기록이 없습니다.</p>
               </div>
             ) : (
-              <div className="divide-y divide-[#23252A] max-h-64 overflow-y-auto">
+              <div className="divide-y divide-border-primary max-h-64 overflow-y-auto">
                 {logs.map((log: any, i: number) => (
                   <div key={i} className="px-6 py-3 text-sm">
                     <div className="flex items-center justify-between">
@@ -425,11 +425,11 @@ export function NaverAutoManagement() {
                         ) : (
                           <AlertTriangle size={14} className="text-yellow-500" />
                         )}
-                        <span className="font-medium text-[#F7F8F8]">{log.rule_name || log.name}</span>
+                        <span className="font-medium text-text-primary">{log.rule_name || log.name}</span>
                       </div>
-                      <span className="text-xs text-[#62666D]">{log.executed_at || log.created_at}</span>
+                      <span className="text-xs text-text-quaternary">{log.executed_at || log.created_at}</span>
                     </div>
-                    <p className="text-xs text-[#8A8F98] mt-1 ml-5">
+                    <p className="text-xs text-text-tertiary mt-1 ml-5">
                       {ACTION_KO[log.action] || log.action}: {log.details || log.message || '-'}
                     </p>
                   </div>
@@ -441,10 +441,10 @@ export function NaverAutoManagement() {
       </div>
 
       {/* AI Rule Recommendations */}
-      <div className="bg-[#0F1011] rounded-xl border border-[#23252A] p-6">
+      <div className="bg-bg-1 rounded-xl border border-border-primary p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-base font-semibold text-[#F7F8F8] flex items-center gap-2">
-            <Sparkles size={18} className="text-[#27A644]" />
+          <h2 className="text-base font-semibold text-text-primary flex items-center gap-2">
+            <Sparkles size={18} className="text-green" />
             AI 룰 추천
           </h2>
           <button
@@ -453,7 +453,7 @@ export function NaverAutoManagement() {
               aiRecommendMutation.mutate();
             }}
             disabled={aiRecommendMutation.isPending}
-            className="flex items-center gap-2 px-4 py-2 bg-[#27A644] text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 bg-green text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors disabled:opacity-50"
           >
             {aiRecommendMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
             {aiRecommendMutation.isPending ? '분석 중...' : '추천 받기'}
@@ -461,26 +461,26 @@ export function NaverAutoManagement() {
         </div>
 
         {!aiTriggered ? (
-          <div className="text-center py-8 text-[#62666D]">
+          <div className="text-center py-8 text-text-quaternary">
             <Bot size={40} className="mx-auto mb-3" />
             <p className="text-sm">AI가 현재 성과 데이터를 분석하여 최적의 자동 관리 규칙을 추천합니다.</p>
           </div>
         ) : aiRecommendMutation.isPending ? (
           <div className="flex items-center justify-center py-8">
-            <Loader2 className="animate-spin text-[#27A644]" size={24} />
-            <span className="ml-3 text-[#8A8F98]">AI가 최적의 규칙을 분석하고 있습니다...</span>
+            <Loader2 className="animate-spin text-green" size={24} />
+            <span className="ml-3 text-text-tertiary">AI가 최적의 규칙을 분석하고 있습니다...</span>
           </div>
         ) : aiRecommendMutation.data ? (
           <div className="space-y-3">
             {typeof aiRecommendMutation.data === 'string' ? (
-              <div className="prose prose-sm max-w-none text-[#D0D6E0] whitespace-pre-wrap">{aiRecommendMutation.data}</div>
+              <div className="prose prose-sm max-w-none text-text-secondary whitespace-pre-wrap">{aiRecommendMutation.data}</div>
             ) : Array.isArray(aiRecommendMutation.data.recommendations || aiRecommendMutation.data) ? (
               (aiRecommendMutation.data.recommendations || aiRecommendMutation.data).map((rec: any, i: number) => (
-                <div key={i} className="p-4 bg-[#27A644]/10 rounded-lg border border-[#27A644]/30">
-                  <p className="text-sm font-medium text-[#27A644]">{rec.name || rec.title || `추천 규칙 ${i + 1}`}</p>
-                  <p className="text-sm text-[#27A644] mt-1">{rec.description || rec.reason || (typeof rec === 'string' ? rec : '')}</p>
+                <div key={i} className="p-4 bg-green/10 rounded-lg border border-green/30">
+                  <p className="text-sm font-medium text-green">{rec.name || rec.title || `추천 규칙 ${i + 1}`}</p>
+                  <p className="text-sm text-green mt-1">{rec.description || rec.reason || (typeof rec === 'string' ? rec : '')}</p>
                   {rec.conditions && (
-                    <div className="mt-2 flex items-center gap-2 text-xs text-[#27A644]">
+                    <div className="mt-2 flex items-center gap-2 text-xs text-green">
                       <Activity size={12} />
                       <span>
                         {rec.conditions.map((c: any) =>
@@ -494,13 +494,13 @@ export function NaverAutoManagement() {
                 </div>
               ))
             ) : (
-              <div className="prose prose-sm max-w-none text-[#D0D6E0] whitespace-pre-wrap">
+              <div className="prose prose-sm max-w-none text-text-secondary whitespace-pre-wrap">
                 {JSON.stringify(aiRecommendMutation.data, null, 2)}
               </div>
             )}
           </div>
         ) : aiRecommendMutation.isError ? (
-          <div className="text-center py-8 text-[#EB5757]">
+          <div className="text-center py-8 text-red">
             <p className="text-sm">AI 추천에 실패했습니다. 다시 시도해주세요.</p>
           </div>
         ) : null}

@@ -79,25 +79,25 @@ export function HourlyHeatmapCard({ params }: { params: HourlyHeatmapParams }) {
   const refreshing = isFetching && !!data;
 
   return (
-    <div className="bg-[#0F1011] border border-[#23252A] rounded-xl p-4">
+    <div className="bg-bg-1 border border-border-primary rounded-xl p-4">
       <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
-        <h3 className="text-sm font-semibold text-[#D0D6E0] flex items-center gap-1.5">
-          <Clock3 size={14} className="text-[#7070FF]" />
+        <h3 className="text-sm font-semibold text-text-secondary flex items-center gap-1.5">
+          <Clock3 size={14} className="text-accent" />
           요일×시간대 광고 집행 히트맵
-          <span className="text-[10px] font-normal text-[#62666D]">Meta 실집행 · KST · 상단 기간 연동</span>
+          <span className="text-[10px] font-normal text-text-quaternary">Meta 실집행 · KST · 상단 기간 연동</span>
           {refreshing && (
-            <span className="flex items-center gap-1 text-[10px] font-normal text-[#7070FF]">
+            <span className="flex items-center gap-1 text-[10px] font-normal text-accent">
               <Loader2 size={10} className="animate-spin" /> 기간 적용 중…
             </span>
           )}
         </h3>
-        <div className="flex items-center bg-[#141516] rounded-lg p-0.5 flex-wrap">
+        <div className="flex items-center bg-bg-2 rounded-lg p-0.5 flex-wrap">
           {visibleMetrics.map((m) => (
             <button
               key={m.key}
               onClick={() => startTransition(() => setMetric(m.key))}
               className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-all ${
-                metric === m.key ? 'bg-[#0F1011] text-[#7070FF] shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'text-[#8A8F98] hover:text-[#D0D6E0]'
+                metric === m.key ? 'bg-bg-1 text-accent shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'text-text-tertiary hover:text-text-secondary'
               }`}
             >
               {m.label}
@@ -108,21 +108,21 @@ export function HourlyHeatmapCard({ params }: { params: HourlyHeatmapParams }) {
 
       {isLoading || !data ? (
         <div className="flex items-center justify-center h-40">
-          <Loader2 size={24} className="animate-spin text-[#7070FF]" />
+          <Loader2 size={24} className="animate-spin text-accent" />
         </div>
       ) : !data.available || !current ? (
-        <p className="text-xs text-[#62666D] py-8 text-center">{data.reason || '데이터를 불러오지 못했습니다.'}</p>
+        <p className="text-xs text-text-quaternary py-8 text-center">{data.reason || '데이터를 불러오지 못했습니다.'}</p>
       ) : (
         <>
           <div className={`transition-opacity duration-150 ${isPending || refreshing ? 'opacity-50' : 'opacity-100'}`}>
             <HeatmapGrid matrix={current.matrix} max={current.max} formatValue={formatValue} />
           </div>
 
-          <div className="flex items-center justify-between flex-wrap gap-2 mt-3 text-[11px] text-[#8A8F98]">
+          <div className="flex items-center justify-between flex-wrap gap-2 mt-3 text-[11px] text-text-tertiary">
             <span>
               {data.since} ~ {data.until} 합산
               {peak && (
-                <span className="text-[#D0D6E0]">
+                <span className="text-text-secondary">
                   {' '}· 피크 {WEEKDAYS[peak.w]}요일 {peak.h}시 ({fmtMetric(metric, current.max)})
                 </span>
               )}
@@ -140,16 +140,16 @@ export function HourlyHeatmapCard({ params }: { params: HourlyHeatmapParams }) {
           </div>
 
           {data.clamped && (
-            <p className="text-[10px] text-[#F0BF00] mt-2">
+            <p className="text-[10px] text-yellow mt-2">
               ⚠ 시간대 분석은 최대 92일까지 지원되어 선택 기간이 최근 92일로 잘렸습니다.
             </p>
           )}
 
           {data.basis && (
-            <div className="mt-3 bg-[#141516] border border-[#23252A] rounded-lg p-3 text-[10px] text-[#8A8F98] leading-relaxed space-y-1">
-              <p><b className="text-[#D0D6E0]">광고비:</b> {data.basis.spend}</p>
-              <p><b className="text-[#D0D6E0]">구매·매출 귀속:</b> {data.basis.attribution}</p>
-              <p><b className="text-[#D0D6E0]">기간:</b> {data.basis.period}</p>
+            <div className="mt-3 bg-bg-2 border border-border-primary rounded-lg p-3 text-[10px] text-text-tertiary leading-relaxed space-y-1">
+              <p><b className="text-text-secondary">광고비:</b> {data.basis.spend}</p>
+              <p><b className="text-text-secondary">구매·매출 귀속:</b> {data.basis.attribution}</p>
+              <p><b className="text-text-secondary">기간:</b> {data.basis.period}</p>
             </div>
           )}
         </>

@@ -23,17 +23,17 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(
   ({ className, variant = 'default', padding = 'md', children, ...props }, ref) => {
     const variants: Record<NonNullable<CardProps['variant']>, string> = {
       default:
-        'bg-[#0F1011] border border-[#23252A] text-[#F7F8F8] ' +
+        'bg-bg-1 border border-border-primary text-text-primary ' +
         'shadow-[0px_3px_12px_rgba(0,0,0,0.09)]',
 
       // bordered keeps the same surface as default — border is always visible
       bordered:
-        'bg-[#0F1011] border border-[#23252A] text-[#F7F8F8] ' +
+        'bg-bg-1 border border-border-primary text-text-primary ' +
         'shadow-[0px_3px_12px_rgba(0,0,0,0.09)]',
 
       // elevated: one step up in the Linear surface hierarchy
       elevated:
-        'bg-[#1C1C1F] border border-[#34343A] text-[#F7F8F8] ' +
+        'bg-bg-3 border border-border-secondary text-text-primary ' +
         'shadow-[0px_3px_12px_rgba(0,0,0,0.09)]',
     };
 
@@ -65,7 +65,7 @@ export const CardHeader = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivEleme
   ({ className, ...props }, ref) => (
     <div
       ref={ref}
-      className={clsx('pb-4 border-b border-[#23252A]', className)}
+      className={clsx('pb-4 border-b border-border-primary', className)}
       {...props}
     />
   )
@@ -81,7 +81,7 @@ export const CardTitle = forwardRef<HTMLHeadingElement, HTMLAttributes<HTMLHeadi
   ({ className, style, ...props }, ref) => (
     <h3
       ref={ref}
-      className={clsx('text-2xl tracking-[-0.012em] text-[#F7F8F8]', className)}
+      className={clsx('text-2xl tracking-[-0.012em] text-text-primary', className)}
       style={{ fontWeight: 590, ...style }}
       {...props}
     />

@@ -43,15 +43,15 @@ export function SignupHeatmapCard() {
   }, [data, max]);
 
   return (
-    <div className="bg-[#0F1011] border border-[#23252A] rounded-xl p-4">
+    <div className="bg-bg-1 border border-border-primary rounded-xl p-4">
       <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
-        <h3 className="text-sm font-semibold text-[#D0D6E0] flex items-center gap-1.5">
-          <CalendarClock size={14} className="text-[#7070FF]" />
+        <h3 className="text-sm font-semibold text-text-secondary flex items-center gap-1.5">
+          <CalendarClock size={14} className="text-accent" />
           회원가입 시간대 히트맵
-          <span className="text-[10px] font-normal text-[#62666D]">요일 × 시간 (KST)</span>
+          <span className="text-[10px] font-normal text-text-quaternary">요일 × 시간 (KST)</span>
         </h3>
         <div className="flex items-center flex-wrap gap-y-2 gap-x-2">
-          <div className="flex items-center bg-[#141516] rounded-lg p-0.5">
+          <div className="flex items-center bg-bg-2 rounded-lg p-0.5">
             {(
               [
                 ['all', '전체'],
@@ -63,7 +63,7 @@ export function SignupHeatmapCard() {
                 key={g}
                 onClick={() => setGender(g)}
                 className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-all ${
-                  gender === g ? 'bg-[#0F1011] text-[#7070FF] shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'text-[#8A8F98] hover:text-[#D0D6E0]'
+                  gender === g ? 'bg-bg-1 text-accent shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'text-text-tertiary hover:text-text-secondary'
                 }`}
               >
                 {label}
@@ -73,20 +73,20 @@ export function SignupHeatmapCard() {
           <select
             value={ageBand}
             onChange={(e) => setAgeBand(e.target.value)}
-            className="bg-[#141516] border border-[#23252A] rounded-lg px-2 py-1.5 text-xs text-[#D0D6E0] focus:outline-none"
+            className="bg-bg-2 border border-border-primary rounded-lg px-2 py-1.5 text-xs text-text-secondary focus:outline-none"
           >
             <option value="all">전체 연령</option>
             {AGE_BANDS.map((b) => (
               <option key={b} value={b}>{b}세</option>
             ))}
           </select>
-          <div className="flex items-center bg-[#141516] rounded-lg p-0.5">
+          <div className="flex items-center bg-bg-2 rounded-lg p-0.5">
             {([1, 3, 6] as const).map((n) => (
               <button
                 key={n}
                 onClick={() => setMonths(n)}
                 className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                  months === n ? 'bg-[#0F1011] text-[#7070FF] shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'text-[#8A8F98] hover:text-[#D0D6E0]'
+                  months === n ? 'bg-bg-1 text-accent shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'text-text-tertiary hover:text-text-secondary'
                 }`}
               >
                 최근 {n}개월
@@ -98,10 +98,10 @@ export function SignupHeatmapCard() {
 
       {isLoading || !data ? (
         <div className="flex items-center justify-center h-40">
-          <Loader2 size={24} className="animate-spin text-[#7070FF]" />
+          <Loader2 size={24} className="animate-spin text-accent" />
         </div>
       ) : data.total === 0 ? (
-        <p className="text-xs text-[#62666D] py-8 text-center">
+        <p className="text-xs text-text-quaternary py-8 text-center">
           {filtered
             ? '선택한 성별·연령 조건의 가입 데이터가 없습니다. 개인정보 보강이 진행 중일 수 있습니다.'
             : '해당 기간의 가입 데이터가 없습니다. 회원 정보 수집(백필)이 진행 중일 수 있습니다.'}
@@ -110,11 +110,11 @@ export function SignupHeatmapCard() {
         <>
           <HeatmapGrid matrix={data.matrix} max={max} formatValue={fmtMembers} />
 
-          <div className="flex items-center justify-between flex-wrap gap-2 mt-3 text-[11px] text-[#8A8F98]">
+          <div className="flex items-center justify-between flex-wrap gap-2 mt-3 text-[11px] text-text-tertiary">
             <span>
               기간 가입 {fmtNum(data.total)}명
               {peak && (
-                <span className="text-[#D0D6E0]">
+                <span className="text-text-secondary">
                   {' '}· 피크 {WEEKDAYS[peak.w]}요일 {peak.h}시 ({fmtNum(max)}명)
                 </span>
               )}
@@ -129,14 +129,14 @@ export function SignupHeatmapCard() {
           </div>
 
           {filtered && (
-            <p className="text-[10px] text-[#62666D] mt-2">
+            <p className="text-[10px] text-text-quaternary mt-2">
               성별·연령 필터는 개인정보가 보강된 회원(성별 {fmtNum(data.coverage.members_with_gender ?? 0)}명
               {ageBand !== 'all' && ` · 생년 ${fmtNum(data.coverage.members_with_birthyear ?? 0)}명`})만 집계합니다.
             </p>
           )}
 
           {!data.coverage.full_signup_data && (
-            <p className="text-[10px] text-[#F0BF00] mt-2 leading-relaxed">
+            <p className="text-[10px] text-yellow mt-2 leading-relaxed">
               ⚠ 현재는 <b>구매 이력이 있는 회원</b>의 가입 시각만 집계됩니다 (보강 완료{' '}
               {fmtNum(data.coverage.members_with_join)} / 구매회원 {fmtNum(data.coverage.buyers_total)}명).
               비구매 가입자까지 포함하려면 카페24 개인정보 읽기 권한 재동의가 필요합니다.

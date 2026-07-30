@@ -35,13 +35,13 @@ export function NaverQueriesCard() {
   const naverIs503 = (naverErrorRaw as any)?.response?.status === 503;
 
   return (
-    <div className="bg-[#0F1011] border border-[#23252A] rounded-xl p-4">
+    <div className="bg-bg-1 border border-border-primary rounded-xl p-4">
       <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
-        <h3 className="text-sm font-semibold text-[#D0D6E0] flex items-center gap-1.5">
+        <h3 className="text-sm font-semibold text-text-secondary flex items-center gap-1.5">
           <Search size={14} className="text-[#03C75A]" />
           네이버 검색량 추이
           {naverData && (
-            <span className="text-[10px] font-normal text-[#62666D]">
+            <span className="text-[10px] font-normal text-text-quaternary">
               {naverData.isAbsolute ? '월간 검색량(추정)' : '상대지수'}
             </span>
           )}
@@ -51,12 +51,12 @@ export function NaverQueriesCard() {
             value={keywordsInput}
             onChange={(e: ChangeEvent<HTMLInputElement>) => setKeywordsInput(e.target.value)}
             placeholder="키워드 (쉼표 구분, 최대 5개)"
-            className="px-3 py-1.5 bg-[#08090A] border border-[#23252A] rounded-lg text-xs text-[#D0D6E0] w-full sm:w-64 focus:outline-none focus:border-[#5E6AD2]"
+            className="px-3 py-1.5 bg-bg-0 border border-border-primary rounded-lg text-xs text-text-secondary w-full sm:w-64 focus:outline-none focus:border-brand"
           />
           <button
             onClick={() => refetchNaver()}
             disabled={naverLoading}
-            className="flex items-center gap-1 px-3 py-1.5 bg-[#5E6AD2] text-white text-xs font-medium rounded-lg hover:bg-[#828FFF] disabled:opacity-50"
+            className="flex items-center gap-1 px-3 py-1.5 bg-brand text-white text-xs font-medium rounded-lg hover:bg-accent-hover disabled:opacity-50"
           >
             {naverLoading ? <Loader2 size={12} className="animate-spin" /> : <Search size={12} />} 조회
           </button>
@@ -77,23 +77,23 @@ export function NaverQueriesCard() {
       )}
 
       {naverIs503 ? (
-        <p className="text-xs text-[#8A8F98] py-6 text-center">네이버 데이터랩 연동이 설정되어 있지 않습니다.</p>
+        <p className="text-xs text-text-tertiary py-6 text-center">네이버 데이터랩 연동이 설정되어 있지 않습니다.</p>
       ) : naverIsError ? (
-        <p className="text-xs text-[#EB5757] py-6 text-center">검색량 데이터를 불러오지 못했습니다.</p>
+        <p className="text-xs text-red py-6 text-center">검색량 데이터를 불러오지 못했습니다.</p>
       ) : naverLoading ? (
         <div className="flex items-center justify-center h-40">
-          <Loader2 size={24} className="animate-spin text-[#7070FF]" />
+          <Loader2 size={24} className="animate-spin text-accent" />
         </div>
       ) : (naverData?.series?.length ?? 0) === 0 ? (
-        <p className="text-xs text-[#62666D] py-6 text-center">검색량 데이터가 없습니다.</p>
+        <p className="text-xs text-text-quaternary py-6 text-center">검색량 데이터가 없습니다.</p>
       ) : (
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={naverData?.series ?? []} margin={{ top: 8, right: 16, left: 8, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#23252A" />
-              <XAxis dataKey="period" tick={{ fontSize: 10, fill: '#8A8F98' }} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-primary)" />
+              <XAxis dataKey="period" tick={{ fontSize: 10, fill: 'var(--color-text-tertiary)' }} />
               <YAxis
-                tick={{ fontSize: 10, fill: '#8A8F98' }}
+                tick={{ fontSize: 10, fill: 'var(--color-text-tertiary)' }}
                 tickFormatter={(v: number) =>
                   naverData?.isAbsolute
                     ? (v >= 10000 ? `${Math.round(v / 10000)}만` : v.toLocaleString('ko-KR'))
@@ -101,8 +101,8 @@ export function NaverQueriesCard() {
                 }
               />
               <RechartsTooltip
-                contentStyle={{ backgroundColor: '#141516', border: '1px solid #23252A', borderRadius: 8, fontSize: 11 }}
-                labelStyle={{ color: '#D0D6E0' }}
+                contentStyle={{ backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)', borderRadius: 8, fontSize: 11 }}
+                labelStyle={{ color: 'var(--color-text-secondary)' }}
                 formatter={(value: any, name: any) =>
                   naverData?.isAbsolute ? [`${Number(value).toLocaleString('ko-KR')}회`, name] : [value, name]
                 }

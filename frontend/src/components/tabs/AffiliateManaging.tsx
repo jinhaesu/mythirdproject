@@ -318,7 +318,7 @@ function SearchBar({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full pl-7 pr-7 py-1.5 bg-[#141516] border border-[#2a2d35] rounded-lg text-xs text-white placeholder:text-gray-600 focus:outline-none focus:border-emerald-500/50"
+        className="w-full pl-7 pr-7 py-1.5 bg-bg-2 border border-border-primary rounded-lg text-xs text-text-primary placeholder:text-gray-600 focus:outline-none focus:border-emerald-500/50"
       />
       {value && (
         <button
@@ -399,7 +399,7 @@ function DateRangeFilter({
         className={`px-2 py-1 text-[11px] rounded border transition-colors ${
           isAll
             ? 'bg-emerald-500/15 border-emerald-400/40 text-emerald-300'
-            : 'border-[#2a2d35] text-gray-400 hover:text-white hover:border-gray-500'
+            : 'border-border-primary text-gray-400 hover:text-white hover:border-gray-500'
         }`}
       >
         전체
@@ -412,18 +412,18 @@ function DateRangeFilter({
           className={`px-2 py-1 text-[11px] rounded border transition-colors ${
             matchesPreset(p.label)
               ? 'bg-emerald-500/15 border-emerald-400/40 text-emerald-300'
-              : 'border-[#2a2d35] text-gray-400 hover:text-white hover:border-gray-500'
+              : 'border-border-primary text-gray-400 hover:text-white hover:border-gray-500'
           }`}
         >
           {p.label}
         </button>
       ))}
-      <div className="flex items-center gap-1 ml-1 pl-2 border-l border-[#2a2d35]">
+      <div className="flex items-center gap-1 ml-1 pl-2 border-l border-border-primary">
         <input
           type="date"
           value={value.start}
           onChange={(e) => onChange({ ...value, start: e.target.value })}
-          className="px-2 py-1 bg-[#141516] border border-[#2a2d35] rounded text-[11px] text-white focus:outline-none focus:border-emerald-500/50"
+          className="px-2 py-1 bg-bg-2 border border-border-primary rounded text-[11px] text-text-primary focus:outline-none focus:border-emerald-500/50"
           title="시작일"
         />
         <span className="text-gray-500 text-[11px]">~</span>
@@ -431,7 +431,7 @@ function DateRangeFilter({
           type="date"
           value={value.end}
           onChange={(e) => onChange({ ...value, end: e.target.value })}
-          className="px-2 py-1 bg-[#141516] border border-[#2a2d35] rounded text-[11px] text-white focus:outline-none focus:border-emerald-500/50"
+          className="px-2 py-1 bg-bg-2 border border-border-primary rounded text-[11px] text-text-primary focus:outline-none focus:border-emerald-500/50"
           title="종료일"
         />
       </div>
@@ -451,7 +451,7 @@ function FilterTabs<T extends string>({
   onChange: (key: T) => void;
 }) {
   return (
-    <div className="flex items-center gap-0 border-b border-[#2a2d35] overflow-x-auto">
+    <div className="flex items-center gap-0 border-b border-border-primary overflow-x-auto">
       {options.map(opt => {
         const active = opt.key === value;
         const colorCls = active
@@ -584,7 +584,7 @@ function ConnectionStatusIndicator() {
 
   return (
     <div className={`flex items-center gap-3 px-4 py-2.5 rounded-xl border ${
-      anyDisconnected ? 'bg-red-500/5 border-red-500/20' : anyWarning ? 'bg-amber-500/5 border-amber-500/20' : 'bg-[#1a1b1e] border-[#2a2d35]'
+      anyDisconnected ? 'bg-red-500/5 border-red-500/20' : anyWarning ? 'bg-amber-500/5 border-amber-500/20' : 'bg-bg-3 border-border-primary'
     }`}>
       <span className="text-[10px] font-medium text-gray-500 uppercase tracking-wider shrink-0">연결 상태</span>
       <div className="flex items-center gap-4 flex-wrap">
@@ -724,7 +724,7 @@ function Cafe24Banner() {
         )}
 
         {showScopeDetail && (
-          <div className="px-4 py-3 bg-[#141516] border border-[#2a2d35] rounded-xl space-y-2 text-[11px]">
+          <div className="px-4 py-3 bg-bg-2 border border-border-primary rounded-xl space-y-2 text-[11px]">
             <p className="font-medium text-gray-300">서버가 요구하는 권한 (CAFE24_SCOPES env)</p>
             <div className="flex flex-wrap gap-1.5">
               {required.length === 0 ? (
@@ -785,7 +785,7 @@ function Cafe24Banner() {
             value={mallIdInput}
             onChange={e => setMallIdInput(e.target.value)}
             placeholder="쇼핑몰 ID (예: mymall)"
-            className="flex-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-amber-500/50"
+            className="flex-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary placeholder:text-gray-600 focus:outline-none focus:border-amber-500/50"
             onKeyDown={e => e.key === 'Enter' && handleConnect()}
           />
           <button
@@ -852,7 +852,7 @@ function Cafe24ProductSelector({ selectedNo, selectedName, onSelect, onClear, di
 
   if (disabled) {
     return (
-      <div className="mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-xs text-gray-600">
+      <div className="mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-xs text-gray-600">
         Cafe24 연결 후 사용 가능합니다
       </div>
     );
@@ -882,7 +882,7 @@ function Cafe24ProductSelector({ selectedNo, selectedName, onSelect, onClear, di
                 onChange={e => { setQuery(e.target.value); setOpen(true); }}
                 onFocus={() => setOpen(true)}
                 placeholder="상품명 검색..."
-                className="w-full pl-8 pr-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-emerald-500/50"
+                className="w-full pl-8 pr-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary placeholder:text-gray-600 focus:outline-none focus:border-emerald-500/50"
               />
               {isFetching && (
                 <Loader2 size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 animate-spin" />
@@ -897,7 +897,7 @@ function Cafe24ProductSelector({ selectedNo, selectedName, onSelect, onClear, di
             </button>
           </div>
           {open && displayProducts.length > 0 && (
-            <div className="absolute z-20 top-full mt-1 w-full bg-[#1a1b1e] border border-[#2a2d35] rounded-xl shadow-xl max-h-64 overflow-y-auto">
+            <div className="absolute z-20 top-full mt-1 w-full bg-bg-3 border border-border-primary rounded-xl shadow-xl max-h-64 overflow-y-auto">
               {displayProducts.map(p => (
                 <button
                   key={`${p.product_no}-${p._idx}`}
@@ -911,9 +911,9 @@ function Cafe24ProductSelector({ selectedNo, selectedName, onSelect, onClear, di
                 >
                   {p.list_image ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={p.list_image} alt={p.product_name} className="w-10 h-10 rounded object-cover bg-[#141516] shrink-0" />
+                    <img src={p.list_image} alt={p.product_name} className="w-10 h-10 rounded object-cover bg-bg-2 shrink-0" />
                   ) : (
-                    <div className="w-10 h-10 rounded bg-[#141516] shrink-0 flex items-center justify-center">
+                    <div className="w-10 h-10 rounded bg-bg-2 shrink-0 flex items-center justify-center">
                       <ShoppingBag size={14} className="text-gray-600" />
                     </div>
                   )}
@@ -926,7 +926,7 @@ function Cafe24ProductSelector({ selectedNo, selectedName, onSelect, onClear, di
             </div>
           )}
           {open && displayProducts.length === 0 && !isFetching && query.length > 0 && (
-            <div className="absolute z-20 top-full mt-1 w-full bg-[#1a1b1e] border border-[#2a2d35] rounded-xl shadow-xl px-3 py-4 text-center">
+            <div className="absolute z-20 top-full mt-1 w-full bg-bg-3 border border-border-primary rounded-xl shadow-xl px-3 py-4 text-center">
               <p className="text-xs text-gray-500">검색 결과가 없습니다</p>
             </div>
           )}
@@ -969,7 +969,7 @@ function Cafe24MultiProductSelector({ selected, onChange, disabled }: Cafe24Mult
 
   if (disabled) {
     return (
-      <div className="px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-xs text-gray-600">
+      <div className="px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-xs text-gray-600">
         Cafe24 연결 후 사용 가능합니다
       </div>
     );
@@ -990,7 +990,7 @@ function Cafe24MultiProductSelector({ selected, onChange, disabled }: Cafe24Mult
         </button>
       </div>
       {selected.length === 0 ? (
-        <div className="px-3 py-4 bg-[#141516] border border-dashed border-[#2a2d35] rounded-lg text-center">
+        <div className="px-3 py-4 bg-bg-2 border border-dashed border-border-primary rounded-lg text-center">
           <p className="text-[11px] text-gray-500">상품 추가 버튼을 눌러 카테고리에 묶을 상품들을 선택하세요</p>
         </div>
       ) : (
@@ -999,9 +999,9 @@ function Cafe24MultiProductSelector({ selected, onChange, disabled }: Cafe24Mult
             <div key={p.no} className="flex items-center gap-2 px-2.5 py-2 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
               {p.image ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={p.image} alt={p.name} className="w-8 h-8 rounded object-cover bg-[#141516] shrink-0" />
+                <img src={p.image} alt={p.name} className="w-8 h-8 rounded object-cover bg-bg-2 shrink-0" />
               ) : (
-                <div className="w-8 h-8 rounded bg-[#141516] shrink-0 flex items-center justify-center">
+                <div className="w-8 h-8 rounded bg-bg-2 shrink-0 flex items-center justify-center">
                   <ShoppingBag size={12} className="text-gray-600" />
                 </div>
               )}
@@ -1086,7 +1086,7 @@ function Cafe24ProductBrowserModal({ onClose, onPick, multi = false, alreadySele
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={onClose}>
       <div
         onClick={e => e.stopPropagation()}
-        className="bg-[#1a1b1e] border border-[#2a2d35] rounded-2xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col"
+        className="bg-bg-3 border border-border-primary rounded-2xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col"
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
           <div className="flex items-center gap-2">
@@ -1106,7 +1106,7 @@ function Cafe24ProductBrowserModal({ onClose, onPick, multi = false, alreadySele
               onChange={e => setQuery(e.target.value)}
               placeholder="상품명으로 검색... (비워두면 전체 목록)"
               autoFocus
-              className="w-full pl-9 pr-10 py-2.5 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-[#3B82F6]"
+              className="w-full pl-9 pr-10 py-2.5 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary placeholder:text-gray-600 focus:outline-none focus:border-[#3B82F6]"
             />
             {isFetching && (
               <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 animate-spin" />
@@ -1142,7 +1142,7 @@ function Cafe24ProductBrowserModal({ onClose, onPick, multi = false, alreadySele
                     className={`group text-left rounded-xl p-3 transition-all relative ${
                       isSelected
                         ? 'bg-emerald-500/10 border border-emerald-500/40'
-                        : 'bg-[#141516] border border-[#2a2d35] hover:border-[#3B82F6] hover:bg-[#3B82F6]/5'
+                        : 'bg-bg-2 border border-border-primary hover:border-[#3B82F6] hover:bg-[#3B82F6]/5'
                     }`}
                   >
                     {isSelected && (
@@ -1152,9 +1152,9 @@ function Cafe24ProductBrowserModal({ onClose, onPick, multi = false, alreadySele
                     )}
                     {p.list_image ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={p.list_image} alt={p.product_name} className="w-full aspect-square rounded-lg object-cover bg-[#0f1011] mb-2" />
+                      <img src={p.list_image} alt={p.product_name} className="w-full aspect-square rounded-lg object-cover bg-bg-1 mb-2" />
                     ) : (
-                      <div className="w-full aspect-square rounded-lg bg-[#0f1011] mb-2 flex items-center justify-center">
+                      <div className="w-full aspect-square rounded-lg bg-bg-1 mb-2 flex items-center justify-center">
                         <ShoppingBag size={24} className="text-gray-700" />
                       </div>
                     )}
@@ -1186,11 +1186,11 @@ function Cafe24ProductBrowserModal({ onClose, onPick, multi = false, alreadySele
 // ─── Dashboard chart helpers ──────────────────────────────────────────────────
 
 const DARK_TOOLTIP_STYLE = {
-  backgroundColor: '#1E1F22',
-  border: '1px solid rgba(255,255,255,0.1)',
+  backgroundColor: 'var(--color-bg-level-2)',
+  border: '1px solid var(--color-border-primary)',
   borderRadius: 8,
   fontSize: 12,
-  color: '#e5e7eb',
+  color: 'var(--color-text-primary)',
 };
 
 function ChartLoader() {
@@ -1217,7 +1217,7 @@ const HEATMAP_DAYS = ['월', '화', '수', '목', '금', '토', '일'];
 
 /** 0~1 사이 비율을 emerald 팔레트 색상으로 변환 */
 function heatColor(ratio: number): string {
-  if (ratio <= 0) return 'rgba(255,255,255,0.04)';
+  if (ratio <= 0) return 'rgb(var(--color-overlay-rgb) / 0.04)';
   // emerald-900 → emerald-400 스펙트럼
   const r = Math.round(6 + ratio * (52 - 6));
   const g = Math.round(78 + ratio * (211 - 78));
@@ -1402,7 +1402,7 @@ function DashboardSection() {
             className={`px-3 py-1 text-xs rounded-lg font-medium transition-colors ${
               !customMode && days === dd
                 ? 'bg-blue-600 text-white'
-                : 'bg-[#1a1b1e] text-gray-400 border border-[#2a2d35] hover:text-white hover:border-gray-500'
+                : 'bg-bg-3 text-gray-400 border border-border-primary hover:text-white hover:border-gray-500'
             }`}
           >
             {dd}일
@@ -1413,7 +1413,7 @@ function DashboardSection() {
           className={`px-3 py-1 text-xs rounded-lg font-medium transition-colors ${
             customMode
               ? 'bg-blue-600 text-white'
-              : 'bg-[#1a1b1e] text-gray-400 border border-[#2a2d35] hover:text-white hover:border-gray-500'
+              : 'bg-bg-3 text-gray-400 border border-border-primary hover:text-white hover:border-gray-500'
           }`}
         >
           직접 지정
@@ -1425,7 +1425,7 @@ function DashboardSection() {
               value={customSince}
               onChange={(e) => setCustomSince(e.target.value)}
               max={customUntil || undefined}
-              className="px-2 py-1 text-xs rounded-lg bg-[#1a1b1e] text-gray-300 border border-[#2a2d35] focus:outline-none focus:border-blue-500"
+              className="px-2 py-1 text-xs rounded-lg bg-bg-3 text-gray-300 border border-border-primary focus:outline-none focus:border-blue-500"
             />
             <span className="text-gray-500 text-xs">~</span>
             <input
@@ -1433,7 +1433,7 @@ function DashboardSection() {
               value={customUntil}
               onChange={(e) => setCustomUntil(e.target.value)}
               min={customSince || undefined}
-              className="px-2 py-1 text-xs rounded-lg bg-[#1a1b1e] text-gray-300 border border-[#2a2d35] focus:outline-none focus:border-blue-500"
+              className="px-2 py-1 text-xs rounded-lg bg-bg-3 text-gray-300 border border-border-primary focus:outline-none focus:border-blue-500"
             />
             {customSince && customUntil && customSince > customUntil && (
               <span className="text-[10px] text-red-400">시작일이 종료일보다 뒤입니다</span>
@@ -1443,7 +1443,7 @@ function DashboardSection() {
             )}
           </>
         )}
-        <span className="mx-1 h-4 w-px bg-[#2a2d35]" />
+        <span className="mx-1 h-4 w-px bg-border-primary" />
         <span className="text-xs text-gray-500">귀속:</span>
         {([
           { key: 'converted', label: '전환일 기준' },
@@ -1458,13 +1458,13 @@ function DashboardSection() {
             className={`px-3 py-1 text-xs rounded-lg font-medium transition-colors ${
               basis === b.key
                 ? 'bg-violet-600 text-white'
-                : 'bg-[#1a1b1e] text-gray-400 border border-[#2a2d35] hover:text-white hover:border-gray-500'
+                : 'bg-bg-3 text-gray-400 border border-border-primary hover:text-white hover:border-gray-500'
             }`}
           >
             {b.label}
           </button>
         ))}
-        <span className="mx-1 h-4 w-px bg-[#2a2d35]" />
+        <span className="mx-1 h-4 w-px bg-border-primary" />
         <span className="text-xs text-gray-500">집계:</span>
         {([
           { key: 'confirmed', label: '확정 귀속' },
@@ -1479,7 +1479,7 @@ function DashboardSection() {
             className={`px-3 py-1 text-xs rounded-lg font-medium transition-colors ${
               attribution === a.key
                 ? a.key === 'all' ? 'bg-amber-600 text-white' : 'bg-emerald-600 text-white'
-                : 'bg-[#1a1b1e] text-gray-400 border border-[#2a2d35] hover:text-white hover:border-gray-500'
+                : 'bg-bg-3 text-gray-400 border border-border-primary hover:text-white hover:border-gray-500'
             }`}
           >
             {a.label}
@@ -1505,7 +1505,7 @@ function DashboardSection() {
         {kpis.map((kpi, idx) => (
           <div
             key={idx}
-            className={`group relative overflow-hidden bg-[#1a1b1e] rounded-2xl p-4 border border-white/[0.06] ring-1 ${kpi.ring} hover:border-white/[0.12] transition-all`}
+            className={`group relative overflow-hidden bg-bg-3 rounded-2xl p-4 border border-white/[0.06] ring-1 ${kpi.ring} hover:border-white/[0.12] transition-all`}
           >
             <div className={`pointer-events-none absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-br ${kpi.glow} to-transparent`} />
             <div className="relative">
@@ -1533,7 +1533,7 @@ function DashboardSection() {
       </div>
 
       {/* 차트 1: 매출/커미션 시계열 Area */}
-      <div className="bg-[#1a1b1e] rounded-xl p-4 border border-[#2a2d35]">
+      <div className="bg-bg-3 rounded-xl p-4 border border-border-primary">
         <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
           <TrendingUp size={14} className="text-blue-400" /> 매출 · 커미션 추이
         </h3>
@@ -1550,32 +1550,32 @@ function DashboardSection() {
                   <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+              <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--color-overlay-rgb) / 0.05)" />
               <XAxis
                 dataKey="date"
-                tick={{ fill: '#8A8F98', fontSize: 10 }}
-                stroke="#8A8F98"
+                tick={{ fill: 'var(--color-text-tertiary)', fontSize: 10 }}
+                stroke="var(--color-text-tertiary)"
                 tickFormatter={(v: string) => v.slice(5)}
               />
               <YAxis
                 yAxisId="left"
-                tick={{ fill: '#8A8F98', fontSize: 10 }}
-                stroke="#8A8F98"
+                tick={{ fill: 'var(--color-text-tertiary)', fontSize: 10 }}
+                stroke="var(--color-text-tertiary)"
                 tickFormatter={(v: number) => `₩${(v / 10000).toFixed(0)}만`}
                 width={56}
               />
               <YAxis
                 yAxisId="right"
                 orientation="right"
-                tick={{ fill: '#8A8F98', fontSize: 10 }}
-                stroke="#8A8F98"
+                tick={{ fill: 'var(--color-text-tertiary)', fontSize: 10 }}
+                stroke="var(--color-text-tertiary)"
                 tickFormatter={(v: number) => `₩${(v / 10000).toFixed(0)}만`}
                 width={56}
               />
               <Tooltip
                 contentStyle={DARK_TOOLTIP_STYLE}
-                itemStyle={{ color: '#e5e7eb' }}
-                labelStyle={{ color: '#d1d5db' }}
+                itemStyle={{ color: 'var(--color-text-primary)' }}
+                labelStyle={{ color: 'var(--color-text-secondary)' }}
                 formatter={(value: number, name: string) => {
                   const labelMap: Record<string, string> = {
                     revenue: '매출',
@@ -1639,7 +1639,7 @@ function DashboardSection() {
       </div>
 
       {/* 차트 2: 클릭 vs 전환 BarChart + 전환율 Line */}
-      <div className="bg-[#1a1b1e] rounded-xl p-4 border border-[#2a2d35]">
+      <div className="bg-bg-3 rounded-xl p-4 border border-border-primary">
         <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
           <Eye size={14} className="text-cyan-400" /> 클릭 · 전환 추이
         </h3>
@@ -1652,24 +1652,24 @@ function DashboardSection() {
               }))}
               margin={{ top: 4, right: 4, left: 0, bottom: 0 }}
             >
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+              <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--color-overlay-rgb) / 0.05)" />
               <XAxis
                 dataKey="date"
-                tick={{ fill: '#8A8F98', fontSize: 10 }}
-                stroke="#8A8F98"
+                tick={{ fill: 'var(--color-text-tertiary)', fontSize: 10 }}
+                stroke="var(--color-text-tertiary)"
                 tickFormatter={(v: string) => v.slice(5)}
               />
               <YAxis
                 yAxisId="left"
-                tick={{ fill: '#8A8F98', fontSize: 10 }}
-                stroke="#8A8F98"
+                tick={{ fill: 'var(--color-text-tertiary)', fontSize: 10 }}
+                stroke="var(--color-text-tertiary)"
                 width={40}
               />
               <YAxis
                 yAxisId="right"
                 orientation="right"
-                tick={{ fill: '#8A8F98', fontSize: 10 }}
-                stroke="#8A8F98"
+                tick={{ fill: 'var(--color-text-tertiary)', fontSize: 10 }}
+                stroke="var(--color-text-tertiary)"
                 tickFormatter={(v: number) => `${v}%`}
                 width={44}
               />
@@ -1704,7 +1704,7 @@ function DashboardSection() {
 
       <div className="grid lg:grid-cols-2 gap-4">
         {/* 차트 3: 캠페인별 매출 기여도 가로 BarChart (Top 10) */}
-        <div className="bg-[#1a1b1e] rounded-xl p-4 border border-[#2a2d35] min-h-[280px]">
+        <div className="bg-bg-3 rounded-xl p-4 border border-border-primary min-h-[280px]">
           <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
             <Percent size={14} className="text-yellow-400" /> 캠페인별 매출 기여도 (Top 10)
           </h3>
@@ -1730,7 +1730,7 @@ function DashboardSection() {
                       const el = document.getElementById(`campaign-card-${c.campaign_id}`);
                       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     }}
-                    className="group w-full text-left bg-[#141516] hover:bg-[#1a1d20] rounded-lg p-2.5 border border-[#2a2d35] hover:border-emerald-500/30 transition-all"
+                    className="group w-full text-left bg-bg-2 hover:bg-[#1a1d20] rounded-lg p-2.5 border border-border-primary hover:border-emerald-500/30 transition-all"
                   >
                     <div className="flex items-center gap-2 mb-1.5">
                       <span className="text-[10px] font-bold text-gray-500 w-5 shrink-0">{idx + 1}.</span>
@@ -1741,7 +1741,7 @@ function DashboardSection() {
                         ₩{fmt(c.revenue)}
                       </span>
                     </div>
-                    <div className="relative h-1.5 bg-[#0f1011] rounded-full overflow-hidden">
+                    <div className="relative h-1.5 bg-bg-1 rounded-full overflow-hidden">
                       <div
                         className="absolute inset-y-0 left-0 rounded-full transition-all"
                         style={{ width: `${barRatio}%`, backgroundColor: `rgba(16,185,129,${opacity})` }}
@@ -1761,7 +1761,7 @@ function DashboardSection() {
         </div>
 
         {/* 차트 4: 캠페인별 전환 + 커미션 더블 BarChart */}
-        <div className="bg-[#1a1b1e] rounded-xl p-4 border border-[#2a2d35]">
+        <div className="bg-bg-3 rounded-xl p-4 border border-border-primary">
           <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
             <BarChart2 size={14} className="text-blue-400" /> 캠페인별 전환 · 커미션
           </h3>
@@ -1774,23 +1774,23 @@ function DashboardSection() {
                 }))}
                 margin={{ top: 4, right: 4, left: 0, bottom: 0 }}
               >
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--color-overlay-rgb) / 0.05)" />
                 <XAxis
                   dataKey="name"
-                  tick={{ fill: '#8A8F98', fontSize: 10 }}
-                  stroke="#8A8F98"
+                  tick={{ fill: 'var(--color-text-tertiary)', fontSize: 10 }}
+                  stroke="var(--color-text-tertiary)"
                 />
                 <YAxis
                   yAxisId="left"
-                  tick={{ fill: '#8A8F98', fontSize: 10 }}
-                  stroke="#8A8F98"
+                  tick={{ fill: 'var(--color-text-tertiary)', fontSize: 10 }}
+                  stroke="var(--color-text-tertiary)"
                   width={36}
                 />
                 <YAxis
                   yAxisId="right"
                   orientation="right"
-                  tick={{ fill: '#8A8F98', fontSize: 10 }}
-                  stroke="#8A8F98"
+                  tick={{ fill: 'var(--color-text-tertiary)', fontSize: 10 }}
+                  stroke="var(--color-text-tertiary)"
                   tickFormatter={(v: number) => `₩${(v / 10000).toFixed(0)}만`}
                   width={52}
                 />
@@ -1816,7 +1816,7 @@ function DashboardSection() {
 
       <div className="grid lg:grid-cols-2 gap-4">
         {/* 활성 캠페인 요약 */}
-        <div className="bg-[#1a1b1e] rounded-xl p-4 border border-[#2a2d35]">
+        <div className="bg-bg-3 rounded-xl p-4 border border-border-primary">
           <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
             <Megaphone size={14} className="text-emerald-400" /> 활성 캠페인
           </h3>
@@ -1829,12 +1829,12 @@ function DashboardSection() {
           ) : (
             <div className="space-y-3">
               {d.active_campaigns.map(c => (
-                <div key={c.id} className="p-3 bg-[#141516] rounded-lg">
+                <div key={c.id} className="p-3 bg-bg-2 rounded-lg">
                   <div className="flex justify-between items-start mb-2">
                     <div className="flex items-center gap-2">
                       {c.cafe24_product_image && (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={c.cafe24_product_image} alt={c.cafe24_product_name ?? c.product} className="w-8 h-8 rounded object-cover bg-[#1a1b1e]" />
+                        <img src={c.cafe24_product_image} alt={c.cafe24_product_name ?? c.product} className="w-8 h-8 rounded object-cover bg-bg-3" />
                       )}
                       <div>
                         <p className="text-sm font-medium text-white">{c.name}</p>
@@ -1856,7 +1856,7 @@ function DashboardSection() {
         </div>
 
         {/* 상위 파트너 */}
-        <div className="bg-[#1a1b1e] rounded-xl p-4 border border-[#2a2d35]">
+        <div className="bg-bg-3 rounded-xl p-4 border border-border-primary">
           <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
             <Award size={14} className="text-yellow-400" /> Top 파트너
           </h3>
@@ -1869,7 +1869,7 @@ function DashboardSection() {
           ) : (
             <div className="space-y-2">
               {d.top_partners.map((p, idx) => (
-                <div key={p.id} className="flex items-center gap-3 p-2 bg-[#141516] rounded-lg">
+                <div key={p.id} className="flex items-center gap-3 p-2 bg-bg-2 rounded-lg">
                   <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${rankColors[idx] ?? 'bg-gray-500/20 text-gray-400'}`}>
                     {idx + 1}
                   </span>
@@ -1892,7 +1892,7 @@ function DashboardSection() {
       </div>
 
       {/* ── 취소/환불 현황 ── */}
-      <div className="bg-[#1a1b1e] border border-[#2a2d35] rounded-xl p-4">
+      <div className="bg-bg-3 border border-border-primary rounded-xl p-4">
         <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
           <AlertCircle size={14} className="text-red-400" /> 취소 · 환불 현황
         </h3>
@@ -1900,21 +1900,21 @@ function DashboardSection() {
         {/* 2-A: KPI 카드 3개 */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
           {/* 환불 건수 */}
-          <div className="bg-[#141516] rounded-lg p-3 border border-red-500/20">
+          <div className="bg-bg-2 rounded-lg p-3 border border-red-500/20">
             <p className="text-[10px] text-gray-500 mb-1">환불 건수</p>
             <p className="text-2xl font-bold text-red-400">{d.refunded_count}<span className="text-sm font-normal ml-0.5">건</span></p>
             <p className="text-[10px] text-gray-600 mt-0.5">결제 완료 후 환불 처리</p>
           </div>
 
           {/* 취소 건수 */}
-          <div className="bg-[#141516] rounded-lg p-3 border border-orange-500/20">
+          <div className="bg-bg-2 rounded-lg p-3 border border-orange-500/20">
             <p className="text-[10px] text-gray-500 mb-1">취소 건수</p>
             <p className="text-2xl font-bold text-orange-400">{d.cancelled_count}<span className="text-sm font-normal ml-0.5">건</span></p>
             <p className="text-[10px] text-gray-600 mt-0.5">결제 전 또는 배송 전 취소</p>
           </div>
 
           {/* 환불·취소 차액 (Gross - Net) */}
-          <div className="bg-[#141516] rounded-lg p-3 border border-[#2a2d35]">
+          <div className="bg-bg-2 rounded-lg p-3 border border-border-primary">
             <p className="text-[10px] text-gray-500 mb-1">환불·취소 차감액</p>
             <p className="text-2xl font-bold text-gray-300">
               {refundCancelDiff > 0 ? `₩${fmt(refundCancelDiff)}` : '₩0'}
@@ -1962,7 +1962,7 @@ function DashboardSection() {
       </div>
 
       {/* ── 시간대별 전환 히트맵 ── */}
-      <div className="bg-[#1a1b1e] border border-[#2a2d35] rounded-xl p-4">
+      <div className="bg-bg-3 border border-border-primary rounded-xl p-4">
         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
           <h3 className="text-sm font-semibold text-white flex items-center gap-2">
             <BarChart2 size={14} className="text-emerald-400" /> 시간대별 전환 히트맵
@@ -1976,7 +1976,7 @@ function DashboardSection() {
                 className={`px-2.5 py-1 text-[10px] rounded font-medium transition-colors ${
                   heatmapDays === hd
                     ? 'bg-emerald-600 text-white'
-                    : 'bg-[#141516] text-gray-400 border border-[#2a2d35] hover:text-white hover:border-gray-500'
+                    : 'bg-bg-2 text-gray-400 border border-border-primary hover:text-white hover:border-gray-500'
                 }`}
               >
                 {hd}일
@@ -2026,7 +2026,7 @@ function DashboardSection() {
                           onMouseLeave={() => setHoveredCell(null)}
                         >
                           {isHovered && (
-                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 z-20 pointer-events-none whitespace-nowrap bg-[#1E1F22] border border-[rgba(255,255,255,0.1)] rounded-lg px-2 py-1.5 text-[10px] text-white shadow-xl">
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 z-20 pointer-events-none whitespace-nowrap bg-bg-2 border border-[rgb(var(--color-overlay-rgb)/0.1)] rounded-lg px-2 py-1.5 text-[10px] text-text-primary shadow-xl">
                               <p className="font-semibold text-emerald-400">{dayLabel} {h}시</p>
                               <p>전환 <span className="text-white font-medium">{conv}건</span></p>
                               {cell && cell.revenue > 0 && (
@@ -2059,7 +2059,7 @@ function DashboardSection() {
 
             {/* TOP 3 시간대 요약 */}
             {top3Hours.length > 0 && (
-              <div className="mt-4 pt-3 border-t border-[#2a2d35]">
+              <div className="mt-4 pt-3 border-t border-border-primary">
                 <p className="text-[10px] text-gray-500 mb-1.5">전환 많은 시간대 TOP {top3Hours.length}</p>
                 <div className="flex flex-wrap gap-2">
                   {top3Hours.map((c, i) => (
@@ -2082,7 +2082,7 @@ function DashboardSection() {
       </div>
 
       {/* ── 상품별 TOP 10 ── */}
-      <div className="bg-[#1a1b1e] border border-[#2a2d35] rounded-xl p-4">
+      <div className="bg-bg-3 border border-border-primary rounded-xl p-4">
         <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
           <TrendingUp size={14} className="text-blue-400" /> 상품별 TOP 10
         </h3>
@@ -2098,7 +2098,7 @@ function DashboardSection() {
               return (
                 <div
                   key={p.product_no}
-                  className="relative flex items-center gap-3 px-3 py-2.5 bg-[#141516] rounded-lg overflow-hidden"
+                  className="relative flex items-center gap-3 px-3 py-2.5 bg-bg-2 rounded-lg overflow-hidden"
                 >
                   {/* 배경 진행 막대 */}
                   <div
@@ -2112,14 +2112,14 @@ function DashboardSection() {
                       idx === 0 ? 'bg-yellow-500/20 text-yellow-400' :
                       idx === 1 ? 'bg-gray-300/20 text-gray-300' :
                       idx === 2 ? 'bg-orange-500/20 text-orange-400' :
-                      'bg-[#2a2d35] text-gray-500'
+                      'bg-border-primary text-gray-500'
                     }`}
                   >
                     {idx + 1}
                   </span>
 
                   {/* 상품 이미지 */}
-                  <div className="relative z-10 w-9 h-9 shrink-0 rounded overflow-hidden bg-[#2a2d35] flex items-center justify-center">
+                  <div className="relative z-10 w-9 h-9 shrink-0 rounded overflow-hidden bg-border-primary flex items-center justify-center">
                     {p.product_image ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
@@ -2181,7 +2181,7 @@ function RetroAnalysisCard() {
 
   const cal = retro.calibration;
   return (
-    <div className="bg-[#1a1b1e] rounded-2xl p-5 border border-white/[0.06]">
+    <div className="bg-bg-3 rounded-2xl p-5 border border-white/[0.06]">
       <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
         <h3 className="text-sm font-semibold text-white">과거 회고 — 추적 설치({retro.tracker_installed_at}) 이전 성과</h3>
         {cal.ready ? (
@@ -2308,7 +2308,7 @@ function CampaignDebugPanel({
 
   if (isLoading) {
     return (
-      <div className="mt-2 px-3 py-3 bg-[#141516] border border-[#2a2d35] rounded-lg flex items-center gap-2">
+      <div className="mt-2 px-3 py-3 bg-bg-2 border border-border-primary rounded-lg flex items-center gap-2">
         <Loader2 size={12} className="text-violet-400 animate-spin" />
         <span className="text-xs text-gray-400">진단 중...</span>
       </div>
@@ -2333,7 +2333,7 @@ function CampaignDebugPanel({
   const needsReattach = data.mode === 'category' && expectedCount > 0 && liveCount < expectedCount;
 
   return (
-    <div className="mt-2 px-3 py-3 bg-[#141516] border border-violet-500/30 rounded-lg space-y-2 text-[11px]">
+    <div className="mt-2 px-3 py-3 bg-bg-2 border border-violet-500/30 rounded-lg space-y-2 text-[11px]">
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-gray-500">모드:</span>
         <span className={`px-1.5 py-0.5 rounded font-mono ${
@@ -2355,7 +2355,7 @@ function CampaignDebugPanel({
       </div>
 
       {live ? (
-        <div className="border-t border-[#2a2d35] pt-2">
+        <div className="border-t border-border-primary pt-2">
           <p className="font-medium text-gray-300 mb-1">카페24 라이브 상태 (PUT/GET 결과)</p>
           {live.exists === false ? (
             <p className="text-red-300">카테고리가 카페24에 존재하지 않음 — {live.error}</p>
@@ -2383,7 +2383,7 @@ function CampaignDebugPanel({
       ) : null}
 
       {data.mode === 'category' && (data.expected_product_nos !== undefined) && (
-        <div className="border-t border-[#2a2d35] pt-2">
+        <div className="border-t border-border-primary pt-2">
           <p className="font-medium text-gray-300 mb-1">카테고리 상품 첨부 상태</p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-3 gap-y-1">
             <div>예상(DB): <code className="text-gray-300">{data.expected_product_nos?.length ?? 0}개</code></div>
@@ -2399,7 +2399,7 @@ function CampaignDebugPanel({
       )}
 
       {data.storefront_probes && data.storefront_probes.length > 0 && (
-        <div className="border-t border-[#2a2d35] pt-2">
+        <div className="border-t border-border-primary pt-2">
           <p className="font-medium text-gray-300 mb-1">URL 패턴별 실제 응답 테스트</p>
           <div className="space-y-1">
             {data.storefront_probes.map((p, i) => (
@@ -2423,13 +2423,13 @@ function CampaignDebugPanel({
         </div>
       )}
 
-      <div className="border-t border-[#2a2d35] pt-2">
+      <div className="border-t border-border-primary pt-2">
         <span className="text-gray-500">실제 리다이렉트 목적지:</span>
         <code className="text-gray-300 break-all ml-1">{data.simulated_destination ?? 'NULL'}</code>
       </div>
 
       {data.recommendation && (
-        <div className="border-t border-[#2a2d35] pt-2 bg-amber-500/5 -mx-3 -mb-3 px-3 py-2 rounded-b-lg">
+        <div className="border-t border-border-primary pt-2 bg-amber-500/5 -mx-3 -mb-3 px-3 py-2 rounded-b-lg">
           <p className="text-amber-300 font-medium">권장 조치</p>
           <p className="text-gray-300 mt-0.5 leading-relaxed">{data.recommendation}</p>
         </div>
@@ -2461,7 +2461,7 @@ function CampaignDebugPanel({
         )}
         <button
           onClick={() => refetch()}
-          className="px-2.5 py-1 text-[10px] text-gray-400 border border-[#2a2d35] hover:text-white hover:border-gray-500 rounded"
+          className="px-2.5 py-1 text-[10px] text-gray-400 border border-border-primary hover:text-white hover:border-gray-500 rounded"
         >
           새로고침
         </button>
@@ -2822,7 +2822,7 @@ function CampaignsSection() {
       )}
 
       {showForm && (
-        <div className="bg-[#1a1b1e] rounded-xl p-4 border border-emerald-500/30 space-y-4">
+        <div className="bg-bg-3 rounded-xl p-4 border border-emerald-500/30 space-y-4">
           <h3 className="text-sm font-semibold text-white">
             {editingCampaignId !== null ? '캠페인 수정' : '새 캠페인 만들기'}
           </h3>
@@ -2842,7 +2842,7 @@ function CampaignsSection() {
                 value={form.name}
                 onChange={e => setForm({ ...form, name: e.target.value })}
                 placeholder="예: 여름 신상 프로모션"
-                className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-emerald-500/50"
+                className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary placeholder:text-gray-600 focus:outline-none focus:border-emerald-500/50"
               />
             </div>
             <div>
@@ -2851,13 +2851,13 @@ function CampaignsSection() {
                 value={form.product}
                 onChange={e => setForm({ ...form, product: e.target.value })}
                 placeholder="예: 저당 디저트 세트"
-                className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-emerald-500/50"
+                className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary placeholder:text-gray-600 focus:outline-none focus:border-emerald-500/50"
               />
             </div>
           </div>
 
           {/* Cafe24 상품 셀렉터 — 단일 / 다중(카테고리) 모드 토글 */}
-          <div className="border border-[#2a2d35] rounded-xl p-3 space-y-3">
+          <div className="border border-border-primary rounded-xl p-3 space-y-3">
             <div className="flex items-center gap-2">
               <Store size={13} className={isCafe24Connected ? 'text-emerald-400' : 'text-gray-600'} />
               <span className="text-xs font-medium text-gray-300">Cafe24 상품 연결</span>
@@ -2868,7 +2868,7 @@ function CampaignsSection() {
             </div>
 
             {editingCampaignId !== null ? (
-              <div className="px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-xs text-gray-500">
+              <div className="px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-xs text-gray-500">
                 {form.cafe24_category_name
                   ? `비공개 카테고리: ${form.cafe24_category_name} (${(form.cafe24_product_meta?.length ?? form.cafe24_product_nos?.length ?? 0)}개 상품)`
                   : form.cafe24_product_name
@@ -2878,7 +2878,7 @@ function CampaignsSection() {
             ) : (
               <>
                 {/* 모드 토글 */}
-                <div className="flex p-1 bg-[#141516] border border-[#2a2d35] rounded-lg gap-1">
+                <div className="flex p-1 bg-bg-2 border border-border-primary rounded-lg gap-1">
                   <button
                     type="button"
                     onClick={() => setForm({ ...form, auto_create_category: false, cafe24_product_nos: undefined, cafe24_product_meta: undefined, cafe24_category_name: undefined })}
@@ -2920,7 +2920,7 @@ function CampaignsSection() {
                         value={form.cafe24_category_name ?? ''}
                         onChange={e => setForm({ ...form, cafe24_category_name: e.target.value })}
                         placeholder={`예: [비공개] ${form.name || '캠페인명'}`}
-                        className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-violet-500/50"
+                        className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary placeholder:text-gray-600 focus:outline-none focus:border-violet-500/50"
                       />
                       <p className="text-[10px] text-gray-500 mt-1">
                         카페24에 진열되지 않는 비공개 카테고리가 자동 생성됩니다. 인플루언서는 링크로만 접근 가능.
@@ -2942,7 +2942,7 @@ function CampaignsSection() {
           </div>
 
           {/* 할인 설정 */}
-          <div className="border border-[#2a2d35] rounded-xl p-3 space-y-2">
+          <div className="border border-border-primary rounded-xl p-3 space-y-2">
             <span className="text-xs font-medium text-gray-300 flex items-center gap-1.5">
               <Tag size={12} /> 쿠폰 할인 설정
               {editingCampaignId !== null && (
@@ -2956,7 +2956,7 @@ function CampaignsSection() {
                   value={form.discount_type ?? 'percentage'}
                   onChange={e => setForm({ ...form, discount_type: e.target.value as 'percentage' | 'fixed' | 'shipping' })}
                   disabled={editingCampaignId !== null}
-                  className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-emerald-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <option value="percentage">비율 할인 (%)</option>
                   <option value="fixed">금액 할인 (₩)</option>
@@ -2972,7 +2972,7 @@ function CampaignsSection() {
                   value={form.discount_value ?? 0}
                   onChange={e => setForm({ ...form, discount_value: Number(e.target.value) })}
                   readOnly={editingCampaignId !== null}
-                  className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50 read-only:opacity-50 read-only:cursor-not-allowed"
+                  className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-emerald-500/50 read-only:opacity-50 read-only:cursor-not-allowed"
                 />
               </div>
             </div>
@@ -2984,7 +2984,7 @@ function CampaignsSection() {
               <select
                 value={form.commission_type}
                 onChange={e => setForm({ ...form, commission_type: e.target.value as 'percentage' | 'fixed' })}
-                className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50"
+                className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-emerald-500/50"
               >
                 <option value="percentage">매출 비율 (%)</option>
                 <option value="fixed">건당 고정 금액 (₩)</option>
@@ -2998,7 +2998,7 @@ function CampaignsSection() {
                 type="number"
                 value={form.commission_rate}
                 onChange={e => setForm({ ...form, commission_rate: Number(e.target.value) })}
-                className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50"
+                className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-emerald-500/50"
               />
             </div>
             <div>
@@ -3007,7 +3007,7 @@ function CampaignsSection() {
                 type="date"
                 value={form.start_date}
                 onChange={e => setForm({ ...form, start_date: e.target.value })}
-                className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50"
+                className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-emerald-500/50"
               />
             </div>
             <div>
@@ -3016,14 +3016,14 @@ function CampaignsSection() {
                 type="date"
                 value={form.end_date}
                 onChange={e => setForm({ ...form, end_date: e.target.value })}
-                className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50"
+                className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-emerald-500/50"
               />
             </div>
           </div>
           <div className="flex gap-2 justify-end">
             <button
               onClick={handleCancelForm}
-              className="px-3 py-1.5 text-xs text-gray-400 border border-[#2a2d35] rounded-lg hover:text-white hover:border-gray-500 transition-colors"
+              className="px-3 py-1.5 text-xs text-gray-400 border border-border-primary rounded-lg hover:text-white hover:border-gray-500 transition-colors"
             >
               취소
             </button>
@@ -3051,7 +3051,7 @@ function CampaignsSection() {
       )}
 
       {campaigns.length === 0 && !isError ? (
-        <div className="flex flex-col items-center justify-center py-16 gap-3 bg-[#1a1b1e] rounded-xl border border-[#2a2d35]">
+        <div className="flex flex-col items-center justify-center py-16 gap-3 bg-bg-3 rounded-xl border border-border-primary">
           <Megaphone size={28} className="text-gray-600" />
           <p className="text-sm text-gray-400">아직 생성된 캠페인이 없습니다</p>
           <button
@@ -3062,7 +3062,7 @@ function CampaignsSection() {
           </button>
         </div>
       ) : filteredCampaigns.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12 gap-2 bg-[#1a1b1e] rounded-xl border border-[#2a2d35]">
+        <div className="flex flex-col items-center justify-center py-12 gap-2 bg-bg-3 rounded-xl border border-border-primary">
           <Filter size={24} className="text-gray-600" />
           <p className="text-sm text-gray-400">필터 조건에 해당하는 캠페인이 없습니다</p>
           <button
@@ -3075,12 +3075,12 @@ function CampaignsSection() {
       ) : (
         <div className="space-y-3">
           {filteredCampaigns.map(c => (
-            <div key={c.id} className="bg-[#1a1b1e] rounded-xl p-4 border border-[#2a2d35]">
+            <div key={c.id} className="bg-bg-3 rounded-xl p-4 border border-border-primary">
               <div className="flex justify-between items-start mb-3">
                 <div className="flex items-center gap-3">
                   {c.cafe24_product_image && (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={c.cafe24_product_image} alt={c.cafe24_product_name ?? c.product} className="w-12 h-12 rounded-lg object-cover bg-[#141516] shrink-0" />
+                    <img src={c.cafe24_product_image} alt={c.cafe24_product_name ?? c.product} className="w-12 h-12 rounded-lg object-cover bg-bg-2 shrink-0" />
                   )}
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
@@ -3158,7 +3158,7 @@ function CampaignsSection() {
                   </button>
                 </div>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-center bg-[#141516] rounded-lg p-3">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-center bg-bg-2 rounded-lg p-3">
                 <div><p className="text-[10px] text-gray-500">파트너</p><p className="text-sm font-bold text-white">{c.partner_count}명</p></div>
                 <div><p className="text-[10px] text-gray-500">클릭</p><p className="text-sm font-bold text-white">{fmt(c.click_count)}</p></div>
                 <div><p className="text-[10px] text-gray-500">전환</p><p className="text-sm font-bold text-cyan-400">{c.conversion_count}건</p></div>
@@ -3166,7 +3166,7 @@ function CampaignsSection() {
                 <div><p className="text-[10px] text-gray-500">커미션</p><p className="text-sm font-bold text-yellow-400">₩{fmt(c.total_commission)}</p></div>
               </div>
               {c.referral_link && (
-                <div className="mt-2 flex items-center gap-2 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg">
+                <div className="mt-2 flex items-center gap-2 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg">
                   <Link2 size={12} className="text-blue-400 shrink-0" />
                   <input
                     readOnly
@@ -3260,12 +3260,12 @@ function PartnerTimeseriesChart({
   }, [data]);
 
   return (
-    <div className="rounded-xl border border-[#2a2d35] bg-[#141516] p-4 space-y-3">
+    <div className="rounded-xl border border-border-primary bg-bg-2 p-4 space-y-3">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h3 className="text-sm font-semibold text-white flex items-center gap-2">
           <TrendingUp size={14} className="text-emerald-400" /> 파트너 일별 매출 추이
         </h3>
-        <div className="flex items-center gap-1 bg-[#0F1011] border border-[#2a2d35] rounded-lg p-0.5">
+        <div className="flex items-center gap-1 bg-bg-1 border border-border-primary rounded-lg p-0.5">
           {([7, 30, 90] as const).map(d => (
             <button
               key={d}
@@ -3284,23 +3284,23 @@ function PartnerTimeseriesChart({
 
       {/* 요약 KPI 라인 */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-[11px]">
-        <div className="bg-[#0F1011] rounded-lg px-2.5 py-1.5">
+        <div className="bg-bg-1 rounded-lg px-2.5 py-1.5">
           <p className="text-gray-500">기간 매출</p>
           <p className="text-emerald-300 font-bold tabular-nums">₩{fmt(totals.sales)}</p>
         </div>
-        <div className="bg-[#0F1011] rounded-lg px-2.5 py-1.5">
+        <div className="bg-bg-1 rounded-lg px-2.5 py-1.5">
           <p className="text-gray-500">전환</p>
           <p className="text-cyan-300 font-bold tabular-nums">{fmt(totals.conversions)}건</p>
         </div>
-        <div className="bg-[#0F1011] rounded-lg px-2.5 py-1.5">
+        <div className="bg-bg-1 rounded-lg px-2.5 py-1.5">
           <p className="text-gray-500">클릭</p>
           <p className="text-white font-bold tabular-nums">{fmt(totals.clicks)}</p>
         </div>
-        <div className="bg-[#0F1011] rounded-lg px-2.5 py-1.5">
+        <div className="bg-bg-1 rounded-lg px-2.5 py-1.5">
           <p className="text-gray-500">환불·취소</p>
           <p className="text-rose-300 font-bold tabular-nums">₩{fmt(totals.refunded + totals.cancelled)}</p>
         </div>
-        <div className="bg-[#0F1011] rounded-lg px-2.5 py-1.5">
+        <div className="bg-bg-1 rounded-lg px-2.5 py-1.5">
           <p className="text-gray-500">최고 매출일</p>
           <p className="text-amber-300 font-bold tabular-nums">
             {peakDay ? `${peakDay.date.slice(5)} (₩${fmt(peakDay.sales)})` : '—'}
@@ -3327,7 +3327,7 @@ function PartnerTimeseriesChart({
                   <stop offset="100%" stopColor="#10B981" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#23252A" vertical={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-primary)" vertical={false} />
               <XAxis
                 dataKey="date"
                 tickFormatter={(v: string) => v.slice(5)}
@@ -3360,7 +3360,7 @@ function PartnerTimeseriesChart({
               />
               <Tooltip
                 contentStyle={DARK_TOOLTIP_STYLE}
-                labelStyle={{ color: '#8A8F98', fontSize: 11 }}
+                labelStyle={{ color: 'var(--color-text-tertiary)', fontSize: 11 }}
                 formatter={(value: number, name: string) => {
                   if (name === '매출' || name === '환불' || name === '취소') return [`₩${fmt(value)}`, name];
                   return [fmt(value), name];
@@ -3424,7 +3424,7 @@ function PartnerDailyLog({
   const totalCount = audit?.conversions_recent_200?.length ?? 0;
 
   return (
-    <div className="rounded-xl border border-[#2a2d35] bg-[#141516]">
+    <div className="rounded-xl border border-border-primary bg-bg-2">
       <button
         type="button"
         onClick={onToggle}
@@ -3463,8 +3463,8 @@ function PartnerDailyLog({
                 const dayCancelled = items.filter(i => (i.status || '').toLowerCase() === 'cancelled');
                 const dayPaidSum = dayPaid.reduce((s, i) => s + (i.order_amount || 0), 0);
                 return (
-                  <div key={day} className="rounded-lg border border-[#2a2d35] overflow-hidden">
-                    <div className="flex items-center justify-between bg-[#0F1011] px-3 py-2 text-[11px]">
+                  <div key={day} className="rounded-lg border border-border-primary overflow-hidden">
+                    <div className="flex items-center justify-between bg-bg-1 px-3 py-2 text-[11px]">
                       <span className="font-mono text-gray-300 font-medium">{day}</span>
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-emerald-300">매출 ₩{fmt(dayPaidSum)}</span>
@@ -3480,7 +3480,7 @@ function PartnerDailyLog({
                     <div className="overflow-x-auto">
                     <table className="w-full text-[11px] min-w-[560px]">
                       <thead>
-                        <tr className="bg-[#141516] text-gray-500 border-b border-[#2a2d35]">
+                        <tr className="bg-bg-2 text-gray-500 border-b border-border-primary">
                           <th className="text-left py-1.5 px-3 whitespace-nowrap">시각</th>
                           <th className="text-left py-1.5 px-3 whitespace-nowrap">주문번호</th>
                           <th className="text-left py-1.5 px-3 whitespace-nowrap">캠페인</th>
@@ -3496,7 +3496,7 @@ function PartnerDailyLog({
                           const time = dt.length >= 19 ? dt.slice(11, 16) : '—';
                           const cname = c.campaign_id ? (campaignNameById.get(c.campaign_id) || `#${c.campaign_id}`) : '—';
                           return (
-                            <tr key={c.id} className="border-b border-[#2a2d35]/50 text-gray-300 hover:bg-white/[0.02]">
+                            <tr key={c.id} className="border-b border-border-primary/50 text-gray-300 hover:bg-white/[0.02]">
                               <td className="py-1.5 px-3 font-mono text-gray-500">{time}</td>
                               <td className="py-1.5 px-3 font-mono text-gray-400 truncate max-w-[120px]" title={c.cafe24_order_id || ''}>
                                 {c.cafe24_order_id || '—'}
@@ -3611,11 +3611,11 @@ function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalP
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
       <div
-        className="w-full max-w-4xl bg-[#1a1b1e] rounded-2xl border border-[#2a2d35] shadow-2xl max-h-[90vh] overflow-y-auto"
+        className="w-full max-w-4xl bg-bg-3 rounded-2xl border border-border-primary shadow-2xl max-h-[90vh] overflow-y-auto"
         onClick={e => e.stopPropagation()}
       >
         {/* 헤더 */}
-        <div className="flex items-center justify-between p-5 border-b border-[#2a2d35]">
+        <div className="flex items-center justify-between p-5 border-b border-border-primary">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-cyan-500 flex items-center justify-center text-white font-bold text-sm shrink-0">
               {partner.name[0]}
@@ -3663,10 +3663,10 @@ function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalP
             ) : performance.length === 0 ? (
               <p className="text-xs text-gray-500 text-center py-6">참여 중인 캠페인이 없습니다</p>
             ) : (
-              <div className="overflow-x-auto rounded-xl border border-[#2a2d35]">
+              <div className="overflow-x-auto rounded-xl border border-border-primary">
                 <table className="w-full text-xs min-w-[640px]">
                   <thead>
-                    <tr className="bg-[#141516] text-gray-500 border-b border-[#2a2d35]">
+                    <tr className="bg-bg-2 text-gray-500 border-b border-border-primary">
                       <th className="text-left py-2.5 px-3 whitespace-nowrap">캠페인명</th>
                       <th className="text-left py-2.5 px-3 whitespace-nowrap">전용 링크</th>
                       <th className="text-left py-2.5 px-3 whitespace-nowrap">전용 쿠폰</th>
@@ -3679,7 +3679,7 @@ function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalP
                   </thead>
                   <tbody>
                     {performance.map(row => (
-                      <tr key={row.pc_id} className="border-b border-[#2a2d35]/50 text-gray-300 hover:bg-white/[0.02]">
+                      <tr key={row.pc_id} className="border-b border-border-primary/50 text-gray-300 hover:bg-white/[0.02]">
                         <td className="py-2.5 px-3 font-medium text-white">{row.campaign_name}</td>
                         <td className="py-2.5 px-3">
                           {row.referral_link ? (
@@ -3687,7 +3687,7 @@ function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalP
                               <input
                                 readOnly
                                 value={row.referral_link}
-                                className="flex-1 bg-[#141516] border border-[#2a2d35] px-2 py-1 rounded text-[10px] text-gray-300 truncate focus:outline-none"
+                                className="flex-1 bg-bg-2 border border-border-primary px-2 py-1 rounded text-[10px] text-gray-300 truncate focus:outline-none"
                               />
                               <button
                                 onClick={() => { navigator.clipboard.writeText(row.referral_link!); toast.success('링크 복사됨'); }}
@@ -3716,7 +3716,7 @@ function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalP
                             className={`px-2 py-1 rounded text-[10px] font-medium transition-colors ${
                               row.coupon_code
                                 ? 'bg-emerald-500/10 text-emerald-300 ring-1 ring-emerald-500/20 hover:bg-emerald-500/20'
-                                : 'bg-[#141516] text-gray-500 border border-[#2a2d35] hover:text-white'
+                                : 'bg-bg-2 text-gray-500 border border-border-primary hover:text-white'
                             }`}
                             title="이 쿠폰을 사용한 주문은 클릭 추적 없이도 이 파트너에 확정 귀속됩니다"
                           >
@@ -3744,7 +3744,7 @@ function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalP
                       </tr>
                     ))}
                     {/* 합계 행 */}
-                    <tr className="bg-[#141516] font-semibold text-white text-xs">
+                    <tr className="bg-bg-2 font-semibold text-text-primary text-xs">
                       <td className="py-2.5 px-3">합계</td>
                       <td />
                       <td />
@@ -3766,7 +3766,7 @@ function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalP
               <select
                 value={selectedCampaignId}
                 onChange={e => setSelectedCampaignId(Number(e.target.value))}
-                className="flex-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50"
+                className="flex-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-emerald-500/50"
               >
                 <option value={0}>캠페인 선택...</option>
                 {availableCampaigns.map(c => (
@@ -3785,7 +3785,7 @@ function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalP
           )}
 
           {/* 데이터 정합성 진단 — 관리자 vs 파트너 화면 매출 불일치 추적 */}
-          <div className="border-t border-[#2a2d35] pt-4">
+          <div className="border-t border-border-primary pt-4">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-white flex items-center gap-2">
                 <AlertCircle size={14} className="text-yellow-400" /> 매출 정합성 진단
@@ -3822,23 +3822,23 @@ function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalP
                 ) : (
                   <>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                      <div className="bg-[#141516] border border-[#2a2d35] rounded-lg p-2.5">
+                      <div className="bg-bg-2 border border-border-primary rounded-lg p-2.5">
                         <p className="text-[10px] text-gray-500">순매출 (paid only)</p>
                         <p className="text-sm font-bold text-emerald-400 mt-0.5">₩{fmt(audit.summary.net_sales_paid_only)}</p>
                       </div>
-                      <div className="bg-[#141516] border border-[#2a2d35] rounded-lg p-2.5">
+                      <div className="bg-bg-2 border border-border-primary rounded-lg p-2.5">
                         <p className="text-[10px] text-gray-500">총합 (all status)</p>
                         <p className="text-sm font-bold text-blue-400 mt-0.5">₩{fmt(audit.summary.gross_sales_all_status)}</p>
                       </div>
-                      <div className="bg-[#141516] border border-[#2a2d35] rounded-lg p-2.5">
+                      <div className="bg-bg-2 border border-border-primary rounded-lg p-2.5">
                         <p className="text-[10px] text-gray-500">차이 (취소+환불+기타)</p>
                         <p className="text-sm font-bold text-yellow-400 mt-0.5">₩{fmt(audit.summary.diff)}</p>
                       </div>
                     </div>
-                    <div className="overflow-x-auto rounded-lg border border-[#2a2d35]">
+                    <div className="overflow-x-auto rounded-lg border border-border-primary">
                       <table className="w-full text-xs min-w-[560px]">
                         <thead>
-                          <tr className="bg-[#141516] text-gray-500 border-b border-[#2a2d35]">
+                          <tr className="bg-bg-2 text-gray-500 border-b border-border-primary">
                             <th className="text-left py-2 px-3 whitespace-nowrap">상태값(raw)</th>
                             <th className="text-left py-2 px-3 whitespace-nowrap">정규화</th>
                             <th className="text-right py-2 px-3 whitespace-nowrap">건수</th>
@@ -3848,7 +3848,7 @@ function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalP
                         </thead>
                         <tbody>
                           {audit.status_breakdown.map((b, i) => (
-                            <tr key={i} className="border-b border-[#2a2d35]/50 text-gray-300">
+                            <tr key={i} className="border-b border-border-primary/50 text-gray-300">
                               <td className="py-2 px-3 font-mono text-[11px]">
                                 {b.status_raw === null ? <span className="text-red-400">NULL</span> : `"${b.status_raw}"`}
                               </td>
@@ -3938,10 +3938,10 @@ function PartnerEditModal({ partner, onClose, onSave, isSaving }: PartnerEditMod
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
       <div
-        className="w-full max-w-lg bg-[#1a1b1e] rounded-2xl border border-[#2a2d35] shadow-2xl max-h-[90vh] overflow-y-auto"
+        className="w-full max-w-lg bg-bg-3 rounded-2xl border border-border-primary shadow-2xl max-h-[90vh] overflow-y-auto"
         onClick={e => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between p-5 border-b border-[#2a2d35]">
+        <div className="flex items-center justify-between p-5 border-b border-border-primary">
           <div className="flex items-center gap-2">
             <Pencil size={15} className="text-blue-400" />
             <h2 className="text-sm font-semibold text-white">파트너 수정</h2>
@@ -3958,7 +3958,7 @@ function PartnerEditModal({ partner, onClose, onSave, isSaving }: PartnerEditMod
               <input
                 value={editForm.name}
                 onChange={e => setEditForm({ ...editForm, name: e.target.value })}
-                className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-blue-500/50"
+                className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary placeholder:text-gray-600 focus:outline-none focus:border-blue-500/50"
               />
             </div>
             <div>
@@ -3971,7 +3971,7 @@ function PartnerEditModal({ partner, onClose, onSave, isSaving }: PartnerEditMod
                 value={editForm.phone}
                 onChange={e => setEditForm({ ...editForm, phone: e.target.value })}
                 placeholder="010-1234-5678"
-                className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-blue-500/50"
+                className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary placeholder:text-gray-600 focus:outline-none focus:border-blue-500/50"
               />
             </div>
             <div>
@@ -3983,7 +3983,7 @@ function PartnerEditModal({ partner, onClose, onSave, isSaving }: PartnerEditMod
                 value={editForm.email}
                 onChange={e => setEditForm({ ...editForm, email: e.target.value })}
                 placeholder="partner@example.com (선택)"
-                className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-blue-500/50"
+                className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary placeholder:text-gray-600 focus:outline-none focus:border-blue-500/50"
               />
             </div>
             <div>
@@ -3992,7 +3992,7 @@ function PartnerEditModal({ partner, onClose, onSave, isSaving }: PartnerEditMod
                 type="number"
                 value={editForm.followers}
                 onChange={e => setEditForm({ ...editForm, followers: Number(e.target.value) })}
-                className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50"
+                className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-blue-500/50"
               />
             </div>
             <div>
@@ -4000,7 +4000,7 @@ function PartnerEditModal({ partner, onClose, onSave, isSaving }: PartnerEditMod
               <select
                 value={editForm.status}
                 onChange={e => setEditForm({ ...editForm, status: e.target.value as AffiliatePartner['status'] })}
-                className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/50"
+                className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-blue-500/50"
               >
                 <option value="pending">대기</option>
                 <option value="approved">승인</option>
@@ -4023,7 +4023,7 @@ function PartnerEditModal({ partner, onClose, onSave, isSaving }: PartnerEditMod
                       className={`flex-1 px-2 py-2 text-xs rounded-lg border transition-colors ${
                         active
                           ? opt.color
-                          : 'border-[#2a2d35] text-gray-500 hover:border-gray-500 hover:text-gray-300'
+                          : 'border-border-primary text-gray-500 hover:border-gray-500 hover:text-gray-300'
                       }`}
                     >
                       {opt.label}
@@ -4052,7 +4052,7 @@ function PartnerEditModal({ partner, onClose, onSave, isSaving }: PartnerEditMod
                     className={`flex items-center gap-1.5 px-2.5 py-2 rounded-lg border cursor-pointer transition-all text-xs select-none ${
                       checked
                         ? `${opt.color} border-opacity-60`
-                        : 'border-[#2a2d35] text-gray-500 hover:border-gray-500 hover:text-gray-300'
+                        : 'border-border-primary text-gray-500 hover:border-gray-500 hover:text-gray-300'
                     }`}
                   >
                     <input type="checkbox" className="sr-only" checked={checked} onChange={() => toggleChannel(opt.key)} />
@@ -4070,14 +4070,14 @@ function PartnerEditModal({ partner, onClose, onSave, isSaving }: PartnerEditMod
               value={editForm.memo}
               onChange={e => setEditForm({ ...editForm, memo: e.target.value })}
               placeholder="내부 메모 (선택)"
-              className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-blue-500/50"
+              className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary placeholder:text-gray-600 focus:outline-none focus:border-blue-500/50"
             />
           </div>
 
           <div className="flex gap-2 justify-end pt-2">
             <button
               onClick={onClose}
-              className="px-3 py-1.5 text-xs text-gray-400 border border-[#2a2d35] rounded-lg hover:text-white hover:border-gray-500 transition-colors"
+              className="px-3 py-1.5 text-xs text-gray-400 border border-border-primary rounded-lg hover:text-white hover:border-gray-500 transition-colors"
             >
               취소
             </button>
@@ -4283,7 +4283,7 @@ function PartnersSection() {
               className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors border ${
                 showTrash
                   ? 'bg-red-500/10 border-red-500/30 text-red-400'
-                  : 'border-[#2a2d35] text-gray-400 hover:text-white hover:border-gray-500'
+                  : 'border-border-primary text-gray-400 hover:text-white hover:border-gray-500'
               }`}
             >
               <Trash2 size={13} /> {showTrash ? '활성 파트너' : `휴지통${trashedPartners.length > 0 ? ` (${trashedPartners.length})` : ''}`}
@@ -4300,7 +4300,7 @@ function PartnersSection() {
         </div>
 
         {showTrash && (
-          <div className="bg-[#1a1b1e] rounded-xl border border-red-500/20 p-4 space-y-3">
+          <div className="bg-bg-3 rounded-xl border border-red-500/20 p-4 space-y-3">
             <div className="flex items-center gap-2">
               <Trash2 size={14} className="text-red-400" />
               <h3 className="text-sm font-semibold text-white">휴지통</h3>
@@ -4311,7 +4311,7 @@ function PartnersSection() {
             ) : (
               <div className="space-y-2">
                 {trashedPartners.map(p => (
-                  <div key={p.id} className="flex items-center justify-between bg-[#141516] border border-[#2a2d35] rounded-lg px-3 py-2.5">
+                  <div key={p.id} className="flex items-center justify-between bg-bg-2 border border-border-primary rounded-lg px-3 py-2.5">
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-white truncate">{p.name}</p>
@@ -4354,7 +4354,7 @@ function PartnersSection() {
         )}
 
         {showInviteForm && (
-          <div className="bg-[#1a1b1e] rounded-xl p-4 border border-emerald-500/30 space-y-4">
+          <div className="bg-bg-3 rounded-xl p-4 border border-emerald-500/30 space-y-4">
             <h3 className="text-sm font-semibold text-white">파트너 초대하기</h3>
             <div className="grid md:grid-cols-2 gap-3">
               <div>
@@ -4363,7 +4363,7 @@ function PartnersSection() {
                   value={inviteForm.name}
                   onChange={e => setInviteForm({ ...inviteForm, name: e.target.value })}
                   placeholder="예: 달콤리뷰"
-                  className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-emerald-500/50"
+                  className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary placeholder:text-gray-600 focus:outline-none focus:border-emerald-500/50"
                 />
               </div>
               <div>
@@ -4376,7 +4376,7 @@ function PartnersSection() {
                   value={inviteForm.phone}
                   onChange={e => setInviteForm({ ...inviteForm, phone: e.target.value })}
                   placeholder="010-1234-5678"
-                  className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-emerald-500/50"
+                  className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary placeholder:text-gray-600 focus:outline-none focus:border-emerald-500/50"
                 />
               </div>
               <div>
@@ -4389,7 +4389,7 @@ function PartnersSection() {
                   value={inviteForm.email}
                   onChange={e => setInviteForm({ ...inviteForm, email: e.target.value })}
                   placeholder="partner@example.com (선택)"
-                  className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-emerald-500/50"
+                  className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary placeholder:text-gray-600 focus:outline-none focus:border-emerald-500/50"
                 />
               </div>
               <div>
@@ -4408,7 +4408,7 @@ function PartnersSection() {
                         className={`flex-1 px-2 py-2 text-xs rounded-lg border transition-colors ${
                           active
                             ? opt.color
-                            : 'border-[#2a2d35] text-gray-500 hover:border-gray-500 hover:text-gray-300'
+                            : 'border-border-primary text-gray-500 hover:border-gray-500 hover:text-gray-300'
                         }`}
                       >
                         {opt.label}
@@ -4435,7 +4435,7 @@ function PartnersSection() {
                         className={`flex items-center gap-1.5 px-2.5 py-2 rounded-lg border cursor-pointer transition-all text-xs select-none ${
                           checked
                             ? `${opt.color} border-opacity-60`
-                            : 'border-[#2a2d35] text-gray-500 hover:border-gray-500 hover:text-gray-300'
+                            : 'border-border-primary text-gray-500 hover:border-gray-500 hover:text-gray-300'
                         }`}
                       >
                         <input
@@ -4457,7 +4457,7 @@ function PartnersSection() {
                   type="number"
                   value={inviteForm.followers}
                   onChange={e => setInviteForm({ ...inviteForm, followers: Number(e.target.value) })}
-                  className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50"
+                  className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-emerald-500/50"
                 />
               </div>
               <div className="md:col-span-2">
@@ -4466,14 +4466,14 @@ function PartnersSection() {
                   value={inviteForm.memo}
                   onChange={e => setInviteForm({ ...inviteForm, memo: e.target.value })}
                   placeholder="내부 메모 (선택)"
-                  className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-emerald-500/50"
+                  className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary placeholder:text-gray-600 focus:outline-none focus:border-emerald-500/50"
                 />
               </div>
             </div>
 
             {/* 참여 캠페인 멀티셀렉트 */}
             {activeCampaigns.length > 0 && (
-              <div className="border border-[#2a2d35] rounded-xl p-3 space-y-2">
+              <div className="border border-border-primary rounded-xl p-3 space-y-2">
                 <p className="text-xs font-medium text-gray-300 flex items-center gap-1.5">
                   <Megaphone size={12} /> 참여 캠페인 선택
                   {inviteForm.campaign_ids.length > 0 && (
@@ -4501,7 +4501,7 @@ function PartnersSection() {
             <div className="flex gap-2 justify-end">
               <button
                 onClick={() => setShowInviteForm(false)}
-                className="px-3 py-1.5 text-xs text-gray-400 border border-[#2a2d35] rounded-lg hover:text-white hover:border-gray-500 transition-colors"
+                className="px-3 py-1.5 text-xs text-gray-400 border border-border-primary rounded-lg hover:text-white hover:border-gray-500 transition-colors"
               >
                 취소
               </button>
@@ -4543,7 +4543,7 @@ function PartnersSection() {
         )}
 
         {partners.length === 0 && !isError ? (
-          <div className="flex flex-col items-center justify-center py-16 gap-3 bg-[#1a1b1e] rounded-xl border border-[#2a2d35]">
+          <div className="flex flex-col items-center justify-center py-16 gap-3 bg-bg-3 rounded-xl border border-border-primary">
             <Users size={28} className="text-gray-600" />
             <p className="text-sm text-gray-400">아직 등록된 파트너가 없습니다</p>
             <button
@@ -4576,7 +4576,7 @@ function PartnersSection() {
 
           if (filteredPartners.length === 0) {
             return (
-              <div className="flex flex-col items-center justify-center py-12 gap-2 bg-[#1a1b1e] rounded-xl border border-[#2a2d35]">
+              <div className="flex flex-col items-center justify-center py-12 gap-2 bg-bg-3 rounded-xl border border-border-primary">
                 <Filter size={24} className="text-gray-600" />
                 <p className="text-sm text-gray-400">필터 조건에 해당하는 파트너가 없습니다</p>
                 <button
@@ -4594,7 +4594,7 @@ function PartnersSection() {
             {filteredPartners.map(p => (
               <div
                 key={p.id}
-                className="bg-[#1a1b1e] rounded-xl p-4 border border-[#2a2d35] cursor-pointer hover:border-emerald-500/30 transition-colors"
+                className="bg-bg-3 rounded-xl p-4 border border-border-primary cursor-pointer hover:border-emerald-500/30 transition-colors"
                 onClick={() => setSelectedPartner(p)}
               >
                 <div className="flex justify-between items-start mb-3">
@@ -4679,7 +4679,7 @@ function PartnersSection() {
 
                 {p.status === 'approved' && (
                   <>
-                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-center bg-[#141516] rounded-lg p-3 mb-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-center bg-bg-2 rounded-lg p-3 mb-2">
                       <div><p className="text-[10px] text-gray-500">클릭</p><p className="text-sm font-bold text-white">{fmt(p.click_count)}</p></div>
                       <div><p className="text-[10px] text-gray-500">전환</p><p className="text-sm font-bold text-cyan-400">{p.conversion_count}건</p></div>
                       <div><p className="text-[10px] text-gray-500">매출</p><p className="text-sm font-bold text-emerald-400">₩{fmt(p.total_sales)}</p></div>
@@ -4692,7 +4692,7 @@ function PartnersSection() {
                         onClick={e => e.stopPropagation()}
                       >
                         {p.campaign_links.map((cl) => (
-                          <div key={cl.pc_id} className="flex items-center gap-2 bg-[#141516] rounded-lg px-3 py-2">
+                          <div key={cl.pc_id} className="flex items-center gap-2 bg-bg-2 rounded-lg px-3 py-2">
                             <Link2 size={12} className="text-gray-500 shrink-0" />
                             <div className="flex-1 min-w-0">
                               <p className="text-[10px] text-gray-500 truncate">{cl.campaign_name || `캠페인 #${cl.campaign_id}`}</p>
@@ -4706,7 +4706,7 @@ function PartnersSection() {
                       </div>
                     ) : p.referral_link ? (
                       <div
-                        className="flex items-center gap-2 bg-[#141516] rounded-lg px-3 py-2"
+                        className="flex items-center gap-2 bg-bg-2 rounded-lg px-3 py-2"
                         onClick={e => e.stopPropagation()}
                       >
                         <Link2 size={12} className="text-gray-500 shrink-0" />
@@ -4794,7 +4794,7 @@ function ReferralSection() {
       )}
 
       {showForm && (
-        <div className="bg-[#1a1b1e] rounded-xl p-4 border border-emerald-500/30 space-y-3">
+        <div className="bg-bg-3 rounded-xl p-4 border border-emerald-500/30 space-y-3">
           <h3 className="text-sm font-semibold text-white">새 추천 프로그램 만들기</h3>
           <div className="grid md:grid-cols-2 gap-3">
             <div className="md:col-span-2">
@@ -4803,7 +4803,7 @@ function ReferralSection() {
                 value={form.name}
                 onChange={e => setForm({ ...form, name: e.target.value })}
                 placeholder="예: 친구 추천 프로그램"
-                className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-emerald-500/50"
+                className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary placeholder:text-gray-600 focus:outline-none focus:border-emerald-500/50"
               />
             </div>
             <div>
@@ -4811,7 +4811,7 @@ function ReferralSection() {
               <select
                 value={form.reward_type}
                 onChange={e => setForm({ ...form, reward_type: e.target.value as 'points' | 'coupon' | 'cash' })}
-                className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50"
+                className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-emerald-500/50"
               >
                 <option value="points">포인트</option>
                 <option value="coupon">쿠폰</option>
@@ -4824,7 +4824,7 @@ function ReferralSection() {
                 type="number"
                 value={form.referrer_reward}
                 onChange={e => setForm({ ...form, referrer_reward: Number(e.target.value) })}
-                className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50"
+                className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-emerald-500/50"
               />
             </div>
             <div>
@@ -4833,14 +4833,14 @@ function ReferralSection() {
                 type="number"
                 value={form.referee_reward}
                 onChange={e => setForm({ ...form, referee_reward: Number(e.target.value) })}
-                className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50"
+                className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-emerald-500/50"
               />
             </div>
           </div>
           <div className="flex gap-2 justify-end">
             <button
               onClick={() => setShowForm(false)}
-              className="px-3 py-1.5 text-xs text-gray-400 border border-[#2a2d35] rounded-lg hover:text-white hover:border-gray-500 transition-colors"
+              className="px-3 py-1.5 text-xs text-gray-400 border border-border-primary rounded-lg hover:text-white hover:border-gray-500 transition-colors"
             >
               취소
             </button>
@@ -4857,7 +4857,7 @@ function ReferralSection() {
       )}
 
       {programs.length === 0 && !isError ? (
-        <div className="flex flex-col items-center justify-center py-16 gap-3 bg-[#1a1b1e] rounded-xl border border-[#2a2d35]">
+        <div className="flex flex-col items-center justify-center py-16 gap-3 bg-bg-3 rounded-xl border border-border-primary">
           <Gift size={28} className="text-gray-600" />
           <p className="text-sm text-gray-400">아직 추천 프로그램이 없습니다</p>
           <button
@@ -4869,7 +4869,7 @@ function ReferralSection() {
         </div>
       ) : (
         programs.map(prog => (
-          <div key={prog.id} className="bg-[#1a1b1e] rounded-xl p-5 border border-[#2a2d35]">
+          <div key={prog.id} className="bg-bg-3 rounded-xl p-5 border border-border-primary">
             <div className="flex justify-between items-center mb-4">
               <div>
                 <h3 className="text-sm font-semibold text-white">{prog.name}</h3>
@@ -4884,7 +4884,7 @@ function ReferralSection() {
                 <button
                   onClick={() => toggleMutation.mutate({ id: prog.id, status: prog.status === 'active' ? 'paused' : 'active' })}
                   disabled={toggleMutation.isPending}
-                  className="text-[10px] px-2 py-1 border border-[#2a2d35] text-gray-400 hover:text-white hover:border-gray-500 rounded transition-colors disabled:opacity-50"
+                  className="text-[10px] px-2 py-1 border border-border-primary text-gray-400 hover:text-white hover:border-gray-500 rounded transition-colors disabled:opacity-50"
                 >
                   {prog.status === 'active' ? '중지' : '재개'}
                 </button>
@@ -4892,19 +4892,19 @@ function ReferralSection() {
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-              <div className="bg-[#141516] rounded-lg p-3 text-center">
+              <div className="bg-bg-2 rounded-lg p-3 text-center">
                 <p className="text-[10px] text-gray-500">추천인 보상</p>
                 <p className="text-lg font-bold text-emerald-400">{fmt(prog.referrer_reward)}{prog.reward_type === 'points' ? 'P' : prog.reward_type === 'cash' ? '원' : ''}</p>
               </div>
-              <div className="bg-[#141516] rounded-lg p-3 text-center">
+              <div className="bg-bg-2 rounded-lg p-3 text-center">
                 <p className="text-[10px] text-gray-500">피추천인 보상</p>
                 <p className="text-lg font-bold text-cyan-400">{fmt(prog.referee_reward)}{prog.reward_type === 'points' ? 'P' : prog.reward_type === 'cash' ? '원' : ''}</p>
               </div>
-              <div className="bg-[#141516] rounded-lg p-3 text-center">
+              <div className="bg-bg-2 rounded-lg p-3 text-center">
                 <p className="text-[10px] text-gray-500">총 추천</p>
                 <p className="text-lg font-bold text-white">{prog.total_referrals}</p>
               </div>
-              <div className="bg-[#141516] rounded-lg p-3 text-center">
+              <div className="bg-bg-2 rounded-lg p-3 text-center">
                 <p className="text-[10px] text-gray-500">가입 전환율</p>
                 <p className="text-lg font-bold text-yellow-400">{fmtPct(prog.conversion_rate)}%</p>
               </div>
@@ -4920,7 +4920,7 @@ function ReferralSection() {
                 ].map((step, idx) => (
                   <div key={idx} className="flex items-center gap-3">
                     <span className="text-[10px] text-gray-500 w-20 shrink-0">{step.label}</span>
-                    <div className="flex-1 h-6 bg-[#141516] rounded overflow-hidden relative">
+                    <div className="flex-1 h-6 bg-bg-2 rounded overflow-hidden relative">
                       <div
                         className="h-full rounded"
                         style={{ width: `${(step.value / prog.total_referrals) * 100}%`, backgroundColor: step.color }}
@@ -4968,7 +4968,7 @@ function MyPointsSection() {
 
       <div className="grid md:grid-cols-2 gap-4">
         {/* 포인트 잔액 카드 */}
-        <div className="bg-[#1a1b1e] rounded-xl p-5 border border-[#2a2d35] flex flex-col items-center justify-center text-center">
+        <div className="bg-bg-3 rounded-xl p-5 border border-border-primary flex flex-col items-center justify-center text-center">
           <div className="w-12 h-12 rounded-full bg-yellow-500/10 flex items-center justify-center mb-3">
             <Coins size={22} className="text-yellow-400" />
           </div>
@@ -4986,7 +4986,7 @@ function MyPointsSection() {
         </div>
 
         {/* 내 추천 링크 카드 */}
-        <div className="bg-[#1a1b1e] rounded-xl p-5 border border-[#2a2d35] space-y-3">
+        <div className="bg-bg-3 rounded-xl p-5 border border-border-primary space-y-3">
           <h3 className="text-sm font-semibold text-white flex items-center gap-2">
             <Share2 size={14} className="text-emerald-400" /> 내 추천 링크
           </h3>
@@ -4998,11 +4998,11 @@ function MyPointsSection() {
             <p className="text-xs text-gray-500">추천 코드를 불러오지 못했습니다</p>
           ) : (
             <>
-              <div className="flex items-center gap-2 bg-[#141516] rounded-lg px-3 py-2">
+              <div className="flex items-center gap-2 bg-bg-2 rounded-lg px-3 py-2">
                 <span className="text-xs text-gray-400 font-mono">코드: </span>
                 <span className="text-xs text-emerald-300 font-mono font-medium flex-1">{referralData.referral_code}</span>
               </div>
-              <div className="flex items-center gap-2 bg-[#141516] rounded-lg px-3 py-2">
+              <div className="flex items-center gap-2 bg-bg-2 rounded-lg px-3 py-2">
                 <Link2 size={12} className="text-gray-500 shrink-0" />
                 <code className="text-[10px] text-gray-400 flex-1 truncate">{referralData.signup_link}</code>
                 <button
@@ -5019,7 +5019,7 @@ function MyPointsSection() {
       </div>
 
       {/* 거래 내역 */}
-      <div className="bg-[#1a1b1e] rounded-xl p-4 border border-[#2a2d35]">
+      <div className="bg-bg-3 rounded-xl p-4 border border-border-primary">
         <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
           <TrendingUp size={14} className="text-cyan-400" /> 포인트 거래 내역
         </h3>
@@ -5036,7 +5036,7 @@ function MyPointsSection() {
           <div className="overflow-x-auto">
             <table className="w-full text-xs min-w-[420px]">
               <thead>
-                <tr className="text-gray-500 border-b border-[#2a2d35]">
+                <tr className="text-gray-500 border-b border-border-primary">
                   <th className="text-left py-2 px-2 whitespace-nowrap">날짜</th>
                   <th className="text-left py-2 px-2 whitespace-nowrap">사유</th>
                   <th className="text-right py-2 px-2 whitespace-nowrap">금액</th>
@@ -5045,7 +5045,7 @@ function MyPointsSection() {
               </thead>
               <tbody>
                 {transactions.map(tx => (
-                  <tr key={tx.id} className="border-b border-[#2a2d35]/50 text-gray-300">
+                  <tr key={tx.id} className="border-b border-border-primary/50 text-gray-300">
                     <td className="py-2.5 px-2 text-gray-500 whitespace-nowrap">{tx.created_at?.slice(0, 10)}</td>
                     <td className="py-2.5 px-2 text-white">{reasonLabel(tx.reason)}</td>
                     <td className={`py-2.5 px-2 text-right font-medium ${tx.amount >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
@@ -5159,30 +5159,30 @@ function SettlementSection() {
       )}
 
       <div className="grid md:grid-cols-3 gap-4">
-        <div className="bg-[#1a1b1e] rounded-xl p-4 border border-[#2a2d35] text-center">
+        <div className="bg-bg-3 rounded-xl p-4 border border-border-primary text-center">
           <p className="text-xs text-gray-500">총 미정산 금액</p>
           <p className="text-2xl font-bold text-red-400 mt-1">₩{fmt(totalUnpaid)}</p>
           <p className="text-[10px] text-gray-600 mt-0.5">{pendingCount}건 대기중</p>
         </div>
-        <div className="bg-[#1a1b1e] rounded-xl p-4 border border-[#2a2d35] text-center">
+        <div className="bg-bg-3 rounded-xl p-4 border border-border-primary text-center">
           <p className="text-xs text-gray-500">이번 달 정산 예정</p>
           <p className="text-2xl font-bold text-yellow-400 mt-1">
             ₩{fmt(approvedPartners.reduce((s, p) => s + n(p.unpaid_commission), 0))}
           </p>
         </div>
-        <div className="bg-[#1a1b1e] rounded-xl p-4 border border-[#2a2d35] text-center">
+        <div className="bg-bg-3 rounded-xl p-4 border border-border-primary text-center">
           <p className="text-xs text-gray-500">누적 정산 완료</p>
           <p className="text-2xl font-bold text-emerald-400 mt-1">₩{fmt(totalPaid)}</p>
         </div>
       </div>
 
       {approvedPartners.length > 0 && (
-        <div className="bg-[#1a1b1e] rounded-xl p-4 border border-[#2a2d35]">
+        <div className="bg-bg-3 rounded-xl p-4 border border-border-primary">
           <h3 className="text-sm font-semibold text-white mb-3">미정산 파트너</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-xs min-w-[520px]">
               <thead>
-                <tr className="text-gray-500 border-b border-[#2a2d35]">
+                <tr className="text-gray-500 border-b border-border-primary">
                   <th className="text-left py-2 px-2 whitespace-nowrap">파트너</th>
                   <th className="text-right py-2 px-2 whitespace-nowrap">총 매출</th>
                   <th className="text-right py-2 px-2 whitespace-nowrap">총 커미션</th>
@@ -5192,7 +5192,7 @@ function SettlementSection() {
               </thead>
               <tbody>
                 {approvedPartners.map(p => (
-                  <tr key={p.id} className="border-b border-[#2a2d35]/50 text-gray-300">
+                  <tr key={p.id} className="border-b border-border-primary/50 text-gray-300">
                     <td className="py-2.5 px-2 font-medium text-white">{p.name}</td>
                     <td className="py-2.5 px-2 text-right">₩{fmt(p.total_sales)}</td>
                     <td className="py-2.5 px-2 text-right">₩{fmt(p.total_commission)}</td>
@@ -5218,7 +5218,7 @@ function SettlementSection() {
         </div>
       )}
 
-      <div className="bg-[#1a1b1e] rounded-xl p-4 border border-[#2a2d35]">
+      <div className="bg-bg-3 rounded-xl p-4 border border-border-primary">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold text-white">정산 내역</h3>
           <span className="text-[11px] text-gray-500">
@@ -5245,7 +5245,7 @@ function SettlementSection() {
           <div className="overflow-x-auto">
             <table className="w-full text-xs min-w-[560px]">
               <thead>
-                <tr className="text-gray-500 border-b border-[#2a2d35]">
+                <tr className="text-gray-500 border-b border-border-primary">
                   <th className="text-left py-2 px-2 whitespace-nowrap">파트너</th>
                   <th className="text-right py-2 px-2 whitespace-nowrap">금액</th>
                   <th className="text-center py-2 px-2 whitespace-nowrap">상태</th>
@@ -5256,7 +5256,7 @@ function SettlementSection() {
               </thead>
               <tbody>
                 {filteredSettlements.map(s => (
-                  <tr key={s.id} className="border-b border-[#2a2d35]/50 text-gray-300">
+                  <tr key={s.id} className="border-b border-border-primary/50 text-gray-300">
                     <td className="py-2.5 px-2 font-medium text-white">{s.partner_name}</td>
                     <td className="py-2.5 px-2 text-right text-emerald-400">₩{fmt(s.amount)}</td>
                     <td className="py-2.5 px-2 text-center">
@@ -5293,7 +5293,7 @@ function SettlementSection() {
           onClick={() => !exportMutation.isPending && setExportTarget(null)}
         >
           <div
-            className="bg-[#1a1b1e] border border-[#2a2d35] rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl"
+            className="bg-bg-3 border border-border-primary rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl"
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-start justify-between mb-4">
@@ -5317,7 +5317,7 @@ function SettlementSection() {
               <button
                 onClick={() => exportMutation.mutate({ partner: exportTarget, sellerType: 'freelancer' })}
                 disabled={exportMutation.isPending}
-                className="group flex flex-col items-center gap-2 p-4 bg-[#141516] border border-[#2a2d35] hover:border-emerald-500/50 rounded-xl transition-colors disabled:opacity-50"
+                className="group flex flex-col items-center gap-2 p-4 bg-bg-2 border border-border-primary hover:border-emerald-500/50 rounded-xl transition-colors disabled:opacity-50"
               >
                 <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center group-hover:bg-emerald-500/20 transition-colors">
                   <Users size={18} className="text-emerald-400" />
@@ -5331,7 +5331,7 @@ function SettlementSection() {
               <button
                 onClick={() => exportMutation.mutate({ partner: exportTarget, sellerType: 'business' })}
                 disabled={exportMutation.isPending}
-                className="group flex flex-col items-center gap-2 p-4 bg-[#141516] border border-[#2a2d35] hover:border-blue-500/50 rounded-xl transition-colors disabled:opacity-50"
+                className="group flex flex-col items-center gap-2 p-4 bg-bg-2 border border-border-primary hover:border-blue-500/50 rounded-xl transition-colors disabled:opacity-50"
               >
                 <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center group-hover:bg-blue-500/20 transition-colors">
                   <Briefcase size={18} className="text-blue-400" />
@@ -5392,7 +5392,7 @@ function SettingsSection() {
     <div className="space-y-4">
       <h2 className="text-lg font-bold text-white">어필리에이트 설정</h2>
       <div className="grid md:grid-cols-2 gap-4">
-        <div className="bg-[#1a1b1e] rounded-xl p-4 border border-[#2a2d35] space-y-3">
+        <div className="bg-bg-3 rounded-xl p-4 border border-border-primary space-y-3">
           <h3 className="text-sm font-semibold text-white">기본 설정</h3>
           <div>
             <label className="text-xs text-gray-400">기본 커미션 비율 (%)</label>
@@ -5400,7 +5400,7 @@ function SettingsSection() {
               type="number"
               value={settings.default_commission_rate}
               onChange={e => setSettings({ ...settings, default_commission_rate: Number(e.target.value) })}
-              className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50"
+              className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-emerald-500/50"
             />
           </div>
           <div>
@@ -5409,7 +5409,7 @@ function SettingsSection() {
               type="number"
               value={settings.cookie_lifetime_days}
               onChange={e => setSettings({ ...settings, cookie_lifetime_days: Number(e.target.value) })}
-              className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50"
+              className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-emerald-500/50"
             />
           </div>
           <div>
@@ -5418,7 +5418,7 @@ function SettingsSection() {
               type="number"
               value={settings.min_payout_amount}
               onChange={e => setSettings({ ...settings, min_payout_amount: Number(e.target.value) })}
-              className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50"
+              className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-emerald-500/50"
             />
           </div>
           <div>
@@ -5426,7 +5426,7 @@ function SettingsSection() {
             <select
               value={settings.payout_cycle}
               onChange={e => setSettings({ ...settings, payout_cycle: e.target.value as 'weekly' | 'biweekly' | 'monthly' })}
-              className="w-full mt-1 px-3 py-2 bg-[#141516] border border-[#2a2d35] rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500/50"
+              className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-emerald-500/50"
             >
               <option value="weekly">주간</option>
               <option value="biweekly">격주</option>
@@ -5443,7 +5443,7 @@ function SettingsSection() {
           </button>
         </div>
 
-        <div className="bg-[#1a1b1e] rounded-xl p-4 border border-[#2a2d35] space-y-3">
+        <div className="bg-bg-3 rounded-xl p-4 border border-border-primary space-y-3">
           <h3 className="text-sm font-semibold text-white">알림 설정</h3>
           {([
             { key: 'notify_new_partner' as const, label: '새 파트너 신청 알림' },
@@ -5499,7 +5499,7 @@ function TrackingStatusCard() {
   }[ts.mode] || { label: ts.mode, cls: 'bg-gray-500/10 text-gray-300 ring-gray-500/20' };
 
   return (
-    <div className="bg-[#1a1b1e] rounded-xl p-4 ring-1 ring-white/5">
+    <div className="bg-bg-3 rounded-xl p-4 ring-1 ring-white/5">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <span className="text-sm font-semibold text-white">구매자 식별 추적</span>
         <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ring-1 ${modeInfo.cls}`}>
@@ -5571,7 +5571,7 @@ export function AffiliateManaging() {
       <TrackingStatusCard />
 
       {/* 탭 네비게이션 */}
-      <div className="flex items-center gap-1 bg-[#1a1b1e] rounded-xl p-1 overflow-x-auto">
+      <div className="flex items-center gap-1 bg-bg-3 rounded-xl p-1 overflow-x-auto">
         {NAV_ITEMS.map(item => (
           <button
             key={item.key}

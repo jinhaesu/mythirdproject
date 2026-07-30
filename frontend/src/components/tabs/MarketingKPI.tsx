@@ -46,11 +46,11 @@ function KPIGoalCard({
   showTarget?: boolean;
 }) {
   return (
-    <div className="bg-[#0F1011] border border-[#23252A] rounded-xl p-3">
+    <div className="bg-bg-1 border border-border-primary rounded-xl p-3">
       <div className="flex items-center justify-between mb-1.5">
         <div className="flex items-center gap-1.5">
-          <div className="p-1 rounded-lg bg-[#5E6AD2]/10 text-[#7070FF]">{icon}</div>
-          <span className="text-xs text-[#8A8F98]">{label}</span>
+          <div className="p-1 rounded-lg bg-brand/10 text-accent">{icon}</div>
+          <span className="text-xs text-text-tertiary">{label}</span>
         </div>
         {showTarget && (
           <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full whitespace-nowrap ${badge.color}`}>
@@ -59,13 +59,13 @@ function KPIGoalCard({
         )}
       </div>
       {unavailable ? (
-        <p className="text-xs text-[#F0BF00] leading-snug mt-1.5">
+        <p className="text-xs text-yellow leading-snug mt-1.5">
           주문 데이터 없음<br />백필 필요
         </p>
       ) : (
         <>
-          <p className="text-lg font-bold text-[#F7F8F8]">{value}</p>
-          {showTarget && <p className="text-[11px] text-[#62666D] mt-0.5">{targetLabel}</p>}
+          <p className="text-lg font-bold text-text-primary">{value}</p>
+          {showTarget && <p className="text-[11px] text-text-quaternary mt-0.5">{targetLabel}</p>}
         </>
       )}
     </div>
@@ -82,14 +82,14 @@ function GoalInput({
 }) {
   return (
     <div>
-      <label className="text-xs text-[#8A8F98] block mb-1">{label}</label>
+      <label className="text-xs text-text-tertiary block mb-1">{label}</label>
       <input
         type="number"
         step={step || '1'}
         value={value}
         onChange={(e: ChangeEvent<HTMLInputElement>) => onChange(e.target.value)}
         placeholder="미입력"
-        className="w-full bg-[#08090A] border border-[#23252A] rounded-lg px-2 py-1.5 text-xs text-[#F7F8F8] focus:outline-none focus:border-[#5E6AD2]"
+        className="w-full bg-bg-0 border border-border-primary rounded-lg px-2 py-1.5 text-xs text-text-primary focus:outline-none focus:border-brand"
       />
     </div>
   );
@@ -131,12 +131,12 @@ function ChannelSpendRow({
   };
 
   return (
-    <tr className="border-b border-[#23252A] hover:bg-[#141516]/40">
-      <td className="px-3 py-2 text-xs text-[#8A8F98] whitespace-nowrap">{month}</td>
+    <tr className="border-b border-border-primary hover:bg-bg-2/40">
+      <td className="px-3 py-2 text-xs text-text-tertiary whitespace-nowrap">{month}</td>
       <td className="px-3 py-2 text-xs whitespace-nowrap">
         <span className="inline-flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-full" style={{ background: CHANNEL_COLORS[item.channel] || '#8A8F98' }} />
-          <span className="text-[#D0D6E0]">{CHANNEL_LABELS[item.channel] || item.channel}</span>
+          <span className="text-text-secondary">{CHANNEL_LABELS[item.channel] || item.channel}</span>
         </span>
       </td>
       <td className="px-3 py-2">
@@ -146,15 +146,15 @@ function ChannelSpendRow({
           onBlur={commit}
           onKeyDown={onKeyDown}
           type="number"
-          className="w-28 bg-[#08090A] border border-[#23252A] rounded-lg px-2 py-1 text-xs text-[#F7F8F8] focus:outline-none focus:border-[#5E6AD2]"
+          className="w-28 bg-bg-0 border border-border-primary rounded-lg px-2 py-1 text-xs text-text-primary focus:outline-none focus:border-brand"
           placeholder="0"
         />
       </td>
       <td className="px-3 py-2">
         {isAutoMeta ? (
           <span className="inline-flex items-center gap-1.5">
-            <span className="text-xs text-[#8A8F98]">{fmtWon(autoValue ?? null)}</span>
-            <span className="text-[9px] font-semibold bg-[#4EA7FC]/15 text-[#4EA7FC] px-1.5 py-0.5 rounded-full">자동</span>
+            <span className="text-xs text-text-tertiary">{fmtWon(autoValue ?? null)}</span>
+            <span className="text-[9px] font-semibold bg-blue/15 text-blue px-1.5 py-0.5 rounded-full">자동</span>
           </span>
         ) : (
           <input
@@ -163,7 +163,7 @@ function ChannelSpendRow({
             onBlur={commit}
             onKeyDown={onKeyDown}
             type="number"
-            className="w-28 bg-[#08090A] border border-[#23252A] rounded-lg px-2 py-1 text-xs text-[#F7F8F8] focus:outline-none focus:border-[#5E6AD2]"
+            className="w-28 bg-bg-0 border border-border-primary rounded-lg px-2 py-1 text-xs text-text-primary focus:outline-none focus:border-brand"
             placeholder="0"
           />
         )}
@@ -175,13 +175,13 @@ function ChannelSpendRow({
           onBlur={commit}
           onKeyDown={onKeyDown}
           type="text"
-          className="w-40 bg-[#08090A] border border-[#23252A] rounded-lg px-2 py-1 text-xs text-[#D0D6E0] focus:outline-none focus:border-[#5E6AD2]"
+          className="w-40 bg-bg-0 border border-border-primary rounded-lg px-2 py-1 text-xs text-text-secondary focus:outline-none focus:border-brand"
           placeholder="메모"
         />
       </td>
       <td className="px-3 py-2 text-right">
         {item.id != null && (
-          <button onClick={() => onDelete(item.id!)} className="text-[#8A8F98] hover:text-[#EB5757] transition-colors">
+          <button onClick={() => onDelete(item.id!)} className="text-text-tertiary hover:text-red transition-colors">
             <Trash2 size={14} />
           </button>
         )}
@@ -381,11 +381,11 @@ export function MarketingKPI() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-xl font-bold text-[#F7F8F8]">자사몰 마케팅 KPI</h2>
-          <p className="text-xs text-[#8A8F98] mt-1">채널별 광고비, CAC/LTV, 자사몰 지표를 한눈에 관리합니다.</p>
+          <h2 className="text-xl font-bold text-text-primary">자사몰 마케팅 KPI</h2>
+          <p className="text-xs text-text-tertiary mt-1">채널별 광고비, CAC/LTV, 자사몰 지표를 한눈에 관리합니다.</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center bg-[#141516] rounded-lg p-0.5">
+          <div className="flex items-center bg-bg-2 rounded-lg p-0.5">
             {([
               { key: 'month', label: '월별' },
               { key: 'week', label: '주별' },
@@ -395,21 +395,21 @@ export function MarketingKPI() {
                 key={g.key}
                 onClick={() => setGranularity(g.key)}
                 className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                  granularity === g.key ? 'bg-[#0F1011] text-[#7070FF] shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'text-[#8A8F98] hover:text-[#D0D6E0]'
+                  granularity === g.key ? 'bg-bg-1 text-accent shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'text-text-tertiary hover:text-text-secondary'
                 }`}
               >
                 {g.label}
               </button>
             ))}
           </div>
-          <div className="flex items-center bg-[#141516] rounded-lg p-0.5">
+          <div className="flex items-center bg-bg-2 rounded-lg p-0.5">
             {isMonthMode ? (
               ([3, 6, 12] as const).map((n) => (
                 <button
                   key={n}
                   onClick={() => setMonthsRange(n)}
                   className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                    monthsRange === n ? 'bg-[#0F1011] text-[#7070FF] shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'text-[#8A8F98] hover:text-[#D0D6E0]'
+                    monthsRange === n ? 'bg-bg-1 text-accent shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'text-text-tertiary hover:text-text-secondary'
                   }`}
                 >
                   최근 {n}개월
@@ -421,7 +421,7 @@ export function MarketingKPI() {
                   key={d.v}
                   onClick={() => setDaysRange(d.v)}
                   className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                    daysRange === d.v ? 'bg-[#0F1011] text-[#7070FF] shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'text-[#8A8F98] hover:text-[#D0D6E0]'
+                    daysRange === d.v ? 'bg-bg-1 text-accent shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'text-text-tertiary hover:text-text-secondary'
                   }`}
                 >
                   최근 {d.label}
@@ -431,14 +431,14 @@ export function MarketingKPI() {
           </div>
           <button
             onClick={handleExportKpi}
-            className="flex items-center gap-1.5 px-3 py-2 border border-[#23252A] rounded-lg text-sm text-[#D0D6E0] hover:bg-[#141516] transition-all"
+            className="flex items-center gap-1.5 px-3 py-2 border border-border-primary rounded-lg text-sm text-text-secondary hover:bg-bg-2 transition-all"
           >
             <Download size={14} /> 엑셀
           </button>
           <button
             onClick={() => backfillMutation.mutate()}
             disabled={backfillMutation.isPending}
-            className="flex items-center gap-1.5 px-4 py-2 bg-[#5E6AD2] text-white text-sm font-medium rounded-lg hover:bg-[#828FFF] disabled:opacity-50 transition-all"
+            className="flex items-center gap-1.5 px-4 py-2 bg-brand text-white text-sm font-medium rounded-lg hover:bg-accent-hover disabled:opacity-50 transition-all"
           >
             {backfillMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
             {backfillMutation.isPending ? '백필 중...' : '주문 백필'}
@@ -448,15 +448,15 @@ export function MarketingKPI() {
 
       {summaryLoading ? (
         <div className="flex items-center justify-center h-40">
-          <Loader2 size={32} className="animate-spin text-[#7070FF]" />
-          <span className="ml-3 text-[#8A8F98]">KPI 데이터 로딩 중...</span>
+          <Loader2 size={32} className="animate-spin text-accent" />
+          <span className="ml-3 text-text-tertiary">KPI 데이터 로딩 중...</span>
         </div>
       ) : summaryError ? (
         <div className="flex items-center justify-center h-40">
           <div className="text-center">
-            <AlertTriangle size={32} className="text-[#EB5757] mx-auto mb-2" />
-            <p className="text-sm text-[#8A8F98] mb-3">KPI 데이터를 불러오지 못했습니다.</p>
-            <button onClick={() => refetchSummary()} className="text-xs bg-[#5E6AD2] text-white px-4 py-2 rounded-lg hover:bg-[#828FFF]">
+            <AlertTriangle size={32} className="text-red mx-auto mb-2" />
+            <p className="text-sm text-text-tertiary mb-3">KPI 데이터를 불러오지 못했습니다.</p>
+            <button onClick={() => refetchSummary()} className="text-xs bg-brand text-white px-4 py-2 rounded-lg hover:bg-accent-hover">
               다시 시도
             </button>
           </div>
@@ -521,31 +521,31 @@ export function MarketingKPI() {
           </div>
 
           {/* 채널 광고비 */}
-          <div className="bg-[#0F1011] border border-[#23252A] rounded-xl p-4">
-            <h3 className="text-sm font-semibold text-[#D0D6E0] mb-3 flex items-center gap-1.5">
-              <Layers size={14} className="text-[#4EA7FC]" />
+          <div className="bg-bg-1 border border-border-primary rounded-xl p-4">
+            <h3 className="text-sm font-semibold text-text-secondary mb-3 flex items-center gap-1.5">
+              <Layers size={14} className="text-blue" />
               채널 광고비
-              <span className="text-[10px] font-normal text-[#62666D]">우측 축: 자사몰 매출</span>
+              <span className="text-[10px] font-normal text-text-quaternary">우측 축: 자사몰 매출</span>
             </h3>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={channelChartData} margin={{ top: 8, right: 16, left: 8, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#23252A" />
-                  <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#8A8F98' }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-primary)" />
+                  <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'var(--color-text-tertiary)' }} />
                   <YAxis
                     yAxisId="left"
-                    tick={{ fontSize: 10, fill: '#8A8F98' }}
+                    tick={{ fontSize: 10, fill: 'var(--color-text-tertiary)' }}
                     tickFormatter={(v: number) => (v >= 10000 ? `${Math.round(v / 10000)}만` : String(v))}
                   />
                   <YAxis
                     yAxisId="right"
                     orientation="right"
-                    tick={{ fontSize: 10, fill: '#27A644' }}
+                    tick={{ fontSize: 10, fill: 'var(--color-green)' }}
                     tickFormatter={(v: number) => (v >= 10000 ? `${Math.round(v / 10000)}만` : String(v))}
                   />
                   <RechartsTooltip
-                    contentStyle={{ backgroundColor: '#141516', border: '1px solid #23252A', borderRadius: 8, fontSize: 11 }}
-                    labelStyle={{ color: '#D0D6E0' }}
+                    contentStyle={{ backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)', borderRadius: 8, fontSize: 11 }}
+                    labelStyle={{ color: 'var(--color-text-secondary)' }}
                     formatter={(value: any, name: any) => [
                       fmtWon(Number(value)),
                       name === 'revenue' ? '자사몰 매출' : (CHANNEL_LABELS[name as string] || name),
@@ -558,7 +558,7 @@ export function MarketingKPI() {
                   {CHANNEL_KEYS.map((ch) => (
                     <Bar key={ch} yAxisId="left" dataKey={ch} name={ch} stackId="spend" fill={CHANNEL_COLORS[ch]} />
                   ))}
-                  <Line yAxisId="right" type="monotone" dataKey="revenue" name="revenue" stroke="#27A644" strokeWidth={2} />
+                  <Line yAxisId="right" type="monotone" dataKey="revenue" name="revenue" stroke="var(--color-green)" strokeWidth={2} />
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
@@ -568,7 +568,7 @@ export function MarketingKPI() {
                 <div className="overflow-x-auto mt-4">
                   <table className="w-full min-w-[640px] text-left">
                     <thead>
-                      <tr className="border-b border-[#23252A] text-[10px] text-[#62666D] uppercase tracking-wide">
+                      <tr className="border-b border-border-primary text-[10px] text-text-quaternary uppercase tracking-wide">
                         <th className="px-3 py-2 whitespace-nowrap">월</th>
                         <th className="px-3 py-2 whitespace-nowrap">채널</th>
                         <th className="px-3 py-2 whitespace-nowrap">예산</th>
@@ -590,7 +590,7 @@ export function MarketingKPI() {
                       ))}
                       {spendRows.length === 0 && (
                         <tr>
-                          <td colSpan={6} className="px-3 py-6 text-center text-xs text-[#62666D]">
+                          <td colSpan={6} className="px-3 py-6 text-center text-xs text-text-quaternary">
                             등록된 채널 광고비가 없습니다.
                           </td>
                         </tr>
@@ -599,11 +599,11 @@ export function MarketingKPI() {
                   </table>
                 </div>
 
-                <div className="flex items-center gap-2 mt-3 pt-3 border-t border-[#23252A] flex-wrap">
+                <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border-primary flex-wrap">
                   <select
                     value={newChannel}
                     onChange={(e: ChangeEvent<HTMLSelectElement>) => setNewChannel(e.target.value)}
-                    className="px-2 py-1.5 bg-[#08090A] border border-[#23252A] rounded-lg text-xs text-[#D0D6E0] focus:outline-none focus:border-[#5E6AD2]"
+                    className="px-2 py-1.5 bg-bg-0 border border-border-primary rounded-lg text-xs text-text-secondary focus:outline-none focus:border-brand"
                   >
                     {CHANNEL_KEYS.map((ch) => (
                       <option key={ch} value={ch}>{CHANNEL_LABELS[ch]}</option>
@@ -613,12 +613,12 @@ export function MarketingKPI() {
                     type="month"
                     value={newMonth}
                     onChange={(e: ChangeEvent<HTMLInputElement>) => setNewMonth(e.target.value)}
-                    className="px-2 py-1.5 bg-[#08090A] border border-[#23252A] rounded-lg text-xs text-[#D0D6E0] focus:outline-none focus:border-[#5E6AD2]"
+                    className="px-2 py-1.5 bg-bg-0 border border-border-primary rounded-lg text-xs text-text-secondary focus:outline-none focus:border-brand"
                   />
                   <button
                     onClick={addSpend}
                     disabled={updateChannelSpendMutation.isPending}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-[#5E6AD2] text-white text-xs font-medium rounded-lg hover:bg-[#828FFF] disabled:opacity-50"
+                    className="flex items-center gap-1 px-3 py-1.5 bg-brand text-white text-xs font-medium rounded-lg hover:bg-accent-hover disabled:opacity-50"
                   >
                     <Plus size={12} /> 채널 추가
                   </button>
@@ -628,34 +628,34 @@ export function MarketingKPI() {
           </div>
 
           {/* CAC / LTV 추이 */}
-          <div className="bg-[#0F1011] border border-[#23252A] rounded-xl p-4">
-            <h3 className="text-sm font-semibold text-[#D0D6E0] mb-3 flex items-center gap-1.5">
-              <TrendingUp size={14} className="text-[#7070FF]" />
+          <div className="bg-bg-1 border border-border-primary rounded-xl p-4">
+            <h3 className="text-sm font-semibold text-text-secondary mb-3 flex items-center gap-1.5">
+              <TrendingUp size={14} className="text-accent" />
               {isMonthMode ? 'CAC·LTV·평균 구매횟수 추이' : 'CAC·평균 구매횟수 추이'}
               {!isMonthMode && (
-                <span className="text-[10px] font-normal text-[#62666D]">LTV·목표는 월별 모드에서 표시됩니다.</span>
+                <span className="text-[10px] font-normal text-text-quaternary">LTV·목표는 월별 모드에서 표시됩니다.</span>
               )}
             </h3>
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
                 {isMonthMode ? (
                   <ComposedChart data={cacLtvChartData} margin={{ top: 8, right: 16, left: 8, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#23252A" />
-                    <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#8A8F98' }} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-primary)" />
+                    <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'var(--color-text-tertiary)' }} />
                     <YAxis
                       yAxisId="left"
-                      tick={{ fontSize: 10, fill: '#8A8F98' }}
+                      tick={{ fontSize: 10, fill: 'var(--color-text-tertiary)' }}
                       tickFormatter={(v: number) => (v >= 10000 ? `${Math.round(v / 10000)}만` : String(v))}
                     />
                     <YAxis
                       yAxisId="right"
                       orientation="right"
-                      tick={{ fontSize: 10, fill: '#F0BF00' }}
+                      tick={{ fontSize: 10, fill: 'var(--color-yellow)' }}
                       tickFormatter={(v: number) => `${v.toFixed(1)}x`}
                     />
                     <RechartsTooltip
-                      contentStyle={{ backgroundColor: '#141516', border: '1px solid #23252A', borderRadius: 8, fontSize: 11 }}
-                      labelStyle={{ color: '#D0D6E0' }}
+                      contentStyle={{ backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)', borderRadius: 8, fontSize: 11 }}
+                      labelStyle={{ color: 'var(--color-text-secondary)' }}
                       formatter={(value: any, name: any) =>
                         name === 'LTV/CAC' ? [`${Number(value).toFixed(2)}x`, name]
                           : name === '평균 구매횟수' ? [`${Number(value).toFixed(2)}회`, name]
@@ -663,54 +663,54 @@ export function MarketingKPI() {
                       }
                     />
                     <Legend wrapperStyle={{ fontSize: 11 }} />
-                    <Line yAxisId="left" type="monotone" dataKey="cac" name="CAC" stroke="#EB5757" strokeWidth={2} />
-                    <Line yAxisId="left" type="monotone" dataKey="ltv" name="LTV" stroke="#27A644" strokeWidth={2} />
-                    <Line yAxisId="right" type="monotone" dataKey="ltv_cac" name="LTV/CAC" stroke="#F0BF00" strokeWidth={2} strokeDasharray="4 4" />
-                    <Line yAxisId="right" type="monotone" dataKey="avg_orders" name="평균 구매횟수" stroke="#4EA7FC" strokeWidth={2} />
+                    <Line yAxisId="left" type="monotone" dataKey="cac" name="CAC" stroke="var(--color-red)" strokeWidth={2} />
+                    <Line yAxisId="left" type="monotone" dataKey="ltv" name="LTV" stroke="var(--color-green)" strokeWidth={2} />
+                    <Line yAxisId="right" type="monotone" dataKey="ltv_cac" name="LTV/CAC" stroke="var(--color-yellow)" strokeWidth={2} strokeDasharray="4 4" />
+                    <Line yAxisId="right" type="monotone" dataKey="avg_orders" name="평균 구매횟수" stroke="var(--color-blue)" strokeWidth={2} />
                     {latestGoal?.target_cac != null && (
-                      <ReferenceLine yAxisId="left" y={latestGoal.target_cac} stroke="#EB5757" strokeDasharray="3 3"
-                        label={{ value: '목표 CAC', fontSize: 10, fill: '#EB5757', position: 'insideTopRight' }} />
+                      <ReferenceLine yAxisId="left" y={latestGoal.target_cac} stroke="var(--color-red)" strokeDasharray="3 3"
+                        label={{ value: '목표 CAC', fontSize: 10, fill: 'var(--color-red)', position: 'insideTopRight' }} />
                     )}
                     {latestGoal?.target_ltv != null && (
-                      <ReferenceLine yAxisId="left" y={latestGoal.target_ltv} stroke="#27A644" strokeDasharray="3 3"
-                        label={{ value: '목표 LTV', fontSize: 10, fill: '#27A644', position: 'insideTopRight' }} />
+                      <ReferenceLine yAxisId="left" y={latestGoal.target_ltv} stroke="var(--color-green)" strokeDasharray="3 3"
+                        label={{ value: '목표 LTV', fontSize: 10, fill: 'var(--color-green)', position: 'insideTopRight' }} />
                     )}
                     {latestGoal?.target_ltv_cac != null && (
-                      <ReferenceLine yAxisId="right" y={latestGoal.target_ltv_cac} stroke="#F0BF00" strokeDasharray="3 3"
-                        label={{ value: '목표 LTV/CAC', fontSize: 10, fill: '#F0BF00', position: 'insideBottomRight' }} />
+                      <ReferenceLine yAxisId="right" y={latestGoal.target_ltv_cac} stroke="var(--color-yellow)" strokeDasharray="3 3"
+                        label={{ value: '목표 LTV/CAC', fontSize: 10, fill: 'var(--color-yellow)', position: 'insideBottomRight' }} />
                     )}
                   </ComposedChart>
                 ) : (
                   <LineChart data={cacLtvChartData} margin={{ top: 8, right: 16, left: 8, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#23252A" />
-                    <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#8A8F98' }} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-primary)" />
+                    <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'var(--color-text-tertiary)' }} />
                     <YAxis
                       yAxisId="left"
-                      tick={{ fontSize: 10, fill: '#8A8F98' }}
+                      tick={{ fontSize: 10, fill: 'var(--color-text-tertiary)' }}
                       tickFormatter={(v: number) => (v >= 10000 ? `${Math.round(v / 10000)}만` : String(v))}
                     />
                     <YAxis
                       yAxisId="right"
                       orientation="right"
-                      tick={{ fontSize: 10, fill: '#4EA7FC' }}
+                      tick={{ fontSize: 10, fill: 'var(--color-blue)' }}
                       tickFormatter={(v: number) => `${v.toFixed(1)}회`}
                     />
                     <RechartsTooltip
-                      contentStyle={{ backgroundColor: '#141516', border: '1px solid #23252A', borderRadius: 8, fontSize: 11 }}
-                      labelStyle={{ color: '#D0D6E0' }}
+                      contentStyle={{ backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)', borderRadius: 8, fontSize: 11 }}
+                      labelStyle={{ color: 'var(--color-text-secondary)' }}
                       formatter={(value: any, name: any) =>
                         name === '평균 구매횟수' ? [`${Number(value).toFixed(2)}회`, name] : [fmtWon(Number(value)), name]
                       }
                     />
                     <Legend wrapperStyle={{ fontSize: 11 }} />
-                    <Line yAxisId="left" type="monotone" dataKey="cac" name="CAC" stroke="#EB5757" strokeWidth={2} />
-                    <Line yAxisId="right" type="monotone" dataKey="avg_orders" name="평균 구매횟수" stroke="#4EA7FC" strokeWidth={2} />
+                    <Line yAxisId="left" type="monotone" dataKey="cac" name="CAC" stroke="var(--color-red)" strokeWidth={2} />
+                    <Line yAxisId="right" type="monotone" dataKey="avg_orders" name="평균 구매횟수" stroke="var(--color-blue)" strokeWidth={2} />
                   </LineChart>
                 )}
               </ResponsiveContainer>
             </div>
-            <p className="text-[10px] text-[#62666D] mt-2 leading-relaxed">
-              <b className="text-[#8A8F98]">계산 기준</b> — CAC = 총광고비(메타 자동 + 수동 채널) ÷ 신규고객(사상 첫 결제 회원) ·
+            <p className="text-[10px] text-text-quaternary mt-2 leading-relaxed">
+              <b className="text-text-tertiary">계산 기준</b> — CAC = 총광고비(메타 자동 + 수동 채널) ÷ 신규고객(사상 첫 결제 회원) ·
               LTV = 기간 말일 기준 최근 180일 결제 회원 1인당 평균 매출(실현 매출 트레일링) ·
               평균 구매횟수 = 해당 기간 회원 주문수 ÷ 구매 회원수(비회원 주문 제외)
             </p>
@@ -722,77 +722,77 @@ export function MarketingKPI() {
 
           {/* 자사몰 지표 추이 */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-[#0F1011] border border-[#23252A] rounded-xl p-4">
-              <h3 className="text-sm font-semibold text-[#D0D6E0] mb-3 flex items-center gap-1.5">
-                <Users size={14} className="text-[#4EA7FC]" />
+            <div className="bg-bg-1 border border-border-primary rounded-xl p-4">
+              <h3 className="text-sm font-semibold text-text-secondary mb-3 flex items-center gap-1.5">
+                <Users size={14} className="text-blue" />
                 신규 고객수 vs 목표
               </h3>
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={newCustomersChartData} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#23252A" />
-                    <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#8A8F98' }} />
-                    <YAxis tick={{ fontSize: 10, fill: '#8A8F98' }} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-primary)" />
+                    <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'var(--color-text-tertiary)' }} />
+                    <YAxis tick={{ fontSize: 10, fill: 'var(--color-text-tertiary)' }} />
                     <RechartsTooltip
-                      contentStyle={{ backgroundColor: '#141516', border: '1px solid #23252A', borderRadius: 8, fontSize: 11 }}
-                      labelStyle={{ color: '#D0D6E0' }}
+                      contentStyle={{ backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)', borderRadius: 8, fontSize: 11 }}
+                      labelStyle={{ color: 'var(--color-text-secondary)' }}
                     />
                     <Legend wrapperStyle={{ fontSize: 11 }} />
-                    <Bar dataKey="new_customers" name="신규 고객수" fill="#4EA7FC" radius={[3, 3, 0, 0]} maxBarSize={30} />
-                    <Line type="monotone" dataKey="target" name="목표" stroke="#F0BF00" strokeWidth={2} strokeDasharray="4 4" />
+                    <Bar dataKey="new_customers" name="신규 고객수" fill="var(--color-blue)" radius={[3, 3, 0, 0]} maxBarSize={30} />
+                    <Line type="monotone" dataKey="target" name="목표" stroke="var(--color-yellow)" strokeWidth={2} strokeDasharray="4 4" />
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
             </div>
 
-            <div className="bg-[#0F1011] border border-[#23252A] rounded-xl p-4">
-              <h3 className="text-sm font-semibold text-[#D0D6E0] mb-3 flex items-center gap-1.5">
-                <DollarSign size={14} className="text-[#27A644]" />
+            <div className="bg-bg-1 border border-border-primary rounded-xl p-4">
+              <h3 className="text-sm font-semibold text-text-secondary mb-3 flex items-center gap-1.5">
+                <DollarSign size={14} className="text-green" />
                 매출 & AOV
               </h3>
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={revenueAovChartData} margin={{ top: 8, right: 16, left: 8, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#23252A" />
-                    <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#8A8F98' }} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-primary)" />
+                    <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'var(--color-text-tertiary)' }} />
                     <YAxis
                       yAxisId="left"
-                      tick={{ fontSize: 10, fill: '#8A8F98' }}
+                      tick={{ fontSize: 10, fill: 'var(--color-text-tertiary)' }}
                       tickFormatter={(v: number) => (v >= 10000 ? `${Math.round(v / 10000)}만` : String(v))}
                     />
                     <YAxis
                       yAxisId="right"
                       orientation="right"
-                      tick={{ fontSize: 10, fill: '#7070FF' }}
+                      tick={{ fontSize: 10, fill: 'var(--color-link-primary)' }}
                       tickFormatter={(v: number) => (v >= 10000 ? `${Math.round(v / 10000)}만` : String(v))}
                     />
                     <RechartsTooltip
-                      contentStyle={{ backgroundColor: '#141516', border: '1px solid #23252A', borderRadius: 8, fontSize: 11 }}
-                      labelStyle={{ color: '#D0D6E0' }}
+                      contentStyle={{ backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)', borderRadius: 8, fontSize: 11 }}
+                      labelStyle={{ color: 'var(--color-text-secondary)' }}
                       formatter={(value: any, name: any) => [fmtWon(Number(value)), name]}
                     />
                     <Legend wrapperStyle={{ fontSize: 11 }} />
-                    <Bar yAxisId="left" dataKey="revenue" name="매출" fill="#27A644" radius={[3, 3, 0, 0]} maxBarSize={30} />
-                    <Line yAxisId="right" type="monotone" dataKey="aov" name="AOV" stroke="#7070FF" strokeWidth={2} />
+                    <Bar yAxisId="left" dataKey="revenue" name="매출" fill="var(--color-green)" radius={[3, 3, 0, 0]} maxBarSize={30} />
+                    <Line yAxisId="right" type="monotone" dataKey="aov" name="AOV" stroke="var(--color-link-primary)" strokeWidth={2} />
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
             </div>
 
-            <div className="bg-[#0F1011] border border-[#23252A] rounded-xl p-4 md:col-span-2">
-              <h3 className="text-sm font-semibold text-[#D0D6E0] mb-3 flex items-center gap-1.5">
+            <div className="bg-bg-1 border border-border-primary rounded-xl p-4 md:col-span-2">
+              <h3 className="text-sm font-semibold text-text-secondary mb-3 flex items-center gap-1.5">
                 <Percent size={14} className="text-[#F2994A]" />
                 방문자수 & 구매전환율
-                <span className="text-[10px] font-normal text-[#62666D]">전환율 = 주문수 ÷ 방문자수 (카페24 접속통계 자동)</span>
+                <span className="text-[10px] font-normal text-text-quaternary">전환율 = 주문수 ÷ 방문자수 (카페24 접속통계 자동)</span>
               </h3>
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={conversionChartData} margin={{ top: 8, right: 16, left: 8, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#23252A" />
-                    <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#8A8F98' }} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-primary)" />
+                    <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'var(--color-text-tertiary)' }} />
                     <YAxis
                       yAxisId="visits"
-                      tick={{ fontSize: 10, fill: '#8A8F98' }}
+                      tick={{ fontSize: 10, fill: 'var(--color-text-tertiary)' }}
                       tickFormatter={(v: number) => (v >= 10000 ? `${Math.round(v / 10000)}만` : String(v))}
                     />
                     <YAxis
@@ -802,17 +802,17 @@ export function MarketingKPI() {
                       tickFormatter={(v: number) => `${v.toFixed(1)}%`}
                     />
                     <RechartsTooltip
-                      contentStyle={{ backgroundColor: '#141516', border: '1px solid #23252A', borderRadius: 8, fontSize: 11 }}
-                      labelStyle={{ color: '#D0D6E0' }}
+                      contentStyle={{ backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)', borderRadius: 8, fontSize: 11 }}
+                      labelStyle={{ color: 'var(--color-text-secondary)' }}
                       formatter={(value: any, name: any) => {
                         if (name === '방문자수') return [Number(value).toLocaleString('ko-KR'), name];
                         return [`${Number(value).toFixed(2)}%`, name];
                       }}
                     />
                     <Legend wrapperStyle={{ fontSize: 11 }} />
-                    <Bar yAxisId="visits" dataKey="visits" name="방문자수" fill="#4EA7FC" opacity={0.6} radius={[3, 3, 0, 0]} maxBarSize={30} />
+                    <Bar yAxisId="visits" dataKey="visits" name="방문자수" fill="var(--color-blue)" opacity={0.6} radius={[3, 3, 0, 0]} maxBarSize={30} />
                     <Line yAxisId="rate" type="monotone" dataKey="conversion_rate" name="구매전환율" stroke="#F2994A" strokeWidth={2} />
-                    <Line yAxisId="rate" type="monotone" dataKey="target" name="목표 전환율" stroke="#F0BF00" strokeWidth={2} strokeDasharray="4 4" />
+                    <Line yAxisId="rate" type="monotone" dataKey="target" name="목표 전환율" stroke="var(--color-yellow)" strokeWidth={2} strokeDasharray="4 4" />
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
@@ -821,23 +821,23 @@ export function MarketingKPI() {
 
           {/* 목표 설정 폼 (월별 모드 전용) */}
           {isMonthMode && (
-            <div className="bg-[#0F1011] border border-[#23252A] rounded-xl p-4">
+            <div className="bg-bg-1 border border-border-primary rounded-xl p-4">
               <button onClick={() => setGoalFormOpen((v) => !v)} className="w-full flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-[#D0D6E0] flex items-center gap-1.5">
-                  <Target size={14} className="text-[#7070FF]" />
+                <h3 className="text-sm font-semibold text-text-secondary flex items-center gap-1.5">
+                  <Target size={14} className="text-accent" />
                   목표 설정
                 </h3>
-                {goalFormOpen ? <ChevronDown size={16} className="text-[#8A8F98]" /> : <ChevronRight size={16} className="text-[#8A8F98]" />}
+                {goalFormOpen ? <ChevronDown size={16} className="text-text-tertiary" /> : <ChevronRight size={16} className="text-text-tertiary" />}
               </button>
               {goalFormOpen && (
                 <div className="mt-4 space-y-3">
                   <div className="flex items-center gap-2">
-                    <label className="text-xs text-[#8A8F98] w-20">대상 월</label>
+                    <label className="text-xs text-text-tertiary w-20">대상 월</label>
                     <input
                       type="month"
                       value={goalMonth}
                       onChange={(e: ChangeEvent<HTMLInputElement>) => setGoalMonth(e.target.value)}
-                      className="px-2 py-1.5 bg-[#08090A] border border-[#23252A] rounded-lg text-xs text-[#D0D6E0] focus:outline-none focus:border-[#5E6AD2]"
+                      className="px-2 py-1.5 bg-bg-0 border border-border-primary rounded-lg text-xs text-text-secondary focus:outline-none focus:border-brand"
                     />
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -850,18 +850,18 @@ export function MarketingKPI() {
                     <GoalInput label="실적 구매전환율 (%)" value={actualConversionRate} onChange={setActualConversionRate} step="0.01" />
                   </div>
                   <div>
-                    <label className="text-xs text-[#8A8F98] block mb-1">메모</label>
+                    <label className="text-xs text-text-tertiary block mb-1">메모</label>
                     <textarea
                       value={goalMemo}
                       onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setGoalMemo(e.target.value)}
                       rows={2}
-                      className="w-full bg-[#08090A] border border-[#23252A] rounded-lg px-3 py-2 text-xs text-[#D0D6E0] focus:outline-none focus:border-[#5E6AD2]"
+                      className="w-full bg-bg-0 border border-border-primary rounded-lg px-3 py-2 text-xs text-text-secondary focus:outline-none focus:border-brand"
                     />
                   </div>
                   <button
                     onClick={handleSaveGoal}
                     disabled={updateGoalMutation.isPending}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-[#5E6AD2] text-white text-sm font-medium rounded-lg hover:bg-[#828FFF] disabled:opacity-50 transition-all"
+                    className="flex items-center gap-1.5 px-4 py-2 bg-brand text-white text-sm font-medium rounded-lg hover:bg-accent-hover disabled:opacity-50 transition-all"
                   >
                     {updateGoalMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} 저장
                   </button>
