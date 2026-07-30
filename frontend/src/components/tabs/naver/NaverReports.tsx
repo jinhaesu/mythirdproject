@@ -235,7 +235,7 @@ export function NaverReports() {
                   type="date"
                   value={reportForm.startDate}
                   onChange={(e) => setReportForm({ ...reportForm, startDate: e.target.value })}
-                  className="w-full rounded-lg border border-border-primary px-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green-500 focus:outline-none"
+                  className="w-full rounded-lg border border-border-primary px-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
                 />
               </div>
               <div>
@@ -244,7 +244,7 @@ export function NaverReports() {
                   type="date"
                   value={reportForm.endDate}
                   onChange={(e) => setReportForm({ ...reportForm, endDate: e.target.value })}
-                  className="w-full rounded-lg border border-border-primary px-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green-500 focus:outline-none"
+                  className="w-full rounded-lg border border-border-primary px-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
                 />
               </div>
               <div>
@@ -252,7 +252,7 @@ export function NaverReports() {
                 <select
                   value={reportForm.level}
                   onChange={(e) => setReportForm({ ...reportForm, level: e.target.value as any })}
-                  className="w-full rounded-lg border border-border-primary px-3 py-2 text-sm bg-bg-1 focus:border-green focus:ring-1 focus:ring-green-500 focus:outline-none"
+                  className="w-full rounded-lg border border-border-primary px-3 py-2 text-sm bg-bg-1 focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
                 >
                   <option value="campaign">캠페인별</option>
                   <option value="adgroup">광고그룹별</option>
@@ -273,7 +273,7 @@ export function NaverReports() {
                   onClick={() => toggleMetric(metric.value)}
                   className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
                     reportForm.metrics.includes(metric.value)
-                      ? 'bg-green/15 text-green border border-green-300'
+                      ? 'bg-green/15 text-green border border-green/30'
                       : 'bg-bg-2 text-text-tertiary border border-border-primary hover:border-border-primary'
                   }`}
                 >
@@ -325,7 +325,7 @@ export function NaverReports() {
                   type="email"
                   value={reportForm.email}
                   onChange={(e) => setReportForm({ ...reportForm, email: e.target.value })}
-                  className="flex-1 rounded-lg border border-border-primary px-3 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green-500 focus:outline-none"
+                  className="flex-1 rounded-lg border border-border-primary px-3 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
                   placeholder="email@example.com"
                 />
                 <button
@@ -334,7 +334,7 @@ export function NaverReports() {
                     emailMutation.mutate();
                   }}
                   disabled={emailMutation.isPending}
-                  className="flex items-center gap-1 px-4 py-2 bg-green text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50"
+                  className="flex items-center gap-1 px-4 py-2 bg-green text-white rounded-lg text-sm font-medium hover:bg-green disabled:opacity-50"
                 >
                   {emailMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />}
                   발송
@@ -352,7 +352,7 @@ export function NaverReports() {
           <div className="flex justify-end">
             <button
               onClick={() => setShowScheduleForm(!showScheduleForm)}
-              className="flex items-center gap-2 px-4 py-2 bg-green text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-green text-white rounded-lg text-sm font-medium hover:bg-green transition-colors"
             >
               <Plus size={16} />
               스케줄 추가
@@ -372,7 +372,7 @@ export function NaverReports() {
                     type="text"
                     value={scheduleForm.name}
                     onChange={(e) => setScheduleForm({ ...scheduleForm, name: e.target.value })}
-                    className="w-full rounded-lg border border-border-primary px-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green-500 focus:outline-none"
+                    className="w-full rounded-lg border border-border-primary px-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
                     placeholder="예: 주간 검색광고 리포트"
                   />
                 </div>
@@ -382,7 +382,7 @@ export function NaverReports() {
                     <select
                       value={scheduleForm.type}
                       onChange={(e) => setScheduleForm({ ...scheduleForm, type: e.target.value as ReportType })}
-                      className="w-full rounded-lg border border-border-primary px-3 py-2 text-sm bg-bg-1 focus:border-green focus:ring-1 focus:ring-green-500 focus:outline-none"
+                      className="w-full rounded-lg border border-border-primary px-3 py-2 text-sm bg-bg-1 focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
                     >
                       {REPORT_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
                     </select>
@@ -392,7 +392,7 @@ export function NaverReports() {
                     <select
                       value={scheduleForm.frequency}
                       onChange={(e) => setScheduleForm({ ...scheduleForm, frequency: e.target.value as ScheduleFrequency })}
-                      className="w-full rounded-lg border border-border-primary px-3 py-2 text-sm bg-bg-1 focus:border-green focus:ring-1 focus:ring-green-500 focus:outline-none"
+                      className="w-full rounded-lg border border-border-primary px-3 py-2 text-sm bg-bg-1 focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
                     >
                       <option value="daily">매일</option>
                       <option value="weekly">매주</option>
@@ -406,7 +406,7 @@ export function NaverReports() {
                     <select
                       value={scheduleForm.dayOfWeek}
                       onChange={(e) => setScheduleForm({ ...scheduleForm, dayOfWeek: Number(e.target.value) })}
-                      className="w-full rounded-lg border border-border-primary px-3 py-2 text-sm bg-bg-1 focus:border-green focus:ring-1 focus:ring-green-500 focus:outline-none"
+                      className="w-full rounded-lg border border-border-primary px-3 py-2 text-sm bg-bg-1 focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
                     >
                       <option value={1}>월요일</option>
                       <option value={2}>화요일</option>
@@ -424,7 +424,7 @@ export function NaverReports() {
                     <select
                       value={scheduleForm.dayOfMonth}
                       onChange={(e) => setScheduleForm({ ...scheduleForm, dayOfMonth: Number(e.target.value) })}
-                      className="w-full rounded-lg border border-border-primary px-3 py-2 text-sm bg-bg-1 focus:border-green focus:ring-1 focus:ring-green-500 focus:outline-none"
+                      className="w-full rounded-lg border border-border-primary px-3 py-2 text-sm bg-bg-1 focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
                     >
                       {Array.from({ length: 28 }, (_, i) => i + 1).map((d) => (
                         <option key={d} value={d}>{d}일</option>
@@ -438,7 +438,7 @@ export function NaverReports() {
                     type="email"
                     value={scheduleForm.email}
                     onChange={(e) => setScheduleForm({ ...scheduleForm, email: e.target.value })}
-                    className="w-full rounded-lg border border-border-primary px-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green-500 focus:outline-none"
+                    className="w-full rounded-lg border border-border-primary px-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
                     placeholder="report@example.com"
                   />
                 </div>
@@ -451,7 +451,7 @@ export function NaverReports() {
                         onClick={() => toggleScheduleMetric(metric.value)}
                         className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
                           scheduleForm.metrics.includes(metric.value)
-                            ? 'bg-green/15 text-green border border-green-300'
+                            ? 'bg-green/15 text-green border border-green/30'
                             : 'bg-bg-2 text-text-tertiary border border-border-primary hover:border-border-primary'
                         }`}
                       >
@@ -474,7 +474,7 @@ export function NaverReports() {
                       createScheduleMutation.mutate();
                     }}
                     disabled={createScheduleMutation.isPending}
-                    className="flex items-center gap-2 px-4 py-2 bg-green text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50"
+                    className="flex items-center gap-2 px-4 py-2 bg-green text-white rounded-lg text-sm font-medium hover:bg-green disabled:opacity-50"
                   >
                     {createScheduleMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
                     스케줄 생성
@@ -503,7 +503,7 @@ export function NaverReports() {
                 <p>등록된 스케줄이 없습니다.</p>
                 <button
                   onClick={() => setShowScheduleForm(true)}
-                  className="mt-4 px-4 py-2 bg-green text-white rounded-lg text-sm font-medium hover:bg-green-700"
+                  className="mt-4 px-4 py-2 bg-green text-white rounded-lg text-sm font-medium hover:bg-green"
                 >
                   첫 스케줄 만들기
                 </button>
@@ -536,7 +536,7 @@ export function NaverReports() {
                             deleteScheduleMutation.mutate(schedId);
                           }
                         }}
-                        className="p-1.5 text-red-400 hover:text-red hover:bg-red/10 rounded"
+                        className="p-1.5 text-red hover:text-red hover:bg-red/10 rounded"
                       >
                         <Trash2 size={14} />
                       </button>

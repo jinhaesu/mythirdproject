@@ -38,7 +38,7 @@ export function CampaignPlanner() {
             onClick={() => setActiveSection(s.id)}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
               activeSection === s.id
-                ? s.id === 'auto' ? 'bg-gradient-to-r from-purple-600 to-primary-600 text-white shadow-[0px_3px_12px_rgba(0,0,0,0.2)]' : 'bg-brand text-white shadow-[0px_3px_12px_rgba(0,0,0,0.2)]'
+                ? s.id === 'auto' ? 'bg-gradient-to-r from-brand to-accent text-white shadow-[0px_3px_12px_rgba(0,0,0,0.2)]' : 'bg-brand text-white shadow-[0px_3px_12px_rgba(0,0,0,0.2)]'
                 : 'bg-bg-1 text-text-tertiary border border-border-primary hover:bg-bg-2/5'
             }`}
           >
@@ -100,7 +100,7 @@ function AutoPlanDesigner() {
   return (
     <div className="space-y-6">
       {/* 입력 폼 */}
-      <Card variant="bordered" className="bg-gradient-to-r from-purple-50 to-blue-50 border-brand/30">
+      <Card variant="bordered" className="bg-gradient-to-r from-brand/10 to-blue/10 border-brand/30">
         <CardTitle className="flex items-center gap-2 mb-4">
           <Zap size={20} className="text-accent" />
           AI 자동 캠페인 기획
@@ -119,7 +119,7 @@ function AutoPlanDesigner() {
                 placeholder="https://yourshop.com/product — 자동으로 제품 정보를 추출합니다"
                 value={productUrl}
                 onChange={(e) => setProductUrl(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 border border-border-primary rounded-lg text-base focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none"
+                className="w-full pl-10 pr-4 py-3 border border-border-primary rounded-lg text-base focus:ring-2 focus:ring-brand/50 focus:border-brand/50 outline-none"
               />
             </div>
           </div>
@@ -147,7 +147,7 @@ function AutoPlanDesigner() {
           </div>
 
           <Button
-            className="w-full py-3 text-base bg-gradient-to-r from-purple-600 to-primary-600 hover:from-purple-700 hover:to-primary-700"
+            className="w-full py-3 text-base bg-gradient-to-r from-brand/20 to-accent hover:from-brand hover:to-accent-hover"
             onClick={() => mutation.mutate()}
             loading={mutation.isPending}
             disabled={!canSubmit}
@@ -175,7 +175,7 @@ function AutoPlanDesigner() {
 
           {/* 전략 요약 */}
           {result.overall_strategy && (
-            <Card variant="bordered" className="bg-gradient-to-r from-bg-0 to-indigo-50">
+            <Card variant="bordered" className="bg-gradient-to-r from-bg-0 to-brand/10">
               <CardTitle className="mb-2">전체 전략</CardTitle>
               <p className="text-sm text-text-secondary">{result.overall_strategy}</p>
             </Card>
@@ -255,7 +255,7 @@ function AutoPlanDesigner() {
 
           {/* 소재 추천 */}
           {result.creative_recommendation && (
-            <Card variant="bordered" className="bg-gradient-to-r from-pink-50 to-bg-0 border-brand/30">
+            <Card variant="bordered" className="bg-gradient-to-r from-red/10 to-bg-0 border-brand/30">
               <CardTitle className="flex items-center gap-2 mb-3">
                 {result.creative_recommendation.recommended_type === 'short_form_video' ? (
                   <Film size={18} className="text-accent" />
@@ -291,7 +291,7 @@ function AutoPlanDesigner() {
 
                 {/* 영상 기획 (숏폼인 경우) */}
                 {result.creative_recommendation.recommended_type === 'short_form_video' && result.creative_recommendation.video_plan && (
-                  <div className="mt-3 p-4 bg-bg-1 rounded-lg border border-purple-100 space-y-3">
+                  <div className="mt-3 p-4 bg-bg-1 rounded-lg border border-brand/30 space-y-3">
                     <p className="font-medium text-sm text-accent-hover">영상 기획안</p>
                     <div className="space-y-2 text-sm">
                       <div>
@@ -327,7 +327,7 @@ function AutoPlanDesigner() {
 
                 {/* 이미지 가이드라인 (이미지/캐러셀인 경우) */}
                 {(result.creative_recommendation.recommended_type === 'image' || result.creative_recommendation.recommended_type === 'carousel') && result.creative_recommendation.image_guidelines && (
-                  <div className="mt-3 p-4 bg-bg-1 rounded-lg border border-green-100 space-y-2">
+                  <div className="mt-3 p-4 bg-bg-1 rounded-lg border border-green/30 space-y-2">
                     <p className="font-medium text-sm text-green">이미지 가이드라인</p>
                     <div className="space-y-2 text-sm">
                       <div>
@@ -357,7 +357,7 @@ function AutoPlanDesigner() {
 
           {/* Meta 추천 */}
           {result.meta_recommendations && (
-            <Card variant="bordered" className="bg-gradient-to-r from-green-50 to-emerald-50">
+            <Card variant="bordered" className="bg-gradient-to-r from-green/10 to-green/10">
               <CardTitle className="mb-2">Meta AI 추천</CardTitle>
               <p className="text-sm text-text-secondary">{result.meta_recommendations}</p>
             </Card>
@@ -365,7 +365,7 @@ function AutoPlanDesigner() {
 
           {/* 캠페인 제작 버튼 */}
           <div className="flex gap-3">
-            <Button onClick={handleCreateDraft} className="flex-1 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700">
+            <Button onClick={handleCreateDraft} className="flex-1 py-3 bg-gradient-to-r from-green/20 to-green/20 hover:from-green hover:to-green">
               <ArrowRight size={18} className="mr-2" />
               캠페인 제작하기
             </Button>
@@ -753,7 +753,7 @@ function CSVAnalyzer() {
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-text-secondary mb-2">CSV 파일 업로드</label>
-            <div className="border-2 border-dashed border-border-primary rounded-lg p-6 text-center hover:border-primary-400 transition-colors">
+            <div className="border-2 border-dashed border-border-primary rounded-lg p-6 text-center hover:border-brand transition-colors">
               <input type="file" accept=".csv" onChange={(e) => setFile(e.target.files?.[0] || null)} className="hidden" id="csv-upload" />
               <label htmlFor="csv-upload" className="cursor-pointer">
                 <Upload size={32} className="mx-auto mb-2 text-text-quaternary" />

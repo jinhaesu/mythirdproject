@@ -182,7 +182,7 @@ export function NaverAutoManagement() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowCreateForm(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-green text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-green text-white rounded-lg text-sm font-medium hover:bg-green transition-colors"
           >
             <Plus size={16} />
             룰 생성
@@ -190,7 +190,7 @@ export function NaverAutoManagement() {
           <button
             onClick={() => executeRulesMutation.mutate()}
             disabled={executeRulesMutation.isPending}
-            className="flex items-center gap-2 px-4 py-2 border border-green-300 text-green rounded-lg text-sm font-medium hover:bg-green/10 transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 border border-green/30 text-green rounded-lg text-sm font-medium hover:bg-green/10 transition-colors disabled:opacity-50"
           >
             {executeRulesMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <PlayCircle size={16} />}
             즉시 실행
@@ -217,7 +217,7 @@ export function NaverAutoManagement() {
                 type="text"
                 value={ruleForm.name}
                 onChange={(e) => setRuleForm({ ...ruleForm, name: e.target.value })}
-                className="w-full rounded-lg border border-border-primary px-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green-500 focus:outline-none"
+                className="w-full rounded-lg border border-border-primary px-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
                 placeholder="예: CPC 과다 시 알림"
               />
             </div>
@@ -226,7 +226,7 @@ export function NaverAutoManagement() {
               <select
                 value={ruleForm.platform}
                 onChange={(e) => setRuleForm({ ...ruleForm, platform: e.target.value })}
-                className="w-full rounded-lg border border-border-primary px-3 py-2 text-sm bg-bg-1 focus:border-green focus:ring-1 focus:ring-green-500 focus:outline-none"
+                className="w-full rounded-lg border border-border-primary px-3 py-2 text-sm bg-bg-1 focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
               >
                 {PLATFORM_OPTIONS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
               </select>
@@ -295,7 +295,7 @@ export function NaverAutoManagement() {
                   createRuleMutation.mutate();
                 }}
                 disabled={createRuleMutation.isPending}
-                className="flex items-center gap-2 px-4 py-2 bg-green text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2 bg-green text-white rounded-lg text-sm font-medium hover:bg-green disabled:opacity-50"
               >
                 {createRuleMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
                 규칙 생성
@@ -324,7 +324,7 @@ export function NaverAutoManagement() {
             <p>등록된 자동 관리 규칙이 없습니다.</p>
             <button
               onClick={() => setShowCreateForm(true)}
-              className="mt-4 px-4 py-2 bg-green text-white rounded-lg text-sm font-medium hover:bg-green-700"
+              className="mt-4 px-4 py-2 bg-green text-white rounded-lg text-sm font-medium hover:bg-green"
             >
               첫 규칙 만들기
             </button>
@@ -378,7 +378,7 @@ export function NaverAutoManagement() {
                           deleteRuleMutation.mutate(ruleId);
                         }
                       }}
-                      className="p-1.5 text-red-400 hover:text-red hover:bg-red/10 rounded"
+                      className="p-1.5 text-red hover:text-red hover:bg-red/10 rounded"
                     >
                       <Trash2 size={14} />
                     </button>
@@ -421,9 +421,9 @@ export function NaverAutoManagement() {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         {log.status === 'success' ? (
-                          <CheckCircle size={14} className="text-green-500" />
+                          <CheckCircle size={14} className="text-green" />
                         ) : (
-                          <AlertTriangle size={14} className="text-yellow-500" />
+                          <AlertTriangle size={14} className="text-yellow" />
                         )}
                         <span className="font-medium text-text-primary">{log.rule_name || log.name}</span>
                       </div>
@@ -453,7 +453,7 @@ export function NaverAutoManagement() {
               aiRecommendMutation.mutate();
             }}
             disabled={aiRecommendMutation.isPending}
-            className="flex items-center gap-2 px-4 py-2 bg-green text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 bg-green text-white rounded-lg text-sm font-medium hover:bg-green transition-colors disabled:opacity-50"
           >
             {aiRecommendMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
             {aiRecommendMutation.isPending ? '분석 중...' : '추천 받기'}

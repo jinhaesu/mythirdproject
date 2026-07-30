@@ -210,15 +210,15 @@ export function NaverSearchAdsDashboard() {
       label: '전환수',
       value: formatNaverNumber(kpi.conversions || kpi.total_conversions || 0),
       icon: Award,
-      color: 'text-emerald-600',
-      bg: 'bg-emerald-50',
+      color: 'text-green',
+      bg: 'bg-green/10',
     },
     {
       label: '직접전환매출',
       value: formatNaverCurrency(kpi.revenue || kpi.conversion_value || kpi.total_revenue || 0),
       icon: BarChart3,
-      color: 'text-rose-600',
-      bg: 'bg-rose-50',
+      color: 'text-red',
+      bg: 'bg-red/10',
     },
     {
       label: '평균 노출순위',
@@ -244,7 +244,7 @@ export function NaverSearchAdsDashboard() {
           <select
             value={datePreset}
             onChange={(e) => setDatePreset(e.target.value as DatePreset)}
-            className="rounded-lg border border-border-primary px-3 py-2 text-sm bg-bg-1 focus:border-green focus:ring-1 focus:ring-green-500 focus:outline-none"
+            className="rounded-lg border border-border-primary px-3 py-2 text-sm bg-bg-1 focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
           >
             {DATE_PRESETS.map((p) => (
               <option key={p.value} value={p.value}>{p.label}</option>
@@ -258,7 +258,7 @@ export function NaverSearchAdsDashboard() {
                 value={customStartDate}
                 onChange={(e) => setCustomStartDate(e.target.value)}
                 max={customEndDate}
-                className="rounded-lg border border-border-primary px-2 py-1.5 text-sm bg-bg-1 focus:border-green focus:ring-1 focus:ring-green-500 focus:outline-none"
+                className="rounded-lg border border-border-primary px-2 py-1.5 text-sm bg-bg-1 focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
               />
               <span className="text-text-quaternary text-sm">~</span>
               <input
@@ -266,7 +266,7 @@ export function NaverSearchAdsDashboard() {
                 value={customEndDate}
                 onChange={(e) => setCustomEndDate(e.target.value)}
                 min={customStartDate}
-                className="rounded-lg border border-border-primary px-2 py-1.5 text-sm bg-bg-1 focus:border-green focus:ring-1 focus:ring-green-500 focus:outline-none"
+                className="rounded-lg border border-border-primary px-2 py-1.5 text-sm bg-bg-1 focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
               />
             </div>
           )}
@@ -306,13 +306,13 @@ export function NaverSearchAdsDashboard() {
                   setDebugInfo({ error: e?.response?.data?.detail || e?.message || 'env-check 호출 실패' });
                 }
               }}
-              className="text-xs bg-red/15 text-red px-3 py-1.5 rounded-lg hover:bg-red-200 transition-colors"
+              className="text-xs bg-red/15 text-red px-3 py-1.5 rounded-lg hover:bg-red/10 transition-colors"
             >
               환경변수 진단
             </button>
           )}
           {debugInfo && (
-            <div className="bg-bg-1 rounded-lg p-3 text-xs font-mono space-y-1 border border-red-100">
+            <div className="bg-bg-1 rounded-lg p-3 text-xs font-mono space-y-1 border border-red/30">
               <p className="font-semibold text-text-secondary mb-2">Railway 환경변수 상태:</p>
               {Object.entries(debugInfo).map(([k, v]) => (
                 <div key={k} className="flex gap-2">
@@ -330,13 +330,13 @@ export function NaverSearchAdsDashboard() {
       {/* Stat debug info */}
       {overview && !overviewError && overview._debug_stat_error && (
         <div className="bg-yellow/10 border border-yellow/30 rounded-xl p-3 mb-2 flex items-center gap-2">
-          <AlertCircle className="text-yellow-500 shrink-0" size={16} />
+          <AlertCircle className="text-yellow shrink-0" size={16} />
           <p className="text-yellow text-xs">통계 조회 오류: {overview._debug_stat_error} (stat_count: {overview._debug_stat_count})</p>
         </div>
       )}
       {overview && !overviewError && !overview._debug_stat_error && overview._debug_stat_count === 0 && kpi.spend === 0 && (
         <div className="bg-blue/10 border border-brand/30 rounded-xl p-3 mb-2 flex items-center gap-2">
-          <AlertCircle className="text-blue-500 shrink-0" size={16} />
+          <AlertCircle className="text-blue shrink-0" size={16} />
           <p className="text-accent-hover text-xs">선택한 기간에 검색광고 지출 데이터가 없습니다. 캠페인이 일시중지 상태일 수 있습니다.</p>
         </div>
       )}
@@ -429,7 +429,7 @@ export function NaverSearchAdsDashboard() {
                 placeholder="캠페인 검색..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 text-sm border border-border-primary rounded-lg focus:outline-none focus:ring-2 focus:ring-green-200 focus:border-green-400"
+                className="w-full pl-9 pr-3 py-1.5 text-sm border border-border-primary rounded-lg focus:outline-none focus:ring-2 focus:ring-green/30 focus:border-green/50"
               />
             </div>
           </div>
@@ -441,7 +441,7 @@ export function NaverSearchAdsDashboard() {
           </div>
         ) : campaignsError ? (
           <div className="text-center py-8">
-            <AlertCircle size={32} className="text-red-400 mx-auto mb-2" />
+            <AlertCircle size={32} className="text-red mx-auto mb-2" />
             <p className="text-red text-sm">캠페인 데이터를 불러올 수 없습니다</p>
             <p className="text-text-quaternary text-xs mt-1">
               {(campaignsErrorObj as any)?.response?.data?.detail
@@ -534,7 +534,7 @@ export function NaverSearchAdsDashboard() {
                   .map((kw: any, i: number) => (
                     <div key={i} className="flex items-center justify-between p-2 bg-bg-0 rounded-lg">
                       <div className="flex items-center gap-2">
-                        <span className="w-5 h-5 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center text-xs font-bold">{i + 1}</span>
+                        <span className="w-5 h-5 bg-green/10 text-green rounded-full flex items-center justify-center text-xs font-bold">{i + 1}</span>
                         <span className="text-sm font-medium text-text-primary">{kw.keyword}</span>
                       </div>
                       <div className="text-right">
@@ -559,7 +559,7 @@ export function NaverSearchAdsDashboard() {
           <button
             onClick={handleAiAnalysis}
             disabled={aiMutation.isPending}
-            className="flex items-center gap-2 px-4 py-2 bg-green text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 bg-green text-white rounded-lg text-sm font-medium hover:bg-green transition-colors disabled:opacity-50"
           >
             {aiMutation.isPending ? (
               <Loader2 size={16} className="animate-spin" />
@@ -587,7 +587,7 @@ export function NaverSearchAdsDashboard() {
             ) : (
               <>
                 {/* Grade Badge + Summary Card */}
-                <div className="relative rounded-xl bg-gradient-to-r from-blue-600 to-emerald-500 p-5 text-white overflow-hidden">
+                <div className="relative rounded-xl bg-gradient-to-r from-blue to-green p-5 text-white overflow-hidden">
                   {aiMutation.data.overall_grade && (
                     <div className="absolute top-3 right-3 w-14 h-14 rounded-xl bg-bg-1/20 backdrop-blur-sm flex items-center justify-center shadow-[0px_7px_32px_rgba(0,0,0,0.35)]">
                       <span className="text-3xl font-black text-white drop-shadow">{aiMutation.data.overall_grade}</span>
@@ -620,7 +620,7 @@ export function NaverSearchAdsDashboard() {
                           {(kpi.evaluation || kpi.change) && (
                             <div className={`flex items-center gap-1 text-xs mt-1 ${
                               (kpi.evaluation === '개선필요' || String(kpi.change || '').startsWith('-')) ? 'text-red' :
-                              (kpi.evaluation === '좋음' || (!String(kpi.change || '').startsWith('-') && kpi.change)) ? 'text-emerald-500' : 'text-text-tertiary'
+                              (kpi.evaluation === '좋음' || (!String(kpi.change || '').startsWith('-') && kpi.change)) ? 'text-green' : 'text-text-tertiary'
                             }`}>
                               {(kpi.evaluation === '개선필요' || String(kpi.change || '').startsWith('-'))
                                 ? <TrendingDown size={12} />
@@ -639,19 +639,19 @@ export function NaverSearchAdsDashboard() {
                 {aiMutation.data.insights && Array.isArray(aiMutation.data.insights) && aiMutation.data.insights.length > 0 && (
                   <div>
                     <h3 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-1.5">
-                      <Lightbulb size={15} className="text-amber-500" /> 핵심 인사이트
+                      <Lightbulb size={15} className="text-yellow" /> 핵심 인사이트
                     </h3>
                     <div className="space-y-2">
                       {aiMutation.data.insights.map((insight: any, i: number) => {
                         const typeColors: Record<string, string> = {
-                          positive: 'border-l-emerald-500 bg-emerald-50/50',
-                          negative: 'border-l-red-500 bg-red/10/50',
-                          neutral: 'border-l-blue-500 bg-blue/10/50',
-                          warning: 'border-l-orange-500 bg-orange/10/50',
-                          TREND: 'border-l-blue-500 bg-blue/10/50',
-                          ANOMALY: 'border-l-red-500 bg-red/10/50',
-                          RECOMMENDATION: 'border-l-emerald-500 bg-emerald-50/50',
-                          ALERT: 'border-l-orange-500 bg-orange/10/50',
+                          positive: 'border-l-green/50 bg-green/50',
+                          negative: 'border-l-red/50 bg-red/50',
+                          neutral: 'border-l-blue/50 bg-blue/50',
+                          warning: 'border-l-orange/50 bg-orange/50',
+                          TREND: 'border-l-blue/50 bg-blue/50',
+                          ANOMALY: 'border-l-red/50 bg-red/50',
+                          RECOMMENDATION: 'border-l-green/50 bg-green/50',
+                          ALERT: 'border-l-orange/50 bg-orange/50',
                         };
                         const typeLabels: Record<string, string> = {
                           positive: '긍정', negative: '부정', neutral: '중립', warning: '주의',
@@ -660,7 +660,7 @@ export function NaverSearchAdsDashboard() {
                         const priorityColors: Record<string, string> = {
                           high: 'bg-red/15 text-red', medium: 'bg-yellow/15 text-yellow', low: 'bg-bg-2 text-text-tertiary',
                         };
-                        const borderClass = (typeof insight === 'string') ? 'border-l-gray-400 bg-bg-0/50' : (typeColors[insight.type] || 'border-l-gray-400 bg-bg-0/50');
+                        const borderClass = (typeof insight === 'string') ? 'border-l-border-secondary bg-bg-0/50' : (typeColors[insight.type] || 'border-l-border-secondary bg-bg-0/50');
                         return (
                           <div key={i} className={`border-l-4 rounded-r-lg p-3 ${borderClass}`}>
                             <div className="flex items-center gap-2 mb-1">
@@ -692,12 +692,12 @@ export function NaverSearchAdsDashboard() {
                 {aiMutation.data.recommendations && Array.isArray(aiMutation.data.recommendations) && aiMutation.data.recommendations.length > 0 && (
                   <div>
                     <h3 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-1.5">
-                      <Zap size={15} className="text-purple-500" /> 추천 사항
+                      <Zap size={15} className="text-accent" /> 추천 사항
                     </h3>
                     <div className="space-y-2">
                       {aiMutation.data.recommendations.map((rec: any, i: number) => {
                         const priorityDot: Record<string, string> = {
-                          high: 'bg-red', medium: 'bg-yellow-400', low: 'bg-green-400',
+                          high: 'bg-red', medium: 'bg-yellow', low: 'bg-green',
                         };
                         const isString = typeof rec === 'string';
                         return (
@@ -731,7 +731,7 @@ export function NaverSearchAdsDashboard() {
                 {aiMutation.data.action_items && Array.isArray(aiMutation.data.action_items) && aiMutation.data.action_items.length > 0 && (
                   <div>
                     <h3 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-1.5">
-                      <CheckCircle size={15} className="text-emerald-500" /> 실행 항목
+                      <CheckCircle size={15} className="text-green" /> 실행 항목
                     </h3>
                     <div className="bg-bg-0 rounded-lg p-3 space-y-2">
                       {aiMutation.data.action_items.map((item: string, i: number) => (
@@ -750,13 +750,13 @@ export function NaverSearchAdsDashboard() {
                 {aiMutation.data.active_campaigns_analysis && Array.isArray(aiMutation.data.active_campaigns_analysis) && aiMutation.data.active_campaigns_analysis.length > 0 && (
                   <div>
                     <h3 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-1.5">
-                      <Activity size={15} className="text-indigo-500" /> 캠페인별 분석
+                      <Activity size={15} className="text-accent" /> 캠페인별 분석
                     </h3>
                     <div className="space-y-2">
                       {aiMutation.data.active_campaigns_analysis.map((camp: any, i: number) => {
                         const name = camp.campaign_name || camp.name;
                         const gradeColors: Record<string, string> = {
-                          A: 'bg-emerald-100 text-emerald-700', B: 'bg-blue/15 text-accent-hover',
+                          A: 'bg-green/10 text-green', B: 'bg-blue/15 text-accent-hover',
                           C: 'bg-yellow/15 text-yellow', D: 'bg-orange/15 text-orange', F: 'bg-red/15 text-red',
                         };
                         return (
@@ -1039,7 +1039,7 @@ function CampaignRow({ campaign, campaignId, isExpanded, status, onToggleExpand,
                         {rankingData.ads?.length > 0 && ` · 소재 ${rankingData.ads.length}개`}
                       </p>
                       {rankingData.campaign_type === 'SHOPPING' && (
-                        <p className="text-xs text-blue-500 bg-blue/10 px-2 py-1 rounded">
+                        <p className="text-xs text-blue bg-blue/10 px-2 py-1 rounded">
                           쇼핑검색 캠페인: 광고그룹 이름에서 검색어를 자동 추출하여 네이버 쇼핑 랭킹을 조회합니다.
                         </p>
                       )}

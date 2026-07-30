@@ -216,7 +216,7 @@ export function NaverSearchAdsManager() {
             <>
               <button
                 onClick={() => setViewMode('wizard')}
-                className="flex items-center gap-2 px-4 py-2 bg-green text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-green text-white rounded-lg text-sm font-medium hover:bg-green transition-colors"
               >
                 <Plus size={16} />
                 새 캠페인
@@ -251,7 +251,7 @@ export function NaverSearchAdsManager() {
               <div key={i} className="flex items-center">
                 <div className={`flex items-center gap-2 ${i <= wizardStep ? 'text-green' : 'text-text-quaternary'}`}>
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
-                    i < wizardStep ? 'bg-green text-white' : i === wizardStep ? 'bg-green/15 text-green border-2 border-green-600' : 'bg-bg-2 text-text-quaternary'
+                    i < wizardStep ? 'bg-green text-white' : i === wizardStep ? 'bg-green/15 text-green border-2 border-green/50' : 'bg-bg-2 text-text-quaternary'
                   }`}>
                     {i < wizardStep ? <Check size={16} /> : i + 1}
                   </div>
@@ -274,7 +274,7 @@ export function NaverSearchAdsManager() {
                   type="text"
                   value={campaignForm.name}
                   onChange={(e) => setCampaignForm({ ...campaignForm, name: e.target.value })}
-                  className="w-full rounded-lg border border-border-primary px-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green-500 focus:outline-none"
+                  className="w-full rounded-lg border border-border-primary px-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
                   placeholder="캠페인 이름을 입력하세요"
                 />
               </div>
@@ -305,7 +305,7 @@ export function NaverSearchAdsManager() {
                     type="number"
                     value={campaignForm.dailyBudget}
                     onChange={(e) => setCampaignForm({ ...campaignForm, dailyBudget: Number(e.target.value) })}
-                    className="w-full rounded-lg border border-border-primary pl-8 pr-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green-500 focus:outline-none"
+                    className="w-full rounded-lg border border-border-primary pl-8 pr-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
                     min={10000}
                     step={10000}
                   />
@@ -325,7 +325,7 @@ export function NaverSearchAdsManager() {
                   type="text"
                   value={adgroupForm.name}
                   onChange={(e) => setAdgroupForm({ ...adgroupForm, name: e.target.value })}
-                  className="w-full rounded-lg border border-border-primary px-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green-500 focus:outline-none"
+                  className="w-full rounded-lg border border-border-primary px-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
                   placeholder="광고그룹 이름"
                 />
               </div>
@@ -337,7 +337,7 @@ export function NaverSearchAdsManager() {
                     type="number"
                     value={adgroupForm.bidAmt}
                     onChange={(e) => setAdgroupForm({ ...adgroupForm, bidAmt: Number(e.target.value) })}
-                    className="w-full rounded-lg border border-border-primary pl-8 pr-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green-500 focus:outline-none"
+                    className="w-full rounded-lg border border-border-primary pl-8 pr-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
                     min={70}
                     step={10}
                   />
@@ -358,7 +358,7 @@ export function NaverSearchAdsManager() {
                       }}
                       className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
                         adgroupForm.regions.includes(region)
-                          ? 'bg-green/15 text-green border border-green-300'
+                          ? 'bg-green/15 text-green border border-green/30'
                           : 'bg-bg-2 text-text-tertiary border border-border-primary hover:border-border-primary'
                       }`}
                     >
@@ -376,7 +376,7 @@ export function NaverSearchAdsManager() {
                   <select
                     value={adgroupForm.device}
                     onChange={(e) => setAdgroupForm({ ...adgroupForm, device: e.target.value })}
-                    className="w-full rounded-lg border border-border-primary px-3 py-2 text-sm bg-bg-1 focus:border-green focus:ring-1 focus:ring-green-500 focus:outline-none"
+                    className="w-full rounded-lg border border-border-primary px-3 py-2 text-sm bg-bg-1 focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
                   >
                     {DEVICES.map((d) => <option key={d} value={d}>{d}</option>)}
                   </select>
@@ -386,7 +386,7 @@ export function NaverSearchAdsManager() {
                   <select
                     value={adgroupForm.gender}
                     onChange={(e) => setAdgroupForm({ ...adgroupForm, gender: e.target.value })}
-                    className="w-full rounded-lg border border-border-primary px-3 py-2 text-sm bg-bg-1 focus:border-green focus:ring-1 focus:ring-green-500 focus:outline-none"
+                    className="w-full rounded-lg border border-border-primary px-3 py-2 text-sm bg-bg-1 focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
                   >
                     {GENDERS.map((g) => <option key={g} value={g}>{g}</option>)}
                   </select>
@@ -411,7 +411,7 @@ export function NaverSearchAdsManager() {
                       }}
                       className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
                         adgroupForm.ageGroups.includes(age)
-                          ? 'bg-green/15 text-green border border-green-300'
+                          ? 'bg-green/15 text-green border border-green/30'
                           : 'bg-bg-2 text-text-tertiary border border-border-primary hover:border-border-primary'
                       }`}
                     >
@@ -435,12 +435,12 @@ export function NaverSearchAdsManager() {
                     value={keywordsForm.keywordInput}
                     onChange={(e) => setKeywordsForm({ ...keywordsForm, keywordInput: e.target.value })}
                     onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addKeyword(); } }}
-                    className="flex-1 rounded-lg border border-border-primary px-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green-500 focus:outline-none"
+                    className="flex-1 rounded-lg border border-border-primary px-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
                     placeholder="키워드 입력 후 Enter"
                   />
                   <button
                     onClick={addKeyword}
-                    className="px-4 py-2 bg-green text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
+                    className="px-4 py-2 bg-green text-white rounded-lg text-sm font-medium hover:bg-green transition-colors"
                   >
                     추가
                   </button>
@@ -473,7 +473,7 @@ export function NaverSearchAdsManager() {
                           </div>
                           <button
                             onClick={() => removeKeyword(i)}
-                            className="p-1 text-red-400 hover:text-red"
+                            className="p-1 text-red hover:text-red"
                           >
                             <X size={14} />
                           </button>
@@ -509,7 +509,7 @@ export function NaverSearchAdsManager() {
                       setAdForm({ ...adForm, headline: e.target.value });
                     }
                   }}
-                  className="w-full rounded-lg border border-border-primary px-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green-500 focus:outline-none"
+                  className="w-full rounded-lg border border-border-primary px-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
                   placeholder="광고 제목"
                   maxLength={15}
                 />
@@ -526,7 +526,7 @@ export function NaverSearchAdsManager() {
                       setAdForm({ ...adForm, description: e.target.value });
                     }
                   }}
-                  className="w-full rounded-lg border border-border-primary px-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green-500 focus:outline-none resize-none"
+                  className="w-full rounded-lg border border-border-primary px-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none resize-none"
                   rows={2}
                   placeholder="광고 설명"
                   maxLength={45}
@@ -539,7 +539,7 @@ export function NaverSearchAdsManager() {
                   type="url"
                   value={adForm.url}
                   onChange={(e) => setAdForm({ ...adForm, url: e.target.value })}
-                  className="w-full rounded-lg border border-border-primary px-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green-500 focus:outline-none"
+                  className="w-full rounded-lg border border-border-primary px-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
                   placeholder="https://example.com"
                 />
               </div>
@@ -552,7 +552,7 @@ export function NaverSearchAdsManager() {
                       type="text"
                       value={adForm.extensionTitle}
                       onChange={(e) => setAdForm({ ...adForm, extensionTitle: e.target.value })}
-                      className="w-full rounded-lg border border-border-primary px-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green-500 focus:outline-none"
+                      className="w-full rounded-lg border border-border-primary px-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
                       placeholder="확장 제목 (선택)"
                     />
                   </div>
@@ -562,7 +562,7 @@ export function NaverSearchAdsManager() {
                       type="text"
                       value={adForm.extensionDescription}
                       onChange={(e) => setAdForm({ ...adForm, extensionDescription: e.target.value })}
-                      className="w-full rounded-lg border border-border-primary px-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green-500 focus:outline-none"
+                      className="w-full rounded-lg border border-border-primary px-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
                       placeholder="확장 설명 (선택)"
                     />
                   </div>
@@ -608,7 +608,7 @@ export function NaverSearchAdsManager() {
                   }
                   setWizardStep((wizardStep + 1) as WizardStep);
                 }}
-                className="flex items-center gap-2 px-4 py-2 bg-green text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-green text-white rounded-lg text-sm font-medium hover:bg-green transition-colors"
               >
                 다음
                 <ChevronRight size={16} />
@@ -617,7 +617,7 @@ export function NaverSearchAdsManager() {
               <button
                 onClick={() => createCampaignMutation.mutate()}
                 disabled={createCampaignMutation.isPending}
-                className="flex items-center gap-2 px-6 py-2 bg-green text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors disabled:opacity-50"
+                className="flex items-center gap-2 px-6 py-2 bg-green text-white rounded-lg text-sm font-medium hover:bg-green transition-colors disabled:opacity-50"
               >
                 {createCampaignMutation.isPending ? (
                   <Loader2 size={16} className="animate-spin" />
@@ -664,7 +664,7 @@ export function NaverSearchAdsManager() {
               </div>
               <button
                 onClick={() => toast.success('입찰가가 일괄 조정되었습니다.')}
-                className="px-4 py-1.5 bg-green text-white rounded-lg text-sm font-medium hover:bg-green-700"
+                className="px-4 py-1.5 bg-green text-white rounded-lg text-sm font-medium hover:bg-green"
               >
                 적용
               </button>
@@ -694,7 +694,7 @@ export function NaverSearchAdsManager() {
               <p>등록된 캠페인이 없습니다.</p>
               <button
                 onClick={() => setViewMode('wizard')}
-                className="mt-4 px-4 py-2 bg-green text-white rounded-lg text-sm font-medium hover:bg-green-700"
+                className="mt-4 px-4 py-2 bg-green text-white rounded-lg text-sm font-medium hover:bg-green"
               >
                 첫 캠페인 만들기
               </button>

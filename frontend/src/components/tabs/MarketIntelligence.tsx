@@ -427,10 +427,10 @@ export function MarketIntelligence() {
                   className={`group flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-all ${
                     compareMode
                       ? isCompareSelected
-                        ? 'border-brand bg-brand/10 ring-2 ring-primary-200'
-                        : 'border-border-primary hover:border-primary-300'
+                        ? 'border-brand bg-brand/10 ring-2 ring-brand'
+                        : 'border-border-primary hover:border-brand'
                       : isSelected
-                        ? 'border-brand bg-brand/10 ring-2 ring-primary-200'
+                        ? 'border-brand bg-brand/10 ring-2 ring-brand'
                         : 'border-border-primary hover:border-border-primary'
                   }`}
                   onClick={() => {
@@ -450,7 +450,7 @@ export function MarketIntelligence() {
                   )}
                   <span className="text-sm font-medium text-text-primary">{kw.keyword}</span>
                   {kw.last_analyzed_at && (
-                    <span className="w-2 h-2 rounded-full bg-green-400" title="분석 완료" />
+                    <span className="w-2 h-2 rounded-full bg-green/20" title="분석 완료" />
                   )}
                   {!compareMode && (
                     <>
@@ -466,7 +466,7 @@ export function MarketIntelligence() {
                         className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red/10 rounded transition-all"
                         title="삭제"
                       >
-                        <Trash2 size={14} className="text-red-400" />
+                        <Trash2 size={14} className="text-red" />
                       </button>
                     </>
                   )}
@@ -564,8 +564,8 @@ export function MarketIntelligence() {
                 {/* Instagram */}
                 <Card variant="bordered">
                   <div className="flex items-center gap-2 mb-3">
-                    <div className="w-8 h-8 rounded-lg bg-pink-100 flex items-center justify-center">
-                      <Instagram size={18} className="text-pink-600" />
+                    <div className="w-8 h-8 rounded-lg bg-red/10 flex items-center justify-center">
+                      <Instagram size={18} className="text-red" />
                     </div>
                     <h4 className="font-semibold text-text-primary">Instagram</h4>
                     {selectedKeyword.platform_data.api_sources?.includes('instagram') && (
@@ -746,8 +746,8 @@ export function MarketIntelligence() {
                             '기쁨': 'bg-yellow/15 text-yellow',
                             '슬픔': 'bg-blue/15 text-accent-hover',
                             '분노': 'bg-red/15 text-red',
-                            '놀라움': 'bg-brand/15 text-purple-800',
-                            '기대': 'bg-orange/15 text-orange-800',
+                            '놀라움': 'bg-brand/15 text-accent',
+                            '기대': 'bg-orange/15 text-orange',
                           };
                           const cls = emotionColors[ek.emotion] || 'bg-bg-2 text-text-primary';
                           return (
@@ -825,7 +825,7 @@ export function MarketIntelligence() {
                   ))}
                 </tr>
                 <tr className="border-b">
-                  <td className="py-2 px-3 text-text-tertiary flex items-center gap-1"><Instagram size={14} className="text-pink-500" /> Instagram 조회수</td>
+                  <td className="py-2 px-3 text-text-tertiary flex items-center gap-1"><Instagram size={14} className="text-red" /> Instagram 조회수</td>
                   {comparisonKeywords.map((kw) => (
                     <td key={kw.id} className="text-right py-2 px-3 font-medium">
                       {kw.platform_data?.instagram ? fmt(kw.platform_data.instagram.total_views) : <span className="text-text-quaternary text-xs">N/A</span>}
@@ -833,7 +833,7 @@ export function MarketIntelligence() {
                   ))}
                 </tr>
                 <tr className="border-b">
-                  <td className="py-2 px-3 text-text-tertiary flex items-center gap-1"><Globe size={14} className="text-green-500" /> Naver 검색 관심도</td>
+                  <td className="py-2 px-3 text-text-tertiary flex items-center gap-1"><Globe size={14} className="text-green" /> Naver 검색 관심도</td>
                   {comparisonKeywords.map((kw) => (
                     <td key={kw.id} className="text-right py-2 px-3 font-medium">
                       {kw.platform_data?.naver ? fmt(kw.platform_data.naver.search_query_volume) : <span className="text-text-quaternary text-xs">N/A</span>}
@@ -992,7 +992,7 @@ export function MarketIntelligence() {
           </div>
 
           {extractStyleMutation.data && (
-            <div className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg space-y-3">
+            <div className="p-4 bg-gradient-to-r from-brand/10 to-red/10 rounded-lg space-y-3">
               <h4 className="font-medium text-text-primary">추출된 스타일</h4>
               <p className="text-sm text-text-secondary">{extractStyleMutation.data.preview_description}</p>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-2">

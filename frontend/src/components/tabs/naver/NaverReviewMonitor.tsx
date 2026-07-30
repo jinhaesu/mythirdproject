@@ -25,7 +25,7 @@ const reviewApi = {
 };
 
 function Stars({ rating, size = 14 }: { rating: number; size?: number }) {
-  return <span className="inline-flex gap-0.5">{[1,2,3,4,5].map(n => <Star key={n} size={size} className={n <= rating ? 'text-yellow-400 fill-yellow-400' : 'text-text-quaternary'} />)}</span>;
+  return <span className="inline-flex gap-0.5">{[1,2,3,4,5].map(n => <Star key={n} size={size} className={n <= rating ? 'text-yellow fill-yellow' : 'text-text-quaternary'} />)}</span>;
 }
 
 function ReviewAiAnalysis({ text }: { text: string }) {
@@ -46,14 +46,14 @@ function ReviewAiAnalysis({ text }: { text: string }) {
     if (hm) { flush(); curTitle = hm[1].replace(/\*\*/g, '').trim(); } else curLines.push(line);
   }
   flush();
-  if (sections.length <= 1) return <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200"><h4 className="text-sm font-semibold text-emerald-900 mb-2 flex items-center gap-1.5"><Sparkles size={14} /> AI 리뷰 분석</h4><div className="text-xs text-text-secondary whitespace-pre-line leading-relaxed">{text}</div></div>;
+  if (sections.length <= 1) return <div className="p-4 bg-green/10 rounded-xl border border-green/30"><h4 className="text-sm font-semibold text-green mb-2 flex items-center gap-1.5"><Sparkles size={14} /> AI 리뷰 분석</h4><div className="text-xs text-text-secondary whitespace-pre-line leading-relaxed">{text}</div></div>;
   return (
     <div className="space-y-3">
       <h4 className="text-sm font-semibold text-text-primary flex items-center gap-1.5"><Sparkles size={15} /> AI 리뷰 분석</h4>
       <div className="grid gap-3">{sections.map((sec, i) => (
         <div key={i} className={clsx('rounded-xl border p-4', sec.color)}>
           {sec.title && <div className="flex items-center gap-2 mb-2"><span className="text-base">{sec.icon}</span><h5 className="text-sm font-semibold text-text-primary">{sec.title}</h5></div>}
-          <div className="text-xs text-text-secondary leading-relaxed whitespace-pre-line">{sec.content.split('\n').map((l, j) => { const t = l.trim(); if (!t) return null; const bm = t.match(/^[-•▸→]\s*(.+)/); return bm ? <div key={j} className="flex gap-1.5 py-0.5"><span className="text-green-500">▸</span><span dangerouslySetInnerHTML={{ __html: bm[1].replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>') }} /></div> : <p key={j} className="py-0.5" dangerouslySetInnerHTML={{ __html: t.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>') }} />; })}</div>
+          <div className="text-xs text-text-secondary leading-relaxed whitespace-pre-line">{sec.content.split('\n').map((l, j) => { const t = l.trim(); if (!t) return null; const bm = t.match(/^[-•▸→]\s*(.+)/); return bm ? <div key={j} className="flex gap-1.5 py-0.5"><span className="text-green">▸</span><span dangerouslySetInnerHTML={{ __html: bm[1].replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>') }} /></div> : <p key={j} className="py-0.5" dangerouslySetInnerHTML={{ __html: t.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>') }} />; })}</div>
         </div>
       ))}</div>
     </div>
@@ -105,9 +105,9 @@ export function NaverReviewMonitor() {
       <div className="bg-bg-1 rounded-xl border border-border-primary p-5 space-y-3">
         <h2 className="text-sm font-semibold text-text-primary">제품 등록</h2>
         <div className="grid sm:grid-cols-[1fr_2fr_auto] gap-2">
-          <input type="text" value={productName} onChange={(e) => setProductName(e.target.value)} placeholder="제품명" className="px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-green-500" />
-          <input type="text" value={productUrl} onChange={(e) => setProductUrl(e.target.value)} placeholder="네이버 쇼핑 제품 URL" className="px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-green-500" />
-          <button onClick={() => registerMutation.mutate()} disabled={!productName.trim() || !productUrl.trim() || registerMutation.isPending} className="flex items-center gap-1.5 px-4 py-2 bg-green text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50"><Plus size={15} /> 등록</button>
+          <input type="text" value={productName} onChange={(e) => setProductName(e.target.value)} placeholder="제품명" className="px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-green/50" />
+          <input type="text" value={productUrl} onChange={(e) => setProductUrl(e.target.value)} placeholder="네이버 쇼핑 제품 URL" className="px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-green/50" />
+          <button onClick={() => registerMutation.mutate()} disabled={!productName.trim() || !productUrl.trim() || registerMutation.isPending} className="flex items-center gap-1.5 px-4 py-2 bg-green text-white text-sm font-medium rounded-lg hover:bg-green disabled:opacity-50"><Plus size={15} /> 등록</button>
         </div>
       </div>
 
@@ -136,14 +136,14 @@ export function NaverReviewMonitor() {
             <h2 className="text-sm font-semibold text-text-primary">리뷰 분석: <span className="text-green">{selectedProduct.product_name}</span></h2>
             <div className="flex items-center gap-3">
               <select value={starThreshold} onChange={(e) => setStarThreshold(Number(e.target.value))} className="px-2 py-1 border rounded text-xs">{[1,2,3,4].map(n => <option key={n} value={n}>{n}점 이하</option>)}</select>
-              <button onClick={() => analyzeMutation.mutate()} disabled={analyzeMutation.isPending} className="flex items-center gap-1.5 px-4 py-2 bg-green text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50">
+              <button onClick={() => analyzeMutation.mutate()} disabled={analyzeMutation.isPending} className="flex items-center gap-1.5 px-4 py-2 bg-green text-white text-sm font-medium rounded-lg hover:bg-green disabled:opacity-50">
                 {analyzeMutation.isPending ? <><Loader2 size={14} className="animate-spin" /> 분석 중...</> : <><Search size={14} /> 리뷰 분석</>}
               </button>
             </div>
           </div>
 
           {analysisResult?.error && (
-            <div className="p-3 bg-yellow/10 border border-yellow/30 rounded-lg text-xs text-amber-800">
+            <div className="p-3 bg-yellow/10 border border-yellow/30 rounded-lg text-xs text-yellow">
               <p className="font-semibold mb-1">리뷰 수집 실패</p><p>{analysisResult.error}</p>
             </div>
           )}
@@ -151,10 +151,10 @@ export function NaverReviewMonitor() {
           {analysisResult?.stats && analysisResult.stats.total_reviews > 0 && (
             <div className="space-y-5">
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="p-3 bg-blue/10 rounded-xl border border-blue-100 text-center"><p className="text-2xl font-bold text-accent-hover">{analysisResult.stats.total_reviews.toLocaleString()}</p><p className="text-xs text-accent mt-0.5">전체 리뷰</p></div>
-                <div className="p-3 bg-yellow/10 rounded-xl border border-yellow-100 text-center"><p className="text-2xl font-bold text-yellow">{analysisResult.stats.average_rating}</p><p className="text-xs text-yellow mt-0.5 flex items-center justify-center gap-1"><Stars rating={Math.round(analysisResult.stats.average_rating)} size={10} /> 평균</p></div>
-                <div className="p-3 bg-red/10 rounded-xl border border-red-100 text-center"><p className="text-2xl font-bold text-red">{analysisResult.stats.low_star_total}</p><p className="text-xs text-red mt-0.5">{starThreshold}점 이하</p></div>
-                <div className="p-3 bg-orange/10 rounded-xl border border-orange-100 text-center"><p className="text-2xl font-bold text-orange">{analysisResult.stats.low_star_count_7d}</p><p className="text-xs text-orange mt-0.5">최근 7일</p></div>
+                <div className="p-3 bg-blue/10 rounded-xl border border-blue/30 text-center"><p className="text-2xl font-bold text-accent-hover">{analysisResult.stats.total_reviews.toLocaleString()}</p><p className="text-xs text-accent mt-0.5">전체 리뷰</p></div>
+                <div className="p-3 bg-yellow/10 rounded-xl border border-yellow/30 text-center"><p className="text-2xl font-bold text-yellow">{analysisResult.stats.average_rating}</p><p className="text-xs text-yellow mt-0.5 flex items-center justify-center gap-1"><Stars rating={Math.round(analysisResult.stats.average_rating)} size={10} /> 평균</p></div>
+                <div className="p-3 bg-red/10 rounded-xl border border-red/30 text-center"><p className="text-2xl font-bold text-red">{analysisResult.stats.low_star_total}</p><p className="text-xs text-red mt-0.5">{starThreshold}점 이하</p></div>
+                <div className="p-3 bg-orange/10 rounded-xl border border-orange/30 text-center"><p className="text-2xl font-bold text-orange">{analysisResult.stats.low_star_count_7d}</p><p className="text-xs text-orange mt-0.5">최근 7일</p></div>
               </div>
               <div className="bg-bg-0 rounded-xl p-4 border">
                 <h3 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-1.5"><TrendingDown size={14} /> 기간별 {starThreshold}점 이하</h3>
@@ -170,7 +170,7 @@ export function NaverReviewMonitor() {
                   const count = analysisResult.stats.star_distribution[star] || 0;
                   const total = analysisResult.stats.total_reviews || 1;
                   const pct = Math.round((count / total) * 100);
-                  return <div key={star} className="flex items-center gap-2"><span className="text-xs text-text-tertiary w-12 flex items-center gap-0.5"><Star size={11} className="text-yellow-400 fill-yellow-400" /> {star}점</span><div className="flex-1 h-5 bg-bg-4 rounded-full overflow-hidden"><div className={clsx('h-full rounded-full', star >= 4 ? 'bg-green' : star === 3 ? 'bg-yellow' : 'bg-red')} style={{ width: `${pct}%` }} /></div><span className="text-xs text-text-tertiary w-16 text-right">{count} ({pct}%)</span></div>;
+                  return <div key={star} className="flex items-center gap-2"><span className="text-xs text-text-tertiary w-12 flex items-center gap-0.5"><Star size={11} className="text-yellow fill-yellow" /> {star}점</span><div className="flex-1 h-5 bg-bg-4 rounded-full overflow-hidden"><div className={clsx('h-full rounded-full', star >= 4 ? 'bg-green' : star === 3 ? 'bg-yellow' : 'bg-red')} style={{ width: `${pct}%` }} /></div><span className="text-xs text-text-tertiary w-16 text-right">{count} ({pct}%)</span></div>;
                 })}</div>
               </div>
               {analysisResult.ai_analysis && <ReviewAiAnalysis text={analysisResult.ai_analysis} />}
@@ -214,13 +214,13 @@ function ReviewSchedulePanel() {
       <div className="flex items-center justify-between mb-4"><h2 className="text-sm font-semibold text-text-primary flex items-center gap-1.5"><BarChart3 size={15} /> 정기 리뷰 리포트</h2><button onClick={() => setShowForm(!showForm)} className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-green bg-green/10 rounded-lg hover:bg-green/15 border border-green/30"><Plus size={13} /> 스케줄 추가</button></div>
       {showForm && (
         <div className="p-4 bg-bg-0 rounded-lg border space-y-4 mb-4">
-          <div><label className="text-xs text-text-tertiary mb-2 block">발송 요일</label><div className="flex gap-1.5 flex-wrap gap-y-2">{DOW.map((label, idx) => { const val = idx < 5 ? idx + 1 : idx === 5 ? 6 : 0; return <button key={idx} onClick={() => toggleDay(val)} className={clsx('w-10 h-10 rounded-lg text-sm font-medium transition-all', days.includes(val) ? 'bg-green text-white shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'bg-bg-1 text-text-tertiary border hover:border-green-300')}>{label}</button>; })}</div></div>
+          <div><label className="text-xs text-text-tertiary mb-2 block">발송 요일</label><div className="flex gap-1.5 flex-wrap gap-y-2">{DOW.map((label, idx) => { const val = idx < 5 ? idx + 1 : idx === 5 ? 6 : 0; return <button key={idx} onClick={() => toggleDay(val)} className={clsx('w-10 h-10 rounded-lg text-sm font-medium transition-all', days.includes(val) ? 'bg-green text-white shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'bg-bg-1 text-text-tertiary border hover:border-green/30')}>{label}</button>; })}</div></div>
           <div className="flex items-center gap-4 flex-wrap gap-y-3">
             <div><label className="text-xs text-text-tertiary mb-1 block">시간</label><div className="flex items-center gap-1"><select value={hour} onChange={(e) => setHour(Number(e.target.value))} className="px-2 py-1.5 border rounded-lg text-sm w-20">{Array.from({length:24},(_,i)=><option key={i} value={i}>{String(i).padStart(2,'0')}시</option>)}</select><span className="text-text-quaternary font-bold">:</span><select value={minute} onChange={(e) => setMinute(Number(e.target.value))} className="px-2 py-1.5 border rounded-lg text-sm w-20">{Array.from({length:60},(_,i)=><option key={i} value={i}>{String(i).padStart(2,'0')}분</option>)}</select></div></div>
             <div><label className="text-xs text-text-tertiary mb-1 block">별점 기준</label><select value={threshold} onChange={(e) => setThreshold(Number(e.target.value))} className="px-2 py-1.5 border rounded-lg text-sm">{[1,2,3,4].map(n=><option key={n} value={n}>{n}점 이하</option>)}</select></div>
           </div>
           <div><label className="text-xs text-text-tertiary mb-1 block">이메일</label><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="report@example.com" className="w-full px-3 py-1.5 border rounded-lg text-sm" /></div>
-          <div className="flex gap-2"><button onClick={() => create.mutate()} disabled={!email || days.length === 0 || create.isPending} className="px-4 py-1.5 bg-green text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50">{create.isPending ? '등록 중...' : '스케줄 등록'}</button><button onClick={() => setShowForm(false)} className="px-4 py-1.5 text-sm text-text-tertiary border rounded-lg hover:bg-bg-2/5">취소</button></div>
+          <div className="flex gap-2"><button onClick={() => create.mutate()} disabled={!email || days.length === 0 || create.isPending} className="px-4 py-1.5 bg-green text-white text-sm font-medium rounded-lg hover:bg-green disabled:opacity-50">{create.isPending ? '등록 중...' : '스케줄 등록'}</button><button onClick={() => setShowForm(false)} className="px-4 py-1.5 text-sm text-text-tertiary border rounded-lg hover:bg-bg-2/5">취소</button></div>
         </div>
       )}
       {schedules.length > 0 ? <div className="space-y-2">{schedules.map((s: any) => (

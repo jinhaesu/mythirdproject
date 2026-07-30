@@ -503,7 +503,7 @@ export default function PerformanceDashboard() {
           <button
             onClick={() => { setAiTriggered(true); clearAnalysisCache(datePreset); setTimeout(() => refetchAI(), 100); }}
             disabled={loadingAI}
-            className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-yellow-500 to-amber-500 text-white text-sm font-medium rounded-lg hover:from-yellow-600 hover:to-amber-600 disabled:opacity-50 transition-all"
+            className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-yellow to-yellow text-white text-sm font-medium rounded-lg hover:from-yellow hover:to-yellow disabled:opacity-50 transition-all"
           >
             {loadingAI ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
             {loadingAI ? '분석 중...' : '분석하기'}
@@ -536,7 +536,7 @@ export default function PerformanceDashboard() {
             <div className="bg-bg-1 border border-border-primary rounded-xl p-4">
               <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                 <h3 className="text-sm font-semibold text-text-secondary flex items-center gap-1.5">
-                  <TrendingUp size={14} className="text-blue-500" />
+                  <TrendingUp size={14} className="text-blue" />
                   {trendView === 'daily' ? '일별' : '주간'} 성과 추이
                   {insightStatus?.as_of && (
                     <span className="text-[10px] font-normal text-text-quaternary">
@@ -601,7 +601,7 @@ export default function PerformanceDashboard() {
 
               {/* 주간 비교 카드 (이번주 vs 지난주) */}
               {trendView === 'weekly' && weeklyComparison && (
-                <div className="mb-4 bg-gradient-to-r from-bg-0 to-indigo-50 rounded-xl p-4 border border-blue-100">
+                <div className="mb-4 bg-gradient-to-r from-bg-0 to-brand/10 rounded-xl p-4 border border-blue/30">
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="text-xs font-bold text-text-primary">이번주 vs 지난주 비교</h4>
                     <div className="flex items-center gap-3 text-[10px] text-text-quaternary">
@@ -625,7 +625,7 @@ export default function PerformanceDashboard() {
                         <div key={i} className="bg-bg-1 rounded-lg p-2.5 border border-border-primary">
                           <p className="text-[10px] text-text-quaternary mb-1">{m.label}</p>
                           <p className="text-sm font-bold text-text-primary">{m.fmt(m.data.cur)}</p>
-                          <div className={`flex items-center gap-0.5 mt-1 ${isGood ? 'text-emerald-600' : changeAbs < 3 ? 'text-text-quaternary' : 'text-red'}`}>
+                          <div className={`flex items-center gap-0.5 mt-1 ${isGood ? 'text-green' : changeAbs < 3 ? 'text-text-quaternary' : 'text-red'}`}>
                             {isPositive ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
                             <span className="text-[10px] font-semibold">{isPositive ? '+' : ''}{m.data.change.toFixed(1)}%</span>
                           </div>
@@ -751,7 +751,7 @@ export default function PerformanceDashboard() {
           {!aiTriggered && !aiAnalysis ? (
             <div className="bg-bg-1 rounded-2xl border border-border-primary shadow-[0px_1px_3px_rgba(0,0,0,0.2)] overflow-hidden">
               <div className="bg-gradient-to-r from-bg-1 to-bg-0 px-6 py-8 text-center">
-                <div className="w-14 h-14 bg-gradient-to-r from-yellow-400 to-amber-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-[0px_7px_32px_rgba(0,0,0,0.35)]">
+                <div className="w-14 h-14 bg-gradient-to-r from-yellow to-yellow rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-[0px_7px_32px_rgba(0,0,0,0.35)]">
                   <Sparkles size={28} className="text-white" />
                 </div>
                 <h3 className="text-lg font-bold text-text-primary mb-2">AI 성과 분석</h3>
@@ -766,7 +766,7 @@ export default function PerformanceDashboard() {
             </div>
           ) : loadingAI ? (
             <div className="bg-bg-1 rounded-2xl border border-border-primary shadow-[0px_7px_32px_rgba(0,0,0,0.35)] overflow-hidden">
-              <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-blue-600 px-6 py-5">
+              <div className="bg-gradient-to-r from-brand via-brand to-blue px-6 py-5">
                 <div className="flex items-center gap-3">
                   <div className="w-11 h-11 bg-bg-1/20 backdrop-blur-sm rounded-xl flex items-center justify-center animate-pulse">
                     <Sparkles size={22} className="text-white" />
@@ -788,7 +788,7 @@ export default function PerformanceDashboard() {
             </div>
           ) : analysis && analysis.parse_error ? (
             <div className="bg-bg-1 rounded-2xl border border-yellow/30 shadow-[0px_7px_32px_rgba(0,0,0,0.35)] overflow-hidden">
-              <div className="bg-gradient-to-r from-yellow-500 to-amber-500 px-6 py-4 flex items-center justify-between flex-wrap gap-y-2">
+              <div className="bg-gradient-to-r from-yellow to-yellow px-6 py-4 flex items-center justify-between flex-wrap gap-y-2">
                 <div className="flex items-center gap-2">
                   <AlertTriangle size={20} className="text-white" />
                   <h2 className="text-base font-bold text-white">AI 분석 결과 (텍스트)</h2>
@@ -803,7 +803,7 @@ export default function PerformanceDashboard() {
             </div>
           ) : !analysis && aiAnalysis?.error ? (
             <div className="bg-bg-1 rounded-2xl border border-red/30 shadow-[0px_7px_32px_rgba(0,0,0,0.35)] overflow-hidden">
-              <div className="bg-gradient-to-r from-red-500 to-rose-500 px-6 py-4">
+              <div className="bg-gradient-to-r from-red to-red px-6 py-4">
                 <div className="flex items-center gap-2">
                   <XCircle size={20} className="text-white" />
                   <h2 className="text-base font-bold text-white">AI 분석 오류</h2>
@@ -819,11 +819,11 @@ export default function PerformanceDashboard() {
           ) : analysis && !analysis.parse_error ? (
             <div className="bg-bg-1 rounded-2xl border border-border-primary shadow-[0px_7px_32px_rgba(0,0,0,0.35)] overflow-hidden">
               {/* Gradient Header */}
-              <div className="relative bg-gradient-to-r from-indigo-600 via-purple-600 to-blue-600 px-6 py-5">
+              <div className="relative bg-gradient-to-r from-brand via-brand to-blue px-6 py-5">
                 <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 20% 50%, white 1px, transparent 1px), radial-gradient(circle at 80% 20%, white 1px, transparent 1px)', backgroundSize: '60px 60px' }} />
                 <div className="relative flex items-center justify-between flex-wrap gap-y-2">
                   <div className="flex items-center gap-3">
-                    <div className="w-11 h-11 bg-bg-1/20 backdrop-blur-sm rounded-xl flex items-center justify-center ring-2 ring-white/30">
+                    <div className="w-11 h-11 bg-bg-1/20 backdrop-blur-sm rounded-xl flex items-center justify-center ring-2 ring-[rgb(var(--color-overlay-rgb)/0.3)]">
                       <Sparkles size={22} className="text-white" />
                     </div>
                     <div>
@@ -848,14 +848,14 @@ export default function PerformanceDashboard() {
                 {/* ① 계정 건강도 */}
                 <div className={`rounded-xl p-5 ${
                   analysis.account_health === 'good'
-                    ? 'bg-gradient-to-r from-emerald-50 to-green-50 border border-emerald-200'
+                    ? 'bg-gradient-to-r from-green/10 to-green/10 border border-green/30'
                     : analysis.account_health === 'warning'
-                      ? 'bg-gradient-to-r from-amber-50 to-yellow-50 border border-yellow/30'
-                      : 'bg-gradient-to-r from-red-50 to-rose-50 border border-red/30'
+                      ? 'bg-gradient-to-r from-yellow/10 to-yellow/10 border border-yellow/30'
+                      : 'bg-gradient-to-r from-red/10 to-red/10 border border-red/30'
                 }`}>
                   <div className="flex items-start gap-4">
                     <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 shadow-[0px_3px_12px_rgba(0,0,0,0.2)] ${
-                      analysis.account_health === 'good' ? 'bg-emerald-500' :
+                      analysis.account_health === 'good' ? 'bg-green' :
                       analysis.account_health === 'warning' ? 'bg-yellow/100' : 'bg-red'
                     }`}>
                       <Shield size={24} className="text-white" />
@@ -864,7 +864,7 @@ export default function PerformanceDashboard() {
                       <div className="flex items-center gap-2 mb-1.5">
                         <h3 className="text-base font-bold text-text-primary">계정 건강도</h3>
                         <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
-                          analysis.account_health === 'good' ? 'bg-emerald-100 text-emerald-700' :
+                          analysis.account_health === 'good' ? 'bg-green/10 text-green' :
                           analysis.account_health === 'warning' ? 'bg-yellow/15 text-yellow' :
                           'bg-red/15 text-red'
                         }`}>
@@ -889,13 +889,13 @@ export default function PerformanceDashboard() {
                     <div className="grid grid-cols-1 gap-3">
                       {analysis.action_items.map((item: any, i: number) => {
                         const typeLabel: Record<string, string> = { pause_ad: '광고 중지', increase_budget: '예산 증액', decrease_budget: '예산 감액', change_creative: '소재 변경', optimize_target: '타겟 최적화' };
-                        const typeIcon: Record<string, string> = { pause_ad: 'text-red', increase_budget: 'text-emerald-500', decrease_budget: 'text-amber-500', change_creative: 'text-purple-500', optimize_target: 'text-blue-500' };
+                        const typeIcon: Record<string, string> = { pause_ad: 'text-red', increase_budget: 'text-green', decrease_budget: 'text-yellow', change_creative: 'text-accent', optimize_target: 'text-blue' };
                         return (
                           <div
                             key={i}
                             className={`rounded-xl border-l-4 bg-bg-1 border border-border-primary shadow-[0px_1px_3px_rgba(0,0,0,0.2)] hover:shadow-[0px_3px_12px_rgba(0,0,0,0.2)] transition-all duration-200 p-4 ${
-                              item.priority === 'high' ? 'border-l-red-500' :
-                              item.priority === 'medium' ? 'border-l-amber-500' : 'border-l-blue-400'
+                              item.priority === 'high' ? 'border-l-red/50' :
+                              item.priority === 'medium' ? 'border-l-yellow/50' : 'border-l-blue/50'
                             }`}
                           >
                             <div className="flex items-start justify-between gap-3">
@@ -917,9 +917,9 @@ export default function PerformanceDashboard() {
                                 <p className="text-sm font-semibold text-text-primary mb-1">{item.action}</p>
                                 <p className="text-xs text-text-tertiary leading-relaxed">{item.reason}</p>
                                 {item.expected_impact && (
-                                  <div className="mt-2.5 inline-flex items-center gap-1.5 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-lg">
-                                    <TrendingUp size={12} className="text-emerald-500" />
-                                    <span className="text-xs font-medium text-emerald-700">{item.expected_impact}</span>
+                                  <div className="mt-2.5 inline-flex items-center gap-1.5 bg-green/10 border border-green/30 px-2.5 py-1 rounded-lg">
+                                    <TrendingUp size={12} className="text-green" />
+                                    <span className="text-xs font-medium text-green">{item.expected_impact}</span>
                                   </div>
                                 )}
                               </div>
@@ -941,7 +941,7 @@ export default function PerformanceDashboard() {
 
                 {/* ③ 소재 피로도 분석 (5-8건) - Full Width */}
                 {analysis.creative_fatigue?.length > 0 && (
-                  <div className="bg-gradient-to-br from-purple-50/50 to-pink-50/30 rounded-xl p-5 border border-purple-100">
+                  <div className="bg-gradient-to-br from-brand/50 to-red/30 rounded-xl p-5 border border-brand/30">
                     <div className="flex items-center gap-2 mb-4">
                       <div className="w-8 h-8 bg-brand/15 rounded-lg flex items-center justify-center">
                         <Palette size={16} className="text-accent" />
@@ -961,8 +961,8 @@ export default function PerformanceDashboard() {
                             <div className="flex items-center justify-between mb-3">
                               <p className="text-sm font-bold text-text-primary truncate flex-1 mr-2">{item.ad_name}</p>
                               <span className={`text-[11px] font-bold px-3 py-1 rounded-full flex-shrink-0 ${
-                                isReplace ? 'bg-red/15 text-red ring-1 ring-red-200' :
-                                isModify ? 'bg-yellow/15 text-yellow ring-1 ring-amber-200' : 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200'
+                                isReplace ? 'bg-red/15 text-red ring-1 ring-red/30' :
+                                isModify ? 'bg-yellow/15 text-yellow ring-1 ring-yellow/30' : 'bg-green/10 text-green ring-1 ring-green/30'
                               }`}>
                                 {statusLabel}
                               </span>
@@ -970,13 +970,13 @@ export default function PerformanceDashboard() {
                             <div className="mb-2.5">
                               <div className="flex items-center justify-between mb-1">
                                 <span className="text-[11px] text-text-quaternary">노출 빈도</span>
-                                <span className={`text-sm font-black ${isReplace ? 'text-red' : isModify ? 'text-yellow' : 'text-emerald-600'}`}>{freq.toFixed(1)}x</span>
+                                <span className={`text-sm font-black ${isReplace ? 'text-red' : isModify ? 'text-yellow' : 'text-green'}`}>{freq.toFixed(1)}x</span>
                               </div>
                               <div className="w-full h-3 bg-bg-2 rounded-full overflow-hidden">
                                 <div
                                   className={`h-full rounded-full transition-all duration-500 ${
-                                    isReplace ? 'bg-gradient-to-r from-red-400 to-red-500' :
-                                    isModify ? 'bg-gradient-to-r from-amber-400 to-amber-500' : 'bg-gradient-to-r from-emerald-400 to-emerald-500'
+                                    isReplace ? 'bg-gradient-to-r from-red/20 to-red/20' :
+                                    isModify ? 'bg-gradient-to-r from-yellow/20 to-yellow/20' : 'bg-gradient-to-r from-green/20 to-green/20'
                                   }`}
                                   style={{ width: `${Math.min(freq / 4 * 100, 100)}%` }}
                                 />
@@ -998,13 +998,13 @@ export default function PerformanceDashboard() {
 
                 {/* ④ 예산 최적화 추천 (5-8건) - Full Width */}
                 {analysis.budget_recommendations?.length > 0 && (
-                  <div className="bg-gradient-to-br from-emerald-50/50 to-cyan-50/30 rounded-xl p-5 border border-emerald-100">
+                  <div className="bg-gradient-to-br from-green/50 to-teal/30 rounded-xl p-5 border border-green/30">
                     <div className="flex items-center gap-2 mb-4">
-                      <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
-                        <DollarSign size={16} className="text-emerald-600" />
+                      <div className="w-8 h-8 bg-green/10 rounded-lg flex items-center justify-center">
+                        <DollarSign size={16} className="text-green" />
                       </div>
                       <h3 className="text-base font-bold text-text-primary">예산 최적화 추천</h3>
-                      <span className="text-xs bg-emerald-100 text-emerald-600 px-2 py-0.5 rounded-full font-medium">{analysis.budget_recommendations.length}건</span>
+                      <span className="text-xs bg-green/10 text-green px-2 py-0.5 rounded-full font-medium">{analysis.budget_recommendations.length}건</span>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {analysis.budget_recommendations.map((item: any, i: number) => {
@@ -1012,13 +1012,13 @@ export default function PerformanceDashboard() {
                         const isUp = changeStr.includes('+');
                         const isDown = changeStr.includes('-');
                         return (
-                          <div key={i} className="bg-bg-1 rounded-xl p-4 border border-border-primary hover:border-emerald-200 hover:shadow-[0px_3px_12px_rgba(0,0,0,0.2)] transition-all">
+                          <div key={i} className="bg-bg-1 rounded-xl p-4 border border-border-primary hover:border-green/30 hover:shadow-[0px_3px_12px_rgba(0,0,0,0.2)] transition-all">
                             <div className="flex items-center justify-between mb-3">
                               <p className="text-sm font-bold text-text-primary truncate flex-1 mr-2">{item.campaign_name}</p>
                               {changeStr && (
                                 <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full flex-shrink-0 ${
-                                  isUp ? 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200' :
-                                  isDown ? 'bg-red/15 text-red ring-1 ring-red-200' : 'bg-bg-2 text-text-tertiary ring-1 ring-border-primary'
+                                  isUp ? 'bg-green/10 text-green ring-1 ring-green/30' :
+                                  isDown ? 'bg-red/15 text-red ring-1 ring-red/30' : 'bg-bg-2 text-text-tertiary ring-1 ring-border-primary'
                                 }`}>
                                   {isUp ? '↑' : isDown ? '↓' : '→'} {changeStr}
                                 </span>
@@ -1030,11 +1030,11 @@ export default function PerformanceDashboard() {
                                 <p className="text-sm font-bold text-text-tertiary">{item.current_budget}</p>
                               </div>
                               <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center" style={{ background: isUp ? '#d1fae5' : isDown ? '#fee2e2' : '#f3f4f6' }}>
-                                <ArrowRight size={14} className={isUp ? 'text-emerald-600' : isDown ? 'text-red' : 'text-text-quaternary'} />
+                                <ArrowRight size={14} className={isUp ? 'text-green' : isDown ? 'text-red' : 'text-text-quaternary'} />
                               </div>
                               <div className="flex-1 text-center">
-                                <p className={`text-[10px] mb-0.5 ${isUp ? 'text-emerald-500' : isDown ? 'text-red' : 'text-blue-500'}`}>추천</p>
-                                <p className={`text-sm font-bold ${isUp ? 'text-emerald-600' : isDown ? 'text-red' : 'text-accent'}`}>{item.recommended_budget}</p>
+                                <p className={`text-[10px] mb-0.5 ${isUp ? 'text-green' : isDown ? 'text-red' : 'text-blue'}`}>추천</p>
+                                <p className={`text-sm font-bold ${isUp ? 'text-green' : isDown ? 'text-red' : 'text-accent'}`}>{item.recommended_budget}</p>
                               </div>
                             </div>
                             <p className="text-xs text-text-tertiary leading-relaxed">{item.reason}</p>
@@ -1047,7 +1047,7 @@ export default function PerformanceDashboard() {
 
                 {/* ⑤ 핵심 캠페인 피드백 (5-8건) */}
                 {analysis.campaign_feedback?.length > 0 && (
-                  <div className="bg-gradient-to-br from-indigo-50/50 to-blue-50/30 rounded-xl p-5 border border-indigo-100">
+                  <div className="bg-gradient-to-br from-brand/50 to-blue/30 rounded-xl p-5 border border-brand/30">
                     <div className="flex items-center gap-2 mb-4">
                       <div className="w-8 h-8 bg-brand/15 rounded-lg flex items-center justify-center">
                         <Target size={16} className="text-accent" />
@@ -1058,11 +1058,11 @@ export default function PerformanceDashboard() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {analysis.campaign_feedback.map((item: any, i: number) => {
                         const gradeConfig: Record<string, { bg: string; text: string; ring: string; label: string }> = {
-                          A: { bg: 'bg-emerald-100', text: 'text-emerald-700', ring: 'ring-emerald-300', label: 'A 최우수' },
-                          B: { bg: 'bg-blue/15', text: 'text-accent-hover', ring: 'ring-blue-300', label: 'B 우수' },
-                          C: { bg: 'bg-yellow/15', text: 'text-yellow', ring: 'ring-amber-300', label: 'C 보통' },
-                          D: { bg: 'bg-orange/15', text: 'text-orange', ring: 'ring-orange-300', label: 'D 미흡' },
-                          F: { bg: 'bg-red/15', text: 'text-red', ring: 'ring-red-300', label: 'F 부진' },
+                          A: { bg: 'bg-green/10', text: 'text-green', ring: 'ring-green/30', label: 'A 최우수' },
+                          B: { bg: 'bg-blue/15', text: 'text-accent-hover', ring: 'ring-blue/30', label: 'B 우수' },
+                          C: { bg: 'bg-yellow/15', text: 'text-yellow', ring: 'ring-yellow/30', label: 'C 보통' },
+                          D: { bg: 'bg-orange/15', text: 'text-orange', ring: 'ring-orange/30', label: 'D 미흡' },
+                          F: { bg: 'bg-red/15', text: 'text-red', ring: 'ring-red/30', label: 'F 부진' },
                         };
                         const gc = gradeConfig[item.grade] || gradeConfig.C;
                         return (
@@ -1075,7 +1075,7 @@ export default function PerformanceDashboard() {
                             </div>
                             <p className="text-xs text-text-tertiary leading-relaxed mb-2.5">{item.summary}</p>
                             {item.kpi_highlight && (
-                              <div className="bg-brand/10 border border-indigo-100 rounded-lg px-3 py-2">
+                              <div className="bg-brand/10 border border-brand/30 rounded-lg px-3 py-2">
                                 <p className="text-[11px] font-medium text-accent-hover">{item.kpi_highlight}</p>
                               </div>
                             )}
@@ -1088,7 +1088,7 @@ export default function PerformanceDashboard() {
 
                 {/* ⑥ 우선 실행 사항 */}
                 {analysis.next_steps?.length > 0 && (
-                  <div className="bg-gradient-to-br from-bg-0 to-indigo-50 rounded-xl p-5 border border-blue-100">
+                  <div className="bg-gradient-to-br from-bg-0 to-brand/10 rounded-xl p-5 border border-blue/30">
                     <div className="flex items-center gap-2 mb-4">
                       <div className="w-8 h-8 bg-blue/15 rounded-lg flex items-center justify-center">
                         <Lightbulb size={16} className="text-accent" />
@@ -1098,10 +1098,10 @@ export default function PerformanceDashboard() {
                     <div className="space-y-3">
                       {analysis.next_steps.map((step: string, i: number) => (
                         <div key={i} className="flex items-start gap-3">
-                          <div className="w-7 h-7 bg-gradient-to-br from-blue-600 to-indigo-600 text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5 shadow-[0px_1px_3px_rgba(0,0,0,0.2)]">
+                          <div className="w-7 h-7 bg-gradient-to-br from-blue to-brand text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5 shadow-[0px_1px_3px_rgba(0,0,0,0.2)]">
                             {i + 1}
                           </div>
-                          <div className="flex-1 bg-bg-1/80 backdrop-blur-sm rounded-lg px-4 py-3 border border-blue-100 shadow-[0px_1px_3px_rgba(0,0,0,0.2)]">
+                          <div className="flex-1 bg-bg-1/80 backdrop-blur-sm rounded-lg px-4 py-3 border border-blue/30 shadow-[0px_1px_3px_rgba(0,0,0,0.2)]">
                             <p className="text-sm text-text-primary leading-relaxed">{step}</p>
                           </div>
                         </div>
@@ -1208,7 +1208,7 @@ export default function PerformanceDashboard() {
                           className={`p-2 rounded-lg transition-colors ${
                             togglingId === camp.id ? 'bg-bg-2 text-text-quaternary cursor-wait' :
                             es === 'PENDING_REVIEW' || es === 'IN_REVIEW' ? 'bg-bg-2 text-text-quaternary cursor-not-allowed' :
-                            es === 'ACTIVE' ? 'bg-yellow/15 text-yellow hover:bg-yellow-200' : 'bg-green/15 text-green hover:bg-green-200'
+                            es === 'ACTIVE' ? 'bg-yellow/15 text-yellow hover:bg-yellow/10' : 'bg-green/15 text-green hover:bg-green/10'
                           }`}
                           title={es === 'PENDING_REVIEW' || es === 'IN_REVIEW' ? '검토 중에는 변경 불가' : es === 'ACTIVE' ? '일시중지' : '활성화'}>
                           {togglingId === camp.id ? <Loader2 size={14} className="animate-spin" /> : es === 'ACTIVE' ? <Pause size={14} /> : <Play size={14} />}
@@ -1222,7 +1222,7 @@ export default function PerformanceDashboard() {
                           <span className="text-xs font-semibold text-text-tertiary uppercase">광고세트 & 광고</span>
                           <div className="flex items-center gap-2">
                             <button onClick={() => setFeedbackExpanded(feedbackExpanded === camp.id ? null : camp.id)}
-                              className="text-xs bg-purple-600 text-white px-3 py-1 rounded-lg hover:bg-purple-700 flex items-center gap-1">
+                              className="text-xs bg-brand text-white px-3 py-1 rounded-lg hover:bg-brand flex items-center gap-1">
                               <Activity size={12} />
                               {feedbackExpanded === camp.id ? '성과 피드백 닫기' : '성과 피드백'}
                             </button>
@@ -1274,7 +1274,7 @@ export default function PerformanceDashboard() {
                                 <div key={adset.id} className="bg-bg-1 rounded-lg border border-border-primary p-3">
                                   <div className="flex items-center justify-between mb-2">
                                     <div className="flex items-center gap-2">
-                                      <Users size={14} className="text-purple-500" />
+                                      <Users size={14} className="text-accent" />
                                       <span className="text-sm font-medium">{adset.name}</span>
                                       <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${adsetStatusColor}`}>{adsetStatusKo}</span>
                                     </div>
@@ -1368,7 +1368,7 @@ export default function PerformanceDashboard() {
 
                         {selectedCampaignForDeep === camp.id && deepData && (
                           <div className="mt-4 bg-bg-1 rounded-lg border border-brand/30 p-4">
-                            <h4 className="text-sm font-semibold text-blue-900 mb-3">심층 분석</h4>
+                            <h4 className="text-sm font-semibold text-blue mb-3">심층 분석</h4>
                             {deepData.demographics?.length > 0 && (
                               <div className="mb-4">
                                 <p className="text-xs font-semibold text-text-tertiary mb-2">연령 x 성별 ROAS 히트맵</p>
@@ -1452,7 +1452,7 @@ export default function PerformanceDashboard() {
                 <div className="px-5 py-8 text-center">
                   <p className="text-text-quaternary">{statusFilter !== 'ALL' ? `${statusFilter === 'ACTIVE' ? '활성' : statusFilter === 'PAUSED' ? '일시중지' : statusFilter === 'PENDING_REVIEW' ? '검토중' : '보관됨'} 캠페인이 없습니다.` : '캠페인이 없습니다.'}</p>
                   {overview?.campaigns_error && (
-                    <p className="text-xs text-red-400 mt-2">Meta API 오류: {typeof overview.campaigns_error === 'string' ? overview.campaigns_error.slice(0, 100) : 'API 연결 실패'}</p>
+                    <p className="text-xs text-red mt-2">Meta API 오류: {typeof overview.campaigns_error === 'string' ? overview.campaigns_error.slice(0, 100) : 'API 연결 실패'}</p>
                   )}
                 </div>
               )}
@@ -1474,7 +1474,7 @@ export default function PerformanceDashboard() {
             return (
               <div className="bg-bg-1 border border-border-primary rounded-xl p-4">
                 <h3 className="text-sm font-semibold text-text-secondary mb-3 flex items-center gap-1.5">
-                  <BarChart3 size={14} className="text-purple-500" />
+                  <BarChart3 size={14} className="text-accent" />
                   캠페인별 ROAS 비교
                 </h3>
                 <ResponsiveContainer width="100%" height={Math.max(200, campaignChartData.length * 40)}>
@@ -1507,7 +1507,7 @@ export default function PerformanceDashboard() {
             return (
               <div className="bg-bg-1 border border-border-primary rounded-xl p-4">
                 <h3 className="text-sm font-semibold text-text-secondary mb-3 flex items-center gap-1.5">
-                  <Activity size={14} className="text-blue-500" />
+                  <Activity size={14} className="text-blue" />
                   전환 퍼널
                 </h3>
                 <div className="space-y-2">
@@ -1747,7 +1747,7 @@ function PerformanceFeedbackPanel({
     return (
       <div className="mt-4 bg-bg-1 rounded-xl border border-yellow/30 p-6">
         <div className="flex items-center gap-2 mb-3">
-          <AlertTriangle size={18} className="text-yellow-500" />
+          <AlertTriangle size={18} className="text-yellow" />
           <p className="text-sm font-semibold text-yellow">성과 피드백 데이터 구조 오류</p>
         </div>
         <p className="text-xs text-text-tertiary mb-2">API 응답에서 분석 데이터를 찾을 수 없습니다.</p>
@@ -1757,7 +1757,7 @@ function PerformanceFeedbackPanel({
             {JSON.stringify(data, null, 2).slice(0, 2000)}
           </pre>
         </details>
-        <button onClick={onRetry} className="mt-3 text-xs bg-purple-600 text-white px-4 py-1.5 rounded-lg hover:bg-purple-700 inline-flex items-center gap-1">
+        <button onClick={onRetry} className="mt-3 text-xs bg-brand text-white px-4 py-1.5 rounded-lg hover:bg-brand inline-flex items-center gap-1">
           <RefreshCw size={12} /> 캐시 삭제 후 재분석
         </button>
       </div>
@@ -1802,7 +1802,7 @@ function PerformanceFeedbackPanel({
   return (
     <div className="mt-4 bg-bg-1 rounded-xl border border-brand/30 overflow-hidden">
       {/* Header */}
-      <div className="bg-gradient-to-r from-purple-600 to-indigo-600 px-5 py-3 flex items-center justify-between">
+      <div className="bg-gradient-to-r from-brand to-brand px-5 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Activity size={18} className="text-white" />
           <h4 className="text-sm font-bold text-white">성과 피드백</h4>
@@ -1817,7 +1817,7 @@ function PerformanceFeedbackPanel({
         <div>
           <SectionHeader
             sectionKey="conversion"
-            icon={<Target size={16} className="text-orange-500" />}
+            icon={<Target size={16} className="text-orange" />}
             title="[전환 측정] ROAS & 효율성"
             subtitle={conv ? `ROAS ${conv.current_roas?.toFixed(2) || '-'}` : '데이터 없음'}
           />
@@ -1867,7 +1867,7 @@ function PerformanceFeedbackPanel({
         <div>
           <SectionHeader
             sectionKey="click"
-            icon={<MousePointer size={16} className="text-blue-500" />}
+            icon={<MousePointer size={16} className="text-blue" />}
             title="[클릭 측정] CTR & CPC"
             subtitle={click ? `CTR ${click.overall_ctr?.toFixed(2) || '-'}%` : '데이터 없음'}
           />
@@ -1887,7 +1887,7 @@ function PerformanceFeedbackPanel({
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] text-text-quaternary w-16">전체 CTR</span>
                     <div className="flex-1 h-4 bg-bg-4 rounded-full overflow-hidden">
-                      <div className="h-full bg-indigo-400 rounded-full" style={{ width: `${Math.min((click.overall_ctr || 0) * 20, 100)}%` }} />
+                      <div className="h-full bg-brand/20 rounded-full" style={{ width: `${Math.min((click.overall_ctr || 0) * 20, 100)}%` }} />
                     </div>
                     <span className="text-xs font-semibold w-12 text-right">{click.overall_ctr?.toFixed(2)}%</span>
                   </div>
@@ -1917,7 +1917,7 @@ function PerformanceFeedbackPanel({
                   </p>
                 </div>
               </div>
-              {click.recommendation && <p className="text-xs text-text-tertiary bg-blue/10 rounded-lg p-2.5 border border-blue-100">{click.recommendation}</p>}
+              {click.recommendation && <p className="text-xs text-text-tertiary bg-blue/10 rounded-lg p-2.5 border border-blue/30">{click.recommendation}</p>}
             </div>
           )}
         </div>
@@ -1926,7 +1926,7 @@ function PerformanceFeedbackPanel({
         <div>
           <SectionHeader
             sectionKey="impression"
-            icon={<Eye size={16} className="text-green-500" />}
+            icon={<Eye size={16} className="text-green" />}
             title="[노출 측정] CPM & 피로도"
             subtitle={imp ? `빈도 ${imp.current_frequency?.toFixed(2) || '-'}` : '데이터 없음'}
           />
@@ -1948,7 +1948,7 @@ function PerformanceFeedbackPanel({
                 </div>
                 <div className="flex justify-between mt-0.5">
                   <span className="text-[9px] text-text-quaternary">0</span>
-                  <span className="text-[9px] text-red-300">2.3 (경고)</span>
+                  <span className="text-[9px] text-red">2.3 (경고)</span>
                   <span className="text-[9px] text-text-quaternary">4+</span>
                 </div>
                 {imp.frequency_warning && (
@@ -1979,7 +1979,7 @@ function PerformanceFeedbackPanel({
                       return (
                         <div key={i} className="flex-1 flex flex-col items-center gap-0.5">
                           <div
-                            className={`w-full rounded-t ${imp.cpc_upward_trend ? 'bg-red-400' : 'bg-blue-400'}`}
+                            className={`w-full rounded-t ${imp.cpc_upward_trend ? 'bg-red/20' : 'bg-blue/20'}`}
                             style={{ height: `${height}%`, minHeight: '2px' }}
                           />
                           <span className="text-[8px] text-text-quaternary">W{i + 1}</span>
@@ -2000,7 +2000,7 @@ function PerformanceFeedbackPanel({
         <div>
           <SectionHeader
             sectionKey="creative"
-            icon={<Palette size={16} className="text-purple-500" />}
+            icon={<Palette size={16} className="text-accent" />}
             title="[소재 피로도 분석]"
             subtitle={creative ? `활성 소재 ${creative.active_ad_count}개` : '데이터 없음'}
           />
@@ -2066,7 +2066,7 @@ function PerformanceFeedbackPanel({
               )}
 
               {creative.recommendation && (
-                <p className="text-xs text-text-tertiary bg-brand/10 rounded-lg p-2.5 border border-purple-100">{creative.recommendation}</p>
+                <p className="text-xs text-text-tertiary bg-brand/10 rounded-lg p-2.5 border border-brand/30">{creative.recommendation}</p>
               )}
 
               {creative.active_ad_count <= 1 && (
@@ -2082,7 +2082,7 @@ function PerformanceFeedbackPanel({
         {/* Recommendations */}
         {fb?.recommendations && fb.recommendations.length > 0 && (
           <div className="p-4">
-            <p className="text-xs font-semibold text-text-secondary mb-2 flex items-center gap-1"><Lightbulb size={12} className="text-yellow-500" /> 종합 권장사항</p>
+            <p className="text-xs font-semibold text-text-secondary mb-2 flex items-center gap-1"><Lightbulb size={12} className="text-yellow" /> 종합 권장사항</p>
             <div className="space-y-1.5">
               {fb.recommendations.map((rec: string, i: number) => (
                 <div key={i} className="flex items-start gap-2 text-xs text-text-tertiary">
@@ -2260,7 +2260,7 @@ function CreativePerformanceDashboard({
         >
           {showCreativeDash ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
           <h3 className="font-semibold text-text-primary flex items-center gap-2">
-            <Palette size={18} className="text-purple-500" /> 크리에이티브 성과 대시보드
+            <Palette size={18} className="text-accent" /> 크리에이티브 성과 대시보드
           </h3>
           <span className="text-xs bg-brand/15 text-accent-hover px-2 py-0.5 rounded-full">{allAds.length}개</span>
         </button>
@@ -2268,7 +2268,7 @@ function CreativePerformanceDashboard({
           <button
             onClick={loadAdLevelData}
             disabled={loadingAdsets}
-            className="text-xs px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center gap-1.5"
+            className="text-xs px-3 py-1.5 bg-brand text-white rounded-lg hover:bg-brand disabled:opacity-50 flex items-center gap-1.5"
           >
             {loadingAdsets ? <Loader2 size={12} className="animate-spin" /> : <Layers size={12} />}
             {loadingAdsets ? '로딩 중...' : '소재별 데이터 로드'}
@@ -2281,21 +2281,21 @@ function CreativePerformanceDashboard({
           {/* Top performers cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {topByROAS.length > 0 && (
-              <div className="bg-gradient-to-br from-emerald-50 to-green-50 rounded-xl p-4 border border-emerald-200">
-                <h4 className="text-xs font-bold text-emerald-800 mb-3 flex items-center gap-1.5">
+              <div className="bg-gradient-to-br from-green/10 to-green/10 rounded-xl p-4 border border-green/30">
+                <h4 className="text-xs font-bold text-green mb-3 flex items-center gap-1.5">
                   <TrendingUp size={14} /> ROAS 우수 소재 TOP 3
                 </h4>
                 <div className="space-y-2">
                   {topByROAS.map((ad, i) => (
-                    <div key={ad.id} className="flex items-center justify-between bg-bg-1 rounded-lg p-2.5 border border-emerald-100">
+                    <div key={ad.id} className="flex items-center justify-between bg-bg-1 rounded-lg p-2.5 border border-green/30">
                       <div className="flex items-center gap-2">
                         <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white ${
-                          i === 0 ? 'bg-emerald-500' : i === 1 ? 'bg-emerald-400' : 'bg-emerald-300'
+                          i === 0 ? 'bg-green' : i === 1 ? 'bg-green' : 'bg-green/10'
                         }`}>{i + 1}</span>
                         <span className="text-xs font-medium text-text-primary truncate max-w-[150px]">{ad.name}</span>
                       </div>
                       <div className="text-right">
-                        <p className="text-sm font-bold text-emerald-600">ROAS {formatROAS(ad.roas)}</p>
+                        <p className="text-sm font-bold text-green">ROAS {formatROAS(ad.roas)}</p>
                         <p className="text-[10px] text-text-quaternary">매출 {formatSpend(ad.conversion_value)}</p>
                       </div>
                     </div>
@@ -2305,16 +2305,16 @@ function CreativePerformanceDashboard({
             )}
 
             {topByCTR.length > 0 && (
-              <div className="bg-gradient-to-br from-bg-0 to-indigo-50 rounded-xl p-4 border border-brand/30">
+              <div className="bg-gradient-to-br from-bg-0 to-brand/10 rounded-xl p-4 border border-brand/30">
                 <h4 className="text-xs font-bold text-accent-hover mb-3 flex items-center gap-1.5">
                   <MousePointer size={14} /> CTR 우수 소재 TOP 3
                 </h4>
                 <div className="space-y-2">
                   {topByCTR.map((ad, i) => (
-                    <div key={ad.id} className="flex items-center justify-between bg-bg-1 rounded-lg p-2.5 border border-blue-100">
+                    <div key={ad.id} className="flex items-center justify-between bg-bg-1 rounded-lg p-2.5 border border-blue/30">
                       <div className="flex items-center gap-2">
                         <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white ${
-                          i === 0 ? 'bg-blue' : i === 1 ? 'bg-blue-400' : 'bg-blue-300'
+                          i === 0 ? 'bg-blue' : i === 1 ? 'bg-blue' : 'bg-blue/10'
                         }`}>{i + 1}</span>
                         <span className="text-xs font-medium text-text-primary truncate max-w-[150px]">{ad.name}</span>
                       </div>
@@ -2370,7 +2370,7 @@ function CreativePerformanceDashboard({
                   const statusKo = ad.status === 'ACTIVE' ? '활성' : ad.status === 'PAUSED' ? '중지' : ad.status;
                   const statusColor = ad.status === 'ACTIVE' ? 'text-green' : ad.status === 'PAUSED' ? 'text-yellow' : 'text-text-quaternary';
                   return (
-                    <tr key={ad.id} className="border-b border-gray-50 hover:bg-bg-2/5">
+                    <tr key={ad.id} className="border-b border-border-primary hover:bg-bg-2/5">
                       <td className="py-2 px-2">
                         <div className="flex items-center gap-2">
                           {ad.thumbnail_url && (
@@ -2421,9 +2421,9 @@ function CreativePerformanceDashboard({
 
           {/* Per-Creative Chart Panel */}
           {selectedAdForChart && (
-            <div className="border border-brand/30 rounded-xl p-4 bg-brand/10/30">
+            <div className="border border-brand/30 rounded-xl p-4 bg-brand/30">
               <div className="flex items-center justify-between mb-3">
-                <h4 className="text-sm font-semibold text-purple-800 flex items-center gap-1.5">
+                <h4 className="text-sm font-semibold text-accent flex items-center gap-1.5">
                   <BarChart2 size={16} /> 소재별 일별 트렌드 (14일)
                 </h4>
                 <button onClick={() => setSelectedAdForChart(null)} className="text-text-quaternary hover:text-text-secondary">
@@ -2447,19 +2447,19 @@ function CreativePerformanceDashboard({
                       const totalConv = data.reduce((s: number, d: any) => s + (d.conversion_value || 0), 0);
                       return (
                         <>
-                          <div className="bg-bg-1 rounded-lg p-2.5 border border-purple-100">
+                          <div className="bg-bg-1 rounded-lg p-2.5 border border-brand/30">
                             <p className="text-[10px] text-text-tertiary">총 지출</p>
                             <p className="text-sm font-bold">{formatSpend(totalSpend)}</p>
                           </div>
-                          <div className="bg-bg-1 rounded-lg p-2.5 border border-purple-100">
+                          <div className="bg-bg-1 rounded-lg p-2.5 border border-brand/30">
                             <p className="text-[10px] text-text-tertiary">총 클릭</p>
                             <p className="text-sm font-bold">{formatNum(totalClicks)}</p>
                           </div>
-                          <div className="bg-bg-1 rounded-lg p-2.5 border border-purple-100">
+                          <div className="bg-bg-1 rounded-lg p-2.5 border border-brand/30">
                             <p className="text-[10px] text-text-tertiary">총 노출</p>
                             <p className="text-sm font-bold">{formatNum(totalImpressions)}</p>
                           </div>
-                          <div className="bg-bg-1 rounded-lg p-2.5 border border-purple-100">
+                          <div className="bg-bg-1 rounded-lg p-2.5 border border-brand/30">
                             <p className="text-[10px] text-text-tertiary">총 전환값</p>
                             <p className="text-sm font-bold">{formatSpend(totalConv)}</p>
                           </div>
@@ -2467,7 +2467,7 @@ function CreativePerformanceDashboard({
                       );
                     })()}
                   </div>
-                  <div className="bg-bg-1 rounded-lg p-3 border border-purple-100">
+                  <div className="bg-bg-1 rounded-lg p-3 border border-brand/30">
                     <p className="text-[10px] text-text-tertiary mb-2">일별 지출 추이</p>
                     {renderMiniTrend(trendQuery.data?.data || [])}
                   </div>
@@ -2478,7 +2478,7 @@ function CreativePerformanceDashboard({
 
           {/* Comment Management Panel */}
           {selectedAdForComments && (
-            <div className="border border-brand/30 rounded-xl p-4 bg-blue/10/30">
+            <div className="border border-brand/30 rounded-xl p-4 bg-blue/30">
               <div className="flex items-center justify-between mb-3">
                 <h4 className="text-sm font-semibold text-accent-hover flex items-center gap-1.5">
                   <MessageSquare size={16} /> 댓글 관리
@@ -2525,7 +2525,7 @@ function CreativePerformanceDashboard({
                   ) : (
                     <div className="max-h-64 overflow-y-auto space-y-2">
                       {(commentsQuery.data?.comments || []).map((comment: any) => (
-                        <div key={comment.id} className="bg-bg-1 rounded-lg p-3 border border-blue-100">
+                        <div key={comment.id} className="bg-bg-1 rounded-lg p-3 border border-blue/30">
                           <div className="flex items-center justify-between mb-1">
                             <span className="text-xs font-semibold text-text-primary">
                               {comment.username || '사용자'}

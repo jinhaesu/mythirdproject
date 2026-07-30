@@ -85,17 +85,17 @@ export function DataDashboard() {
   }), [monthsData, involvedChannels]);
 
   if (isLoading) {
-    return <div className="flex items-center justify-center py-24 text-gray-500 text-sm">데이터 대시보드 로딩 중…</div>;
+    return <div className="flex items-center justify-center py-24 text-text-tertiary text-sm">데이터 대시보드 로딩 중…</div>;
   }
   if (isError || !latest) {
-    return <div className="flex items-center justify-center py-24 text-gray-500 text-sm">데이터를 불러오지 못했습니다.</div>;
+    return <div className="flex items-center justify-center py-24 text-text-tertiary text-sm">데이터를 불러오지 못했습니다.</div>;
   }
 
   const kpis = [
-    { label: `총 광고비 (${latest.month})`, value: fmtWon(latest.totals.total_spend), sub: `관여 ${fmtWon(latest.totals.involved_spend)} · 비관여 ${fmtWon(latest.totals.uninvolved_spend)}`, icon: <Wallet size={16} />, color: 'text-blue-400', bg: 'bg-blue-500/10' },
-    { label: '블렌디드 ROAS (관여 채널)', value: latest.totals.blended_roas != null ? latest.totals.blended_roas.toFixed(2) : '—', sub: `귀속 매출 ${fmtWon(latest.totals.involved_revenue)}`, icon: <TrendingUp size={16} />, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-    { label: `자사몰 총매출 (${latest.month})`, value: fmtWon(latest.totals.mall_revenue), sub: '카페24 결제 완료 기준', icon: <Database size={16} />, color: 'text-violet-400', bg: 'bg-violet-500/10' },
-    { label: '브랜딩 조회수 (비관여)', value: fmtViews(latest.totals.uninvolved_views), sub: `브랜딩 광고비 ${fmtWon(latest.totals.uninvolved_spend)}`, icon: <Eye size={16} />, color: 'text-amber-400', bg: 'bg-amber-500/10' },
+    { label: `총 광고비 (${latest.month})`, value: fmtWon(latest.totals.total_spend), sub: `관여 ${fmtWon(latest.totals.involved_spend)} · 비관여 ${fmtWon(latest.totals.uninvolved_spend)}`, icon: <Wallet size={16} />, color: 'text-blue', bg: 'bg-blue/10' },
+    { label: '블렌디드 ROAS (관여 채널)', value: latest.totals.blended_roas != null ? latest.totals.blended_roas.toFixed(2) : '—', sub: `귀속 매출 ${fmtWon(latest.totals.involved_revenue)}`, icon: <TrendingUp size={16} />, color: 'text-green', bg: 'bg-green/10' },
+    { label: `자사몰 총매출 (${latest.month})`, value: fmtWon(latest.totals.mall_revenue), sub: '카페24 결제 완료 기준', icon: <Database size={16} />, color: 'text-accent', bg: 'bg-brand/10' },
+    { label: '브랜딩 조회수 (비관여)', value: fmtViews(latest.totals.uninvolved_views), sub: `브랜딩 광고비 ${fmtWon(latest.totals.uninvolved_spend)}`, icon: <Eye size={16} />, color: 'text-yellow', bg: 'bg-yellow/10' },
   ];
 
   return (
@@ -104,7 +104,7 @@ export function DataDashboard() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h2 className="text-lg font-semibold text-white">데이터 대시보드</h2>
-          <p className="text-xs text-gray-500">채널별 월간 광고비·ROAS·조회수 — 자사몰/그 외 마케팅 KPI 탭 입력과 자동 연동</p>
+          <p className="text-xs text-text-tertiary">채널별 월간 광고비·ROAS·조회수 — 자사몰/그 외 마케팅 KPI 탭 입력과 자동 연동</p>
         </div>
         <div className="flex items-center gap-1">
           {([3, 6, 12] as const).map(mm => (
@@ -112,7 +112,7 @@ export function DataDashboard() {
               key={mm}
               onClick={() => setMonths(mm)}
               className={`px-3 py-1 text-xs rounded-lg font-medium transition-colors ${
-                months === mm ? 'bg-blue-600 text-white' : 'bg-bg-3 text-gray-400 border border-border-primary hover:text-white'
+                months === mm ? 'bg-blue text-white' : 'bg-bg-3 text-text-tertiary border border-border-primary hover:text-text-primary'
               }`}
             >
               {mm}개월
@@ -124,18 +124,18 @@ export function DataDashboard() {
       {/* KPI 카드 */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {kpis.map((k, i) => (
-          <div key={i} className="bg-bg-3 rounded-2xl p-4 border border-white/[0.06]">
+          <div key={i} className="bg-bg-3 rounded-2xl p-4 border border-[rgb(var(--color-overlay-rgb)/0.06)]">
             <div className={`inline-flex items-center justify-center w-8 h-8 rounded-lg ${k.bg} ${k.color} mb-2`}>{k.icon}</div>
-            <p className="text-[11px] text-gray-500">{k.label}</p>
-            <p className="text-lg font-semibold text-white mt-0.5">{k.value}</p>
-            <p className="text-[10px] text-gray-500 mt-0.5">{k.sub}</p>
+            <p className="text-[11px] text-text-tertiary">{k.label}</p>
+            <p className="text-lg font-semibold text-text-primary mt-0.5">{k.value}</p>
+            <p className="text-[10px] text-text-tertiary mt-0.5">{k.sub}</p>
           </div>
         ))}
       </div>
 
       {/* 차트 — 관여 광고비 스택 + 블렌디드 ROAS */}
-      <div className="bg-bg-3 rounded-2xl p-4 border border-white/[0.06]">
-        <h3 className="text-sm font-semibold text-white mb-3">월별 광고비 (지표 관여 채널) · 블렌디드 ROAS</h3>
+      <div className="bg-bg-3 rounded-2xl p-4 border border-[rgb(var(--color-overlay-rgb)/0.06)]">
+        <h3 className="text-sm font-semibold text-text-primary mb-3">월별 광고비 (지표 관여 채널) · 블렌디드 ROAS</h3>
         <div className="h-72">
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={chartRows} margin={{ top: 4, right: 8, bottom: 0, left: 8 }}>
@@ -163,13 +163,13 @@ export function DataDashboard() {
       </div>
 
       {/* 표 0 — 전 채널 월별 광고비 매트릭스 */}
-      <div className="bg-bg-3 rounded-2xl p-4 border border-white/[0.06]">
-        <h3 className="text-sm font-semibold text-white mb-1">채널별 월별 광고비</h3>
-        <p className="text-[11px] text-gray-500 mb-3">집행 채널 전체(관여 + 비관여)의 월별 광고비. 자동 집계 채널은 실집행액 기준.</p>
+      <div className="bg-bg-3 rounded-2xl p-4 border border-[rgb(var(--color-overlay-rgb)/0.06)]">
+        <h3 className="text-sm font-semibold text-text-primary mb-1">채널별 월별 광고비</h3>
+        <p className="text-[11px] text-text-tertiary mb-3">집행 채널 전체(관여 + 비관여)의 월별 광고비. 자동 집계 채널은 실집행액 기준.</p>
         <div className="overflow-x-auto">
           <table className="w-full text-xs min-w-[560px]">
             <thead>
-              <tr className="text-gray-500 border-b border-white/5">
+              <tr className="text-text-tertiary border-b border-[rgb(var(--color-overlay-rgb)/0.05)]">
                 <th className="text-left py-2 pr-3 font-medium whitespace-nowrap">채널</th>
                 {monthsData.map(m => (
                   <th key={m.month} className="text-right py-2 px-3 font-medium whitespace-nowrap">{m.month.slice(2)}</th>
@@ -178,41 +178,41 @@ export function DataDashboard() {
             </thead>
             <tbody>
               {involvedChannels.map(ch => (
-                <tr key={`inv-${ch.channel}`} className="border-b border-white/5">
-                  <td className="py-2 pr-3 text-gray-300 whitespace-nowrap">
+                <tr key={`inv-${ch.channel}`} className="border-b border-[rgb(var(--color-overlay-rgb)/0.05)]">
+                  <td className="py-2 pr-3 text-text-secondary whitespace-nowrap">
                     {ch.label}
-                    <span className="ml-1.5 text-[9px] font-semibold bg-emerald-500/10 text-emerald-300 px-1.5 py-0.5 rounded-full">관여</span>
+                    <span className="ml-1.5 text-[9px] font-semibold bg-green/10 text-green px-1.5 py-0.5 rounded-full">관여</span>
                   </td>
                   {monthsData.map(m => {
                     const e = m.involved.find(x => x.channel === ch.channel);
                     return (
                       <td key={m.month} className="py-2 px-3 text-right whitespace-nowrap">
-                        {e ? <span className="text-white font-medium">{fmtWon(e.spend)}</span> : <span className="text-gray-700">—</span>}
+                        {e ? <span className="text-white font-medium">{fmtWon(e.spend)}</span> : <span className="text-text-primary">—</span>}
                       </td>
                     );
                   })}
                 </tr>
               ))}
               {uninvolvedChannels.map(ch => (
-                <tr key={`uni-${ch.channel}`} className="border-b border-white/5">
-                  <td className="py-2 pr-3 text-gray-300 whitespace-nowrap">
+                <tr key={`uni-${ch.channel}`} className="border-b border-[rgb(var(--color-overlay-rgb)/0.05)]">
+                  <td className="py-2 pr-3 text-text-secondary whitespace-nowrap">
                     {ch.label}
-                    <span className="ml-1.5 text-[9px] font-semibold bg-amber-500/10 text-amber-300 px-1.5 py-0.5 rounded-full">비관여</span>
+                    <span className="ml-1.5 text-[9px] font-semibold bg-yellow/10 text-yellow px-1.5 py-0.5 rounded-full">비관여</span>
                   </td>
                   {monthsData.map(m => {
                     const e = m.uninvolved.find(x => x.channel === ch.channel);
                     return (
                       <td key={m.month} className="py-2 px-3 text-right whitespace-nowrap">
-                        {e ? <span className="text-white font-medium">{fmtWon(e.spend)}</span> : <span className="text-gray-700">—</span>}
+                        {e ? <span className="text-white font-medium">{fmtWon(e.spend)}</span> : <span className="text-text-primary">—</span>}
                       </td>
                     );
                   })}
                 </tr>
               ))}
-              <tr className="bg-white/[0.03] font-semibold">
-                <td className="py-2 pr-3 text-white">합계 (전체 광고비)</td>
+              <tr className="bg-[rgb(var(--color-overlay-rgb)/0.03)] font-semibold">
+                <td className="py-2 pr-3 text-text-primary">합계 (전체 광고비)</td>
                 {monthsData.map(m => (
-                  <td key={m.month} className="py-2 px-3 text-right whitespace-nowrap text-blue-300">
+                  <td key={m.month} className="py-2 px-3 text-right whitespace-nowrap text-blue">
                     {fmtWon(m.totals.total_spend)}
                   </td>
                 ))}
@@ -223,13 +223,13 @@ export function DataDashboard() {
       </div>
 
       {/* 표 1 — 지표 관여 채널: 월별 ROAS·광고비·매출 */}
-      <div className="bg-bg-3 rounded-2xl p-4 border border-white/[0.06]">
-        <h3 className="text-sm font-semibold text-white mb-1">지표 관여 채널 — 월별 ROAS</h3>
-        <p className="text-[11px] text-gray-500 mb-3">셀: ROAS (광고비 → 매출). 메타·네이버 검색광고는 자동 집계, 그 외는 KPI 탭 수기 입력.</p>
+      <div className="bg-bg-3 rounded-2xl p-4 border border-[rgb(var(--color-overlay-rgb)/0.06)]">
+        <h3 className="text-sm font-semibold text-text-primary mb-1">지표 관여 채널 — 월별 ROAS</h3>
+        <p className="text-[11px] text-text-tertiary mb-3">셀: ROAS (광고비 → 매출). 메타·네이버 검색광고는 자동 집계, 그 외는 KPI 탭 수기 입력.</p>
         <div className="overflow-x-auto">
           <table className="w-full text-xs min-w-[560px]">
             <thead>
-              <tr className="text-gray-500 border-b border-white/5">
+              <tr className="text-text-tertiary border-b border-[rgb(var(--color-overlay-rgb)/0.05)]">
                 <th className="text-left py-2 pr-3 font-medium whitespace-nowrap">채널</th>
                 {monthsData.map(m => (
                   <th key={m.month} className="text-right py-2 px-3 font-medium whitespace-nowrap">{m.month.slice(2)}</th>
@@ -238,31 +238,31 @@ export function DataDashboard() {
             </thead>
             <tbody>
               {involvedChannels.map(ch => (
-                <tr key={ch.channel} className="border-b border-white/5">
-                  <td className="py-2 pr-3 text-gray-300 whitespace-nowrap">{ch.label}</td>
+                <tr key={ch.channel} className="border-b border-[rgb(var(--color-overlay-rgb)/0.05)]">
+                  <td className="py-2 pr-3 text-text-secondary whitespace-nowrap">{ch.label}</td>
                   {monthsData.map(m => {
                     const e = m.involved.find(x => x.channel === ch.channel);
                     return (
                       <td key={m.month} className="py-2 px-3 text-right whitespace-nowrap">
                         {e ? (
                           <>
-                            <span className={`font-semibold ${e.roas == null ? 'text-gray-600' : e.roas >= 3 ? 'text-emerald-300' : e.roas >= 1 ? 'text-white' : 'text-red-400'}`}>
+                            <span className={`font-semibold ${e.roas == null ? 'text-text-tertiary' : e.roas >= 3 ? 'text-green' : e.roas >= 1 ? 'text-text-primary' : 'text-red'}`}>
                               {e.roas != null ? e.roas.toFixed(2) : (e.revenue == null ? '매출 미입력' : '—')}
                             </span>
-                            <span className="block text-[10px] text-gray-500">{fmtWon(e.spend)} → {fmtWon(e.revenue)}</span>
+                            <span className="block text-[10px] text-text-tertiary">{fmtWon(e.spend)} → {fmtWon(e.revenue)}</span>
                           </>
-                        ) : <span className="text-gray-700">—</span>}
+                        ) : <span className="text-text-primary">—</span>}
                       </td>
                     );
                   })}
                 </tr>
               ))}
-              <tr className="bg-white/[0.03] font-semibold">
-                <td className="py-2 pr-3 text-white">합계 (블렌디드)</td>
+              <tr className="bg-[rgb(var(--color-overlay-rgb)/0.03)] font-semibold">
+                <td className="py-2 pr-3 text-text-primary">합계 (블렌디드)</td>
                 {monthsData.map(m => (
                   <td key={m.month} className="py-2 px-3 text-right whitespace-nowrap">
-                    <span className="text-emerald-300">{m.totals.blended_roas != null ? m.totals.blended_roas.toFixed(2) : '—'}</span>
-                    <span className="block text-[10px] text-gray-500 font-normal">{fmtWon(m.totals.involved_spend)} → {fmtWon(m.totals.involved_revenue)}</span>
+                    <span className="text-green">{m.totals.blended_roas != null ? m.totals.blended_roas.toFixed(2) : '—'}</span>
+                    <span className="block text-[10px] text-text-tertiary font-normal">{fmtWon(m.totals.involved_spend)} → {fmtWon(m.totals.involved_revenue)}</span>
                   </td>
                 ))}
               </tr>
@@ -272,18 +272,18 @@ export function DataDashboard() {
       </div>
 
       {/* 표 2 — 지표 비관여(브랜딩) 채널: 월별 광고비·조회수 */}
-      <div className="bg-bg-3 rounded-2xl p-4 border border-white/[0.06]">
-        <h3 className="text-sm font-semibold text-white mb-1">지표 비관여 채널 (브랜딩) — 월별 광고비 · 조회수</h3>
-        <p className="text-[11px] text-gray-500 mb-3">유튜브·메타 브랜딩 등 매출 비관여 집행. &quot;그 외 마케팅 KPI&quot; 탭에서 채널 광고비를 매출 비관여로 입력하고 조회수를 함께 기록하면 여기 반영됩니다.</p>
+      <div className="bg-bg-3 rounded-2xl p-4 border border-[rgb(var(--color-overlay-rgb)/0.06)]">
+        <h3 className="text-sm font-semibold text-text-primary mb-1">지표 비관여 채널 (브랜딩) — 월별 광고비 · 조회수</h3>
+        <p className="text-[11px] text-text-tertiary mb-3">유튜브·메타 브랜딩 등 매출 비관여 집행. &quot;그 외 마케팅 KPI&quot; 탭에서 채널 광고비를 매출 비관여로 입력하고 조회수를 함께 기록하면 여기 반영됩니다.</p>
         {uninvolvedChannels.length === 0 ? (
-          <p className="text-xs text-gray-600 py-4 text-center">
+          <p className="text-xs text-text-tertiary py-4 text-center">
             비관여 채널 입력이 아직 없습니다 — &quot;그 외 마케팅 KPI&quot; 탭 → 채널 광고비에서 매출 관여를 끄고 광고비·조회수를 입력하세요.
           </p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-xs min-w-[560px]">
               <thead>
-                <tr className="text-gray-500 border-b border-white/5">
+                <tr className="text-text-tertiary border-b border-[rgb(var(--color-overlay-rgb)/0.05)]">
                   <th className="text-left py-2 pr-3 font-medium whitespace-nowrap">채널</th>
                   {monthsData.map(m => (
                     <th key={m.month} className="text-right py-2 px-3 font-medium whitespace-nowrap">{m.month.slice(2)}</th>
@@ -292,29 +292,29 @@ export function DataDashboard() {
               </thead>
               <tbody>
                 {uninvolvedChannels.map(ch => (
-                  <tr key={ch.channel} className="border-b border-white/5">
-                    <td className="py-2 pr-3 text-gray-300 whitespace-nowrap">{ch.label}</td>
+                  <tr key={ch.channel} className="border-b border-[rgb(var(--color-overlay-rgb)/0.05)]">
+                    <td className="py-2 pr-3 text-text-secondary whitespace-nowrap">{ch.label}</td>
                     {monthsData.map(m => {
                       const e = m.uninvolved.find(x => x.channel === ch.channel);
                       return (
                         <td key={m.month} className="py-2 px-3 text-right whitespace-nowrap">
                           {e ? (
                             <>
-                              <span className="text-white font-medium">{fmtWon(e.spend)}</span>
-                              <span className="block text-[10px] text-amber-300/70">view {fmtViews(e.views)}</span>
+                              <span className="text-text-primary font-medium">{fmtWon(e.spend)}</span>
+                              <span className="block text-[10px] text-yellow/70">view {fmtViews(e.views)}</span>
                             </>
-                          ) : <span className="text-gray-700">—</span>}
+                          ) : <span className="text-text-primary">—</span>}
                         </td>
                       );
                     })}
                   </tr>
                 ))}
-                <tr className="bg-white/[0.03] font-semibold">
-                  <td className="py-2 pr-3 text-white">합계</td>
+                <tr className="bg-[rgb(var(--color-overlay-rgb)/0.03)] font-semibold">
+                  <td className="py-2 pr-3 text-text-primary">합계</td>
                   {monthsData.map(m => (
                     <td key={m.month} className="py-2 px-3 text-right whitespace-nowrap">
-                      <span className="text-white">{fmtWon(m.totals.uninvolved_spend)}</span>
-                      <span className="block text-[10px] text-amber-300/70 font-normal">view {fmtViews(m.totals.uninvolved_views)}</span>
+                      <span className="text-text-primary">{fmtWon(m.totals.uninvolved_spend)}</span>
+                      <span className="block text-[10px] text-yellow/70 font-normal">view {fmtViews(m.totals.uninvolved_views)}</span>
                     </td>
                   ))}
                 </tr>

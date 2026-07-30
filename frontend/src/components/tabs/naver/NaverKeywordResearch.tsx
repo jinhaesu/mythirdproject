@@ -120,7 +120,7 @@ function TrendChart({
   const gradientId = 'trendGradient';
 
   return (
-    <div className="w-full overflow-hidden rounded-xl bg-gradient-to-b from-green-50/60 to-bg-1 border border-green-100">
+    <div className="w-full overflow-hidden rounded-xl bg-gradient-to-b from-green/60 to-bg-1 border border-green/30">
       <svg
         viewBox={`0 0 ${width} ${height}`}
         preserveAspectRatio="xMidYMid meet"
@@ -358,7 +358,7 @@ function ProductCard({ item, rank }: { item: ShoppingItem; rank: number }) {
         </div>
         {(item.reviewCount ?? 0) > 0 && (
           <div className="flex items-center gap-1 text-xs text-text-quaternary">
-            <Star size={10} className="text-yellow-400 fill-yellow-400" />
+            <Star size={10} className="text-yellow fill-yellow" />
             <span>{item.reviewAverage?.toFixed(1)}</span>
             <span>({(item.reviewCount ?? 0).toLocaleString()})</span>
           </div>
@@ -375,7 +375,7 @@ function simpleMarkdownToHtml(text: string): string {
     // H2 headers - section headers
     .replace(/^## (.+)$/gm, '<h3 class="text-base font-bold text-text-primary mt-6 mb-3 pb-2 border-b border-border-primary">$1</h3>')
     // H3 headers
-    .replace(/^### (.+)$/gm, '<h4 class="text-sm font-bold text-purple-800 mt-4 mb-2 flex items-center gap-1"><span class="w-1 h-4 bg-brand/100 rounded-full inline-block mr-1"></span>$1</h4>')
+    .replace(/^### (.+)$/gm, '<h4 class="text-sm font-bold text-accent mt-4 mb-2 flex items-center gap-1"><span class="w-1 h-4 bg-brand/100 rounded-full inline-block mr-1"></span>$1</h4>')
     // H4 headers
     .replace(/^#### (.+)$/gm, '<h5 class="text-sm font-semibold text-text-secondary mt-3 mb-1">$1</h5>')
     // Bold
@@ -383,7 +383,7 @@ function simpleMarkdownToHtml(text: string): string {
     // Numbered lists with better spacing
     .replace(/^(\d+)\. (.+)$/gm, '<div class="flex gap-3 ml-1 my-1.5"><span class="flex-shrink-0 w-6 h-6 rounded-full bg-brand/15 text-accent-hover text-xs font-bold flex items-center justify-center">$1</span><span class="pt-0.5">$2</span></div>')
     // Bullet points
-    .replace(/^[-•] (.+)$/gm, '<div class="flex gap-2 ml-3 my-1"><span class="text-purple-400 mt-1.5">▸</span><span>$1</span></div>')
+    .replace(/^[-•] (.+)$/gm, '<div class="flex gap-2 ml-3 my-1"><span class="text-accent mt-1.5">▸</span><span>$1</span></div>')
     // Double line breaks = paragraph gap
     .replace(/\n\n/g, '<div class="h-3"></div>')
     .replace(/\n/g, '<br/>');
@@ -607,13 +607,13 @@ export function NaverKeywordResearch() {
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="검색할 키워드를 입력하세요 (예: 에어프라이어)"
-              className="w-full pl-9 pr-4 py-2.5 rounded-lg border border-border-primary text-sm focus:border-green focus:ring-1 focus:ring-green-500 focus:outline-none"
+              className="w-full pl-9 pr-4 py-2.5 rounded-lg border border-border-primary text-sm focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
             />
           </div>
           <button
             onClick={handleSearch}
             disabled={!inputValue.trim() || isLoading}
-            className="flex items-center gap-2 px-5 py-2.5 bg-green text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="flex items-center gap-2 px-5 py-2.5 bg-green text-white rounded-lg text-sm font-medium hover:bg-green disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {isLoading ? (
               <Loader2 size={16} className="animate-spin" />
@@ -625,7 +625,7 @@ export function NaverKeywordResearch() {
           <button
             onClick={() => { const kw = inputValue.trim(); if (kw) registerKeyword.mutate(kw); }}
             disabled={!inputValue.trim() || registerKeyword.isPending}
-            className="flex items-center gap-1.5 px-4 py-2.5 bg-bg-1 text-green border border-green-300 rounded-lg text-sm font-medium hover:bg-green/10 disabled:opacity-50 transition-colors"
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-bg-1 text-green border border-green/30 rounded-lg text-sm font-medium hover:bg-green/10 disabled:opacity-50 transition-colors"
             title="순위 모니터링용 키워드 등록"
           >
             <Plus size={15} /> 등록
@@ -639,7 +639,7 @@ export function NaverKeywordResearch() {
             {registeredKeywords.map((kw: any) => (
               <span key={kw.id} className="inline-flex items-center gap-1 px-2.5 py-1 bg-green/10 text-green rounded-full text-xs border border-green/30">
                 <button onClick={() => { setInputValue(kw.keyword); setSearchedKeyword(kw.keyword); }} className="hover:underline">{kw.keyword}</button>
-                <button onClick={() => removeKeyword.mutate(kw.id)} className="text-green-400 hover:text-red ml-0.5"><Trash2 size={11} /></button>
+                <button onClick={() => removeKeyword.mutate(kw.id)} className="text-green hover:text-red ml-0.5"><Trash2 size={11} /></button>
               </span>
             ))}
           </div>
@@ -712,11 +712,11 @@ export function NaverKeywordResearch() {
             {/* Chart body */}
             {trendLoading ? (
               <div className="flex items-center justify-center py-16 gap-2 text-text-quaternary">
-                <Loader2 size={22} className="animate-spin text-green-500" />
+                <Loader2 size={22} className="animate-spin text-green" />
                 <span className="text-sm">트렌드 데이터 로딩 중...</span>
               </div>
             ) : trendError ? (
-              <div className="flex items-center justify-center py-16 gap-2 text-red-400">
+              <div className="flex items-center justify-center py-16 gap-2 text-red">
                 <AlertCircle size={20} />
                 <span className="text-sm">트렌드 데이터를 불러오지 못했습니다.</span>
               </div>
@@ -742,7 +742,7 @@ export function NaverKeywordResearch() {
             </h2>
             {volumeLoading ? (
               <div className="flex items-center justify-center py-10 gap-2 text-text-quaternary">
-                <Loader2 size={20} className="animate-spin text-green-500" />
+                <Loader2 size={20} className="animate-spin text-green" />
                 <span className="text-sm">검색량 조회 중...</span>
               </div>
             ) : volumeData?.available && volumeData.data.length > 0 ? (
@@ -752,7 +752,7 @@ export function NaverKeywordResearch() {
                   const exact = volumeData.data.find(d => d.keyword === searchedKeyword) || volumeData.data[0];
                   return (
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-5">
-                      <div className="bg-gradient-to-br from-green-50 to-bg-1 border border-green/30 rounded-xl p-4 text-center">
+                      <div className="bg-gradient-to-br from-green/10 to-bg-1 border border-green/30 rounded-xl p-4 text-center">
                         <div className="flex items-center justify-center gap-1.5 text-xs text-text-tertiary mb-1">
                           <BarChart3 size={13} /> 총 월간 검색량
                         </div>
@@ -764,7 +764,7 @@ export function NaverKeywordResearch() {
                         </div>
                         <p className="text-2xl font-bold text-accent-hover">{exact.monthlyPcQcCnt.toLocaleString()}</p>
                       </div>
-                      <div className="bg-gradient-to-br from-orange-50 to-bg-1 border border-orange/30 rounded-xl p-4 text-center">
+                      <div className="bg-gradient-to-br from-orange/10 to-bg-1 border border-orange/30 rounded-xl p-4 text-center">
                         <div className="flex items-center justify-center gap-1.5 text-xs text-text-tertiary mb-1">
                           <Smartphone size={13} /> 모바일 검색량
                         </div>
@@ -826,7 +826,7 @@ export function NaverKeywordResearch() {
             <div className="bg-bg-1 rounded-xl border border-border-primary p-6">
               <div className="flex items-center justify-between mb-5 flex-wrap gap-y-2">
                 <h2 className="text-base font-semibold text-text-primary flex items-center gap-2">
-                  <Sparkles size={18} className="text-purple-500" />
+                  <Sparkles size={18} className="text-accent" />
                   AI 랭킹 분석
                   <span className="ml-1 px-2 py-0.5 bg-brand/10 text-accent-hover rounded text-xs font-medium border border-brand/30">
                     {BRAND_NAME}
@@ -836,7 +836,7 @@ export function NaverKeywordResearch() {
                   {aiAnalysis && (
                     <button
                       onClick={handleDownloadPdf}
-                      className="flex items-center gap-2 px-4 py-2 bg-bg-1 border border-purple-300 text-accent-hover rounded-lg text-sm font-medium hover:bg-brand/10 transition-colors"
+                      className="flex items-center gap-2 px-4 py-2 bg-bg-1 border border-brand/30 text-accent-hover rounded-lg text-sm font-medium hover:bg-brand/10 transition-colors"
                     >
                       <FileText size={15} />
                       PDF 다운로드
@@ -845,7 +845,7 @@ export function NaverKeywordResearch() {
                   <button
                     onClick={handleAiAnalysis}
                     disabled={aiLoading}
-                    className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg text-sm font-medium hover:bg-brand disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     {aiLoading ? (
                       <Loader2 size={15} className="animate-spin" />
@@ -859,7 +859,7 @@ export function NaverKeywordResearch() {
 
               {aiLoading && (
                 <div className="flex items-center justify-center py-16 gap-2 text-text-quaternary">
-                  <Loader2 size={22} className="animate-spin text-purple-500" />
+                  <Loader2 size={22} className="animate-spin text-accent" />
                   <span className="text-sm">Claude AI가 랭킹을 분석하고 있습니다...</span>
                 </div>
               )}
@@ -874,12 +874,12 @@ export function NaverKeywordResearch() {
               {aiAnalysis && !aiLoading && (
                 <div className="bg-bg-1 border border-border-primary rounded-xl overflow-hidden">
                   {/* Report header */}
-                  <div className="bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-4">
+                  <div className="bg-gradient-to-r from-brand to-brand px-6 py-4">
                     <div className="flex items-center gap-2 text-white">
                       <Sparkles size={16} />
                       <span className="font-bold text-sm">AI 마케팅 전략 리포트</span>
                     </div>
-                    <div className="flex items-center gap-4 mt-1.5 text-purple-200 text-xs">
+                    <div className="flex items-center gap-4 mt-1.5 text-accent text-xs">
                       <span>키워드: {searchedKeyword}</span>
                       <span>브랜드: {BRAND_NAME}</span>
                       <span>{new Date().toLocaleDateString('ko-KR')}</span>
@@ -909,7 +909,7 @@ export function NaverKeywordResearch() {
 
               {!aiAnalysis && !aiLoading && !aiError && (
                 <div className="flex flex-col items-center justify-center py-12 gap-3 text-text-quaternary">
-                  <Sparkles size={40} className="text-purple-200" />
+                  <Sparkles size={40} className="text-accent" />
                   <p className="text-sm">버튼을 눌러 "{BRAND_NAME}" 브랜드의 랭킹 전략을 AI로 분석해보세요.</p>
                 </div>
               )}
@@ -935,11 +935,11 @@ export function NaverKeywordResearch() {
 
             {shoppingLoading ? (
               <div className="flex items-center justify-center py-20 gap-2 text-text-quaternary">
-                <Loader2 size={22} className="animate-spin text-green-500" />
+                <Loader2 size={22} className="animate-spin text-green" />
                 <span className="text-sm">쇼핑 데이터 로딩 중...</span>
               </div>
             ) : shoppingError ? (
-              <div className="flex items-center justify-center py-20 gap-2 text-red-400">
+              <div className="flex items-center justify-center py-20 gap-2 text-red">
                 <AlertCircle size={20} />
                 <span className="text-sm">쇼핑 데이터를 불러오지 못했습니다.</span>
               </div>
@@ -1030,7 +1030,7 @@ function RankResultCard({ data }: { data: any }) {
                       </div>
                     </div>
                     {s.link && (
-                      <a href={s.link} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-accent-hover flex-shrink-0" title="네이버 쇼핑에서 보기">
+                      <a href={s.link} target="_blank" rel="noopener noreferrer" className="text-blue hover:text-accent-hover flex-shrink-0" title="네이버 쇼핑에서 보기">
                         <ExternalLink size={13} />
                       </a>
                     )}
@@ -1058,7 +1058,7 @@ function RankResultCard({ data }: { data: any }) {
                       </div>
                     </div>
                     {b.link && (
-                      <a href={b.link} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-accent-hover flex-shrink-0" title="블로그 글 보기">
+                      <a href={b.link} target="_blank" rel="noopener noreferrer" className="text-blue hover:text-accent-hover flex-shrink-0" title="블로그 글 보기">
                         <ExternalLink size={13} />
                       </a>
                     )}
@@ -1124,10 +1124,10 @@ function AiRankAnalysis({ text }: { text: string }) {
   }
 
   const typeStyles = {
-    status: { border: 'border-brand/30', bg: 'bg-blue/10', icon: '📊', iconBg: 'bg-blue/15', titleColor: 'text-blue-900' },
-    up: { border: 'border-orange/30', bg: 'bg-orange/10', icon: '📈', iconBg: 'bg-orange/15', titleColor: 'text-orange-900' },
-    keep: { border: 'border-green/30', bg: 'bg-green/10', icon: '🛡️', iconBg: 'bg-green/15', titleColor: 'text-green-900' },
-    action: { border: 'border-brand/30', bg: 'bg-brand/10', icon: '🎯', iconBg: 'bg-brand/15', titleColor: 'text-purple-900' },
+    status: { border: 'border-brand/30', bg: 'bg-blue/10', icon: '📊', iconBg: 'bg-blue/15', titleColor: 'text-blue' },
+    up: { border: 'border-orange/30', bg: 'bg-orange/10', icon: '📈', iconBg: 'bg-orange/15', titleColor: 'text-orange' },
+    keep: { border: 'border-green/30', bg: 'bg-green/10', icon: '🛡️', iconBg: 'bg-green/15', titleColor: 'text-green' },
+    action: { border: 'border-brand/30', bg: 'bg-brand/10', icon: '🎯', iconBg: 'bg-brand/15', titleColor: 'text-accent' },
     default: { border: 'border-border-primary', bg: 'bg-bg-0', icon: '💡', iconBg: 'bg-bg-2', titleColor: 'text-text-primary' },
   };
 
@@ -1140,7 +1140,7 @@ function AiRankAnalysis({ text }: { text: string }) {
       if (bulletMatch) {
         return (
           <div key={i} className="flex gap-2 items-start py-0.5">
-            <span className="text-green-500 mt-0.5 flex-shrink-0">▸</span>
+            <span className="text-green mt-0.5 flex-shrink-0">▸</span>
             <span dangerouslySetInnerHTML={{ __html: boldify(bulletMatch[1]) }} />
           </div>
         );
@@ -1153,7 +1153,7 @@ function AiRankAnalysis({ text }: { text: string }) {
 
   return (
     <div className="space-y-3">
-      <h4 className="text-sm font-semibold text-emerald-900 flex items-center gap-1.5">
+      <h4 className="text-sm font-semibold text-green flex items-center gap-1.5">
         <Sparkles size={15} /> AI 순위 분석 & 전략 제안
       </h4>
       <div className="grid gap-3">
@@ -1239,7 +1239,7 @@ function KeywordRankMonitor({ brandName, registeredKeywords = [] }: { brandName:
         onClick={() => setOpen(!open)}
         className="w-full flex items-center justify-between px-5 py-4 hover:bg-green/10 transition-colors"
       >
-        <span className="flex items-center gap-2 font-semibold text-green-900">
+        <span className="flex items-center gap-2 font-semibold text-green">
           <Target size={18} /> 키워드 순위 모니터링
         </span>
         <span className={clsx('text-xs px-3 py-1 rounded-full font-medium', open ? 'bg-green text-white' : 'bg-green/15 text-green')}>
@@ -1248,17 +1248,17 @@ function KeywordRankMonitor({ brandName, registeredKeywords = [] }: { brandName:
       </button>
 
       {open && (
-        <div className="px-5 pb-5 space-y-4 border-t border-green-100">
+        <div className="px-5 pb-5 space-y-4 border-t border-green/30">
           {/* 즉시 체크 */}
           <div className="flex items-center gap-3 p-3 mt-4 bg-green/10 rounded-lg">
             <div className="flex-1">
-              <p className="text-sm font-medium text-green-900">등록된 {registeredKeywords.length}개 키워드의 &quot;{brandName}&quot; 네이버 쇼핑/블로그 순위 체크</p>
+              <p className="text-sm font-medium text-green">등록된 {registeredKeywords.length}개 키워드의 &quot;{brandName}&quot; 네이버 쇼핑/블로그 순위 체크</p>
               <p className="text-xs text-green mt-0.5">위 검색바에서 키워드를 등록한 후 순위를 체크하세요</p>
             </div>
             <button
               onClick={() => rankCheck.mutate()}
               disabled={rankCheck.isPending || registeredKeywords.length === 0}
-              className="flex items-center gap-1.5 px-4 py-2 bg-green text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50"
+              className="flex items-center gap-1.5 px-4 py-2 bg-green text-white text-sm font-medium rounded-lg hover:bg-green disabled:opacity-50"
             >
               {rankCheck.isPending ? <><RefreshCw size={14} className="animate-spin" /> 체크 중...</> : <><Search size={14} /> 순위 체크</>}
             </button>
@@ -1286,7 +1286,7 @@ function KeywordRankMonitor({ brandName, registeredKeywords = [] }: { brandName:
           )}
 
           {/* 스케줄 */}
-          <div className="border-t border-green-100 pt-4">
+          <div className="border-t border-green/30 pt-4">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold text-text-primary flex items-center gap-1.5">
                 <Clock size={14} /> 자동 순위 리포트 스케줄
@@ -1308,7 +1308,7 @@ function KeywordRankMonitor({ brandName, registeredKeywords = [] }: { brandName:
                       return (
                         <button key={i} onClick={() => toggleDay(dayVal)}
                           className={clsx('w-10 h-10 rounded-lg text-sm font-medium transition-all',
-                            active ? 'bg-green text-white shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'bg-bg-1 text-text-tertiary border border-border-primary hover:border-green-300')}>
+                            active ? 'bg-green text-white shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'bg-bg-1 text-text-tertiary border border-border-primary hover:border-green/30')}>
                           {label}
                         </button>
                       );
@@ -1336,7 +1336,7 @@ function KeywordRankMonitor({ brandName, registeredKeywords = [] }: { brandName:
                 </div>
                 <div className="flex gap-2">
                   <button onClick={() => createSched.mutate()} disabled={!email || schedDays.length === 0 || createSched.isPending}
-                    className="px-4 py-1.5 bg-green text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50">
+                    className="px-4 py-1.5 bg-green text-white text-sm font-medium rounded-lg hover:bg-green disabled:opacity-50">
                     {createSched.isPending ? '등록 중...' : '스케줄 등록'}
                   </button>
                   <button onClick={() => setShowForm(false)} className="px-4 py-1.5 text-sm text-text-tertiary border rounded-lg hover:bg-bg-2/5">취소</button>

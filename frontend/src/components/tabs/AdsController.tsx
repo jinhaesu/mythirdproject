@@ -1046,23 +1046,23 @@ export function AdsController() {
                   }`}
                 >
                   <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                    activeStep === s.step ? 'bg-bg-1/20' : activeStep > s.step ? 'bg-green-200' : 'bg-bg-4'
+                    activeStep === s.step ? 'bg-bg-1/20' : activeStep > s.step ? 'bg-green/10' : 'bg-bg-4'
                   }`}>{s.step}</span>
                   {s.label}
                 </button>
-                {i < 2 && <div className={`w-4 h-0.5 mx-0.5 ${activeStep > s.step ? 'bg-green-300' : 'bg-bg-4'}`} />}
+                {i < 2 && <div className={`w-4 h-0.5 mx-0.5 ${activeStep > s.step ? 'bg-green/10' : 'bg-bg-4'}`} />}
               </div>
             ))}
           </div>
 
           {/* AI 기획 자동 입력 배너 */}
           {showPlanBanner && autoPlanResult && (
-            <div className="mb-4 p-3 bg-gradient-to-r from-purple-50 to-blue-50 border border-brand/30 rounded-lg">
+            <div className="mb-4 p-3 bg-gradient-to-r from-brand/10 to-blue/10 border border-brand/30 rounded-lg">
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-2">
                   <Info size={16} className="text-accent flex-shrink-0" />
                   <div>
-                    <p className="text-sm font-medium text-purple-800">AI 기획에서 자동 입력됨</p>
+                    <p className="text-sm font-medium text-accent">AI 기획에서 자동 입력됨</p>
                     <p className="text-xs text-accent mt-0.5">기획 데이터를 기반으로 자동 입력되었습니다. 수정 후 캠페인을 생성하세요.</p>
                     {autoPlanResult.overall_strategy && (
                       <p className="text-xs text-text-tertiary mt-1 italic">&quot;{autoPlanResult.overall_strategy}&quot;</p>
@@ -1079,11 +1079,11 @@ export function AdsController() {
 
               {/* 타겟 요약 from plan */}
               {enabledSegments.length > 0 && (
-                <div className="mt-2 pt-2 border-t border-purple-100">
+                <div className="mt-2 pt-2 border-t border-brand/30">
                   <p className="text-xs font-medium text-accent-hover mb-1">타겟 설계 ({enabledSegments.length}개 세그먼트):</p>
                   <div className="flex flex-wrap gap-1">
                     {enabledSegments.map((seg, i) => (
-                      <span key={i} className="text-xs bg-bg-1 text-accent-hover px-2 py-0.5 rounded border border-purple-100">
+                      <span key={i} className="text-xs bg-bg-1 text-accent-hover px-2 py-0.5 rounded border border-brand/30">
                         {seg.name} {seg.ratio}%
                       </span>
                     ))}
@@ -1128,7 +1128,7 @@ export function AdsController() {
             {/* Advantage+ Creative (AI 크리에이티브) */}
             <div
               className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ${
-                advantagePlusCreative ? 'border-purple-300 bg-brand/10' : 'border-border-primary hover:border-border-primary'
+                advantagePlusCreative ? 'border-brand/30 bg-brand/10' : 'border-border-primary hover:border-border-primary'
               }`}
               onClick={() => setAdvantagePlusCreative(!advantagePlusCreative)}
             >
@@ -1144,23 +1144,23 @@ export function AdsController() {
               </div>
             </div>
             {advantagePlusCreative && (
-              <div className="p-3 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border border-brand/30">
-                <p className="text-xs text-purple-800 font-semibold mb-2">Advantage+ 크리에이티브 기능</p>
+              <div className="p-3 bg-gradient-to-r from-brand/10 to-red/10 rounded-lg border border-brand/30">
+                <p className="text-xs text-accent font-semibold mb-2">Advantage+ 크리에이티브 기능</p>
                 <div className="space-y-1.5 text-xs text-accent-hover">
                   <div className="flex items-start gap-2">
-                    <span className="w-4 h-4 bg-purple-200 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0 mt-0.5">1</span>
+                    <span className="w-4 h-4 bg-brand/10 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0 mt-0.5">1</span>
                     <span><strong>이미지 자동 생성:</strong> 업로드한 제품 이미지를 기반으로 다양한 배경/구도의 광고 이미지를 AI가 자동 생성합니다.</span>
                   </div>
                   <div className="flex items-start gap-2">
-                    <span className="w-4 h-4 bg-purple-200 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0 mt-0.5">2</span>
+                    <span className="w-4 h-4 bg-brand/10 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0 mt-0.5">2</span>
                     <span><strong>소재 자동 최적화:</strong> 텍스트 오버레이, 이미지 향상, 음악 추가 등 Meta AI가 각 배치에 맞게 소재를 자동 최적화합니다.</span>
                   </div>
                   <div className="flex items-start gap-2">
-                    <span className="w-4 h-4 bg-purple-200 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0 mt-0.5">3</span>
+                    <span className="w-4 h-4 bg-brand/10 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0 mt-0.5">3</span>
                     <span><strong>다이내믹 크리에이티브:</strong> 여러 이미지/영상, 텍스트, CTA 조합 중 최적 조합을 자동 테스트합니다.</span>
                   </div>
                 </div>
-                <p className="text-[10px] text-purple-500 mt-2 italic">* 발행 시 Meta 광고 관리자에서 Advantage+ 크리에이티브 옵션이 자동 활성화됩니다.</p>
+                <p className="text-[10px] text-accent mt-2 italic">* 발행 시 Meta 광고 관리자에서 Advantage+ 크리에이티브 옵션이 자동 활성화됩니다.</p>
               </div>
             )}
 
@@ -1217,7 +1217,7 @@ export function AdsController() {
                 onDragLeave={() => setDragging(false)}
                 onDrop={handleFileDrop}
                 className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
-                  dragging ? 'border-brand bg-blue/10' : 'border-border-primary hover:border-blue-400'
+                  dragging ? 'border-brand bg-blue/10' : 'border-border-primary hover:border-blue/50'
                 }`}
                 onClick={() => fileInputRef.current?.click()}
               >
@@ -1340,7 +1340,7 @@ export function AdsController() {
                       : seg.type === 'RETARGET' ? 'bg-orange/15 text-orange'
                       : seg.type === 'INTEREST' ? 'bg-teal/15 text-teal'
                       : 'bg-blue/15 text-accent-hover';
-                    const cardBorder = seg.type === 'BROAD' ? 'border-brand/30' : seg.type === 'RETARGET' ? 'border-orange/30' : seg.type === 'INTEREST' ? 'border-teal-200' : 'border-brand/30';
+                    const cardBorder = seg.type === 'BROAD' ? 'border-brand/30' : seg.type === 'RETARGET' ? 'border-orange/30' : seg.type === 'INTEREST' ? 'border-teal/30' : 'border-brand/30';
 
                     return (
                       <div key={i} className={`rounded-lg border ${cardBorder}`}>
@@ -1363,7 +1363,7 @@ export function AdsController() {
                           {/* 소재 추가 버튼 */}
                           <button
                             onClick={() => { setCreativePickerForAdSet(creativePickerForAdSet === i ? null : i); if (creativePickerForAdSet !== i) refetchLibrary(); }}
-                            className="flex items-center gap-1 text-xs text-accent hover:text-accent-hover px-2 py-1 rounded hover:bg-blue/10 w-full justify-center border border-dashed border-blue-300"
+                            className="flex items-center gap-1 text-xs text-accent hover:text-accent-hover px-2 py-1 rounded hover:bg-blue/10 w-full justify-center border border-dashed border-blue/30"
                           >
                             <Plus size={12} /> 소재 추가
                           </button>
@@ -1382,7 +1382,7 @@ export function AdsController() {
                                       <div key={c.id} className="relative group">
                                         <button disabled={alreadyAdded}
                                           onClick={() => addCreativeToAdSet(i, c)}
-                                          className={`w-full relative rounded overflow-hidden border transition-all ${alreadyAdded ? 'opacity-40 cursor-not-allowed border-border-primary' : 'border-blue-300 hover:border-brand hover:shadow-[0px_1px_3px_rgba(0,0,0,0.2)] cursor-pointer'}`}>
+                                          className={`w-full relative rounded overflow-hidden border transition-all ${alreadyAdded ? 'opacity-40 cursor-not-allowed border-border-primary' : 'border-blue/30 hover:border-brand hover:shadow-[0px_1px_3px_rgba(0,0,0,0.2)] cursor-pointer'}`}>
                                           {c.thumbnail_url || c.file_url ? (
                                             <div className="relative">
                                               <img src={resolveMediaUrl(c.thumbnail_url || c.file_url)} alt={c.name} className="w-full aspect-square object-cover" onError={handleImageError} />
@@ -1408,7 +1408,7 @@ export function AdsController() {
                                               });
                                               toast.success(`${c.name}이(가) 모든 세그먼트에 추가되었습니다`);
                                             }}
-                                            className="absolute bottom-1 right-1 text-[10px] bg-violet-500 text-white px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                                            className="absolute bottom-1 right-1 text-[10px] bg-brand text-white px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity"
                                             title="모든 세그먼트에 추가"
                                           >
                                             전체
@@ -1449,7 +1449,7 @@ export function AdsController() {
                                         value={ad.ad_name}
                                         onChange={(e) => updateAdSetCreativeField(i, ad.creative_id, 'ad_name', e.target.value)}
                                         placeholder="광고 소재 이름을 입력하세요"
-                                        className="w-full text-sm font-medium bg-bg-0 border border-border-primary rounded px-2 py-1 focus:bg-bg-1 focus:border-violet-400 focus:ring-1 focus:ring-violet-400 focus:outline-none transition-colors"
+                                        className="w-full text-sm font-medium bg-bg-0 border border-border-primary rounded px-2 py-1 focus:bg-bg-1 focus:border-brand/50 focus:ring-1 focus:ring-brand/50 focus:outline-none transition-colors"
                                       />
                                     </div>
                                     <button onClick={() => removeCreativeFromAdSet(i, ad.creative_id)}
@@ -1486,7 +1486,7 @@ export function AdsController() {
                                                 <input placeholder="링크 URL" value={card.link_url || ''}
                                                   onChange={e => updateCarouselCard(i, ad.creative_id, ci, 'link_url', e.target.value)}
                                                   className="flex-1 px-1.5 py-0.5 border border-border-primary rounded text-[10px]" />
-                                                <button onClick={() => removeCarouselCard(i, ad.creative_id, ci)} className="text-red-400 hover:text-red"><X size={10} /></button>
+                                                <button onClick={() => removeCarouselCard(i, ad.creative_id, ci)} className="text-red hover:text-red"><X size={10} /></button>
                                               </div>
                                             ))}
                                             <button onClick={() => addCarouselCard(i, ad.creative_id)}
@@ -1539,7 +1539,7 @@ export function AdsController() {
                                         updatedSegs.forEach((os, oi) => { if (oi !== i && os.enabled) { const m = (os.ads || []).find((a: AdSetCreative) => a.creative_id === ad.creative_id); if (m) { m.primary_text = ad.primary_text; m.headline = ad.headline; m.description = ad.description; m.call_to_action = ad.call_to_action; m.link_url = ad.link_url; m.utm_label = (ad as any).utm_label; m.url_params = ad.url_params; } } });
                                         setSegments(updatedSegs);
                                         toast.success('다른 세그먼트에 동일 적용 완료');
-                                      }} className="text-xs text-violet-500 hover:text-violet-700 flex items-center gap-1 mt-1">
+                                      }} className="text-xs text-accent hover:text-accent flex items-center gap-1 mt-1">
                                         <Copy size={12} /> 다른 세그먼트에 동일 적용
                                       </button>
                                     </div>
@@ -1616,7 +1616,7 @@ export function AdsController() {
                                     </summary>
                                     <div className="px-2 pb-2 space-y-1.5">
                                       <div>
-                                        <label className="text-[10px] text-text-tertiary">랜딩 페이지 URL <span className="text-red-400">*</span></label>
+                                        <label className="text-[10px] text-text-tertiary">랜딩 페이지 URL <span className="text-red">*</span></label>
                                         <input type="url" value={ad.link_url}
                                           onChange={(e) => {
                                             updateAdSetCreativeField(i, ad.creative_id, 'link_url', e.target.value);
@@ -1684,7 +1684,7 @@ export function AdsController() {
                                               }}
                                               className={`text-[10px] px-2 py-0.5 rounded border ${
                                                 ((ad as any).pixel_events || []).includes(evt)
-                                                  ? 'bg-blue/15 border-blue-300 text-accent-hover'
+                                                  ? 'bg-blue/15 border-blue/30 text-accent-hover'
                                                   : 'border-border-primary text-text-tertiary'
                                               }`}>
                                               {evt}
@@ -1786,7 +1786,7 @@ export function AdsController() {
                   className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                     budgetType === 'DAILY'
                       ? 'bg-brand/100 text-white'
-                      : 'bg-bg-1 border border-border-primary text-text-tertiary hover:border-primary-300'
+                      : 'bg-bg-1 border border-border-primary text-text-tertiary hover:border-brand'
                   }`}
                 >
                   일일 예산
@@ -1796,7 +1796,7 @@ export function AdsController() {
                   className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                     budgetType === 'LIFETIME'
                       ? 'bg-brand/100 text-white'
-                      : 'bg-bg-1 border border-border-primary text-text-tertiary hover:border-primary-300'
+                      : 'bg-bg-1 border border-border-primary text-text-tertiary hover:border-brand'
                   }`}
                 >
                   총 예산
@@ -1838,7 +1838,7 @@ export function AdsController() {
                   </div>
                 </div>
                 {budget && campaignDays > 0 && (
-                  <div className="p-3 bg-blue/10 rounded-lg border border-blue-100">
+                  <div className="p-3 bg-blue/10 rounded-lg border border-blue/30">
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-accent-hover">일일 환산 예산</span>
                       <span className="font-semibold text-accent-hover">{'\u20A9'}{dailyEquivalent.toLocaleString()}</span>
@@ -1860,7 +1860,7 @@ export function AdsController() {
                   className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                     budgetLevel === 'campaign'
                       ? 'bg-brand/100 text-white'
-                      : 'bg-bg-1 border border-border-primary text-text-tertiary hover:border-primary-300'
+                      : 'bg-bg-1 border border-border-primary text-text-tertiary hover:border-brand'
                   }`}
                 >
                   캠페인별 예산 사용
@@ -1870,7 +1870,7 @@ export function AdsController() {
                   className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                     budgetLevel === 'adset'
                       ? 'bg-brand/100 text-white'
-                      : 'bg-bg-1 border border-border-primary text-text-tertiary hover:border-primary-300'
+                      : 'bg-bg-1 border border-border-primary text-text-tertiary hover:border-brand'
                   }`}
                 >
                   광고세트별 예산 사용
@@ -1887,7 +1887,7 @@ export function AdsController() {
             <div className="space-y-3">
               <div
                 className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ${
-                  advantagePlus ? 'border-green-300 bg-green/10' : 'border-border-primary hover:border-border-primary'
+                  advantagePlus ? 'border-green/30 bg-green/10' : 'border-border-primary hover:border-border-primary'
                 }`}
                 onClick={() => setAdvantagePlus(!advantagePlus)}
               >
@@ -1903,7 +1903,7 @@ export function AdsController() {
                 </div>
               </div>
               {advantagePlus && (
-                <div className="ml-4 p-2.5 bg-green/10 rounded-lg border border-green-100">
+                <div className="ml-4 p-2.5 bg-green/10 rounded-lg border border-green/30">
                   <p className="text-xs text-green">
                     어드밴티지+ 캠페인이 활성화되면 Meta의 AI가 타겟팅, 배치, 예산을 자동으로 최적화합니다.
                     수동 타겟팅 설정보다 더 넓은 도달 범위를 확보할 수 있습니다.
@@ -1913,7 +1913,7 @@ export function AdsController() {
 
               <div
                 className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ${
-                  advantagePlusAudience ? 'border-green-300 bg-green/10' : 'border-border-primary hover:border-border-primary'
+                  advantagePlusAudience ? 'border-green/30 bg-green/10' : 'border-border-primary hover:border-border-primary'
                 }`}
                 onClick={() => setAdvantagePlusAudience(!advantagePlusAudience)}
               >
@@ -1929,7 +1929,7 @@ export function AdsController() {
                 </div>
               </div>
               {advantagePlusAudience && (
-                <div className="ml-4 p-2.5 bg-green/10 rounded-lg border border-green-100">
+                <div className="ml-4 p-2.5 bg-green/10 rounded-lg border border-green/30">
                   <p className="text-xs text-green">
                     어드밴티지+ 오디언스를 사용하면 설정한 타겟 외에도 전환 가능성이 높은 사용자에게 광고가 노출됩니다.
                     기존 타겟팅은 참고 신호로 활용됩니다.
@@ -1980,10 +1980,10 @@ export function AdsController() {
             {/* 광고세트 유형 선택 + 추가 */}
             <div className="flex gap-1.5 flex-wrap">
               {([
-                { type: 'BROAD' as const, label: '+ 브로드', color: 'border-purple-300 text-accent-hover hover:bg-brand/10' },
-                { type: 'RETARGET' as const, label: '+ 리타겟', color: 'border-orange-300 text-orange hover:bg-orange/10' },
-                { type: 'INTEREST' as const, label: '+ 관심사', color: 'border-teal-300 text-teal hover:bg-teal/10' },
-                { type: 'CUSTOM' as const, label: '+ 커스텀', color: 'border-blue-300 text-accent-hover hover:bg-blue/10' },
+                { type: 'BROAD' as const, label: '+ 브로드', color: 'border-brand/30 text-accent-hover hover:bg-brand/10' },
+                { type: 'RETARGET' as const, label: '+ 리타겟', color: 'border-orange/30 text-orange hover:bg-orange/10' },
+                { type: 'INTEREST' as const, label: '+ 관심사', color: 'border-teal/30 text-teal hover:bg-teal/10' },
+                { type: 'CUSTOM' as const, label: '+ 커스텀', color: 'border-blue/30 text-accent-hover hover:bg-blue/10' },
               ]).map(({ type, label, color }) => (
                 <button key={type} onClick={() => addAdSet(type)}
                   className={`px-2.5 py-1.5 border rounded-lg text-xs font-medium transition-colors ${color}`}>
@@ -2010,7 +2010,7 @@ export function AdsController() {
                   : seg.type === 'INTEREST' ? 'bg-teal/15 text-teal'
                   : 'bg-blue/15 text-accent-hover';
                 const cardBorder = seg.enabled
-                  ? (seg.type === 'BROAD' ? 'border-brand/30' : seg.type === 'RETARGET' ? 'border-orange/30' : seg.type === 'INTEREST' ? 'border-teal-200' : 'border-brand/30')
+                  ? (seg.type === 'BROAD' ? 'border-brand/30' : seg.type === 'RETARGET' ? 'border-orange/30' : seg.type === 'INTEREST' ? 'border-teal/30' : 'border-brand/30')
                   : 'border-border-primary';
 
                 return (
@@ -2018,19 +2018,19 @@ export function AdsController() {
                     {/* Card Header */}
                     <div className="flex items-center gap-2 p-3 cursor-pointer" onClick={() => toggleAdSetExpanded(i)}>
                       <button onClick={(e) => { e.stopPropagation(); toggleSegmentEnabled(i); }} className="flex-shrink-0">
-                        {seg.enabled ? <ToggleRight size={20} className="text-green-500" /> : <ToggleLeft size={20} className="text-text-quaternary" />}
+                        {seg.enabled ? <ToggleRight size={20} className="text-green" /> : <ToggleLeft size={20} className="text-text-quaternary" />}
                       </button>
                       <input
                         type="text" value={seg.name}
                         onChange={(e) => updateSegmentName(i, e.target.value)}
                         onClick={(e) => e.stopPropagation()}
-                        className="flex-1 text-sm font-medium text-text-primary bg-transparent border-b border-transparent hover:border-border-primary focus:border-blue-400 focus:outline-none px-1 py-0.5 min-w-0"
+                        className="flex-1 text-sm font-medium text-text-primary bg-transparent border-b border-transparent hover:border-border-primary focus:border-blue/50 focus:outline-none px-1 py-0.5 min-w-0"
                       />
                       <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium flex-shrink-0 ${typeBadge}`}>
                         {seg.type === 'BROAD' ? '브로드' : seg.type === 'RETARGET' ? '리타겟' : seg.type === 'INTEREST' ? '관심사' : '커스텀'}
                       </span>
                       <span className="text-xs font-semibold text-accent flex-shrink-0 w-8 text-right">{seg.ratio}%</span>
-                      <button onClick={(e) => { e.stopPropagation(); duplicateAdSet(i); }} className="text-text-quaternary hover:text-blue-500 flex-shrink-0" title="복제">
+                      <button onClick={(e) => { e.stopPropagation(); duplicateAdSet(i); }} className="text-text-quaternary hover:text-blue flex-shrink-0" title="복제">
                         <Copy size={13} />
                       </button>
                       <button onClick={(e) => { e.stopPropagation(); removeSegment(i); }} className="text-text-quaternary hover:text-red flex-shrink-0" title="삭제">
@@ -2052,7 +2052,7 @@ export function AdsController() {
                             <span className="text-xs text-text-tertiary w-14">예산 비중:</span>
                             <input type="range" min={5} max={80} value={seg.ratio}
                               onChange={(e) => updateSegmentRatio(i, Number(e.target.value))}
-                              className="flex-1 h-1.5 accent-blue-500" />
+                              className="flex-1 h-1.5 accent-blue" />
                             <span className="text-xs font-semibold text-accent w-10 text-right">{seg.ratio}%</span>
                             {budget && (
                               <span className="text-[10px] text-text-quaternary">
@@ -2109,7 +2109,7 @@ export function AdsController() {
                                   onClick={() => updateSegmentTargeting(i, 'genders', [g.value])}
                                   className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
                                     (t.genders || ['all']).includes(g.value)
-                                      ? 'bg-blue text-white' : 'bg-bg-1 border border-border-primary text-text-tertiary hover:border-blue-300'
+                                      ? 'bg-blue text-white' : 'bg-bg-1 border border-border-primary text-text-tertiary hover:border-blue/30'
                                   }`}>
                                   {g.label}
                                 </button>
@@ -2129,7 +2129,7 @@ export function AdsController() {
                                   }}
                                   className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
                                     (t.geo?.countries || ['KR']).includes(c.value)
-                                      ? 'bg-blue text-white' : 'bg-bg-1 border border-border-primary text-text-tertiary hover:border-blue-300'
+                                      ? 'bg-blue text-white' : 'bg-bg-1 border border-border-primary text-text-tertiary hover:border-blue/30'
                                   }`}>
                                   {c.label}
                                 </button>
@@ -2252,7 +2252,7 @@ export function AdsController() {
               <div className="flex h-2 rounded-full overflow-hidden bg-bg-4">
                 {enabledSegments.map((seg, i) => {
                   const width = (seg.ratio / (totalRatio || 1)) * 100;
-                  const color = seg.type === 'BROAD' ? 'bg-purple-400' : seg.type === 'RETARGET' ? 'bg-orange-400' : seg.type === 'INTEREST' ? 'bg-teal-400' : 'bg-blue-400';
+                  const color = seg.type === 'BROAD' ? 'bg-brand/20' : seg.type === 'RETARGET' ? 'bg-orange/20' : seg.type === 'INTEREST' ? 'bg-teal/20' : 'bg-blue/20';
                   return <div key={i} className={`${color} transition-all`} style={{ width: `${width}%` }} title={`${seg.name}: ${seg.ratio}%`} />;
                 })}
               </div>
@@ -2260,15 +2260,15 @@ export function AdsController() {
 
             {/* ── 광고세트 미리보기 ── */}
             {showAdSetPreview && adSetPreview.length > 0 && (
-              <div className="p-4 bg-gradient-to-r from-indigo-50 to-bg-0 rounded-lg border border-brand/30">
+              <div className="p-4 bg-gradient-to-r from-brand/10 to-bg-0 rounded-lg border border-brand/30">
                 <div className="flex items-center gap-2 mb-3">
                   <Eye size={16} className="text-accent" />
-                  <p className="text-sm font-medium text-indigo-800">광고세트 미리보기</p>
+                  <p className="text-sm font-medium text-accent">광고세트 미리보기</p>
                 </div>
                 <p className="text-xs text-accent mb-3">Meta 발행 시 아래와 같이 광고세트가 생성됩니다.</p>
                 <div className="space-y-2">
                   {adSetPreview.map((preset, i) => (
-                    <div key={i} className="p-3 bg-bg-1 rounded-lg border border-indigo-100">
+                    <div key={i} className="p-3 bg-bg-1 rounded-lg border border-brand/30">
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-sm font-semibold text-text-primary">{preset.name}</span>
                         <div className="flex items-center gap-1">
@@ -2393,7 +2393,7 @@ export function AdsController() {
             </Button>
 
             {strategy && (
-              <div className="p-4 bg-gradient-to-r from-bg-0 to-green-50 rounded-lg space-y-2">
+              <div className="p-4 bg-gradient-to-r from-bg-0 to-green/10 rounded-lg space-y-2">
                 <p className="text-sm font-medium text-text-primary">AI 추천 전략</p>
                 <p className="text-sm text-text-secondary">{strategy.reasoning}</p>
                 <div className="text-sm space-y-1">
@@ -2445,7 +2445,7 @@ export function AdsController() {
                       onChange={(e) => setBidAmount(e.target.value)}
                       placeholder={bidStrategy === 'MINIMUM_ROAS' ? '예: 200 (2.0x ROAS)' : '예: 5000'}
                       className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-brand focus:border-brand ${
-                        bidStrategy && !bidAmount ? 'border-red-300 bg-red/10' : 'border-border-primary'
+                        bidStrategy && !bidAmount ? 'border-red/30 bg-red/10' : 'border-border-primary'
                       }`}
                     />
                     {bidStrategy && !bidAmount && (
@@ -2465,7 +2465,7 @@ export function AdsController() {
               <p className="text-sm font-medium text-text-secondary mb-2">발행 옵션</p>
               <div className="space-y-2">
                 <label className={`flex items-center gap-3 p-2.5 rounded-lg border cursor-pointer transition-colors ${
-                  !launchImmediately ? 'border-primary-300 bg-brand/10' : 'border-border-primary hover:border-border-primary'
+                  !launchImmediately ? 'border-brand bg-brand/10' : 'border-border-primary hover:border-border-primary'
                 }`}>
                   <input
                     type="radio"
@@ -2480,7 +2480,7 @@ export function AdsController() {
                   </div>
                 </label>
                 <label className={`flex items-center gap-3 p-2.5 rounded-lg border cursor-pointer transition-colors ${
-                  launchImmediately ? 'border-green-300 bg-green/10' : 'border-border-primary hover:border-border-primary'
+                  launchImmediately ? 'border-green/30 bg-green/10' : 'border-border-primary hover:border-border-primary'
                 }`}>
                   <input
                     type="radio"
@@ -2500,7 +2500,7 @@ export function AdsController() {
             {/* 미입력 항목 안내 */}
             {(!budget || (!!bidStrategy && !bidAmount)) && (
               <div className="p-2.5 bg-yellow/10 border border-yellow/30 rounded-lg">
-                <p className="text-xs font-medium text-amber-800 flex items-center gap-1"><AlertTriangle size={12} /> 필수 항목을 확인해주세요</p>
+                <p className="text-xs font-medium text-yellow flex items-center gap-1"><AlertTriangle size={12} /> 필수 항목을 확인해주세요</p>
                 <ul className="text-xs text-yellow mt-1 space-y-0.5 list-disc list-inside">
                   {!budget && <li>Step 1에서 <button onClick={() => setActiveStep(1)} className="underline text-accent">예산</button>을 입력해주세요</li>}
                   {!!bidStrategy && !bidAmount && <li>입찰 전략을 선택했으면 입찰 금액을 입력해주세요</li>}
@@ -2570,7 +2570,7 @@ export function AdsController() {
                 const isLoaded = loadedDraftId === draft.id;
                 return (
                   <div key={draft.id}
-                    className={`p-2.5 rounded-lg border transition-colors ${isLoaded ? 'border-blue-300 bg-blue/10' : 'border-border-primary bg-bg-0 hover:border-border-primary'}`}
+                    className={`p-2.5 rounded-lg border transition-colors ${isLoaded ? 'border-blue/30 bg-blue/10' : 'border-border-primary bg-bg-0 hover:border-border-primary'}`}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1 min-w-0">
@@ -2591,7 +2591,7 @@ export function AdsController() {
                       <div className="flex items-center gap-1 flex-shrink-0">
                         <button
                           onClick={() => loadDraft(draft)}
-                          className="px-2 py-1 text-xs rounded bg-bg-1 border border-border-primary text-text-secondary hover:bg-blue/10 hover:border-blue-300 hover:text-accent-hover transition-colors"
+                          className="px-2 py-1 text-xs rounded bg-bg-1 border border-border-primary text-text-secondary hover:bg-blue/10 hover:border-blue/30 hover:text-accent-hover transition-colors"
                         >
                           불러오기
                         </button>
@@ -2749,7 +2749,7 @@ function CampaignCard({
   const spentPct = campaign.total_budget > 0 ? (campaign.spent_amount / campaign.total_budget) * 100 : 0;
 
   return (
-    <div className={`border rounded-lg overflow-hidden ${isEditing ? 'border-blue-400 ring-2 ring-blue-100' : 'border-border-primary'}`}>
+    <div className={`border rounded-lg overflow-hidden ${isEditing ? 'border-blue/50 ring-2 ring-blue/30' : 'border-border-primary'}`}>
       <div className="p-4">
         <div className="flex items-start justify-between mb-3">
           <div className="flex-1">
@@ -2851,7 +2851,7 @@ function CampaignCard({
               <div className="flex items-start gap-1.5">
                 <AlertTriangle size={12} className="text-yellow flex-shrink-0 mt-0.5" />
                 <div>
-                  <p className="font-medium text-amber-800">리타겟팅 사전 설정 필요</p>
+                  <p className="font-medium text-yellow">리타겟팅 사전 설정 필요</p>
                   <p className="text-yellow mt-0.5">맞춤 타겟 약관에 동의해야 Meta 발행이 가능합니다.</p>
                   <a
                     href={`https://business.facebook.com/ads/manage/customaudiences/tos/?act=${campaign.meta_campaign_id || ''}`}
@@ -3027,7 +3027,7 @@ function AudienceSearchSelect({
   const bgColor = color === 'orange' ? 'bg-orange/10' : 'bg-red/10';
   const borderColor = color === 'orange' ? 'border-orange/30' : 'border-red/30';
   const labelColor = color === 'orange' ? 'text-orange' : 'text-red';
-  const tagBg = color === 'orange' ? 'bg-orange/15 text-orange-800' : 'bg-red/15 text-red';
+  const tagBg = color === 'orange' ? 'bg-orange/15 text-orange' : 'bg-red/15 text-red';
 
   return (
     <div className={`p-2 ${bgColor} rounded`} ref={ref}>
@@ -3059,7 +3059,7 @@ function AudienceSearchSelect({
               onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
               onFocus={() => setOpen(true)}
               placeholder="오디언스 검색..."
-              className={`w-full px-2.5 py-1.5 text-xs border ${borderColor} rounded bg-bg-1 focus:outline-none focus:ring-1 focus:ring-blue-400`}
+              className={`w-full px-2.5 py-1.5 text-xs border ${borderColor} rounded bg-bg-1 focus:outline-none focus:ring-1 focus:ring-blue/50`}
             />
             {/* 드롭다운 */}
             {open && (

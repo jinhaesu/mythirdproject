@@ -232,14 +232,14 @@ interface ChannelOption {
 }
 
 const CHANNEL_OPTIONS: ChannelOption[] = [
-  { key: 'instagram', label: 'Instagram', badge: 'IG',   color: 'bg-pink-500/20 text-pink-400 border-pink-500/30' },
-  { key: 'youtube',   label: 'YouTube',   badge: 'YT',   color: 'bg-red-500/20 text-red-400 border-red-500/30' },
-  { key: 'tiktok',    label: 'TikTok',    badge: 'TK',   color: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30' },
-  { key: 'blog',      label: '블로그',    badge: 'BLOG', color: 'bg-green-500/20 text-green-400 border-green-500/30' },
-  { key: 'facebook',  label: 'Facebook',  badge: 'FB',   color: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
-  { key: 'x',         label: 'X(Twitter)', badge: 'X',  color: 'bg-gray-500/20 text-gray-300 border-gray-500/30' },
-  { key: 'kakao',     label: 'KakaoTalk', badge: 'KT',  color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' },
-  { key: 'other',     label: '기타',      badge: 'ETC', color: 'bg-purple-500/20 text-purple-400 border-purple-500/30' },
+  { key: 'instagram', label: 'Instagram', badge: 'IG',   color: 'bg-red/20 text-red border-red/30' },
+  { key: 'youtube',   label: 'YouTube',   badge: 'YT',   color: 'bg-red/20 text-red border-red/30' },
+  { key: 'tiktok',    label: 'TikTok',    badge: 'TK',   color: 'bg-teal/20 text-teal border-teal/30' },
+  { key: 'blog',      label: '블로그',    badge: 'BLOG', color: 'bg-green/20 text-green border-green/30' },
+  { key: 'facebook',  label: 'Facebook',  badge: 'FB',   color: 'bg-blue/20 text-blue border-blue/30' },
+  { key: 'x',         label: 'X(Twitter)', badge: 'X',  color: 'bg-bg-3/20 text-text-secondary border-border-tertiary/30' },
+  { key: 'kakao',     label: 'KakaoTalk', badge: 'KT',  color: 'bg-yellow/20 text-yellow border-yellow/30' },
+  { key: 'other',     label: '기타',      badge: 'ETC', color: 'bg-brand/20 text-accent border-brand/30' },
 ];
 
 const CHANNEL_MAP = Object.fromEntries(CHANNEL_OPTIONS.map(c => [c.key, c])) as Record<string, ChannelOption>;
@@ -255,7 +255,7 @@ function ChannelBadges({ channels, channel }: { channels?: string[]; channel?: s
         return (
           <span
             key={ch}
-            className={`text-[10px] px-1.5 py-0.5 rounded border font-medium ${opt?.color ?? 'bg-gray-500/20 text-gray-400 border-gray-500/30'}`}
+            className={`text-[10px] px-1.5 py-0.5 rounded border font-medium ${opt?.color ?? 'bg-bg-3/20 text-text-tertiary border-border-tertiary/30'}`}
           >
             {opt?.badge ?? ch.toUpperCase()}
           </span>
@@ -284,10 +284,10 @@ interface PartnerGroupOption {
 }
 
 const PARTNER_GROUP_OPTIONS: PartnerGroupOption[] = [
-  { key: 'crew',  label: '크루', color: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30', tabColor: 'border-emerald-400 text-emerald-300' },
-  { key: 'gongu', label: '공구', color: 'bg-sky-500/15 text-sky-300 border-sky-500/30',           tabColor: 'border-sky-400 text-sky-300' },
-  { key: 'ad',    label: '광고', color: 'bg-amber-500/15 text-amber-300 border-amber-500/30',     tabColor: 'border-amber-400 text-amber-300' },
-  { key: 'other', label: '기타', color: 'bg-gray-500/15 text-gray-300 border-gray-500/30',         tabColor: 'border-gray-400 text-gray-300' },
+  { key: 'crew',  label: '크루', color: 'bg-green/15 text-green border-green/30', tabColor: 'border-green/50 text-green' },
+  { key: 'gongu', label: '공구', color: 'bg-blue/15 text-blue border-blue/30',           tabColor: 'border-blue/50 text-blue' },
+  { key: 'ad',    label: '광고', color: 'bg-yellow/15 text-yellow border-yellow/30',     tabColor: 'border-yellow/50 text-yellow' },
+  { key: 'other', label: '기타', color: 'bg-bg-3/15 text-text-secondary border-border-tertiary/30',         tabColor: 'border-border-secondary text-text-secondary' },
 ];
 const PARTNER_GROUP_MAP = Object.fromEntries(PARTNER_GROUP_OPTIONS.map(g => [g.key, g])) as Record<PartnerGroupKey, PartnerGroupOption>;
 function normalizePartnerGroup(g?: string | null): PartnerGroupKey {
@@ -312,26 +312,26 @@ function SearchBar({
 }) {
   return (
     <div className={`relative ${width}`}>
-      <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+      <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-tertiary pointer-events-none" />
       <input
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full pl-7 pr-7 py-1.5 bg-bg-2 border border-border-primary rounded-lg text-xs text-text-primary placeholder:text-gray-600 focus:outline-none focus:border-emerald-500/50"
+        className="w-full pl-7 pr-7 py-1.5 bg-bg-2 border border-border-primary rounded-lg text-xs text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-green/50"
       />
       {value && (
         <button
           type="button"
           onClick={() => onChange('')}
           title="검색어 지우기"
-          className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 text-gray-500 hover:text-white rounded"
+          className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 text-text-tertiary hover:text-text-primary rounded"
         >
           <X size={11} />
         </button>
       )}
       {hint && !value && (
-        <p className="absolute top-full left-0 mt-1 text-[10px] text-gray-600 truncate">{hint}</p>
+        <p className="absolute top-full left-0 mt-1 text-[10px] text-text-tertiary truncate">{hint}</p>
       )}
     </div>
   );
@@ -398,8 +398,8 @@ function DateRangeFilter({
         onClick={() => onChange({ start: '', end: '' })}
         className={`px-2 py-1 text-[11px] rounded border transition-colors ${
           isAll
-            ? 'bg-emerald-500/15 border-emerald-400/40 text-emerald-300'
-            : 'border-border-primary text-gray-400 hover:text-white hover:border-gray-500'
+            ? 'bg-green/15 border-green/40 text-green'
+            : 'border-border-primary text-text-tertiary hover:text-text-primary hover:border-border-tertiary'
         }`}
       >
         전체
@@ -411,8 +411,8 @@ function DateRangeFilter({
           onClick={() => onChange(p.range)}
           className={`px-2 py-1 text-[11px] rounded border transition-colors ${
             matchesPreset(p.label)
-              ? 'bg-emerald-500/15 border-emerald-400/40 text-emerald-300'
-              : 'border-border-primary text-gray-400 hover:text-white hover:border-gray-500'
+              ? 'bg-green/15 border-green/40 text-green'
+              : 'border-border-primary text-text-tertiary hover:text-text-primary hover:border-border-tertiary'
           }`}
         >
           {p.label}
@@ -423,15 +423,15 @@ function DateRangeFilter({
           type="date"
           value={value.start}
           onChange={(e) => onChange({ ...value, start: e.target.value })}
-          className="px-2 py-1 bg-bg-2 border border-border-primary rounded text-[11px] text-text-primary focus:outline-none focus:border-emerald-500/50"
+          className="px-2 py-1 bg-bg-2 border border-border-primary rounded text-[11px] text-text-primary focus:outline-none focus:border-green/50"
           title="시작일"
         />
-        <span className="text-gray-500 text-[11px]">~</span>
+        <span className="text-text-tertiary text-[11px]">~</span>
         <input
           type="date"
           value={value.end}
           onChange={(e) => onChange({ ...value, end: e.target.value })}
-          className="px-2 py-1 bg-bg-2 border border-border-primary rounded text-[11px] text-text-primary focus:outline-none focus:border-emerald-500/50"
+          className="px-2 py-1 bg-bg-2 border border-border-primary rounded text-[11px] text-text-primary focus:outline-none focus:border-green/50"
           title="종료일"
         />
       </div>
@@ -455,8 +455,8 @@ function FilterTabs<T extends string>({
       {options.map(opt => {
         const active = opt.key === value;
         const colorCls = active
-          ? (opt.tabColor || 'border-emerald-400 text-emerald-300')
-          : 'border-transparent text-gray-400 hover:text-white';
+          ? (opt.tabColor || 'border-green/50 text-green')
+          : 'border-transparent text-text-tertiary hover:text-text-primary';
         return (
           <button
             key={opt.key}
@@ -467,7 +467,7 @@ function FilterTabs<T extends string>({
             {opt.label}
             {opt.count !== undefined && (
               <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
-                active ? 'bg-white/15 text-white' : 'bg-white/5 text-gray-500'
+                active ? 'bg-[rgb(var(--color-overlay-rgb)/0.15)] text-text-primary' : 'bg-[rgb(var(--color-overlay-rgb)/0.05)] text-text-tertiary'
               }`}>
                 {opt.count}
               </span>
@@ -503,9 +503,9 @@ function campaignOverlapsRange(c: { start_date?: string | null; end_date?: strin
 }
 
 function campaignStatusBadge(status: AffiliateCampaign['status']) {
-  if (status === 'active') return 'bg-emerald-500/20 text-emerald-400';
-  if (status === 'paused') return 'bg-yellow-500/20 text-yellow-400';
-  return 'bg-gray-500/20 text-gray-400';
+  if (status === 'active') return 'bg-green/20 text-green';
+  if (status === 'paused') return 'bg-yellow/20 text-yellow';
+  return 'bg-bg-3/20 text-text-tertiary';
 }
 
 function campaignStatusLabel(status: AffiliateCampaign['status']) {
@@ -515,9 +515,9 @@ function campaignStatusLabel(status: AffiliateCampaign['status']) {
 }
 
 function partnerStatusBadge(status: AffiliatePartner['status']) {
-  if (status === 'approved') return 'bg-emerald-500/20 text-emerald-400';
-  if (status === 'pending') return 'bg-yellow-500/20 text-yellow-400';
-  return 'bg-red-500/20 text-red-400';
+  if (status === 'approved') return 'bg-green/20 text-green';
+  if (status === 'pending') return 'bg-yellow/20 text-yellow';
+  return 'bg-red/20 text-red';
 }
 
 function partnerStatusLabel(status: AffiliatePartner['status']) {
@@ -531,7 +531,7 @@ function partnerStatusLabel(status: AffiliatePartner['status']) {
 function SectionLoader() {
   return (
     <div className="flex items-center justify-center py-16">
-      <Loader2 size={24} className="text-emerald-400 animate-spin" />
+      <Loader2 size={24} className="text-green animate-spin" />
     </div>
   );
 }
@@ -539,8 +539,8 @@ function SectionLoader() {
 function SectionError({ message }: { message?: string }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 gap-2">
-      <AlertCircle size={24} className="text-red-400" />
-      <p className="text-sm text-gray-400">{message ?? '데이터를 불러오지 못했습니다'}</p>
+      <AlertCircle size={24} className="text-red" />
+      <p className="text-sm text-text-tertiary">{message ?? '데이터를 불러오지 못했습니다'}</p>
     </div>
   );
 }
@@ -584,13 +584,13 @@ function ConnectionStatusIndicator() {
 
   return (
     <div className={`flex items-center gap-3 px-4 py-2.5 rounded-xl border ${
-      anyDisconnected ? 'bg-red-500/5 border-red-500/20' : anyWarning ? 'bg-amber-500/5 border-amber-500/20' : 'bg-bg-3 border-border-primary'
+      anyDisconnected ? 'bg-red/5 border-red/20' : anyWarning ? 'bg-yellow/5 border-yellow/20' : 'bg-bg-3 border-border-primary'
     }`}>
-      <span className="text-[10px] font-medium text-gray-500 uppercase tracking-wider shrink-0">연결 상태</span>
+      <span className="text-[10px] font-medium text-text-tertiary uppercase tracking-wider shrink-0">연결 상태</span>
       <div className="flex items-center gap-4 flex-wrap">
         {items.map((item) => {
-          const color = item.warning ? 'bg-amber-400' : item.connected ? 'bg-emerald-400' : 'bg-red-400';
-          const textColor = item.warning ? 'text-amber-300' : item.connected ? 'text-gray-300' : 'text-red-300';
+          const color = item.warning ? 'bg-yellow/20' : item.connected ? 'bg-green/20' : 'bg-red/20';
+          const textColor = item.warning ? 'text-yellow' : item.connected ? 'text-text-secondary' : 'text-red';
           return (
             <div
               key={item.label}
@@ -606,7 +606,7 @@ function ConnectionStatusIndicator() {
               <span className={`w-2 h-2 rounded-full ${color} ${!item.connected || item.warning ? 'animate-pulse' : ''}`} />
               <span className={`text-xs font-medium ${textColor}`}>{item.label}</span>
               {item.detail && item.connected && !item.warning && (
-                <span className="text-[10px] text-gray-500 hidden md:inline">({item.detail})</span>
+                <span className="text-[10px] text-text-tertiary hidden md:inline">({item.detail})</span>
               )}
             </div>
           );
@@ -665,12 +665,12 @@ function Cafe24Banner() {
     const grantedCount = required.filter(s => grantedSet.has(s)).length;
     return (
       <div className="space-y-2">
-        <div className="flex items-center justify-between px-4 py-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
+        <div className="flex items-center justify-between px-4 py-3 bg-green/10 border border-green/20 rounded-xl">
           <div className="flex items-center gap-2 flex-wrap">
-            <Store size={15} className="text-emerald-400" />
-            <span className="text-sm text-emerald-300 font-medium">Cafe24 연결됨</span>
+            <Store size={15} className="text-green" />
+            <span className="text-sm text-green font-medium">Cafe24 연결됨</span>
             {status.mall_id && (
-              <span className="text-xs text-emerald-400/70">({status.mall_id})</span>
+              <span className="text-xs text-green/70">({status.mall_id})</span>
             )}
             {required.length > 0 && (
               <button
@@ -678,8 +678,8 @@ function Cafe24Banner() {
                 onClick={() => setShowScopeDetail(v => !v)}
                 className={`text-[10px] px-2 py-0.5 rounded-md border font-mono transition-colors ${
                   missing.length > 0
-                    ? 'bg-amber-500/10 border-amber-500/30 text-amber-300 hover:bg-amber-500/20'
-                    : 'bg-white/5 border-white/10 text-gray-400 hover:text-white'
+                    ? 'bg-yellow/10 border-yellow/30 text-yellow hover:bg-yellow/20'
+                    : 'bg-[rgb(var(--color-overlay-rgb)/0.05)] border-[rgb(var(--color-overlay-rgb)/0.1)] text-text-tertiary hover:text-text-primary'
                 }`}
                 title="권한 상세 보기"
               >
@@ -691,7 +691,7 @@ function Cafe24Banner() {
           <div className="flex items-center gap-1.5">
             <button
               onClick={() => refetchStatus()}
-              className="p-1.5 text-gray-400 hover:text-white border border-white/10 rounded-lg transition-colors"
+              className="p-1.5 text-text-tertiary hover:text-text-primary border border-[rgb(var(--color-overlay-rgb)/0.1)] rounded-lg transition-colors"
               title="상태 새로고침"
             >
               <Loader2 size={11} />
@@ -699,7 +699,7 @@ function Cafe24Banner() {
             <button
               onClick={() => disconnectMutation.mutate()}
               disabled={disconnectMutation.isPending}
-              className="flex items-center gap-1 px-3 py-1.5 text-xs text-red-400 border border-red-400/30 hover:bg-red-400/10 rounded-lg transition-colors disabled:opacity-50"
+              className="flex items-center gap-1 px-3 py-1.5 text-xs text-red border border-red/30 hover:bg-red/10 rounded-lg transition-colors disabled:opacity-50"
             >
               {disconnectMutation.isPending && <Loader2 size={10} className="animate-spin" />}
               연결 해제
@@ -708,15 +708,15 @@ function Cafe24Banner() {
         </div>
 
         {status.needs_reauth && missing.length > 0 && (
-          <div className="px-4 py-3 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-start gap-2">
-            <AlertCircle size={14} className="text-amber-400 shrink-0 mt-0.5" />
+          <div className="px-4 py-3 bg-yellow/10 border border-yellow/30 rounded-xl flex items-start gap-2">
+            <AlertCircle size={14} className="text-yellow shrink-0 mt-0.5" />
             <div className="flex-1 text-xs">
-              <p className="text-amber-300 font-medium">새로운 기능을 위한 권한이 부족합니다 — 재연결 권장</p>
-              <p className="text-gray-400 mt-1">
+              <p className="text-yellow font-medium">새로운 기능을 위한 권한이 부족합니다 — 재연결 권장</p>
+              <p className="text-text-tertiary mt-1">
                 누락:{' '}
-                <code className="text-amber-300">{missing.join(', ')}</code>
+                <code className="text-yellow">{missing.join(', ')}</code>
               </p>
-              <p className="text-[11px] text-gray-500 mt-1">
+              <p className="text-[11px] text-text-tertiary mt-1">
                 위의 &quot;연결 해제&quot;를 누른 뒤 다시 연결하면 새 권한이 적용됩니다.
               </p>
             </div>
@@ -725,10 +725,10 @@ function Cafe24Banner() {
 
         {showScopeDetail && (
           <div className="px-4 py-3 bg-bg-2 border border-border-primary rounded-xl space-y-2 text-[11px]">
-            <p className="font-medium text-gray-300">서버가 요구하는 권한 (CAFE24_SCOPES env)</p>
+            <p className="font-medium text-text-secondary">서버가 요구하는 권한 (CAFE24_SCOPES env)</p>
             <div className="flex flex-wrap gap-1.5">
               {required.length === 0 ? (
-                <span className="text-gray-500">서버에서 권한 정보를 받지 못했습니다 (배포 진행 중일 수 있음)</span>
+                <span className="text-text-tertiary">서버에서 권한 정보를 받지 못했습니다 (배포 진행 중일 수 있음)</span>
               ) : required.map(s => {
                 const has = grantedSet.has(s);
                 return (
@@ -736,8 +736,8 @@ function Cafe24Banner() {
                     key={s}
                     className={`px-1.5 py-0.5 rounded font-mono ${
                       has
-                        ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
-                        : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                        ? 'bg-green/15 text-green border border-green/30'
+                        : 'bg-yellow/15 text-yellow border border-yellow/30'
                     }`}
                   >
                     {has ? '✓' : '✗'} {s}
@@ -745,14 +745,14 @@ function Cafe24Banner() {
                 );
               })}
             </div>
-            <p className="text-gray-500 pt-1">
+            <p className="text-text-tertiary pt-1">
               실제 토큰에 부여된 권한:{' '}
-              <code className="text-gray-300 break-all">{status.scopes || '(없음)'}</code>
+              <code className="text-text-secondary break-all">{status.scopes || '(없음)'}</code>
             </p>
-            <p className="text-gray-500 leading-relaxed">
+            <p className="text-text-tertiary leading-relaxed">
               ✗ 표시된 권한이 1개라도 있으면 재연결 필요.
               아무것도 표시되지 않으면 백엔드 배포(Railway)가 아직 끝나지 않았거나
-              <code className="text-amber-300 mx-1">CAFE24_SCOPES</code>
+              <code className="text-yellow mx-1">CAFE24_SCOPES</code>
               환경변수가 옛날 값으로 설정돼 있어 코드의 기본값을 덮어쓰는 중입니다.
               Railway → Variables에서 해당 env를 삭제하거나 최신 값으로 갱신하세요.
             </p>
@@ -763,18 +763,18 @@ function Cafe24Banner() {
   }
 
   return (
-    <div className="px-4 py-3 bg-red-500/10 border-2 border-red-500/40 rounded-xl space-y-2 animate-pulse-slow">
+    <div className="px-4 py-3 bg-red/10 border-2 border-red/40 rounded-xl space-y-2 animate-pulse-slow">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-2">
-          <AlertCircle size={16} className="text-red-400 shrink-0 mt-0.5" />
+          <AlertCircle size={16} className="text-red shrink-0 mt-0.5" />
           <div>
-            <p className="text-sm text-red-300 font-semibold">⚠️ Cafe24 스토어 연결이 필요합니다</p>
-            <p className="text-xs text-gray-400 mt-0.5">토큰 만료 또는 갱신 실패로 연결이 끊어졌습니다. 재연결 전까지 상품 조회, 주문 폴링, 쿠폰 발급이 중단됩니다.</p>
+            <p className="text-sm text-red font-semibold">⚠️ Cafe24 스토어 연결이 필요합니다</p>
+            <p className="text-xs text-text-tertiary mt-0.5">토큰 만료 또는 갱신 실패로 연결이 끊어졌습니다. 재연결 전까지 상품 조회, 주문 폴링, 쿠폰 발급이 중단됩니다.</p>
           </div>
         </div>
         <button
           onClick={() => setShowMallInput(!showMallInput)}
-          className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-xs bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 rounded-lg transition-colors"
+          className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-xs bg-yellow/20 hover:bg-yellow/30 text-yellow border border-yellow/30 rounded-lg transition-colors"
         >
           <Store size={12} /> 연결하기
         </button>
@@ -785,12 +785,12 @@ function Cafe24Banner() {
             value={mallIdInput}
             onChange={e => setMallIdInput(e.target.value)}
             placeholder="쇼핑몰 ID (예: mymall)"
-            className="flex-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary placeholder:text-gray-600 focus:outline-none focus:border-amber-500/50"
+            className="flex-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-yellow/50"
             onKeyDown={e => e.key === 'Enter' && handleConnect()}
           />
           <button
             onClick={handleConnect}
-            className="px-4 py-2 text-xs bg-amber-600 hover:bg-amber-700 text-white font-medium rounded-lg transition-colors"
+            className="px-4 py-2 text-xs bg-yellow hover:bg-yellow text-white font-medium rounded-lg transition-colors"
           >
             인증 시작
           </button>
@@ -852,7 +852,7 @@ function Cafe24ProductSelector({ selectedNo, selectedName, onSelect, onClear, di
 
   if (disabled) {
     return (
-      <div className="mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-xs text-gray-600">
+      <div className="mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-xs text-text-tertiary">
         Cafe24 연결 후 사용 가능합니다
       </div>
     );
@@ -861,13 +861,13 @@ function Cafe24ProductSelector({ selectedNo, selectedName, onSelect, onClear, di
   return (
     <div className="relative">
       {selectedNo ? (
-        <div className="flex items-center gap-2 px-3 py-2 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
-          <Tag size={12} className="text-emerald-400 shrink-0" />
-          <span className="text-xs text-emerald-300 flex-1 truncate">선택됨: {selectedName}</span>
+        <div className="flex items-center gap-2 px-3 py-2 bg-green/10 border border-green/30 rounded-lg">
+          <Tag size={12} className="text-green shrink-0" />
+          <span className="text-xs text-green flex-1 truncate">선택됨: {selectedName}</span>
           <button
             type="button"
             onClick={onClear}
-            className="text-gray-400 hover:text-white transition-colors"
+            className="text-text-tertiary hover:text-text-primary transition-colors"
           >
             <X size={12} />
           </button>
@@ -876,22 +876,22 @@ function Cafe24ProductSelector({ selectedNo, selectedName, onSelect, onClear, di
         <div>
           <div className="flex gap-2">
             <div className="relative flex-1">
-              <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+              <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
               <input
                 value={query}
                 onChange={e => { setQuery(e.target.value); setOpen(true); }}
                 onFocus={() => setOpen(true)}
                 placeholder="상품명 검색..."
-                className="w-full pl-8 pr-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary placeholder:text-gray-600 focus:outline-none focus:border-emerald-500/50"
+                className="w-full pl-8 pr-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-green/50"
               />
               {isFetching && (
-                <Loader2 size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 animate-spin" />
+                <Loader2 size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-tertiary animate-spin" />
               )}
             </div>
             <button
               type="button"
               onClick={() => setBrowserOpen(true)}
-              className="shrink-0 px-3 py-2 bg-[#3B82F6] hover:bg-[#2563EB] rounded-lg text-xs font-medium text-white transition-colors flex items-center gap-1.5"
+              className="shrink-0 px-3 py-2 bg-[#3B82F6] hover:bg-[#2563EB] rounded-lg text-xs font-medium text-text-primary transition-colors flex items-center gap-1.5"
             >
               <ShoppingBag size={12} /> 상품 조회
             </button>
@@ -907,19 +907,19 @@ function Cafe24ProductSelector({ selectedNo, selectedName, onSelect, onClear, di
                     setOpen(false);
                     setQuery('');
                   }}
-                  className="flex items-center gap-3 w-full px-3 py-2.5 hover:bg-white/5 transition-colors text-left"
+                  className="flex items-center gap-3 w-full px-3 py-2.5 hover:bg-[rgb(var(--color-overlay-rgb)/0.05)] transition-colors text-left"
                 >
                   {p.list_image ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={p.list_image} alt={p.product_name} className="w-10 h-10 rounded object-cover bg-bg-2 shrink-0" />
                   ) : (
                     <div className="w-10 h-10 rounded bg-bg-2 shrink-0 flex items-center justify-center">
-                      <ShoppingBag size={14} className="text-gray-600" />
+                      <ShoppingBag size={14} className="text-text-tertiary" />
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-white truncate">{p.product_name}</p>
-                    <p className="text-[10px] text-gray-500">₩{p.price.toLocaleString()}</p>
+                    <p className="text-xs font-medium text-text-primary truncate">{p.product_name}</p>
+                    <p className="text-[10px] text-text-tertiary">₩{p.price.toLocaleString()}</p>
                   </div>
                 </button>
               ))}
@@ -927,7 +927,7 @@ function Cafe24ProductSelector({ selectedNo, selectedName, onSelect, onClear, di
           )}
           {open && displayProducts.length === 0 && !isFetching && query.length > 0 && (
             <div className="absolute z-20 top-full mt-1 w-full bg-bg-3 border border-border-primary rounded-xl shadow-xl px-3 py-4 text-center">
-              <p className="text-xs text-gray-500">검색 결과가 없습니다</p>
+              <p className="text-xs text-text-tertiary">검색 결과가 없습니다</p>
             </div>
           )}
         </div>
@@ -969,7 +969,7 @@ function Cafe24MultiProductSelector({ selected, onChange, disabled }: Cafe24Mult
 
   if (disabled) {
     return (
-      <div className="px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-xs text-gray-600">
+      <div className="px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-xs text-text-tertiary">
         Cafe24 연결 후 사용 가능합니다
       </div>
     );
@@ -978,38 +978,38 @@ function Cafe24MultiProductSelector({ selected, onChange, disabled }: Cafe24Mult
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <span className="text-[11px] text-gray-500">
-          선택된 상품 <span className="text-emerald-400 font-semibold">{selected.length}개</span>
+        <span className="text-[11px] text-text-tertiary">
+          선택된 상품 <span className="text-green font-semibold">{selected.length}개</span>
         </span>
         <button
           type="button"
           onClick={() => setBrowserOpen(true)}
-          className="px-3 py-1.5 bg-[#3B82F6] hover:bg-[#2563EB] rounded-lg text-[11px] font-medium text-white transition-colors flex items-center gap-1.5"
+          className="px-3 py-1.5 bg-[#3B82F6] hover:bg-[#2563EB] rounded-lg text-[11px] font-medium text-text-primary transition-colors flex items-center gap-1.5"
         >
           <ShoppingBag size={12} /> 상품 추가
         </button>
       </div>
       {selected.length === 0 ? (
         <div className="px-3 py-4 bg-bg-2 border border-dashed border-border-primary rounded-lg text-center">
-          <p className="text-[11px] text-gray-500">상품 추가 버튼을 눌러 카테고리에 묶을 상품들을 선택하세요</p>
+          <p className="text-[11px] text-text-tertiary">상품 추가 버튼을 눌러 카테고리에 묶을 상품들을 선택하세요</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-60 overflow-y-auto pr-1">
           {selected.map(p => (
-            <div key={p.no} className="flex items-center gap-2 px-2.5 py-2 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
+            <div key={p.no} className="flex items-center gap-2 px-2.5 py-2 bg-green/10 border border-green/30 rounded-lg">
               {p.image ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={p.image} alt={p.name} className="w-8 h-8 rounded object-cover bg-bg-2 shrink-0" />
               ) : (
                 <div className="w-8 h-8 rounded bg-bg-2 shrink-0 flex items-center justify-center">
-                  <ShoppingBag size={12} className="text-gray-600" />
+                  <ShoppingBag size={12} className="text-text-tertiary" />
                 </div>
               )}
-              <span className="flex-1 text-[11px] text-emerald-200 truncate">{p.name}</span>
+              <span className="flex-1 text-[11px] text-green truncate">{p.name}</span>
               <button
                 type="button"
                 onClick={() => removeProduct(p.no)}
-                className="text-gray-400 hover:text-red-400 transition-colors shrink-0"
+                className="text-text-tertiary hover:text-red transition-colors shrink-0"
                 title="제거"
               >
                 <X size={12} />
@@ -1088,46 +1088,46 @@ function Cafe24ProductBrowserModal({ onClose, onPick, multi = false, alreadySele
         onClick={e => e.stopPropagation()}
         className="bg-bg-3 border border-border-primary rounded-2xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col"
       >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[rgb(var(--color-overlay-rgb)/0.1)]">
           <div className="flex items-center gap-2">
             <ShoppingBag size={16} className="text-[#3B82F6]" />
-            <h3 className="text-sm font-semibold text-white">Cafe24 상품 조회</h3>
-            <span className="text-xs text-gray-500">({products.length}개)</span>
+            <h3 className="text-sm font-semibold text-text-primary">Cafe24 상품 조회</h3>
+            <span className="text-xs text-text-tertiary">({products.length}개)</span>
           </div>
-          <button type="button" onClick={onClose} className="text-gray-400 hover:text-white">
+          <button type="button" onClick={onClose} className="text-text-tertiary hover:text-text-primary">
             <X size={18} />
           </button>
         </div>
-        <div className="px-5 py-3 border-b border-white/10">
+        <div className="px-5 py-3 border-b border-[rgb(var(--color-overlay-rgb)/0.1)]">
           <div className="relative">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
             <input
               value={query}
               onChange={e => setQuery(e.target.value)}
               placeholder="상품명으로 검색... (비워두면 전체 목록)"
               autoFocus
-              className="w-full pl-9 pr-10 py-2.5 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary placeholder:text-gray-600 focus:outline-none focus:border-[#3B82F6]"
+              className="w-full pl-9 pr-10 py-2.5 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-[#3B82F6]"
             />
             {isFetching && (
-              <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 animate-spin" />
+              <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-tertiary animate-spin" />
             )}
           </div>
         </div>
         <div className="flex-1 overflow-y-auto p-4">
           {error ? (
             <div className="text-center py-12">
-              <AlertCircle size={28} className="mx-auto text-red-500 mb-2" />
-              <p className="text-sm text-red-400">상품 목록을 불러오지 못했습니다</p>
-              <p className="text-xs text-gray-500 mt-1">{String((error as Error)?.message || error)}</p>
+              <AlertCircle size={28} className="mx-auto text-red mb-2" />
+              <p className="text-sm text-red">상품 목록을 불러오지 못했습니다</p>
+              <p className="text-xs text-text-tertiary mt-1">{String((error as Error)?.message || error)}</p>
             </div>
           ) : isFetching && products.length === 0 ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 size={24} className="text-gray-500 animate-spin" />
+              <Loader2 size={24} className="text-text-tertiary animate-spin" />
             </div>
           ) : products.length === 0 ? (
             <div className="text-center py-12">
-              <ShoppingBag size={28} className="mx-auto text-gray-700 mb-2" />
-              <p className="text-sm text-gray-500">조회된 상품이 없습니다</p>
+              <ShoppingBag size={28} className="mx-auto text-text-primary mb-2" />
+              <p className="text-sm text-text-tertiary">조회된 상품이 없습니다</p>
             </div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -1141,12 +1141,12 @@ function Cafe24ProductBrowserModal({ onClose, onPick, multi = false, alreadySele
                     disabled={isSelected && !multi}
                     className={`group text-left rounded-xl p-3 transition-all relative ${
                       isSelected
-                        ? 'bg-emerald-500/10 border border-emerald-500/40'
+                        ? 'bg-green/10 border border-green/40'
                         : 'bg-bg-2 border border-border-primary hover:border-[#3B82F6] hover:bg-[#3B82F6]/5'
                     }`}
                   >
                     {isSelected && (
-                      <span className="absolute top-2 right-2 px-1.5 py-0.5 bg-emerald-500/20 text-emerald-300 text-[9px] font-medium rounded">
+                      <span className="absolute top-2 right-2 px-1.5 py-0.5 bg-green/20 text-green text-[9px] font-medium rounded">
                         선택됨
                       </span>
                     )}
@@ -1155,12 +1155,12 @@ function Cafe24ProductBrowserModal({ onClose, onPick, multi = false, alreadySele
                       <img src={p.list_image} alt={p.product_name} className="w-full aspect-square rounded-lg object-cover bg-bg-1 mb-2" />
                     ) : (
                       <div className="w-full aspect-square rounded-lg bg-bg-1 mb-2 flex items-center justify-center">
-                        <ShoppingBag size={24} className="text-gray-700" />
+                        <ShoppingBag size={24} className="text-text-primary" />
                       </div>
                     )}
-                    <p className="text-xs font-medium text-white truncate">{p.product_name}</p>
-                    <p className="text-[11px] text-gray-500 mt-0.5">₩{p.price.toLocaleString()}</p>
-                    <p className="text-[10px] text-gray-600 mt-0.5">상품번호 {p.product_no}</p>
+                    <p className="text-xs font-medium text-text-primary truncate">{p.product_name}</p>
+                    <p className="text-[11px] text-text-tertiary mt-0.5">₩{p.price.toLocaleString()}</p>
+                    <p className="text-[10px] text-text-tertiary mt-0.5">상품번호 {p.product_no}</p>
                   </button>
                 );
               })}
@@ -1171,7 +1171,7 @@ function Cafe24ProductBrowserModal({ onClose, onPick, multi = false, alreadySele
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium rounded-lg transition-colors"
+                className="px-4 py-2 bg-green hover:bg-green text-white text-xs font-medium rounded-lg transition-colors"
               >
                 완료 ({alreadySelected.length}개 선택)
               </button>
@@ -1196,8 +1196,8 @@ const DARK_TOOLTIP_STYLE = {
 function ChartLoader() {
   return (
     <div className="flex items-center justify-center h-48 gap-2">
-      <Loader2 size={18} className="text-blue-400 animate-spin" />
-      <span className="text-xs text-gray-500">데이터 불러오는 중...</span>
+      <Loader2 size={18} className="text-blue animate-spin" />
+      <span className="text-xs text-text-tertiary">데이터 불러오는 중...</span>
     </div>
   );
 }
@@ -1205,8 +1205,8 @@ function ChartLoader() {
 function ChartEmpty({ message = '데이터가 없습니다' }: { message?: string }) {
   return (
     <div className="flex flex-col items-center justify-center h-48 gap-2">
-      <BarChart2 size={24} className="text-gray-600" />
-      <p className="text-xs text-gray-500">{message}</p>
+      <BarChart2 size={24} className="text-text-tertiary" />
+      <p className="text-xs text-text-tertiary">{message}</p>
     </div>
   );
 }
@@ -1344,18 +1344,18 @@ function DashboardSection() {
   const hasRefunds = d.refunded_count > 0;
 
   const kpis = [
-    { label: attribution === 'all' ? '순매출 (추정 포함 · 참고용)' : '순매출 (확정 귀속만, 취소·환불 제외)', value: fmtMan(d.total_sales), icon: <ShoppingBag size={16} />, color: 'text-blue-400', bg: 'bg-blue-500/10', ring: 'ring-blue-500/20', glow: 'from-blue-500/15', showRefund: true },
-    { label: '총 커미션', value: fmtMan(d.total_commission), icon: <DollarSign size={16} />, color: 'text-emerald-400', bg: 'bg-emerald-500/10', ring: 'ring-emerald-500/20', glow: 'from-emerald-500/15', showRefund: false },
-    { label: '활성 파트너', value: `${d.active_partners}명`, icon: <Users size={16} />, color: 'text-violet-400', bg: 'bg-violet-500/10', ring: 'ring-violet-500/20', glow: 'from-violet-500/15', showRefund: false },
-    { label: '총 클릭', value: fmt(d.total_clicks), icon: <Eye size={16} />, color: 'text-cyan-400', bg: 'bg-cyan-500/10', ring: 'ring-cyan-500/20', glow: 'from-cyan-500/15', showRefund: false },
-    { label: '전환', value: fmt(d.total_conversions), icon: <CheckCircle size={16} />, color: 'text-teal-400', bg: 'bg-teal-500/10', ring: 'ring-teal-500/20', glow: 'from-teal-500/15', showRefund: false },
-    { label: '전환율', value: `${fmtPct(d.conversion_rate)}%`, icon: <Percent size={16} />, color: 'text-amber-400', bg: 'bg-amber-500/10', ring: 'ring-amber-500/20', glow: 'from-amber-500/15', showRefund: false },
+    { label: attribution === 'all' ? '순매출 (추정 포함 · 참고용)' : '순매출 (확정 귀속만, 취소·환불 제외)', value: fmtMan(d.total_sales), icon: <ShoppingBag size={16} />, color: 'text-blue', bg: 'bg-blue/10', ring: 'ring-blue/20', glow: 'from-blue/15', showRefund: true },
+    { label: '총 커미션', value: fmtMan(d.total_commission), icon: <DollarSign size={16} />, color: 'text-green', bg: 'bg-green/10', ring: 'ring-green/20', glow: 'from-green/15', showRefund: false },
+    { label: '활성 파트너', value: `${d.active_partners}명`, icon: <Users size={16} />, color: 'text-accent', bg: 'bg-brand/10', ring: 'ring-brand/20', glow: 'from-brand/15', showRefund: false },
+    { label: '총 클릭', value: fmt(d.total_clicks), icon: <Eye size={16} />, color: 'text-teal', bg: 'bg-teal/10', ring: 'ring-teal/20', glow: 'from-teal/15', showRefund: false },
+    { label: '전환', value: fmt(d.total_conversions), icon: <CheckCircle size={16} />, color: 'text-teal', bg: 'bg-teal/10', ring: 'ring-teal/20', glow: 'from-teal/15', showRefund: false },
+    { label: '전환율', value: `${fmtPct(d.conversion_rate)}%`, icon: <Percent size={16} />, color: 'text-yellow', bg: 'bg-yellow/10', ring: 'ring-yellow/20', glow: 'from-yellow/15', showRefund: false },
   ];
 
   const rankColors = [
-    'bg-yellow-500/20 text-yellow-400',
-    'bg-gray-300/20 text-gray-300',
-    'bg-orange-500/20 text-orange-400',
+    'bg-yellow/20 text-yellow',
+    'bg-bg-3/20 text-text-secondary',
+    'bg-orange/20 text-orange',
   ];
 
   // 상위 10개 캠페인 (매출 기준)
@@ -1386,23 +1386,23 @@ function DashboardSection() {
   return (
     <div className="space-y-6">
       {isError && (
-        <div className="flex items-center gap-2 px-4 py-2 bg-red-500/10 border border-red-500/20 rounded-lg">
-          <AlertCircle size={14} className="text-red-400" />
-          <p className="text-xs text-red-400">대시보드 데이터를 불러오지 못했습니다. 기본값으로 표시합니다.</p>
+        <div className="flex items-center gap-2 px-4 py-2 bg-red/10 border border-red/20 rounded-lg">
+          <AlertCircle size={14} className="text-red" />
+          <p className="text-xs text-red">대시보드 데이터를 불러오지 못했습니다. 기본값으로 표시합니다.</p>
         </div>
       )}
 
       {/* 기간 선택 — KPI 카드·캠페인 기여도·탑 파트너·차트 전체에 적용 */}
       <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-xs text-gray-500">기간:</span>
+        <span className="text-xs text-text-tertiary">기간:</span>
         {([7, 30, 90] as const).map(dd => (
           <button
             key={dd}
             onClick={() => { setDays(dd); setCustomMode(false); }}
             className={`px-3 py-1 text-xs rounded-lg font-medium transition-colors ${
               !customMode && days === dd
-                ? 'bg-blue-600 text-white'
-                : 'bg-bg-3 text-gray-400 border border-border-primary hover:text-white hover:border-gray-500'
+                ? 'bg-blue text-white'
+                : 'bg-bg-3 text-text-tertiary border border-border-primary hover:text-text-primary hover:border-border-tertiary'
             }`}
           >
             {dd}일
@@ -1412,8 +1412,8 @@ function DashboardSection() {
           onClick={() => setCustomMode(true)}
           className={`px-3 py-1 text-xs rounded-lg font-medium transition-colors ${
             customMode
-              ? 'bg-blue-600 text-white'
-              : 'bg-bg-3 text-gray-400 border border-border-primary hover:text-white hover:border-gray-500'
+              ? 'bg-blue text-white'
+              : 'bg-bg-3 text-text-tertiary border border-border-primary hover:text-text-primary hover:border-border-tertiary'
           }`}
         >
           직접 지정
@@ -1425,26 +1425,26 @@ function DashboardSection() {
               value={customSince}
               onChange={(e) => setCustomSince(e.target.value)}
               max={customUntil || undefined}
-              className="px-2 py-1 text-xs rounded-lg bg-bg-3 text-gray-300 border border-border-primary focus:outline-none focus:border-blue-500"
+              className="px-2 py-1 text-xs rounded-lg bg-bg-3 text-text-secondary border border-border-primary focus:outline-none focus:border-blue/50"
             />
-            <span className="text-gray-500 text-xs">~</span>
+            <span className="text-text-tertiary text-xs">~</span>
             <input
               type="date"
               value={customUntil}
               onChange={(e) => setCustomUntil(e.target.value)}
               min={customSince || undefined}
-              className="px-2 py-1 text-xs rounded-lg bg-bg-3 text-gray-300 border border-border-primary focus:outline-none focus:border-blue-500"
+              className="px-2 py-1 text-xs rounded-lg bg-bg-3 text-text-secondary border border-border-primary focus:outline-none focus:border-blue/50"
             />
             {customSince && customUntil && customSince > customUntil && (
-              <span className="text-[10px] text-red-400">시작일이 종료일보다 뒤입니다</span>
+              <span className="text-[10px] text-red">시작일이 종료일보다 뒤입니다</span>
             )}
             {customMode && !range && !(customSince && customUntil) && (
-              <span className="text-[10px] text-gray-600">시작일·종료일을 선택하세요</span>
+              <span className="text-[10px] text-text-tertiary">시작일·종료일을 선택하세요</span>
             )}
           </>
         )}
         <span className="mx-1 h-4 w-px bg-border-primary" />
-        <span className="text-xs text-gray-500">귀속:</span>
+        <span className="text-xs text-text-tertiary">귀속:</span>
         {([
           { key: 'converted', label: '전환일 기준' },
           { key: 'clicked', label: '클릭일 기준' },
@@ -1457,15 +1457,15 @@ function DashboardSection() {
               : '최근 N일 내 발생한 주문(전환)으로 집계'}
             className={`px-3 py-1 text-xs rounded-lg font-medium transition-colors ${
               basis === b.key
-                ? 'bg-violet-600 text-white'
-                : 'bg-bg-3 text-gray-400 border border-border-primary hover:text-white hover:border-gray-500'
+                ? 'bg-brand text-white'
+                : 'bg-bg-3 text-text-tertiary border border-border-primary hover:text-text-primary hover:border-border-tertiary'
             }`}
           >
             {b.label}
           </button>
         ))}
         <span className="mx-1 h-4 w-px bg-border-primary" />
-        <span className="text-xs text-gray-500">집계:</span>
+        <span className="text-xs text-text-tertiary">집계:</span>
         {([
           { key: 'confirmed', label: '확정 귀속' },
           { key: 'all', label: '추정 포함 (참고)' },
@@ -1478,22 +1478,22 @@ function DashboardSection() {
               : '주문완료 바인딩·ref코드·회원연결로 확정된 전환만 집계 (정확한 기여분)'}
             className={`px-3 py-1 text-xs rounded-lg font-medium transition-colors ${
               attribution === a.key
-                ? a.key === 'all' ? 'bg-amber-600 text-white' : 'bg-emerald-600 text-white'
-                : 'bg-bg-3 text-gray-400 border border-border-primary hover:text-white hover:border-gray-500'
+                ? a.key === 'all' ? 'bg-yellow text-white' : 'bg-green text-white'
+                : 'bg-bg-3 text-text-tertiary border border-border-primary hover:text-text-primary hover:border-border-tertiary'
             }`}
           >
             {a.label}
           </button>
         ))}
-        <span className="text-[10px] text-gray-600 ml-1">
+        <span className="text-[10px] text-text-tertiary ml-1">
           아래 모든 지표는 {range ? `${range.since} ~ ${range.until}` : `최근 ${days}일`} · {basis === 'clicked' ? '클릭일' : '전환일'} 기준
         </span>
       </div>
 
       {attribution === 'all' && (
-        <div className="flex items-center gap-2 px-4 py-2 bg-amber-500/10 border border-amber-500/20 rounded-lg">
-          <AlertCircle size={14} className="text-amber-400 shrink-0" />
-          <p className="text-xs text-amber-300">
+        <div className="flex items-center gap-2 px-4 py-2 bg-yellow/10 border border-yellow/20 rounded-lg">
+          <AlertCircle size={14} className="text-yellow shrink-0" />
+          <p className="text-xs text-yellow">
             추정 포함 모드입니다. 주문완료 추적 설치(2026-07-20) 이전 데이터는 라스트클릭 추정이라 오가닉·메타 주문이 섞여
             실제 기여보다 부풀려질 수 있습니다 — 과거 추세 참고용으로만 사용하고, 정산·의사결정은 확정 귀속 기준을 사용하세요.
           </p>
@@ -1505,23 +1505,23 @@ function DashboardSection() {
         {kpis.map((kpi, idx) => (
           <div
             key={idx}
-            className={`group relative overflow-hidden bg-bg-3 rounded-2xl p-4 border border-white/[0.06] ring-1 ${kpi.ring} hover:border-white/[0.12] transition-all`}
+            className={`group relative overflow-hidden bg-bg-3 rounded-2xl p-4 border border-[rgb(var(--color-overlay-rgb)/0.06)] ring-1 ${kpi.ring} hover:border-[rgb(var(--color-overlay-rgb)/0.12)] transition-all`}
           >
             <div className={`pointer-events-none absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-br ${kpi.glow} to-transparent`} />
             <div className="relative">
               <div className={`w-9 h-9 rounded-xl ${kpi.bg} flex items-center justify-center ${kpi.color} mb-2.5`}>
                 {kpi.icon}
               </div>
-              <p className="text-[10px] text-gray-500 font-medium tracking-wide">{kpi.label}</p>
-              <p className="text-lg font-bold text-white tabular-nums tracking-tight mt-0.5">{kpi.value}</p>
+              <p className="text-[10px] text-text-tertiary font-medium tracking-wide">{kpi.label}</p>
+              <p className="text-lg font-bold text-text-primary tabular-nums tracking-tight mt-0.5">{kpi.value}</p>
               {/* 환불/취소 배지 — 순매출 카드에만 표시 */}
               {kpi.showRefund && hasRefunds && (
                 <div className="mt-2 flex flex-col gap-0.5">
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-yellow-500/15 border border-yellow-500/30 rounded-md text-[9px] text-yellow-400 leading-tight">
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-yellow/15 border border-yellow/30 rounded-md text-[9px] text-yellow leading-tight">
                     환불 {d.refunded_count}건 / ₩{fmt(refundDiff)} 제외
                   </span>
                   {d.cancelled_count > 0 && (
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-orange-500/10 border border-orange-500/20 rounded-md text-[9px] text-orange-400 leading-tight">
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-orange/10 border border-orange/20 rounded-md text-[9px] text-orange leading-tight">
                       취소 {d.cancelled_count}건
                     </span>
                   )}
@@ -1534,8 +1534,8 @@ function DashboardSection() {
 
       {/* 차트 1: 매출/커미션 시계열 Area */}
       <div className="bg-bg-3 rounded-xl p-4 border border-border-primary">
-        <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
-          <TrendingUp size={14} className="text-blue-400" /> 매출 · 커미션 추이
+        <h3 className="text-sm font-semibold text-text-primary mb-4 flex items-center gap-2">
+          <TrendingUp size={14} className="text-blue" /> 매출 · 커미션 추이
         </h3>
         {tsLoading ? <ChartLoader /> : timeseries.length === 0 ? <ChartEmpty /> : (
           <ResponsiveContainer width="100%" height={220}>
@@ -1640,8 +1640,8 @@ function DashboardSection() {
 
       {/* 차트 2: 클릭 vs 전환 BarChart + 전환율 Line */}
       <div className="bg-bg-3 rounded-xl p-4 border border-border-primary">
-        <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
-          <Eye size={14} className="text-cyan-400" /> 클릭 · 전환 추이
+        <h3 className="text-sm font-semibold text-text-primary mb-4 flex items-center gap-2">
+          <Eye size={14} className="text-teal" /> 클릭 · 전환 추이
         </h3>
         {tsLoading ? <ChartLoader /> : timeseries.length === 0 ? <ChartEmpty /> : (
           <ResponsiveContainer width="100%" height={220}>
@@ -1705,15 +1705,15 @@ function DashboardSection() {
       <div className="grid lg:grid-cols-2 gap-4">
         {/* 차트 3: 캠페인별 매출 기여도 가로 BarChart (Top 10) */}
         <div className="bg-bg-3 rounded-xl p-4 border border-border-primary min-h-[280px]">
-          <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
-            <Percent size={14} className="text-yellow-400" /> 캠페인별 매출 기여도 (Top 10)
+          <h3 className="text-sm font-semibold text-text-primary mb-4 flex items-center gap-2">
+            <Percent size={14} className="text-yellow" /> 캠페인별 매출 기여도 (Top 10)
           </h3>
           {bcLoading ? (
             <ChartLoader />
           ) : top10Campaigns.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-48 gap-2">
-              <BarChart2 size={24} className="text-gray-600" />
-              <p className="text-xs text-gray-500">데이터 없음</p>
+              <BarChart2 size={24} className="text-text-tertiary" />
+              <p className="text-xs text-text-tertiary">데이터 없음</p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -1730,14 +1730,14 @@ function DashboardSection() {
                       const el = document.getElementById(`campaign-card-${c.campaign_id}`);
                       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     }}
-                    className="group w-full text-left bg-bg-2 hover:bg-[#1a1d20] rounded-lg p-2.5 border border-border-primary hover:border-emerald-500/30 transition-all"
+                    className="group w-full text-left bg-bg-2 hover:bg-[#1a1d20] rounded-lg p-2.5 border border-border-primary hover:border-green/30 transition-all"
                   >
                     <div className="flex items-center gap-2 mb-1.5">
-                      <span className="text-[10px] font-bold text-gray-500 w-5 shrink-0">{idx + 1}.</span>
-                      <span className="text-xs font-medium text-white truncate flex-1" title={c.campaign_name}>
+                      <span className="text-[10px] font-bold text-text-tertiary w-5 shrink-0">{idx + 1}.</span>
+                      <span className="text-xs font-medium text-text-primary truncate flex-1" title={c.campaign_name}>
                         {c.campaign_name}
                       </span>
-                      <span className="text-[10px] text-emerald-400 font-semibold shrink-0">
+                      <span className="text-[10px] text-green font-semibold shrink-0">
                         ₩{fmt(c.revenue)}
                       </span>
                     </div>
@@ -1747,11 +1747,11 @@ function DashboardSection() {
                         style={{ width: `${barRatio}%`, backgroundColor: `rgba(16,185,129,${opacity})` }}
                       />
                     </div>
-                    <div className="flex items-center gap-3 mt-1 text-[10px] text-gray-500 flex-wrap">
-                      <span>전환 <span className="text-cyan-400 font-semibold">{c.conversions}건</span></span>
-                      <span>클릭 <span className="text-gray-300">{c.clicks}</span></span>
-                      <span>CR <span className="text-yellow-400">{cr}%</span></span>
-                      <span className="ml-auto text-gray-600">커미션 ₩{fmt(c.commission)}</span>
+                    <div className="flex items-center gap-3 mt-1 text-[10px] text-text-tertiary flex-wrap">
+                      <span>전환 <span className="text-teal font-semibold">{c.conversions}건</span></span>
+                      <span>클릭 <span className="text-text-secondary">{c.clicks}</span></span>
+                      <span>CR <span className="text-yellow">{cr}%</span></span>
+                      <span className="ml-auto text-text-tertiary">커미션 ₩{fmt(c.commission)}</span>
                     </div>
                   </button>
                 );
@@ -1762,8 +1762,8 @@ function DashboardSection() {
 
         {/* 차트 4: 캠페인별 전환 + 커미션 더블 BarChart */}
         <div className="bg-bg-3 rounded-xl p-4 border border-border-primary">
-          <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
-            <BarChart2 size={14} className="text-blue-400" /> 캠페인별 전환 · 커미션
+          <h3 className="text-sm font-semibold text-text-primary mb-4 flex items-center gap-2">
+            <BarChart2 size={14} className="text-blue" /> 캠페인별 전환 · 커미션
           </h3>
           {bcLoading ? <ChartLoader /> : byCampaign.length === 0 ? <ChartEmpty /> : (
             <ResponsiveContainer width="100%" height={220}>
@@ -1817,14 +1817,14 @@ function DashboardSection() {
       <div className="grid lg:grid-cols-2 gap-4">
         {/* 활성 캠페인 요약 */}
         <div className="bg-bg-3 rounded-xl p-4 border border-border-primary">
-          <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-            <Megaphone size={14} className="text-emerald-400" /> 활성 캠페인
+          <h3 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
+            <Megaphone size={14} className="text-green" /> 활성 캠페인
           </h3>
           {d.active_campaigns.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 gap-2">
-              <Megaphone size={20} className="text-gray-600" />
-              <p className="text-xs text-gray-500">활성 캠페인이 없습니다</p>
-              <p className="text-[10px] text-gray-600">캠페인 관리 탭에서 새 캠페인을 생성하세요</p>
+              <Megaphone size={20} className="text-text-tertiary" />
+              <p className="text-xs text-text-tertiary">활성 캠페인이 없습니다</p>
+              <p className="text-[10px] text-text-tertiary">캠페인 관리 탭에서 새 캠페인을 생성하세요</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -1837,17 +1837,17 @@ function DashboardSection() {
                         <img src={c.cafe24_product_image} alt={c.cafe24_product_name ?? c.product} className="w-8 h-8 rounded object-cover bg-bg-3" />
                       )}
                       <div>
-                        <p className="text-sm font-medium text-white">{c.name}</p>
-                        <p className="text-[10px] text-gray-500">{c.cafe24_product_name ?? c.product}</p>
+                        <p className="text-sm font-medium text-text-primary">{c.name}</p>
+                        <p className="text-[10px] text-text-tertiary">{c.cafe24_product_name ?? c.product}</p>
                       </div>
                     </div>
-                    <span className="text-[10px] px-2 py-0.5 bg-emerald-500/20 text-emerald-400 rounded">활성</span>
+                    <span className="text-[10px] px-2 py-0.5 bg-green/20 text-green rounded">활성</span>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
-                    <div><p className="text-[10px] text-gray-500">파트너</p><p className="text-xs font-medium text-white">{c.partner_count}</p></div>
-                    <div><p className="text-[10px] text-gray-500">클릭</p><p className="text-xs font-medium text-white">{fmt(c.click_count)}</p></div>
-                    <div><p className="text-[10px] text-gray-500">전환</p><p className="text-xs font-medium text-white">{c.conversion_count}건</p></div>
-                    <div><p className="text-[10px] text-gray-500">매출</p><p className="text-xs font-medium text-white">{fmtMan(c.total_sales)}</p></div>
+                    <div><p className="text-[10px] text-text-tertiary">파트너</p><p className="text-xs font-medium text-white">{c.partner_count}</p></div>
+                    <div><p className="text-[10px] text-text-tertiary">클릭</p><p className="text-xs font-medium text-white">{fmt(c.click_count)}</p></div>
+                    <div><p className="text-[10px] text-text-tertiary">전환</p><p className="text-xs font-medium text-white">{c.conversion_count}건</p></div>
+                    <div><p className="text-[10px] text-text-tertiary">매출</p><p className="text-xs font-medium text-white">{fmtMan(c.total_sales)}</p></div>
                   </div>
                 </div>
               ))}
@@ -1857,32 +1857,32 @@ function DashboardSection() {
 
         {/* 상위 파트너 */}
         <div className="bg-bg-3 rounded-xl p-4 border border-border-primary">
-          <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-            <Award size={14} className="text-yellow-400" /> Top 파트너
+          <h3 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
+            <Award size={14} className="text-yellow" /> Top 파트너
           </h3>
           {d.top_partners.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 gap-2">
-              <Users size={20} className="text-gray-600" />
-              <p className="text-xs text-gray-500">등록된 파트너가 없습니다</p>
-              <p className="text-[10px] text-gray-600">파트너 관리 탭에서 파트너를 초대하세요</p>
+              <Users size={20} className="text-text-tertiary" />
+              <p className="text-xs text-text-tertiary">등록된 파트너가 없습니다</p>
+              <p className="text-[10px] text-text-tertiary">파트너 관리 탭에서 파트너를 초대하세요</p>
             </div>
           ) : (
             <div className="space-y-2">
               {d.top_partners.map((p, idx) => (
                 <div key={p.id} className="flex items-center gap-3 p-2 bg-bg-2 rounded-lg">
-                  <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${rankColors[idx] ?? 'bg-gray-500/20 text-gray-400'}`}>
+                  <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${rankColors[idx] ?? 'bg-bg-3/20 text-text-tertiary'}`}>
                     {idx + 1}
                   </span>
                   <div className="flex-1">
-                    <p className="text-sm text-white font-medium">{p.name}</p>
+                    <p className="text-sm text-text-primary font-medium">{p.name}</p>
                     <div className="flex items-center gap-1 flex-wrap">
                       <ChannelBadges channels={p.channels} channel={p.channel} />
-                      <span className="text-[10px] text-gray-500">{fmt(p.followers)} followers</span>
+                      <span className="text-[10px] text-text-tertiary">{fmt(p.followers)} followers</span>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-medium text-emerald-400">₩{fmt(p.total_sales)}</p>
-                    <p className="text-[10px] text-gray-500">{p.conversion_count}건 전환</p>
+                    <p className="text-sm font-medium text-green">₩{fmt(p.total_sales)}</p>
+                    <p className="text-[10px] text-text-tertiary">{p.conversion_count}건 전환</p>
                   </div>
                 </div>
               ))}
@@ -1893,60 +1893,60 @@ function DashboardSection() {
 
       {/* ── 취소/환불 현황 ── */}
       <div className="bg-bg-3 border border-border-primary rounded-xl p-4">
-        <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
-          <AlertCircle size={14} className="text-red-400" /> 취소 · 환불 현황
+        <h3 className="text-sm font-semibold text-text-primary mb-4 flex items-center gap-2">
+          <AlertCircle size={14} className="text-red" /> 취소 · 환불 현황
         </h3>
 
         {/* 2-A: KPI 카드 3개 */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
           {/* 환불 건수 */}
-          <div className="bg-bg-2 rounded-lg p-3 border border-red-500/20">
-            <p className="text-[10px] text-gray-500 mb-1">환불 건수</p>
-            <p className="text-2xl font-bold text-red-400">{d.refunded_count}<span className="text-sm font-normal ml-0.5">건</span></p>
-            <p className="text-[10px] text-gray-600 mt-0.5">결제 완료 후 환불 처리</p>
+          <div className="bg-bg-2 rounded-lg p-3 border border-red/20">
+            <p className="text-[10px] text-text-tertiary mb-1">환불 건수</p>
+            <p className="text-2xl font-bold text-red">{d.refunded_count}<span className="text-sm font-normal ml-0.5">건</span></p>
+            <p className="text-[10px] text-text-tertiary mt-0.5">결제 완료 후 환불 처리</p>
           </div>
 
           {/* 취소 건수 */}
-          <div className="bg-bg-2 rounded-lg p-3 border border-orange-500/20">
-            <p className="text-[10px] text-gray-500 mb-1">취소 건수</p>
-            <p className="text-2xl font-bold text-orange-400">{d.cancelled_count}<span className="text-sm font-normal ml-0.5">건</span></p>
-            <p className="text-[10px] text-gray-600 mt-0.5">결제 전 또는 배송 전 취소</p>
+          <div className="bg-bg-2 rounded-lg p-3 border border-orange/20">
+            <p className="text-[10px] text-text-tertiary mb-1">취소 건수</p>
+            <p className="text-2xl font-bold text-orange">{d.cancelled_count}<span className="text-sm font-normal ml-0.5">건</span></p>
+            <p className="text-[10px] text-text-tertiary mt-0.5">결제 전 또는 배송 전 취소</p>
           </div>
 
           {/* 환불·취소 차액 (Gross - Net) */}
           <div className="bg-bg-2 rounded-lg p-3 border border-border-primary">
-            <p className="text-[10px] text-gray-500 mb-1">환불·취소 차감액</p>
-            <p className="text-2xl font-bold text-gray-300">
+            <p className="text-[10px] text-text-tertiary mb-1">환불·취소 차감액</p>
+            <p className="text-2xl font-bold text-text-secondary">
               {refundCancelDiff > 0 ? `₩${fmt(refundCancelDiff)}` : '₩0'}
             </p>
-            <p className="text-[10px] text-gray-600 mt-0.5">Gross - Net 차이</p>
+            <p className="text-[10px] text-text-tertiary mt-0.5">Gross - Net 차이</p>
           </div>
         </div>
 
         {/* 2-B: 매출 구성 요약 바 */}
         {d.gross_sales > 0 && (
           <div className="space-y-2">
-            <p className="text-[10px] text-gray-500">매출 구성 비율</p>
+            <p className="text-[10px] text-text-tertiary">매출 구성 비율</p>
             <div className="flex h-4 rounded-full overflow-hidden gap-0.5">
               {/* 순매출 */}
               <div
-                className="bg-emerald-500 transition-all"
+                className="bg-green/20 transition-all"
                 style={{ width: `${d.gross_sales > 0 ? (d.net_sales / d.gross_sales) * 100 : 100}%` }}
                 title={`순매출: ${formatCurrency(d.net_sales)}`}
               />
               {/* 환불·취소 차감 */}
               {refundCancelDiff > 0 && (
                 <div
-                  className="bg-red-500/70 transition-all"
+                  className="bg-red/70 transition-all"
                   style={{ width: `${(refundCancelDiff / d.gross_sales) * 100}%` }}
                   title={`차감: ${formatCurrency(refundCancelDiff)}`}
                 />
               )}
             </div>
             <div className="flex items-center gap-4 text-[10px]">
-              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-500 inline-block" /> 순매출 {fmtMan(d.net_sales)}</span>
+              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-green/20 inline-block" /> 순매출 {fmtMan(d.net_sales)}</span>
               {refundCancelDiff > 0 && (
-                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-red-500/70 inline-block" /> 환불·취소 차감 {fmtMan(refundCancelDiff)}</span>
+                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-red/70 inline-block" /> 환불·취소 차감 {fmtMan(refundCancelDiff)}</span>
               )}
             </div>
           </div>
@@ -1954,9 +1954,9 @@ function DashboardSection() {
 
         {/* 환불/취소 모두 0인 경우 */}
         {d.refunded_count === 0 && d.cancelled_count === 0 && (
-          <div className="flex items-center gap-2 mt-2 px-3 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
-            <CheckCircle size={13} className="text-emerald-400 shrink-0" />
-            <p className="text-xs text-emerald-400">환불·취소 내역이 없습니다</p>
+          <div className="flex items-center gap-2 mt-2 px-3 py-2 bg-green/10 border border-green/20 rounded-lg">
+            <CheckCircle size={13} className="text-green shrink-0" />
+            <p className="text-xs text-green">환불·취소 내역이 없습니다</p>
           </div>
         )}
       </div>
@@ -1964,19 +1964,19 @@ function DashboardSection() {
       {/* ── 시간대별 전환 히트맵 ── */}
       <div className="bg-bg-3 border border-border-primary rounded-xl p-4">
         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-          <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-            <BarChart2 size={14} className="text-emerald-400" /> 시간대별 전환 히트맵
+          <h3 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+            <BarChart2 size={14} className="text-green" /> 시간대별 전환 히트맵
           </h3>
           <div className="flex items-center gap-1.5">
-            <span className="text-[10px] text-gray-500">기간:</span>
+            <span className="text-[10px] text-text-tertiary">기간:</span>
             {([7, 30, 90] as const).map(hd => (
               <button
                 key={hd}
                 onClick={() => setHeatmapDays(hd)}
                 className={`px-2.5 py-1 text-[10px] rounded font-medium transition-colors ${
                   heatmapDays === hd
-                    ? 'bg-emerald-600 text-white'
-                    : 'bg-bg-2 text-gray-400 border border-border-primary hover:text-white hover:border-gray-500'
+                    ? 'bg-green text-white'
+                    : 'bg-bg-2 text-text-tertiary border border-border-primary hover:text-text-primary hover:border-border-tertiary'
                 }`}
               >
                 {hd}일
@@ -1997,7 +1997,7 @@ function DashboardSection() {
                 {/* 시간 축 (상단) */}
                 <div className="flex items-center mb-1 pl-8">
                   {Array.from({ length: 24 }, (_, h) => (
-                    <div key={h} className="w-5 text-center text-[8px] text-gray-600 shrink-0">
+                    <div key={h} className="w-5 text-center text-[8px] text-text-tertiary shrink-0">
                       {h % 6 === 0 ? `${h}시` : ''}
                     </div>
                   ))}
@@ -2006,7 +2006,7 @@ function DashboardSection() {
                 {/* 히트맵 행 */}
                 {HEATMAP_DAYS.map((dayLabel, dow) => (
                   <div key={dow} className="flex items-center mb-0.5">
-                    <span className="w-7 text-[10px] text-gray-500 shrink-0 text-right pr-1">{dayLabel}</span>
+                    <span className="w-7 text-[10px] text-text-tertiary shrink-0 text-right pr-1">{dayLabel}</span>
                     {Array.from({ length: 24 }, (_, h) => {
                       const cellKey = `${dow}_${h}`;
                       const cell = byCell.get(cellKey);
@@ -2027,10 +2027,10 @@ function DashboardSection() {
                         >
                           {isHovered && (
                             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 z-20 pointer-events-none whitespace-nowrap bg-bg-2 border border-[rgb(var(--color-overlay-rgb)/0.1)] rounded-lg px-2 py-1.5 text-[10px] text-text-primary shadow-xl">
-                              <p className="font-semibold text-emerald-400">{dayLabel} {h}시</p>
-                              <p>전환 <span className="text-white font-medium">{conv}건</span></p>
+                              <p className="font-semibold text-green">{dayLabel} {h}시</p>
+                              <p>전환 <span className="text-text-primary font-medium">{conv}건</span></p>
                               {cell && cell.revenue > 0 && (
-                                <p>매출 <span className="text-blue-300 font-medium">₩{fmt(cell.revenue)}</span></p>
+                                <p>매출 <span className="text-blue font-medium">₩{fmt(cell.revenue)}</span></p>
                               )}
                             </div>
                           )}
@@ -2042,7 +2042,7 @@ function DashboardSection() {
 
                 {/* 컬러 범례 */}
                 <div className="flex items-center gap-2 mt-3 pl-8">
-                  <span className="text-[9px] text-gray-600">낮음</span>
+                  <span className="text-[9px] text-text-tertiary">낮음</span>
                   <div className="flex gap-0.5">
                     {[0, 0.2, 0.4, 0.6, 0.8, 1].map(r => (
                       <div
@@ -2052,7 +2052,7 @@ function DashboardSection() {
                       />
                     ))}
                   </div>
-                  <span className="text-[9px] text-gray-600">높음</span>
+                  <span className="text-[9px] text-text-tertiary">높음</span>
                 </div>
               </div>
             </div>
@@ -2060,18 +2060,18 @@ function DashboardSection() {
             {/* TOP 3 시간대 요약 */}
             {top3Hours.length > 0 && (
               <div className="mt-4 pt-3 border-t border-border-primary">
-                <p className="text-[10px] text-gray-500 mb-1.5">전환 많은 시간대 TOP {top3Hours.length}</p>
+                <p className="text-[10px] text-text-tertiary mb-1.5">전환 많은 시간대 TOP {top3Hours.length}</p>
                 <div className="flex flex-wrap gap-2">
                   {top3Hours.map((c, i) => (
                     <div
                       key={`${c.day_of_week}_${c.hour}_${i}`}
-                      className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-lg"
+                      className="flex items-center gap-1.5 px-2.5 py-1 bg-green/10 border border-green/20 rounded-lg"
                     >
-                      <span className="text-[9px] font-bold text-emerald-300">#{i + 1}</span>
+                      <span className="text-[9px] font-bold text-green">#{i + 1}</span>
                       <span className="text-[10px] text-white">
                         {HEATMAP_DAYS[c.day_of_week]} {c.hour}시
                       </span>
-                      <span className="text-[10px] text-emerald-400 font-medium">({c.conversions}건)</span>
+                      <span className="text-[10px] text-green font-medium">({c.conversions}건)</span>
                     </div>
                   ))}
                 </div>
@@ -2083,8 +2083,8 @@ function DashboardSection() {
 
       {/* ── 상품별 TOP 10 ── */}
       <div className="bg-bg-3 border border-border-primary rounded-xl p-4">
-        <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
-          <TrendingUp size={14} className="text-blue-400" /> 상품별 TOP 10
+        <h3 className="text-sm font-semibold text-text-primary mb-4 flex items-center gap-2">
+          <TrendingUp size={14} className="text-blue" /> 상품별 TOP 10
         </h3>
 
         {topProductsLoading ? (
@@ -2102,17 +2102,17 @@ function DashboardSection() {
                 >
                   {/* 배경 진행 막대 */}
                   <div
-                    className="absolute inset-y-0 left-0 bg-blue-500/8 rounded-lg pointer-events-none"
+                    className="absolute inset-y-0 left-0 bg-blue/8 rounded-lg pointer-events-none"
                     style={{ width: `${barWidth}%` }}
                   />
 
                   {/* 순위 배지 */}
                   <span
                     className={`relative z-10 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
-                      idx === 0 ? 'bg-yellow-500/20 text-yellow-400' :
-                      idx === 1 ? 'bg-gray-300/20 text-gray-300' :
-                      idx === 2 ? 'bg-orange-500/20 text-orange-400' :
-                      'bg-border-primary text-gray-500'
+                      idx === 0 ? 'bg-yellow/20 text-yellow' :
+                      idx === 1 ? 'bg-bg-3/20 text-text-secondary' :
+                      idx === 2 ? 'bg-orange/20 text-orange' :
+                      'bg-border-primary text-text-tertiary'
                     }`}
                   >
                     {idx + 1}
@@ -2129,29 +2129,29 @@ function DashboardSection() {
                         onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
                       />
                     ) : (
-                      <ShoppingBag size={14} className="text-gray-600" />
+                      <ShoppingBag size={14} className="text-text-tertiary" />
                     )}
                   </div>
 
                   {/* 상품명 + 캠페인 수 */}
                   <div className="relative z-10 flex-1 min-w-0">
                     <p className="text-sm text-white font-medium truncate">{p.product_name}</p>
-                    <p className="text-[10px] text-gray-500">캠페인 {p.campaign_count}개 연결</p>
+                    <p className="text-[10px] text-text-tertiary">캠페인 {p.campaign_count}개 연결</p>
                   </div>
 
                   {/* 수치 (우측 정렬) */}
                   <div className="relative z-10 flex items-center gap-4 shrink-0 text-right">
                     <div>
-                      <p className="text-[10px] text-gray-500">전환</p>
+                      <p className="text-[10px] text-text-tertiary">전환</p>
                       <p className="text-xs font-medium text-white">{fmt(p.conversions)}건</p>
                     </div>
                     <div>
-                      <p className="text-[10px] text-gray-500">매출</p>
-                      <p className="text-xs font-medium text-blue-400">{fmtMan(p.revenue)}</p>
+                      <p className="text-[10px] text-text-tertiary">매출</p>
+                      <p className="text-xs font-medium text-blue">{fmtMan(p.revenue)}</p>
                     </div>
                     <div className="hidden sm:block">
-                      <p className="text-[10px] text-gray-500">커미션</p>
-                      <p className="text-xs font-medium text-emerald-400">{fmtMan(p.commission)}</p>
+                      <p className="text-[10px] text-text-tertiary">커미션</p>
+                      <p className="text-xs font-medium text-green">{fmtMan(p.commission)}</p>
                     </div>
                   </div>
                 </div>
@@ -2181,15 +2181,15 @@ function RetroAnalysisCard() {
 
   const cal = retro.calibration;
   return (
-    <div className="bg-bg-3 rounded-2xl p-5 border border-white/[0.06]">
+    <div className="bg-bg-3 rounded-2xl p-5 border border-[rgb(var(--color-overlay-rgb)/0.06)]">
       <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
-        <h3 className="text-sm font-semibold text-white">과거 회고 — 추적 설치({retro.tracker_installed_at}) 이전 성과</h3>
+        <h3 className="text-sm font-semibold text-text-primary">과거 회고 — 추적 설치({retro.tracker_installed_at}) 이전 성과</h3>
         {cal.ready ? (
-          <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-500/10 text-emerald-300 ring-1 ring-emerald-500/20">
+          <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-green/10 text-green ring-1 ring-green/20">
             보정 배율 실측됨: 추정의 {(cal.ratio! * 100).toFixed(1)}%가 실제 기여
           </span>
         ) : (
-          <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-500/10 text-amber-300 ring-1 ring-amber-500/20">
+          <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-yellow/10 text-yellow ring-1 ring-yellow/20">
             캘리브레이션 대기 — 확정 전환 {cal.confirmed_count}/{cal.min_required_confirmed}건
           </span>
         )}
@@ -2198,7 +2198,7 @@ function RetroAnalysisCard() {
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
           <thead>
-            <tr className="text-gray-500 border-b border-white/5">
+            <tr className="text-text-tertiary border-b border-[rgb(var(--color-overlay-rgb)/0.05)]">
               <th className="text-left py-1.5 pr-3 font-medium">월</th>
               <th className="text-right py-1.5 px-3 font-medium">추정 매출 (상한)</th>
               <th className="text-right py-1.5 px-3 font-medium">추정 주문</th>
@@ -2207,14 +2207,14 @@ function RetroAnalysisCard() {
           </thead>
           <tbody>
             {retro.months.map(m => (
-              <tr key={m.month} className="border-b border-white/5 last:border-0">
-                <td className="py-1.5 pr-3 text-gray-300">{m.month}</td>
-                <td className="py-1.5 px-3 text-right text-amber-300/80">₩{m.estimated_revenue.toLocaleString()}</td>
-                <td className="py-1.5 px-3 text-right text-gray-400">{m.estimated_orders.toLocaleString()}</td>
+              <tr key={m.month} className="border-b border-[rgb(var(--color-overlay-rgb)/0.05)] last:border-0">
+                <td className="py-1.5 pr-3 text-text-secondary">{m.month}</td>
+                <td className="py-1.5 px-3 text-right text-yellow/80">₩{m.estimated_revenue.toLocaleString()}</td>
+                <td className="py-1.5 px-3 text-right text-text-tertiary">{m.estimated_orders.toLocaleString()}</td>
                 <td className="py-1.5 pl-3 text-right">
                   {m.corrected_revenue != null
-                    ? <span className="text-emerald-300 font-medium">₩{m.corrected_revenue.toLocaleString()}</span>
-                    : <span className="text-gray-600">배율 실측 대기</span>}
+                    ? <span className="text-green font-medium">₩{m.corrected_revenue.toLocaleString()}</span>
+                    : <span className="text-text-tertiary">배율 실측 대기</span>}
                 </td>
               </tr>
             ))}
@@ -2222,9 +2222,9 @@ function RetroAnalysisCard() {
         </table>
       </div>
 
-      <p className="mt-3 text-[11px] leading-relaxed text-gray-500">
-        <span className="text-gray-400 font-medium">읽는 법:</span> 추정 매출은 라스트클릭 추정이라 오가닉·메타 주문이 섞인
-        <span className="text-amber-300/80"> 상한선</span>입니다. 하한선은 클릭 5분 내 가입 체인의 순신호
+      <p className="mt-3 text-[11px] leading-relaxed text-text-tertiary">
+        <span className="text-text-tertiary font-medium">읽는 법:</span> 추정 매출은 라스트클릭 추정이라 오가닉·메타 주문이 섞인
+        <span className="text-yellow/80"> 상한선</span>입니다. 하한선은 클릭 5분 내 가입 체인의 순신호
         (실제 {retro.chain_bounds.real.members.toLocaleString()}명 − 플라시보 {retro.chain_bounds.placebo_72h.members.toLocaleString()}명 =
         순 {retro.chain_bounds.net_members.toLocaleString()}명, 매출 ~₩{Math.round(retro.chain_bounds.net_revenue_30d).toLocaleString()}) 수준입니다.
         {cal.ready
@@ -2309,17 +2309,17 @@ function CampaignDebugPanel({
   if (isLoading) {
     return (
       <div className="mt-2 px-3 py-3 bg-bg-2 border border-border-primary rounded-lg flex items-center gap-2">
-        <Loader2 size={12} className="text-violet-400 animate-spin" />
-        <span className="text-xs text-gray-400">진단 중...</span>
+        <Loader2 size={12} className="text-accent animate-spin" />
+        <span className="text-xs text-text-tertiary">진단 중...</span>
       </div>
     );
   }
 
   if (isError || !data) {
     return (
-      <div className="mt-2 px-3 py-3 bg-red-500/10 border border-red-500/30 rounded-lg text-xs text-red-300">
+      <div className="mt-2 px-3 py-3 bg-red/10 border border-red/30 rounded-lg text-xs text-red">
         진단 실패: {(error as Error)?.message || '알 수 없는 오류'}
-        <button onClick={() => refetch()} className="ml-2 text-red-200 underline">재시도</button>
+        <button onClick={() => refetch()} className="ml-2 text-red underline">재시도</button>
       </div>
     );
   }
@@ -2333,65 +2333,65 @@ function CampaignDebugPanel({
   const needsReattach = data.mode === 'category' && expectedCount > 0 && liveCount < expectedCount;
 
   return (
-    <div className="mt-2 px-3 py-3 bg-bg-2 border border-violet-500/30 rounded-lg space-y-2 text-[11px]">
+    <div className="mt-2 px-3 py-3 bg-bg-2 border border-brand/30 rounded-lg space-y-2 text-[11px]">
       <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-gray-500">모드:</span>
+        <span className="text-text-tertiary">모드:</span>
         <span className={`px-1.5 py-0.5 rounded font-mono ${
-          data.mode === 'category' ? 'bg-violet-500/20 text-violet-300'
-          : data.mode === 'single_product' ? 'bg-emerald-500/20 text-emerald-300'
-          : 'bg-red-500/20 text-red-300'
+          data.mode === 'category' ? 'bg-brand/20 text-accent'
+          : data.mode === 'single_product' ? 'bg-green/20 text-green'
+          : 'bg-red/20 text-red'
         }`}>{data.mode}</span>
-        <span className="text-gray-500">도메인:</span>
-        <code className="text-gray-300">{data.domain || '(없음)'}</code>
+        <span className="text-text-tertiary">도메인:</span>
+        <code className="text-text-secondary">{data.domain || '(없음)'}</code>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-1">
-        <div><span className="text-gray-500">cafe24_category_no:</span> <code className={data.db_state.cafe24_category_no ? 'text-emerald-300' : 'text-red-300'}>{String(data.db_state.cafe24_category_no ?? 'NULL')}</code></div>
-        <div><span className="text-gray-500">cafe24_product_no:</span> <code className="text-gray-300">{String(data.db_state.cafe24_product_no ?? 'NULL')}</code></div>
-        <div><span className="text-gray-500">cafe24_category_name:</span> <code className="text-gray-300">{data.db_state.cafe24_category_name ?? 'NULL'}</code></div>
-        <div><span className="text-gray-500">coupon:</span> <code className="text-gray-300">{data.db_state.cafe24_coupon_code ?? 'NULL'}</code></div>
-        <div className="col-span-2"><span className="text-gray-500">cafe24_product_nos:</span> <code className="text-gray-300 break-all">{data.db_state.cafe24_product_nos_raw ?? 'NULL'}</code></div>
-        <div className="col-span-2"><span className="text-gray-500">cafe24_category_url:</span> <code className="text-gray-300 break-all">{data.db_state.cafe24_category_url ?? 'NULL'}</code></div>
+        <div><span className="text-text-tertiary">cafe24_category_no:</span> <code className={data.db_state.cafe24_category_no ? 'text-green' : 'text-red'}>{String(data.db_state.cafe24_category_no ?? 'NULL')}</code></div>
+        <div><span className="text-text-tertiary">cafe24_product_no:</span> <code className="text-text-secondary">{String(data.db_state.cafe24_product_no ?? 'NULL')}</code></div>
+        <div><span className="text-text-tertiary">cafe24_category_name:</span> <code className="text-text-secondary">{data.db_state.cafe24_category_name ?? 'NULL'}</code></div>
+        <div><span className="text-text-tertiary">coupon:</span> <code className="text-text-secondary">{data.db_state.cafe24_coupon_code ?? 'NULL'}</code></div>
+        <div className="col-span-2"><span className="text-text-tertiary">cafe24_product_nos:</span> <code className="text-text-secondary break-all">{data.db_state.cafe24_product_nos_raw ?? 'NULL'}</code></div>
+        <div className="col-span-2"><span className="text-text-tertiary">cafe24_category_url:</span> <code className="text-text-secondary break-all">{data.db_state.cafe24_category_url ?? 'NULL'}</code></div>
       </div>
 
       {live ? (
         <div className="border-t border-border-primary pt-2">
-          <p className="font-medium text-gray-300 mb-1">카페24 라이브 상태 (PUT/GET 결과)</p>
+          <p className="font-medium text-text-secondary mb-1">카페24 라이브 상태 (PUT/GET 결과)</p>
           {live.exists === false ? (
-            <p className="text-red-300">카테고리가 카페24에 존재하지 않음 — {live.error}</p>
+            <p className="text-red">카테고리가 카페24에 존재하지 않음 — {live.error}</p>
           ) : (
             <>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-1">
-                <div>use_display: <code className={live.use_display === 'T' ? 'text-emerald-300' : 'text-red-300'}>{live.use_display ?? '?'}</code></div>
-                <div>display_type: <code className="text-gray-300">{live.display_type ?? '?'}</code></div>
-                <div>use_main: <code className="text-gray-300">{live.use_main ?? '?'}</code></div>
-                <div>access_authority: <code className={live.access_authority === 'A' || !live.access_authority ? 'text-emerald-300' : 'text-amber-300'}>{live.access_authority ?? '?'}</code></div>
-                <div>display_pc_yn(legacy): <code className="text-gray-500">{live.display_pc_yn ?? 'null'}</code></div>
-                <div>display_mobile_yn(legacy): <code className="text-gray-500">{live.display_mobile_yn ?? 'null'}</code></div>
+                <div>use_display: <code className={live.use_display === 'T' ? 'text-green' : 'text-red'}>{live.use_display ?? '?'}</code></div>
+                <div>display_type: <code className="text-text-secondary">{live.display_type ?? '?'}</code></div>
+                <div>use_main: <code className="text-text-secondary">{live.use_main ?? '?'}</code></div>
+                <div>access_authority: <code className={live.access_authority === 'A' || !live.access_authority ? 'text-green' : 'text-yellow'}>{live.access_authority ?? '?'}</code></div>
+                <div>display_pc_yn(legacy): <code className="text-text-tertiary">{live.display_pc_yn ?? 'null'}</code></div>
+                <div>display_mobile_yn(legacy): <code className="text-text-tertiary">{live.display_mobile_yn ?? 'null'}</code></div>
               </div>
               {live.all_keys && live.all_keys.length > 0 && (
                 <details className="mt-2">
-                  <summary className="text-gray-500 cursor-pointer">카페24 응답 전체 키 ({live.all_keys.length}개)</summary>
-                  <code className="block mt-1 text-[10px] text-gray-400 break-all">{live.all_keys.join(', ')}</code>
+                  <summary className="text-text-tertiary cursor-pointer">카페24 응답 전체 키 ({live.all_keys.length}개)</summary>
+                  <code className="block mt-1 text-[10px] text-text-tertiary break-all">{live.all_keys.join(', ')}</code>
                 </details>
               )}
             </>
           )}
         </div>
       ) : data.mode === 'category' ? (
-        <p className="text-amber-300">cafe24_category_no는 있는데 라이브 조회 실패</p>
+        <p className="text-yellow">cafe24_category_no는 있는데 라이브 조회 실패</p>
       ) : null}
 
       {data.mode === 'category' && (data.expected_product_nos !== undefined) && (
         <div className="border-t border-border-primary pt-2">
-          <p className="font-medium text-gray-300 mb-1">카테고리 상품 첨부 상태</p>
+          <p className="font-medium text-text-secondary mb-1">카테고리 상품 첨부 상태</p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-3 gap-y-1">
-            <div>예상(DB): <code className="text-gray-300">{data.expected_product_nos?.length ?? 0}개</code></div>
-            <div>실제(카페24): <code className={(data.live_product_nos?.length ?? 0) > 0 ? 'text-emerald-300' : 'text-red-300'}>{data.live_product_nos?.length ?? 0}개</code></div>
-            <div>누락: <code className={(data.missing_in_category?.length ?? 0) > 0 ? 'text-amber-300' : 'text-emerald-300'}>{data.missing_in_category?.length ?? 0}개</code></div>
+            <div>예상(DB): <code className="text-text-secondary">{data.expected_product_nos?.length ?? 0}개</code></div>
+            <div>실제(카페24): <code className={(data.live_product_nos?.length ?? 0) > 0 ? 'text-green' : 'text-red'}>{data.live_product_nos?.length ?? 0}개</code></div>
+            <div>누락: <code className={(data.missing_in_category?.length ?? 0) > 0 ? 'text-yellow' : 'text-green'}>{data.missing_in_category?.length ?? 0}개</code></div>
           </div>
           {(data.missing_in_category?.length ?? 0) > 0 && (
-            <p className="text-[10px] text-amber-300 mt-1">
+            <p className="text-[10px] text-yellow mt-1">
               누락된 상품 번호: <code className="break-all">{data.missing_in_category?.join(', ')}</code>
             </p>
           )}
@@ -2400,23 +2400,23 @@ function CampaignDebugPanel({
 
       {data.storefront_probes && data.storefront_probes.length > 0 && (
         <div className="border-t border-border-primary pt-2">
-          <p className="font-medium text-gray-300 mb-1">URL 패턴별 실제 응답 테스트</p>
+          <p className="font-medium text-text-secondary mb-1">URL 패턴별 실제 응답 테스트</p>
           <div className="space-y-1">
             {data.storefront_probes.map((p, i) => (
               <div key={i} className="flex items-start gap-2 text-[10px]">
                 <span className={`px-1.5 py-0.5 rounded font-mono shrink-0 ${
-                  p.ok ? 'bg-emerald-500/20 text-emerald-300'
-                  : p.redirected_to_home ? 'bg-red-500/20 text-red-300'
-                  : 'bg-amber-500/20 text-amber-300'
+                  p.ok ? 'bg-green/20 text-green'
+                  : p.redirected_to_home ? 'bg-red/20 text-red'
+                  : 'bg-yellow/20 text-yellow'
                 }`}>
                   {p.ok ? '✓ OK' : p.redirected_to_home ? '✗ 홈리다이렉트' : `${p.final_status ?? '?'}`}
                 </span>
-                <code className="text-gray-300 break-all flex-1">{p.url}</code>
+                <code className="text-text-secondary break-all flex-1">{p.url}</code>
               </div>
             ))}
           </div>
           {workingProbe && (
-            <p className="text-[10px] text-emerald-300 mt-1">
+            <p className="text-[10px] text-green mt-1">
               → 동작하는 URL 패턴이 있습니다. 코드가 자동으로 이 패턴을 사용하도록 갱신됩니다.
             </p>
           )}
@@ -2424,14 +2424,14 @@ function CampaignDebugPanel({
       )}
 
       <div className="border-t border-border-primary pt-2">
-        <span className="text-gray-500">실제 리다이렉트 목적지:</span>
-        <code className="text-gray-300 break-all ml-1">{data.simulated_destination ?? 'NULL'}</code>
+        <span className="text-text-tertiary">실제 리다이렉트 목적지:</span>
+        <code className="text-text-secondary break-all ml-1">{data.simulated_destination ?? 'NULL'}</code>
       </div>
 
       {data.recommendation && (
-        <div className="border-t border-border-primary pt-2 bg-amber-500/5 -mx-3 -mb-3 px-3 py-2 rounded-b-lg">
-          <p className="text-amber-300 font-medium">권장 조치</p>
-          <p className="text-gray-300 mt-0.5 leading-relaxed">{data.recommendation}</p>
+        <div className="border-t border-border-primary pt-2 bg-yellow/5 -mx-3 -mb-3 px-3 py-2 rounded-b-lg">
+          <p className="text-yellow font-medium">권장 조치</p>
+          <p className="text-text-secondary mt-0.5 leading-relaxed">{data.recommendation}</p>
         </div>
       )}
 
@@ -2440,7 +2440,7 @@ function CampaignDebugPanel({
           <button
             onClick={onReattach}
             disabled={reattaching}
-            className="px-3 py-1.5 text-xs bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 text-amber-200 rounded font-semibold disabled:opacity-50 flex items-center gap-1.5 shadow-[0_0_12px_rgba(245,158,11,0.2)]"
+            className="px-3 py-1.5 text-xs bg-yellow/20 hover:bg-yellow/30 border border-yellow/50 text-yellow rounded font-semibold disabled:opacity-50 flex items-center gap-1.5 shadow-[0_0_12px_rgba(245,158,11,0.2)]"
           >
             {reattaching ? <Loader2 size={12} className="animate-spin" /> : <ShoppingBag size={12} />}
             상품 재첨부 ({liveCount}→{expectedCount}개)
@@ -2450,18 +2450,18 @@ function CampaignDebugPanel({
           <button
             onClick={onRepublish}
             disabled={republishing}
-            className="px-3 py-1.5 text-xs bg-violet-500/20 hover:bg-violet-500/30 border border-violet-500/50 text-violet-200 rounded font-semibold disabled:opacity-50 flex items-center gap-1.5"
+            className="px-3 py-1.5 text-xs bg-brand/20 hover:bg-brand/30 border border-brand/50 text-accent rounded font-semibold disabled:opacity-50 flex items-center gap-1.5"
           >
             {republishing ? <Loader2 size={12} className="animate-spin" /> : <Store size={12} />}
             URL 활성화
           </button>
         )}
         {liveOk && liveCount === expectedCount && (
-          <span className="px-2.5 py-1 text-[10px] bg-emerald-500/20 text-emerald-300 rounded">정상 동작 중</span>
+          <span className="px-2.5 py-1 text-[10px] bg-green/20 text-green rounded">정상 동작 중</span>
         )}
         <button
           onClick={() => refetch()}
-          className="px-2.5 py-1 text-[10px] text-gray-400 border border-border-primary hover:text-white hover:border-gray-500 rounded"
+          className="px-2.5 py-1 text-[10px] text-text-tertiary border border-border-primary hover:text-text-primary hover:border-border-tertiary rounded"
         >
           새로고침
         </button>
@@ -2470,7 +2470,7 @@ function CampaignDebugPanel({
             href={data.simulated_destination}
             target="_blank"
             rel="noreferrer"
-            className="px-2.5 py-1 text-[10px] text-blue-300 border border-blue-500/30 hover:bg-blue-500/10 rounded flex items-center gap-1"
+            className="px-2.5 py-1 text-[10px] text-blue border border-blue/30 hover:bg-blue/10 rounded flex items-center gap-1"
           >
             🔗 직접 열어보기
           </a>
@@ -2783,10 +2783,10 @@ function CampaignsSection() {
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h2 className="text-lg font-bold text-white">어필리에이트 캠페인</h2>
+        <h2 className="text-lg font-bold text-text-primary">어필리에이트 캠페인</h2>
         <button
           onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium rounded-lg transition-colors"
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-green hover:bg-green text-white text-xs font-medium rounded-lg transition-colors"
         >
           <Plus size={14} /> 새 캠페인
         </button>
@@ -2796,9 +2796,9 @@ function CampaignsSection() {
       <FilterTabs<CampaignStatusTab>
         options={[
           { key: 'all',     label: '전체',     count: tabCounts.all },
-          { key: 'pending', label: '진행 대기', count: tabCounts.pending, tabColor: 'border-amber-400 text-amber-300' },
-          { key: 'active',  label: '진행 중',   count: tabCounts.active,  tabColor: 'border-emerald-400 text-emerald-300' },
-          { key: 'ended',   label: '종료',     count: tabCounts.ended,   tabColor: 'border-gray-400 text-gray-300' },
+          { key: 'pending', label: '진행 대기', count: tabCounts.pending, tabColor: 'border-yellow/50 text-yellow' },
+          { key: 'active',  label: '진행 중',   count: tabCounts.active,  tabColor: 'border-green/50 text-green' },
+          { key: 'ended',   label: '종료',     count: tabCounts.ended,   tabColor: 'border-border-secondary text-text-secondary' },
         ]}
         value={statusTab}
         onChange={setStatusTab}
@@ -2815,21 +2815,21 @@ function CampaignsSection() {
       </div>
 
       {isError && (
-        <div className="flex items-center gap-2 px-4 py-2 bg-red-500/10 border border-red-500/20 rounded-lg">
-          <AlertCircle size={14} className="text-red-400" />
-          <p className="text-xs text-red-400">캠페인 목록을 불러오지 못했습니다</p>
+        <div className="flex items-center gap-2 px-4 py-2 bg-red/10 border border-red/20 rounded-lg">
+          <AlertCircle size={14} className="text-red" />
+          <p className="text-xs text-red">캠페인 목록을 불러오지 못했습니다</p>
         </div>
       )}
 
       {showForm && (
-        <div className="bg-bg-3 rounded-xl p-4 border border-emerald-500/30 space-y-4">
-          <h3 className="text-sm font-semibold text-white">
+        <div className="bg-bg-3 rounded-xl p-4 border border-green/30 space-y-4">
+          <h3 className="text-sm font-semibold text-text-primary">
             {editingCampaignId !== null ? '캠페인 수정' : '새 캠페인 만들기'}
           </h3>
           {editingCampaignId === null && form.name.startsWith('[복사] ') && (
-            <div className="flex items-start gap-2 px-3 py-2 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
-              <Copy size={13} className="text-emerald-400 mt-0.5 shrink-0" />
-              <div className="text-[11px] text-emerald-200 leading-relaxed">
+            <div className="flex items-start gap-2 px-3 py-2 bg-green/10 border border-green/30 rounded-lg">
+              <Copy size={13} className="text-green mt-0.5 shrink-0" />
+              <div className="text-[11px] text-green leading-relaxed">
                 기존 캠페인 설정값이 복사되었습니다. <span className="font-semibold">캠페인명</span>과 <span className="font-semibold">진행 기간</span>만 수정한 뒤 생성하세요.
                 상품·할인·커미션 설정은 그대로 유지되며, 새 쿠폰{form.auto_create_category ? '과 새 비공개 카테고리' : ''}이/가 발급됩니다.
               </div>
@@ -2837,21 +2837,21 @@ function CampaignsSection() {
           )}
           <div className="grid md:grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-gray-400">캠페인명 *</label>
+              <label className="text-xs text-text-tertiary">캠페인명 *</label>
               <input
                 value={form.name}
                 onChange={e => setForm({ ...form, name: e.target.value })}
                 placeholder="예: 여름 신상 프로모션"
-                className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary placeholder:text-gray-600 focus:outline-none focus:border-emerald-500/50"
+                className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-green/50"
               />
             </div>
             <div>
-              <label className="text-xs text-gray-400">대상 상품 (직접 입력)</label>
+              <label className="text-xs text-text-tertiary">대상 상품 (직접 입력)</label>
               <input
                 value={form.product}
                 onChange={e => setForm({ ...form, product: e.target.value })}
                 placeholder="예: 저당 디저트 세트"
-                className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary placeholder:text-gray-600 focus:outline-none focus:border-emerald-500/50"
+                className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-green/50"
               />
             </div>
           </div>
@@ -2859,16 +2859,16 @@ function CampaignsSection() {
           {/* Cafe24 상품 셀렉터 — 단일 / 다중(카테고리) 모드 토글 */}
           <div className="border border-border-primary rounded-xl p-3 space-y-3">
             <div className="flex items-center gap-2">
-              <Store size={13} className={isCafe24Connected ? 'text-emerald-400' : 'text-gray-600'} />
-              <span className="text-xs font-medium text-gray-300">Cafe24 상품 연결</span>
-              {!isCafe24Connected && <span className="text-[10px] text-amber-400/70">(연결 필요)</span>}
+              <Store size={13} className={isCafe24Connected ? 'text-green' : 'text-text-tertiary'} />
+              <span className="text-xs font-medium text-text-secondary">Cafe24 상품 연결</span>
+              {!isCafe24Connected && <span className="text-[10px] text-yellow/70">(연결 필요)</span>}
               {editingCampaignId !== null && (
-                <span className="text-[10px] px-1.5 py-0.5 bg-gray-500/20 text-gray-400 rounded ml-auto">수정 불가 (쿠폰 발급 완료)</span>
+                <span className="text-[10px] px-1.5 py-0.5 bg-bg-3/20 text-text-tertiary rounded ml-auto">수정 불가 (쿠폰 발급 완료)</span>
               )}
             </div>
 
             {editingCampaignId !== null ? (
-              <div className="px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-xs text-gray-500">
+              <div className="px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-xs text-text-tertiary">
                 {form.cafe24_category_name
                   ? `비공개 카테고리: ${form.cafe24_category_name} (${(form.cafe24_product_meta?.length ?? form.cafe24_product_nos?.length ?? 0)}개 상품)`
                   : form.cafe24_product_name
@@ -2884,8 +2884,8 @@ function CampaignsSection() {
                     onClick={() => setForm({ ...form, auto_create_category: false, cafe24_product_nos: undefined, cafe24_product_meta: undefined, cafe24_category_name: undefined })}
                     className={`flex-1 py-1.5 text-[11px] rounded-md font-medium transition-all ${
                       !form.auto_create_category
-                        ? 'bg-emerald-600 text-white shadow-[0_2px_8px_rgba(16,185,129,0.3)]'
-                        : 'text-gray-400 hover:text-white'
+                        ? 'bg-green text-white shadow-[0_2px_8px_rgba(16,185,129,0.3)]'
+                        : 'text-text-tertiary hover:text-text-primary'
                     }`}
                   >
                     단일 상품
@@ -2896,8 +2896,8 @@ function CampaignsSection() {
                     disabled={!isCafe24Connected}
                     className={`flex-1 py-1.5 text-[11px] rounded-md font-medium transition-all disabled:opacity-50 ${
                       form.auto_create_category
-                        ? 'bg-violet-600 text-white shadow-[0_2px_8px_rgba(139,92,246,0.3)]'
-                        : 'text-gray-400 hover:text-white'
+                        ? 'bg-brand text-white shadow-[0_2px_8px_rgba(139,92,246,0.3)]'
+                        : 'text-text-tertiary hover:text-text-primary'
                     }`}
                   >
                     비공개 카테고리 (다중 상품)
@@ -2915,14 +2915,14 @@ function CampaignsSection() {
                 ) : (
                   <div className="space-y-3">
                     <div>
-                      <label className="text-[11px] text-gray-400">카테고리명 (선택, 비워두면 캠페인명 사용)</label>
+                      <label className="text-[11px] text-text-tertiary">카테고리명 (선택, 비워두면 캠페인명 사용)</label>
                       <input
                         value={form.cafe24_category_name ?? ''}
                         onChange={e => setForm({ ...form, cafe24_category_name: e.target.value })}
                         placeholder={`예: [비공개] ${form.name || '캠페인명'}`}
-                        className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary placeholder:text-gray-600 focus:outline-none focus:border-violet-500/50"
+                        className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-brand/50"
                       />
-                      <p className="text-[10px] text-gray-500 mt-1">
+                      <p className="text-[10px] text-text-tertiary mt-1">
                         카페24에 진열되지 않는 비공개 카테고리가 자동 생성됩니다. 인플루언서는 링크로만 접근 가능.
                       </p>
                     </div>
@@ -2943,20 +2943,20 @@ function CampaignsSection() {
 
           {/* 할인 설정 */}
           <div className="border border-border-primary rounded-xl p-3 space-y-2">
-            <span className="text-xs font-medium text-gray-300 flex items-center gap-1.5">
+            <span className="text-xs font-medium text-text-secondary flex items-center gap-1.5">
               <Tag size={12} /> 쿠폰 할인 설정
               {editingCampaignId !== null && (
-                <span className="text-[10px] px-1.5 py-0.5 bg-gray-500/20 text-gray-400 rounded ml-auto">수정 불가 (쿠폰 발급 완료)</span>
+                <span className="text-[10px] px-1.5 py-0.5 bg-bg-3/20 text-text-tertiary rounded ml-auto">수정 불가 (쿠폰 발급 완료)</span>
               )}
             </span>
             <div className="grid md:grid-cols-2 gap-3">
               <div>
-                <label className="text-xs text-gray-400">할인 유형</label>
+                <label className="text-xs text-text-tertiary">할인 유형</label>
                 <select
                   value={form.discount_type ?? 'percentage'}
                   onChange={e => setForm({ ...form, discount_type: e.target.value as 'percentage' | 'fixed' | 'shipping' })}
                   disabled={editingCampaignId !== null}
-                  className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-emerald-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-green/50 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <option value="percentage">비율 할인 (%)</option>
                   <option value="fixed">금액 할인 (₩)</option>
@@ -2964,7 +2964,7 @@ function CampaignsSection() {
                 </select>
               </div>
               <div>
-                <label className="text-xs text-gray-400">
+                <label className="text-xs text-text-tertiary">
                   {form.discount_type === 'percentage' ? '할인율 (%)' : form.discount_type === 'fixed' ? '할인 금액 (₩)' : '할인 금액 (₩, 배송비)'}
                 </label>
                 <input
@@ -2972,7 +2972,7 @@ function CampaignsSection() {
                   value={form.discount_value ?? 0}
                   onChange={e => setForm({ ...form, discount_value: Number(e.target.value) })}
                   readOnly={editingCampaignId !== null}
-                  className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-emerald-500/50 read-only:opacity-50 read-only:cursor-not-allowed"
+                  className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-green/50 read-only:opacity-50 read-only:cursor-not-allowed"
                 />
               </div>
             </div>
@@ -2980,50 +2980,50 @@ function CampaignsSection() {
 
           <div className="grid md:grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-gray-400">커미션 유형</label>
+              <label className="text-xs text-text-tertiary">커미션 유형</label>
               <select
                 value={form.commission_type}
                 onChange={e => setForm({ ...form, commission_type: e.target.value as 'percentage' | 'fixed' })}
-                className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-emerald-500/50"
+                className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-green/50"
               >
                 <option value="percentage">매출 비율 (%)</option>
                 <option value="fixed">건당 고정 금액 (₩)</option>
               </select>
             </div>
             <div>
-              <label className="text-xs text-gray-400">
+              <label className="text-xs text-text-tertiary">
                 {form.commission_type === 'percentage' ? '커미션 비율 (%)' : '건당 금액 (₩)'}
               </label>
               <input
                 type="number"
                 value={form.commission_rate}
                 onChange={e => setForm({ ...form, commission_rate: Number(e.target.value) })}
-                className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-emerald-500/50"
+                className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-green/50"
               />
             </div>
             <div>
-              <label className="text-xs text-gray-400">시작일 *</label>
+              <label className="text-xs text-text-tertiary">시작일 *</label>
               <input
                 type="date"
                 value={form.start_date}
                 onChange={e => setForm({ ...form, start_date: e.target.value })}
-                className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-emerald-500/50"
+                className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-green/50"
               />
             </div>
             <div>
-              <label className="text-xs text-gray-400">종료일 (선택)</label>
+              <label className="text-xs text-text-tertiary">종료일 (선택)</label>
               <input
                 type="date"
                 value={form.end_date}
                 onChange={e => setForm({ ...form, end_date: e.target.value })}
-                className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-emerald-500/50"
+                className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-green/50"
               />
             </div>
           </div>
           <div className="flex gap-2 justify-end">
             <button
               onClick={handleCancelForm}
-              className="px-3 py-1.5 text-xs text-gray-400 border border-border-primary rounded-lg hover:text-white hover:border-gray-500 transition-colors"
+              className="px-3 py-1.5 text-xs text-text-tertiary border border-border-primary rounded-lg hover:text-text-primary hover:border-border-tertiary transition-colors"
             >
               취소
             </button>
@@ -3031,7 +3031,7 @@ function CampaignsSection() {
               <button
                 onClick={handleSaveEdit}
                 disabled={editSaveMutation.isPending}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium rounded-lg transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-blue hover:bg-blue disabled:opacity-50 text-white font-medium rounded-lg transition-colors"
               >
                 {editSaveMutation.isPending && <Loader2 size={12} className="animate-spin" />}
                 변경사항 저장
@@ -3040,7 +3040,7 @@ function CampaignsSection() {
               <button
                 onClick={handleCreate}
                 disabled={createMutation.isPending}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-medium rounded-lg transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-green hover:bg-green disabled:opacity-50 text-white font-medium rounded-lg transition-colors"
               >
                 {createMutation.isPending && <Loader2 size={12} className="animate-spin" />}
                 캠페인 생성
@@ -3052,22 +3052,22 @@ function CampaignsSection() {
 
       {campaigns.length === 0 && !isError ? (
         <div className="flex flex-col items-center justify-center py-16 gap-3 bg-bg-3 rounded-xl border border-border-primary">
-          <Megaphone size={28} className="text-gray-600" />
-          <p className="text-sm text-gray-400">아직 생성된 캠페인이 없습니다</p>
+          <Megaphone size={28} className="text-text-tertiary" />
+          <p className="text-sm text-text-tertiary">아직 생성된 캠페인이 없습니다</p>
           <button
             onClick={() => setShowForm(true)}
-            className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium rounded-lg transition-colors"
+            className="flex items-center gap-1.5 px-4 py-2 bg-green hover:bg-green text-white text-xs font-medium rounded-lg transition-colors"
           >
             <Plus size={14} /> 첫 캠페인 만들기
           </button>
         </div>
       ) : filteredCampaigns.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 gap-2 bg-bg-3 rounded-xl border border-border-primary">
-          <Filter size={24} className="text-gray-600" />
-          <p className="text-sm text-gray-400">필터 조건에 해당하는 캠페인이 없습니다</p>
+          <Filter size={24} className="text-text-tertiary" />
+          <p className="text-sm text-text-tertiary">필터 조건에 해당하는 캠페인이 없습니다</p>
           <button
             onClick={() => { setStatusTab('all'); setSearch(''); setDateRange({ start: '', end: '' }); }}
-            className="text-[11px] text-emerald-400 hover:text-emerald-300 underline mt-1"
+            className="text-[11px] text-green hover:text-green underline mt-1"
           >
             필터 초기화
           </button>
@@ -3084,22 +3084,22 @@ function CampaignsSection() {
                   )}
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="text-sm font-semibold text-white">{c.name}</h3>
+                      <h3 className="text-sm font-semibold text-text-primary">{c.name}</h3>
                       <span className={`text-[10px] px-2 py-0.5 rounded ${campaignStatusBadge(c.status)}`}>
                         {campaignStatusLabel(c.status)}
                       </span>
                       {c.cafe24_category_no && (
-                        <span className="text-[10px] px-2 py-0.5 bg-violet-500/20 text-violet-300 border border-violet-500/30 rounded flex items-center gap-1">
+                        <span className="text-[10px] px-2 py-0.5 bg-brand/20 text-accent border border-brand/30 rounded flex items-center gap-1">
                           <Store size={9} /> 비공개 카테고리 #{c.cafe24_category_no}
                         </span>
                       )}
                       {c.cafe24_coupon_code && (
-                        <span className="text-[10px] px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded flex items-center gap-1">
+                        <span className="text-[10px] px-2 py-0.5 bg-blue/20 text-blue rounded flex items-center gap-1">
                           <Tag size={9} /> {c.cafe24_coupon_code}
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-gray-500 mt-0.5">
+                    <p className="text-xs text-text-tertiary mt-0.5">
                       {c.cafe24_category_name
                         ? `${c.cafe24_category_name} · ${c.commission_type === 'percentage' ? `${c.commission_rate}%` : `₩${fmt(c.commission_rate)}/건`}`
                         : `${c.cafe24_product_name ?? c.product} · ${c.commission_type === 'percentage' ? `${c.commission_rate}%` : `₩${fmt(c.commission_rate)}/건`}`}
@@ -3107,13 +3107,13 @@ function CampaignsSection() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <p className="text-xs text-gray-500 hidden md:block">{c.start_date} ~ {c.end_date ?? '진행중'}</p>
+                  <p className="text-xs text-text-tertiary hidden md:block">{c.start_date} ~ {c.end_date ?? '진행중'}</p>
                   <button
                     onClick={() => toggleDebug(c.id)}
                     className={`px-2 py-0.5 text-[10px] rounded transition-colors border flex items-center gap-1 ${
                       debugOpenIds.has(c.id)
-                        ? 'bg-violet-500/20 border-violet-400/50 text-violet-200'
-                        : 'border-violet-400/40 text-violet-300 hover:bg-violet-400/10'
+                        ? 'bg-brand/20 border-brand/50 text-accent'
+                        : 'border-brand/40 text-accent hover:bg-brand/10'
                     }`}
                     title="DB와 카페24 라이브 상태 진단"
                   >
@@ -3124,22 +3124,22 @@ function CampaignsSection() {
                     disabled={updateMutation.isPending}
                     className={`px-2 py-0.5 text-[10px] rounded transition-colors ${
                       c.status === 'active'
-                        ? 'border border-yellow-400/30 text-yellow-400 hover:bg-yellow-400/10'
-                        : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                        ? 'border border-yellow/30 text-yellow hover:bg-yellow/10'
+                        : 'bg-green hover:bg-green text-white'
                     }`}
                   >
                     {c.status === 'active' ? '일시정지' : '재개'}
                   </button>
                   <button
                     onClick={() => handleStartEdit(c)}
-                    className="p-1 text-gray-500 hover:text-blue-400 transition-colors"
+                    className="p-1 text-text-tertiary hover:text-blue transition-colors"
                     title="캠페인 수정"
                   >
                     <Pencil size={12} />
                   </button>
                   <button
                     onClick={() => handleDuplicate(c)}
-                    className="p-1 text-gray-500 hover:text-emerald-400 transition-colors"
+                    className="p-1 text-text-tertiary hover:text-green transition-colors"
                     title="이 캠페인 설정으로 새 캠페인 만들기 (복사)"
                   >
                     <Copy size={12} />
@@ -3151,7 +3151,7 @@ function CampaignsSection() {
                       }
                     }}
                     disabled={deleteMutation.isPending}
-                    className="p-1 text-gray-500 hover:text-red-400 transition-colors"
+                    className="p-1 text-text-tertiary hover:text-red transition-colors"
                     title="캠페인 삭제"
                   >
                     <X size={12} />
@@ -3159,24 +3159,24 @@ function CampaignsSection() {
                 </div>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-center bg-bg-2 rounded-lg p-3">
-                <div><p className="text-[10px] text-gray-500">파트너</p><p className="text-sm font-bold text-white">{c.partner_count}명</p></div>
-                <div><p className="text-[10px] text-gray-500">클릭</p><p className="text-sm font-bold text-white">{fmt(c.click_count)}</p></div>
-                <div><p className="text-[10px] text-gray-500">전환</p><p className="text-sm font-bold text-cyan-400">{c.conversion_count}건</p></div>
-                <div><p className="text-[10px] text-gray-500">매출</p><p className="text-sm font-bold text-emerald-400">₩{fmt(c.total_sales)}</p></div>
-                <div><p className="text-[10px] text-gray-500">커미션</p><p className="text-sm font-bold text-yellow-400">₩{fmt(c.total_commission)}</p></div>
+                <div><p className="text-[10px] text-text-tertiary">파트너</p><p className="text-sm font-bold text-text-primary">{c.partner_count}명</p></div>
+                <div><p className="text-[10px] text-text-tertiary">클릭</p><p className="text-sm font-bold text-text-primary">{fmt(c.click_count)}</p></div>
+                <div><p className="text-[10px] text-text-tertiary">전환</p><p className="text-sm font-bold text-teal">{c.conversion_count}건</p></div>
+                <div><p className="text-[10px] text-text-tertiary">매출</p><p className="text-sm font-bold text-green">₩{fmt(c.total_sales)}</p></div>
+                <div><p className="text-[10px] text-text-tertiary">커미션</p><p className="text-sm font-bold text-yellow">₩{fmt(c.total_commission)}</p></div>
               </div>
               {c.referral_link && (
                 <div className="mt-2 flex items-center gap-2 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg">
-                  <Link2 size={12} className="text-blue-400 shrink-0" />
+                  <Link2 size={12} className="text-blue shrink-0" />
                   <input
                     readOnly
                     value={c.referral_link}
-                    className="flex-1 bg-transparent text-xs text-gray-300 truncate focus:outline-none"
+                    className="flex-1 bg-transparent text-xs text-text-secondary truncate focus:outline-none"
                   />
                   <button
                     type="button"
                     onClick={() => { navigator.clipboard.writeText(c.referral_link!); toast.success('링크가 복사되었습니다'); }}
-                    className="shrink-0 px-2 py-1 bg-[#3B82F6] hover:bg-[#2563EB] rounded text-[10px] text-white transition-colors flex items-center gap-1"
+                    className="shrink-0 px-2 py-1 bg-[#3B82F6] hover:bg-[#2563EB] rounded text-[10px] text-text-primary transition-colors flex items-center gap-1"
                   >
                     <Copy size={10} /> 복사
                   </button>
@@ -3262,8 +3262,8 @@ function PartnerTimeseriesChart({
   return (
     <div className="rounded-xl border border-border-primary bg-bg-2 p-4 space-y-3">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-          <TrendingUp size={14} className="text-emerald-400" /> 파트너 일별 매출 추이
+        <h3 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+          <TrendingUp size={14} className="text-green" /> 파트너 일별 매출 추이
         </h3>
         <div className="flex items-center gap-1 bg-bg-1 border border-border-primary rounded-lg p-0.5">
           {([7, 30, 90] as const).map(d => (
@@ -3272,8 +3272,8 @@ function PartnerTimeseriesChart({
               onClick={() => onChangeDays(d)}
               className={`px-2.5 py-1 text-[11px] rounded transition-colors ${
                 days === d
-                  ? 'bg-emerald-600 text-white'
-                  : 'text-gray-400 hover:text-white'
+                  ? 'bg-green text-white'
+                  : 'text-text-tertiary hover:text-text-primary'
               }`}
             >
               {d}일
@@ -3285,24 +3285,24 @@ function PartnerTimeseriesChart({
       {/* 요약 KPI 라인 */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-[11px]">
         <div className="bg-bg-1 rounded-lg px-2.5 py-1.5">
-          <p className="text-gray-500">기간 매출</p>
-          <p className="text-emerald-300 font-bold tabular-nums">₩{fmt(totals.sales)}</p>
+          <p className="text-text-tertiary">기간 매출</p>
+          <p className="text-green font-bold tabular-nums">₩{fmt(totals.sales)}</p>
         </div>
         <div className="bg-bg-1 rounded-lg px-2.5 py-1.5">
-          <p className="text-gray-500">전환</p>
-          <p className="text-cyan-300 font-bold tabular-nums">{fmt(totals.conversions)}건</p>
+          <p className="text-text-tertiary">전환</p>
+          <p className="text-teal font-bold tabular-nums">{fmt(totals.conversions)}건</p>
         </div>
         <div className="bg-bg-1 rounded-lg px-2.5 py-1.5">
-          <p className="text-gray-500">클릭</p>
-          <p className="text-white font-bold tabular-nums">{fmt(totals.clicks)}</p>
+          <p className="text-text-tertiary">클릭</p>
+          <p className="text-text-primary font-bold tabular-nums">{fmt(totals.clicks)}</p>
         </div>
         <div className="bg-bg-1 rounded-lg px-2.5 py-1.5">
-          <p className="text-gray-500">환불·취소</p>
-          <p className="text-rose-300 font-bold tabular-nums">₩{fmt(totals.refunded + totals.cancelled)}</p>
+          <p className="text-text-tertiary">환불·취소</p>
+          <p className="text-red font-bold tabular-nums">₩{fmt(totals.refunded + totals.cancelled)}</p>
         </div>
         <div className="bg-bg-1 rounded-lg px-2.5 py-1.5">
-          <p className="text-gray-500">최고 매출일</p>
-          <p className="text-amber-300 font-bold tabular-nums">
+          <p className="text-text-tertiary">최고 매출일</p>
+          <p className="text-yellow font-bold tabular-nums">
             {peakDay ? `${peakDay.date.slice(5)} (₩${fmt(peakDay.sales)})` : '—'}
           </p>
         </div>
@@ -3310,10 +3310,10 @@ function PartnerTimeseriesChart({
 
       {loading ? (
         <div className="flex items-center justify-center h-48">
-          <Loader2 size={18} className="text-emerald-400 animate-spin" />
+          <Loader2 size={18} className="text-green animate-spin" />
         </div>
       ) : totals.clicks === 0 && totals.sales === 0 ? (
-        <div className="flex flex-col items-center justify-center h-48 gap-2 text-gray-500">
+        <div className="flex flex-col items-center justify-center h-48 gap-2 text-text-tertiary">
           <BarChart2 size={24} />
           <p className="text-xs">기간 내 활동 데이터가 없습니다</p>
         </div>
@@ -3428,20 +3428,20 @@ function PartnerDailyLog({
       <button
         type="button"
         onClick={onToggle}
-        className="w-full flex items-center justify-between p-4 hover:bg-white/[0.02] transition-colors"
+        className="w-full flex items-center justify-between p-4 hover:bg-[rgb(var(--color-overlay-rgb)/0.02)] transition-colors"
       >
-        <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-          <BarChart2 size={14} className="text-cyan-400" />
+        <h3 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+          <BarChart2 size={14} className="text-teal" />
           일자별 주문 로그
           {audit && totalCount > 0 && (
-            <span className="text-[10px] px-1.5 py-0.5 bg-cyan-500/20 text-cyan-300 rounded">
+            <span className="text-[10px] px-1.5 py-0.5 bg-teal/20 text-teal rounded">
               최근 {totalCount}건
             </span>
           )}
         </h3>
         <ChevronDown
           size={16}
-          className={`text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+          className={`text-text-tertiary transition-transform ${isOpen ? 'rotate-180' : ''}`}
         />
       </button>
 
@@ -3449,10 +3449,10 @@ function PartnerDailyLog({
         <div className="p-4 pt-0">
           {loading || !audit ? (
             <div className="flex items-center justify-center py-6">
-              <Loader2 size={16} className="text-cyan-400 animate-spin" />
+              <Loader2 size={16} className="text-teal animate-spin" />
             </div>
           ) : grouped.length === 0 ? (
-            <p className="text-xs text-gray-500 text-center py-4">
+            <p className="text-xs text-text-tertiary text-center py-4">
               주문 데이터가 없습니다
             </p>
           ) : (
@@ -3465,22 +3465,22 @@ function PartnerDailyLog({
                 return (
                   <div key={day} className="rounded-lg border border-border-primary overflow-hidden">
                     <div className="flex items-center justify-between bg-bg-1 px-3 py-2 text-[11px]">
-                      <span className="font-mono text-gray-300 font-medium">{day}</span>
+                      <span className="font-mono text-text-secondary font-medium">{day}</span>
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-emerald-300">매출 ₩{fmt(dayPaidSum)}</span>
-                        <span className="text-cyan-300">{dayPaid.length}건</span>
+                        <span className="text-green">매출 ₩{fmt(dayPaidSum)}</span>
+                        <span className="text-teal">{dayPaid.length}건</span>
                         {dayRefunded.length > 0 && (
-                          <span className="text-rose-300">환불 {dayRefunded.length}</span>
+                          <span className="text-red">환불 {dayRefunded.length}</span>
                         )}
                         {dayCancelled.length > 0 && (
-                          <span className="text-amber-300">취소 {dayCancelled.length}</span>
+                          <span className="text-yellow">취소 {dayCancelled.length}</span>
                         )}
                       </div>
                     </div>
                     <div className="overflow-x-auto">
                     <table className="w-full text-[11px] min-w-[560px]">
                       <thead>
-                        <tr className="bg-bg-2 text-gray-500 border-b border-border-primary">
+                        <tr className="bg-bg-2 text-text-tertiary border-b border-border-primary">
                           <th className="text-left py-1.5 px-3 whitespace-nowrap">시각</th>
                           <th className="text-left py-1.5 px-3 whitespace-nowrap">주문번호</th>
                           <th className="text-left py-1.5 px-3 whitespace-nowrap">캠페인</th>
@@ -3496,20 +3496,20 @@ function PartnerDailyLog({
                           const time = dt.length >= 19 ? dt.slice(11, 16) : '—';
                           const cname = c.campaign_id ? (campaignNameById.get(c.campaign_id) || `#${c.campaign_id}`) : '—';
                           return (
-                            <tr key={c.id} className="border-b border-border-primary/50 text-gray-300 hover:bg-white/[0.02]">
-                              <td className="py-1.5 px-3 font-mono text-gray-500">{time}</td>
-                              <td className="py-1.5 px-3 font-mono text-gray-400 truncate max-w-[120px]" title={c.cafe24_order_id || ''}>
+                            <tr key={c.id} className="border-b border-border-primary/50 text-text-secondary hover:bg-[rgb(var(--color-overlay-rgb)/0.02)]">
+                              <td className="py-1.5 px-3 font-mono text-text-tertiary">{time}</td>
+                              <td className="py-1.5 px-3 font-mono text-text-tertiary truncate max-w-[120px]" title={c.cafe24_order_id || ''}>
                                 {c.cafe24_order_id || '—'}
                               </td>
                               <td className="py-1.5 px-3 truncate max-w-[140px]" title={cname}>{cname}</td>
-                              <td className="py-1.5 px-3 text-right text-emerald-300 tabular-nums">₩{fmt(c.order_amount)}</td>
-                              <td className="py-1.5 px-3 text-right text-yellow-300 tabular-nums">₩{fmt(c.commission_amount || 0)}</td>
+                              <td className="py-1.5 px-3 text-right text-green tabular-nums">₩{fmt(c.order_amount)}</td>
+                              <td className="py-1.5 px-3 text-right text-yellow tabular-nums">₩{fmt(c.commission_amount || 0)}</td>
                               <td className="py-1.5 px-3 text-right">
                                 <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                                  st === 'paid' ? 'bg-emerald-500/20 text-emerald-300'
-                                  : st === 'refunded' ? 'bg-rose-500/20 text-rose-300'
-                                  : st === 'cancelled' ? 'bg-amber-500/20 text-amber-300'
-                                  : 'bg-gray-500/20 text-gray-400'
+                                  st === 'paid' ? 'bg-green/20 text-green'
+                                  : st === 'refunded' ? 'bg-red/20 text-red'
+                                  : st === 'cancelled' ? 'bg-yellow/20 text-yellow'
+                                  : 'bg-bg-3/20 text-text-tertiary'
                                 }`}>
                                   {st || '—'}
                                 </span>
@@ -3525,7 +3525,7 @@ function PartnerDailyLog({
               })}
             </div>
           )}
-          <p className="text-[10px] text-gray-500 mt-2">
+          <p className="text-[10px] text-text-tertiary mt-2">
             카페24 실주문 기준 (cafe24_order_id) · 최근 200건 표시 · status: paid=정상, refunded=환불, cancelled=취소
           </p>
         </div>
@@ -3617,18 +3617,18 @@ function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalP
         {/* 헤더 */}
         <div className="flex items-center justify-between p-5 border-b border-border-primary">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-cyan-500 flex items-center justify-center text-white font-bold text-sm shrink-0">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-green to-teal flex items-center justify-center text-white font-bold text-sm shrink-0">
               {partner.name[0]}
             </div>
             <div>
               <h2 className="text-base font-semibold text-white">{partner.name}</h2>
               <div className="flex items-center gap-1.5 flex-wrap">
                 <ChannelBadges channels={partner.channels} channel={partner.channel} />
-                <span className="text-xs text-gray-500">{partner.email}</span>
+                <span className="text-xs text-text-tertiary">{partner.email}</span>
               </div>
             </div>
           </div>
-          <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-white transition-colors">
+          <button onClick={onClose} className="p-1.5 text-text-tertiary hover:text-text-primary transition-colors">
             <X size={18} />
           </button>
         </div>
@@ -3654,19 +3654,19 @@ function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalP
           {/* 퍼포먼스 테이블 */}
           <div>
             <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-              <BarChart2 size={14} className="text-cyan-400" /> 캠페인별 성과
+              <BarChart2 size={14} className="text-teal" /> 캠페인별 성과
             </h3>
             {perfLoading ? (
               <div className="flex items-center justify-center py-8">
-                <Loader2 size={20} className="text-emerald-400 animate-spin" />
+                <Loader2 size={20} className="text-green animate-spin" />
               </div>
             ) : performance.length === 0 ? (
-              <p className="text-xs text-gray-500 text-center py-6">참여 중인 캠페인이 없습니다</p>
+              <p className="text-xs text-text-tertiary text-center py-6">참여 중인 캠페인이 없습니다</p>
             ) : (
               <div className="overflow-x-auto rounded-xl border border-border-primary">
                 <table className="w-full text-xs min-w-[640px]">
                   <thead>
-                    <tr className="bg-bg-2 text-gray-500 border-b border-border-primary">
+                    <tr className="bg-bg-2 text-text-tertiary border-b border-border-primary">
                       <th className="text-left py-2.5 px-3 whitespace-nowrap">캠페인명</th>
                       <th className="text-left py-2.5 px-3 whitespace-nowrap">전용 링크</th>
                       <th className="text-left py-2.5 px-3 whitespace-nowrap">전용 쿠폰</th>
@@ -3679,26 +3679,26 @@ function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalP
                   </thead>
                   <tbody>
                     {performance.map(row => (
-                      <tr key={row.pc_id} className="border-b border-border-primary/50 text-gray-300 hover:bg-white/[0.02]">
-                        <td className="py-2.5 px-3 font-medium text-white">{row.campaign_name}</td>
+                      <tr key={row.pc_id} className="border-b border-border-primary/50 text-text-secondary hover:bg-[rgb(var(--color-overlay-rgb)/0.02)]">
+                        <td className="py-2.5 px-3 font-medium text-text-primary">{row.campaign_name}</td>
                         <td className="py-2.5 px-3">
                           {row.referral_link ? (
                             <div className="flex items-center gap-1.5 max-w-[280px]">
                               <input
                                 readOnly
                                 value={row.referral_link}
-                                className="flex-1 bg-bg-2 border border-border-primary px-2 py-1 rounded text-[10px] text-gray-300 truncate focus:outline-none"
+                                className="flex-1 bg-bg-2 border border-border-primary px-2 py-1 rounded text-[10px] text-text-secondary truncate focus:outline-none"
                               />
                               <button
                                 onClick={() => { navigator.clipboard.writeText(row.referral_link!); toast.success('링크 복사됨'); }}
-                                className="shrink-0 p-1 bg-[#3B82F6] hover:bg-[#2563EB] rounded text-white"
+                                className="shrink-0 p-1 bg-[#3B82F6] hover:bg-[#2563EB] rounded text-text-primary"
                                 title="복사"
                               >
                                 <Copy size={10} />
                               </button>
                             </div>
                           ) : (
-                            <span className="text-[10px] text-gray-600">(미생성)</span>
+                            <span className="text-[10px] text-text-tertiary">(미생성)</span>
                           )}
                         </td>
                         <td className="py-2.5 px-3">
@@ -3715,8 +3715,8 @@ function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalP
                             disabled={couponMutation.isPending}
                             className={`px-2 py-1 rounded text-[10px] font-medium transition-colors ${
                               row.coupon_code
-                                ? 'bg-emerald-500/10 text-emerald-300 ring-1 ring-emerald-500/20 hover:bg-emerald-500/20'
-                                : 'bg-bg-2 text-gray-500 border border-border-primary hover:text-white'
+                                ? 'bg-green/10 text-green ring-1 ring-green/20 hover:bg-green/20'
+                                : 'bg-bg-2 text-text-tertiary border border-border-primary hover:text-text-primary'
                             }`}
                             title="이 쿠폰을 사용한 주문은 클릭 추적 없이도 이 파트너에 확정 귀속됩니다"
                           >
@@ -3724,9 +3724,9 @@ function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalP
                           </button>
                         </td>
                         <td className="py-2.5 px-3 text-right">{fmt(row.clicks)}</td>
-                        <td className="py-2.5 px-3 text-right text-cyan-400">{fmt(row.conversions)}</td>
-                        <td className="py-2.5 px-3 text-right text-emerald-400">₩{fmt(row.sales)}</td>
-                        <td className="py-2.5 px-3 text-right text-yellow-400">₩{fmt(row.commission)}</td>
+                        <td className="py-2.5 px-3 text-right text-teal">{fmt(row.conversions)}</td>
+                        <td className="py-2.5 px-3 text-right text-green">₩{fmt(row.sales)}</td>
+                        <td className="py-2.5 px-3 text-right text-yellow">₩{fmt(row.commission)}</td>
                         <td className="py-2.5 px-3 text-right">
                           <button
                             onClick={() => {
@@ -3735,7 +3735,7 @@ function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalP
                               }
                             }}
                             disabled={removeCampaignMutation.isPending}
-                            className="p-1 text-gray-500 hover:text-red-400 transition-colors disabled:opacity-50"
+                            className="p-1 text-text-tertiary hover:text-red transition-colors disabled:opacity-50"
                             title="제거"
                           >
                             <Trash2 size={11} />
@@ -3749,9 +3749,9 @@ function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalP
                       <td />
                       <td />
                       <td className="py-2.5 px-3 text-right">{fmt(totals.clicks)}</td>
-                      <td className="py-2.5 px-3 text-right text-cyan-400">{fmt(totals.conversions)}</td>
-                      <td className="py-2.5 px-3 text-right text-emerald-400">₩{fmt(totals.sales)}</td>
-                      <td className="py-2.5 px-3 text-right text-yellow-400">₩{fmt(totals.commission)}</td>
+                      <td className="py-2.5 px-3 text-right text-teal">{fmt(totals.conversions)}</td>
+                      <td className="py-2.5 px-3 text-right text-green">₩{fmt(totals.sales)}</td>
+                      <td className="py-2.5 px-3 text-right text-yellow">₩{fmt(totals.commission)}</td>
                       <td />
                     </tr>
                   </tbody>
@@ -3766,7 +3766,7 @@ function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalP
               <select
                 value={selectedCampaignId}
                 onChange={e => setSelectedCampaignId(Number(e.target.value))}
-                className="flex-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-emerald-500/50"
+                className="flex-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-green/50"
               >
                 <option value={0}>캠페인 선택...</option>
                 {availableCampaigns.map(c => (
@@ -3776,7 +3776,7 @@ function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalP
               <button
                 onClick={() => { if (selectedCampaignId) addCampaignMutation.mutate(selectedCampaignId); }}
                 disabled={!selectedCampaignId || addCampaignMutation.isPending}
-                className="flex items-center gap-1.5 px-3 py-2 text-xs bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-medium rounded-lg transition-colors"
+                className="flex items-center gap-1.5 px-3 py-2 text-xs bg-green hover:bg-green disabled:opacity-50 text-white font-medium rounded-lg transition-colors"
               >
                 {addCampaignMutation.isPending && <Loader2 size={11} className="animate-spin" />}
                 <Plus size={12} /> 캠페인 추가
@@ -3788,11 +3788,11 @@ function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalP
           <div className="border-t border-border-primary pt-4">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-                <AlertCircle size={14} className="text-yellow-400" /> 매출 정합성 진단
+                <AlertCircle size={14} className="text-yellow" /> 매출 정합성 진단
               </h3>
               <button
                 onClick={() => setShowAudit(v => !v)}
-                className="text-xs px-2.5 py-1 bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/20 rounded-md transition-colors"
+                className="text-xs px-2.5 py-1 bg-yellow/10 border border-yellow/30 text-yellow hover:bg-yellow/20 rounded-md transition-colors"
               >
                 {showAudit ? '닫기' : '진단 열기'}
               </button>
@@ -3801,12 +3801,12 @@ function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalP
               <div className="mt-3 space-y-3">
                 {auditLoading ? (
                   <div className="flex items-center justify-center py-6">
-                    <Loader2 size={16} className="text-yellow-400 animate-spin" />
+                    <Loader2 size={16} className="text-yellow animate-spin" />
                   </div>
                 ) : auditError || !audit ? (
-                  <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-xs text-red-300 space-y-2">
+                  <div className="bg-red/10 border border-red/30 rounded-lg p-3 text-xs text-red space-y-2">
                     <p className="font-medium">진단 데이터를 불러오지 못했습니다.</p>
-                    <p className="text-red-400/80 break-all">
+                    <p className="text-red/80 break-all">
                       {(auditErrObj as { response?: { status?: number; data?: { detail?: string } }; message?: string })?.response?.data?.detail
                         || (auditErrObj as { response?: { status?: number } })?.response?.status
                           ? `HTTP ${(auditErrObj as { response?: { status?: number } }).response?.status}`
@@ -3814,7 +3814,7 @@ function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalP
                     </p>
                     <button
                       onClick={() => refetchAudit()}
-                      className="px-2 py-1 bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded text-[11px] font-medium"
+                      className="px-2 py-1 bg-red/20 hover:bg-red/30 text-red rounded text-[11px] font-medium"
                     >
                       다시 시도
                     </button>
@@ -3823,22 +3823,22 @@ function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalP
                   <>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                       <div className="bg-bg-2 border border-border-primary rounded-lg p-2.5">
-                        <p className="text-[10px] text-gray-500">순매출 (paid only)</p>
-                        <p className="text-sm font-bold text-emerald-400 mt-0.5">₩{fmt(audit.summary.net_sales_paid_only)}</p>
+                        <p className="text-[10px] text-text-tertiary">순매출 (paid only)</p>
+                        <p className="text-sm font-bold text-green mt-0.5">₩{fmt(audit.summary.net_sales_paid_only)}</p>
                       </div>
                       <div className="bg-bg-2 border border-border-primary rounded-lg p-2.5">
-                        <p className="text-[10px] text-gray-500">총합 (all status)</p>
-                        <p className="text-sm font-bold text-blue-400 mt-0.5">₩{fmt(audit.summary.gross_sales_all_status)}</p>
+                        <p className="text-[10px] text-text-tertiary">총합 (all status)</p>
+                        <p className="text-sm font-bold text-blue mt-0.5">₩{fmt(audit.summary.gross_sales_all_status)}</p>
                       </div>
                       <div className="bg-bg-2 border border-border-primary rounded-lg p-2.5">
-                        <p className="text-[10px] text-gray-500">차이 (취소+환불+기타)</p>
-                        <p className="text-sm font-bold text-yellow-400 mt-0.5">₩{fmt(audit.summary.diff)}</p>
+                        <p className="text-[10px] text-text-tertiary">차이 (취소+환불+기타)</p>
+                        <p className="text-sm font-bold text-yellow mt-0.5">₩{fmt(audit.summary.diff)}</p>
                       </div>
                     </div>
                     <div className="overflow-x-auto rounded-lg border border-border-primary">
                       <table className="w-full text-xs min-w-[560px]">
                         <thead>
-                          <tr className="bg-bg-2 text-gray-500 border-b border-border-primary">
+                          <tr className="bg-bg-2 text-text-tertiary border-b border-border-primary">
                             <th className="text-left py-2 px-3 whitespace-nowrap">상태값(raw)</th>
                             <th className="text-left py-2 px-3 whitespace-nowrap">정규화</th>
                             <th className="text-right py-2 px-3 whitespace-nowrap">건수</th>
@@ -3848,23 +3848,23 @@ function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalP
                         </thead>
                         <tbody>
                           {audit.status_breakdown.map((b, i) => (
-                            <tr key={i} className="border-b border-border-primary/50 text-gray-300">
+                            <tr key={i} className="border-b border-border-primary/50 text-text-secondary">
                               <td className="py-2 px-3 font-mono text-[11px]">
-                                {b.status_raw === null ? <span className="text-red-400">NULL</span> : `"${b.status_raw}"`}
+                                {b.status_raw === null ? <span className="text-red">NULL</span> : `"${b.status_raw}"`}
                               </td>
                               <td className="py-2 px-3 font-mono text-[11px]">{b.status_normalized}</td>
                               <td className="py-2 px-3 text-right">{fmt(b.count)}</td>
-                              <td className="py-2 px-3 text-right text-emerald-400">₩{fmt(b.order_amount_sum)}</td>
-                              <td className="py-2 px-3 text-right text-yellow-400">₩{fmt(b.commission_sum)}</td>
+                              <td className="py-2 px-3 text-right text-green">₩{fmt(b.order_amount_sum)}</td>
+                              <td className="py-2 px-3 text-right text-yellow">₩{fmt(b.commission_sum)}</td>
                             </tr>
                           ))}
                         </tbody>
                       </table>
                     </div>
-                    <p className="text-[11px] text-gray-500 leading-relaxed">
-                      관리자 화면의 &quot;매출&quot;은 status가 정확히 <code className="text-emerald-400">paid</code>인 건의 합입니다.
+                    <p className="text-[11px] text-text-tertiary leading-relaxed">
+                      관리자 화면의 &quot;매출&quot;은 status가 정확히 <code className="text-green">paid</code>인 건의 합입니다.
                       파트너 포털도 동일한 기준으로 통일되었으니 다음 수집 후 일치할 것입니다.
-                      위 표에서 정규화 컬럼이 <code className="text-yellow-400">refunded/cancelled/(empty)</code>로 표시된 행이 차이의 원인입니다.
+                      위 표에서 정규화 컬럼이 <code className="text-yellow">refunded/cancelled/(empty)</code>로 표시된 행이 차이의 원인입니다.
                     </p>
                   </>
                 )}
@@ -3943,10 +3943,10 @@ function PartnerEditModal({ partner, onClose, onSave, isSaving }: PartnerEditMod
       >
         <div className="flex items-center justify-between p-5 border-b border-border-primary">
           <div className="flex items-center gap-2">
-            <Pencil size={15} className="text-blue-400" />
-            <h2 className="text-sm font-semibold text-white">파트너 수정</h2>
+            <Pencil size={15} className="text-blue" />
+            <h2 className="text-sm font-semibold text-text-primary">파트너 수정</h2>
           </div>
-          <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-white transition-colors">
+          <button onClick={onClose} className="p-1.5 text-text-tertiary hover:text-text-primary transition-colors">
             <X size={18} />
           </button>
         </div>
@@ -3954,53 +3954,53 @@ function PartnerEditModal({ partner, onClose, onSave, isSaving }: PartnerEditMod
         <div className="p-5 space-y-4">
           <div className="grid md:grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-gray-400">파트너명 *</label>
+              <label className="text-xs text-text-tertiary">파트너명 *</label>
               <input
                 value={editForm.name}
                 onChange={e => setEditForm({ ...editForm, name: e.target.value })}
-                className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary placeholder:text-gray-600 focus:outline-none focus:border-blue-500/50"
+                className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-blue/50"
               />
             </div>
             <div>
-              <label className="text-xs text-gray-400 flex items-center gap-1.5">
+              <label className="text-xs text-text-tertiary flex items-center gap-1.5">
                 연락처 *
-                <span className="text-[10px] text-emerald-400/80">문자 웹링크</span>
+                <span className="text-[10px] text-green/80">문자 웹링크</span>
               </label>
               <input
                 type="tel"
                 value={editForm.phone}
                 onChange={e => setEditForm({ ...editForm, phone: e.target.value })}
                 placeholder="010-1234-5678"
-                className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary placeholder:text-gray-600 focus:outline-none focus:border-blue-500/50"
+                className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-blue/50"
               />
             </div>
             <div>
-              <label className="text-xs text-gray-400 flex items-center gap-1.5">
-                이메일 <span className="text-[10px] text-gray-500">(선택)</span>
+              <label className="text-xs text-text-tertiary flex items-center gap-1.5">
+                이메일 <span className="text-[10px] text-text-tertiary">(선택)</span>
               </label>
               <input
                 type="email"
                 value={editForm.email}
                 onChange={e => setEditForm({ ...editForm, email: e.target.value })}
                 placeholder="partner@example.com (선택)"
-                className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary placeholder:text-gray-600 focus:outline-none focus:border-blue-500/50"
+                className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-blue/50"
               />
             </div>
             <div>
-              <label className="text-xs text-gray-400">팔로워 수</label>
+              <label className="text-xs text-text-tertiary">팔로워 수</label>
               <input
                 type="number"
                 value={editForm.followers}
                 onChange={e => setEditForm({ ...editForm, followers: Number(e.target.value) })}
-                className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-blue-500/50"
+                className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-blue/50"
               />
             </div>
             <div>
-              <label className="text-xs text-gray-400">상태</label>
+              <label className="text-xs text-text-tertiary">상태</label>
               <select
                 value={editForm.status}
                 onChange={e => setEditForm({ ...editForm, status: e.target.value as AffiliatePartner['status'] })}
-                className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-blue-500/50"
+                className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-blue/50"
               >
                 <option value="pending">대기</option>
                 <option value="approved">승인</option>
@@ -4008,9 +4008,9 @@ function PartnerEditModal({ partner, onClose, onSave, isSaving }: PartnerEditMod
               </select>
             </div>
             <div className="md:col-span-2">
-              <label className="text-xs text-gray-400 flex items-center gap-1.5">
+              <label className="text-xs text-text-tertiary flex items-center gap-1.5">
                 활동 그룹 *
-                <span className="text-[10px] text-gray-500">(계약 형태)</span>
+                <span className="text-[10px] text-text-tertiary">(계약 형태)</span>
               </label>
               <div className="mt-1 flex gap-1.5">
                 {PARTNER_GROUP_OPTIONS.map(opt => {
@@ -4023,7 +4023,7 @@ function PartnerEditModal({ partner, onClose, onSave, isSaving }: PartnerEditMod
                       className={`flex-1 px-2 py-2 text-xs rounded-lg border transition-colors ${
                         active
                           ? opt.color
-                          : 'border-border-primary text-gray-500 hover:border-gray-500 hover:text-gray-300'
+                          : 'border-border-primary text-text-tertiary hover:border-border-tertiary hover:text-text-secondary'
                       }`}
                     >
                       {opt.label}
@@ -4035,10 +4035,10 @@ function PartnerEditModal({ partner, onClose, onSave, isSaving }: PartnerEditMod
           </div>
 
           <div>
-            <label className="text-xs text-gray-400 flex items-center gap-1.5">
+            <label className="text-xs text-text-tertiary flex items-center gap-1.5">
               채널 *
               {editForm.channels.length > 0 && (
-                <span className="px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded text-[10px]">
+                <span className="px-1.5 py-0.5 bg-blue/20 text-blue rounded text-[10px]">
                   {editForm.channels.length}개 선택됨
                 </span>
               )}
@@ -4052,7 +4052,7 @@ function PartnerEditModal({ partner, onClose, onSave, isSaving }: PartnerEditMod
                     className={`flex items-center gap-1.5 px-2.5 py-2 rounded-lg border cursor-pointer transition-all text-xs select-none ${
                       checked
                         ? `${opt.color} border-opacity-60`
-                        : 'border-border-primary text-gray-500 hover:border-gray-500 hover:text-gray-300'
+                        : 'border-border-primary text-text-tertiary hover:border-border-tertiary hover:text-text-secondary'
                     }`}
                   >
                     <input type="checkbox" className="sr-only" checked={checked} onChange={() => toggleChannel(opt.key)} />
@@ -4065,26 +4065,26 @@ function PartnerEditModal({ partner, onClose, onSave, isSaving }: PartnerEditMod
           </div>
 
           <div>
-            <label className="text-xs text-gray-400">메모</label>
+            <label className="text-xs text-text-tertiary">메모</label>
             <input
               value={editForm.memo}
               onChange={e => setEditForm({ ...editForm, memo: e.target.value })}
               placeholder="내부 메모 (선택)"
-              className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary placeholder:text-gray-600 focus:outline-none focus:border-blue-500/50"
+              className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-blue/50"
             />
           </div>
 
           <div className="flex gap-2 justify-end pt-2">
             <button
               onClick={onClose}
-              className="px-3 py-1.5 text-xs text-gray-400 border border-border-primary rounded-lg hover:text-white hover:border-gray-500 transition-colors"
+              className="px-3 py-1.5 text-xs text-text-tertiary border border-border-primary rounded-lg hover:text-text-primary hover:border-border-tertiary transition-colors"
             >
               취소
             </button>
             <button
               onClick={handleSubmit}
               disabled={isSaving}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium rounded-lg transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-blue hover:bg-blue disabled:opacity-50 text-white font-medium rounded-lg transition-colors"
             >
               {isSaving && <Loader2 size={12} className="animate-spin" />}
               변경사항 저장
@@ -4276,14 +4276,14 @@ function PartnersSection() {
 
       <div className="space-y-4">
         <div className="flex justify-between items-center">
-          <h2 className="text-lg font-bold text-white">파트너 관리</h2>
+          <h2 className="text-lg font-bold text-text-primary">파트너 관리</h2>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowTrash(!showTrash)}
               className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors border ${
                 showTrash
-                  ? 'bg-red-500/10 border-red-500/30 text-red-400'
-                  : 'border-border-primary text-gray-400 hover:text-white hover:border-gray-500'
+                  ? 'bg-red/10 border-red/30 text-red'
+                  : 'border-border-primary text-text-tertiary hover:text-text-primary hover:border-border-tertiary'
               }`}
             >
               <Trash2 size={13} /> {showTrash ? '활성 파트너' : `휴지통${trashedPartners.length > 0 ? ` (${trashedPartners.length})` : ''}`}
@@ -4291,7 +4291,7 @@ function PartnersSection() {
             {!showTrash && (
               <button
                 onClick={() => setShowInviteForm(!showInviteForm)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium rounded-lg transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-green hover:bg-green text-white text-xs font-medium rounded-lg transition-colors"
               >
                 <UserPlus size={14} /> 파트너 초대
               </button>
@@ -4300,29 +4300,29 @@ function PartnersSection() {
         </div>
 
         {showTrash && (
-          <div className="bg-bg-3 rounded-xl border border-red-500/20 p-4 space-y-3">
+          <div className="bg-bg-3 rounded-xl border border-red/20 p-4 space-y-3">
             <div className="flex items-center gap-2">
-              <Trash2 size={14} className="text-red-400" />
-              <h3 className="text-sm font-semibold text-white">휴지통</h3>
-              <span className="text-xs text-gray-500">({trashedPartners.length}명)</span>
+              <Trash2 size={14} className="text-red" />
+              <h3 className="text-sm font-semibold text-text-primary">휴지통</h3>
+              <span className="text-xs text-text-tertiary">({trashedPartners.length}명)</span>
             </div>
             {trashedPartners.length === 0 ? (
-              <p className="text-xs text-gray-500 py-4 text-center">휴지통이 비어있습니다.</p>
+              <p className="text-xs text-text-tertiary py-4 text-center">휴지통이 비어있습니다.</p>
             ) : (
               <div className="space-y-2">
                 {trashedPartners.map(p => (
                   <div key={p.id} className="flex items-center justify-between bg-bg-2 border border-border-primary rounded-lg px-3 py-2.5">
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="min-w-0">
-                        <p className="text-sm font-medium text-white truncate">{p.name}</p>
-                        <p className="text-[10px] text-gray-500">{p.email || '이메일 없음'} · 원상태: {partnerStatusLabel(p.status)}</p>
+                        <p className="text-sm font-medium text-text-primary truncate">{p.name}</p>
+                        <p className="text-[10px] text-text-tertiary">{p.email || '이메일 없음'} · 원상태: {partnerStatusLabel(p.status)}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <button
                         onClick={() => restorePartnerMutation.mutate(p.id)}
                         disabled={restorePartnerMutation.isPending}
-                        className="flex items-center gap-1 px-2.5 py-1 text-[11px] bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded transition-colors"
+                        className="flex items-center gap-1 px-2.5 py-1 text-[11px] bg-green hover:bg-green disabled:opacity-50 text-white rounded transition-colors"
                       >
                         <Loader2 size={10} className={restorePartnerMutation.isPending ? 'animate-spin' : 'hidden'} />
                         복원
@@ -4334,7 +4334,7 @@ function PartnersSection() {
                           }
                         }}
                         disabled={permanentDeleteMutation.isPending}
-                        className="px-2.5 py-1 text-[11px] border border-red-400/40 text-red-400 hover:bg-red-400/10 disabled:opacity-50 rounded transition-colors"
+                        className="px-2.5 py-1 text-[11px] border border-red/40 text-red hover:bg-red/10 disabled:opacity-50 rounded transition-colors"
                       >
                         영구 삭제
                       </button>
@@ -4347,55 +4347,55 @@ function PartnersSection() {
         )}
 
         {isError && (
-          <div className="flex items-center gap-2 px-4 py-2 bg-red-500/10 border border-red-500/20 rounded-lg">
-            <AlertCircle size={14} className="text-red-400" />
-            <p className="text-xs text-red-400">파트너 목록을 불러오지 못했습니다</p>
+          <div className="flex items-center gap-2 px-4 py-2 bg-red/10 border border-red/20 rounded-lg">
+            <AlertCircle size={14} className="text-red" />
+            <p className="text-xs text-red">파트너 목록을 불러오지 못했습니다</p>
           </div>
         )}
 
         {showInviteForm && (
-          <div className="bg-bg-3 rounded-xl p-4 border border-emerald-500/30 space-y-4">
-            <h3 className="text-sm font-semibold text-white">파트너 초대하기</h3>
+          <div className="bg-bg-3 rounded-xl p-4 border border-green/30 space-y-4">
+            <h3 className="text-sm font-semibold text-text-primary">파트너 초대하기</h3>
             <div className="grid md:grid-cols-2 gap-3">
               <div>
-                <label className="text-xs text-gray-400">파트너명 *</label>
+                <label className="text-xs text-text-tertiary">파트너명 *</label>
                 <input
                   value={inviteForm.name}
                   onChange={e => setInviteForm({ ...inviteForm, name: e.target.value })}
                   placeholder="예: 달콤리뷰"
-                  className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary placeholder:text-gray-600 focus:outline-none focus:border-emerald-500/50"
+                  className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-green/50"
                 />
               </div>
               <div>
-                <label className="text-xs text-gray-400 flex items-center gap-1.5">
+                <label className="text-xs text-text-tertiary flex items-center gap-1.5">
                   연락처 *
-                  <span className="text-[10px] text-emerald-400/80">문자 웹링크 발송</span>
+                  <span className="text-[10px] text-green/80">문자 웹링크 발송</span>
                 </label>
                 <input
                   type="tel"
                   value={inviteForm.phone}
                   onChange={e => setInviteForm({ ...inviteForm, phone: e.target.value })}
                   placeholder="010-1234-5678"
-                  className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary placeholder:text-gray-600 focus:outline-none focus:border-emerald-500/50"
+                  className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-green/50"
                 />
               </div>
               <div>
-                <label className="text-xs text-gray-400 flex items-center gap-1.5">
+                <label className="text-xs text-text-tertiary flex items-center gap-1.5">
                   이메일
-                  <span className="text-[10px] text-gray-500">(선택)</span>
+                  <span className="text-[10px] text-text-tertiary">(선택)</span>
                 </label>
                 <input
                   type="email"
                   value={inviteForm.email}
                   onChange={e => setInviteForm({ ...inviteForm, email: e.target.value })}
                   placeholder="partner@example.com (선택)"
-                  className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary placeholder:text-gray-600 focus:outline-none focus:border-emerald-500/50"
+                  className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-green/50"
                 />
               </div>
               <div>
-                <label className="text-xs text-gray-400 flex items-center gap-1.5">
+                <label className="text-xs text-text-tertiary flex items-center gap-1.5">
                   활동 그룹 *
-                  <span className="text-[10px] text-gray-500">(계약 형태)</span>
+                  <span className="text-[10px] text-text-tertiary">(계약 형태)</span>
                 </label>
                 <div className="mt-1 flex gap-1.5">
                   {PARTNER_GROUP_OPTIONS.map(opt => {
@@ -4408,7 +4408,7 @@ function PartnersSection() {
                         className={`flex-1 px-2 py-2 text-xs rounded-lg border transition-colors ${
                           active
                             ? opt.color
-                            : 'border-border-primary text-gray-500 hover:border-gray-500 hover:text-gray-300'
+                            : 'border-border-primary text-text-tertiary hover:border-border-tertiary hover:text-text-secondary'
                         }`}
                       >
                         {opt.label}
@@ -4418,10 +4418,10 @@ function PartnersSection() {
                 </div>
               </div>
               <div className="md:col-span-2">
-                <label className="text-xs text-gray-400 flex items-center gap-1.5">
+                <label className="text-xs text-text-tertiary flex items-center gap-1.5">
                   채널 *
                   {inviteForm.channels.length > 0 && (
-                    <span className="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 rounded text-[10px]">
+                    <span className="px-1.5 py-0.5 bg-green/20 text-green rounded text-[10px]">
                       {inviteForm.channels.length}개 선택됨
                     </span>
                   )}
@@ -4435,7 +4435,7 @@ function PartnersSection() {
                         className={`flex items-center gap-1.5 px-2.5 py-2 rounded-lg border cursor-pointer transition-all text-xs select-none ${
                           checked
                             ? `${opt.color} border-opacity-60`
-                            : 'border-border-primary text-gray-500 hover:border-gray-500 hover:text-gray-300'
+                            : 'border-border-primary text-text-tertiary hover:border-border-tertiary hover:text-text-secondary'
                         }`}
                       >
                         <input
@@ -4452,21 +4452,21 @@ function PartnersSection() {
                 </div>
               </div>
               <div>
-                <label className="text-xs text-gray-400">팔로워 수</label>
+                <label className="text-xs text-text-tertiary">팔로워 수</label>
                 <input
                   type="number"
                   value={inviteForm.followers}
                   onChange={e => setInviteForm({ ...inviteForm, followers: Number(e.target.value) })}
-                  className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-emerald-500/50"
+                  className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-green/50"
                 />
               </div>
               <div className="md:col-span-2">
-                <label className="text-xs text-gray-400">메모</label>
+                <label className="text-xs text-text-tertiary">메모</label>
                 <input
                   value={inviteForm.memo}
                   onChange={e => setInviteForm({ ...inviteForm, memo: e.target.value })}
                   placeholder="내부 메모 (선택)"
-                  className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary placeholder:text-gray-600 focus:outline-none focus:border-emerald-500/50"
+                  className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-green/50"
                 />
               </div>
             </div>
@@ -4474,24 +4474,24 @@ function PartnersSection() {
             {/* 참여 캠페인 멀티셀렉트 */}
             {activeCampaigns.length > 0 && (
               <div className="border border-border-primary rounded-xl p-3 space-y-2">
-                <p className="text-xs font-medium text-gray-300 flex items-center gap-1.5">
+                <p className="text-xs font-medium text-text-secondary flex items-center gap-1.5">
                   <Megaphone size={12} /> 참여 캠페인 선택
                   {inviteForm.campaign_ids.length > 0 && (
-                    <span className="ml-1 px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 rounded text-[10px]">
+                    <span className="ml-1 px-1.5 py-0.5 bg-green/20 text-green rounded text-[10px]">
                       {inviteForm.campaign_ids.length}개 선택
                     </span>
                   )}
                 </p>
                 <div className="grid md:grid-cols-2 gap-1.5 max-h-36 overflow-y-auto">
                   {activeCampaigns.map(c => (
-                    <label key={c.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/5 cursor-pointer">
+                    <label key={c.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-[rgb(var(--color-overlay-rgb)/0.05)] cursor-pointer">
                       <input
                         type="checkbox"
                         checked={inviteForm.campaign_ids.includes(c.id)}
                         onChange={() => toggleCampaign(c.id)}
-                        className="w-3.5 h-3.5 rounded accent-emerald-500"
+                        className="w-3.5 h-3.5 rounded accent-green"
                       />
-                      <span className="text-xs text-gray-300 truncate">{c.name}</span>
+                      <span className="text-xs text-text-secondary truncate">{c.name}</span>
                     </label>
                   ))}
                 </div>
@@ -4501,14 +4501,14 @@ function PartnersSection() {
             <div className="flex gap-2 justify-end">
               <button
                 onClick={() => setShowInviteForm(false)}
-                className="px-3 py-1.5 text-xs text-gray-400 border border-border-primary rounded-lg hover:text-white hover:border-gray-500 transition-colors"
+                className="px-3 py-1.5 text-xs text-text-tertiary border border-border-primary rounded-lg hover:text-text-primary hover:border-border-tertiary transition-colors"
               >
                 취소
               </button>
               <button
                 onClick={handleInvite}
                 disabled={createMutation.isPending}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-medium rounded-lg transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-green hover:bg-green disabled:opacity-50 text-white font-medium rounded-lg transition-colors"
               >
                 {createMutation.isPending && <Loader2 size={12} className="animate-spin" />}
                 초대 보내기
@@ -4544,11 +4544,11 @@ function PartnersSection() {
 
         {partners.length === 0 && !isError ? (
           <div className="flex flex-col items-center justify-center py-16 gap-3 bg-bg-3 rounded-xl border border-border-primary">
-            <Users size={28} className="text-gray-600" />
-            <p className="text-sm text-gray-400">아직 등록된 파트너가 없습니다</p>
+            <Users size={28} className="text-text-tertiary" />
+            <p className="text-sm text-text-tertiary">아직 등록된 파트너가 없습니다</p>
             <button
               onClick={() => setShowInviteForm(true)}
-              className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium rounded-lg transition-colors"
+              className="flex items-center gap-1.5 px-4 py-2 bg-green hover:bg-green text-white text-xs font-medium rounded-lg transition-colors"
             >
               <UserPlus size={14} /> 첫 파트너 초대하기
             </button>
@@ -4577,11 +4577,11 @@ function PartnersSection() {
           if (filteredPartners.length === 0) {
             return (
               <div className="flex flex-col items-center justify-center py-12 gap-2 bg-bg-3 rounded-xl border border-border-primary">
-                <Filter size={24} className="text-gray-600" />
-                <p className="text-sm text-gray-400">필터 조건에 해당하는 파트너가 없습니다</p>
+                <Filter size={24} className="text-text-tertiary" />
+                <p className="text-sm text-text-tertiary">필터 조건에 해당하는 파트너가 없습니다</p>
                 <button
                   onClick={() => { setGroupTab('all'); setSearch(''); }}
-                  className="text-[11px] text-emerald-400 hover:text-emerald-300 underline mt-1"
+                  className="text-[11px] text-green hover:text-green underline mt-1"
                 >
                   필터 초기화
                 </button>
@@ -4594,18 +4594,18 @@ function PartnersSection() {
             {filteredPartners.map(p => (
               <div
                 key={p.id}
-                className="bg-bg-3 rounded-xl p-4 border border-border-primary cursor-pointer hover:border-emerald-500/30 transition-colors"
+                className="bg-bg-3 rounded-xl p-4 border border-border-primary cursor-pointer hover:border-green/30 transition-colors"
                 onClick={() => setSelectedPartner(p)}
               >
                 <div className="flex justify-between items-start mb-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-cyan-500 flex items-center justify-center text-white font-bold text-sm shrink-0">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-green to-teal flex items-center justify-center text-white font-bold text-sm shrink-0">
                       {p.name[0]}
                     </div>
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="text-sm font-semibold text-white">{p.name}</p>
-                        <span className="text-[10px] text-gray-500 font-mono">#{p.id}</span>
+                        <span className="text-[10px] text-text-tertiary font-mono">#{p.id}</span>
                         {(() => {
                           const g = PARTNER_GROUP_MAP[normalizePartnerGroup(p.partner_group as string | null | undefined)];
                           return (
@@ -4618,17 +4618,17 @@ function PartnersSection() {
                           {partnerStatusLabel(p.status)}
                         </span>
                         {Array.isArray(p.campaign_ids) && p.campaign_ids.length > 0 && (
-                          <span className="text-[10px] px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded">
+                          <span className="text-[10px] px-1.5 py-0.5 bg-blue/20 text-blue rounded">
                             참여 캠페인 {p.campaign_ids.length}개
                           </span>
                         )}
                       </div>
                       <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
                         <ChannelBadges channels={p.channels} channel={p.channel} />
-                        <span className="text-[10px] text-gray-500">{fmt(p.followers)} followers · {p.email}</span>
+                        <span className="text-[10px] text-text-tertiary">{fmt(p.followers)} followers · {p.email}</span>
                         {p.phone && (
-                          <span className="flex items-center gap-0.5 text-[10px] text-gray-500">
-                            <Phone size={9} className="text-gray-600" />
+                          <span className="flex items-center gap-0.5 text-[10px] text-text-tertiary">
+                            <Phone size={9} className="text-text-tertiary" />
                             {p.phone}
                           </span>
                         )}
@@ -4641,7 +4641,7 @@ function PartnersSection() {
                         <button
                           onClick={() => approveMutation.mutate(p.id)}
                           disabled={approveMutation.isPending}
-                          className="flex items-center gap-1 px-2 py-1 text-[10px] bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-medium rounded transition-colors"
+                          className="flex items-center gap-1 px-2 py-1 text-[10px] bg-green hover:bg-green disabled:opacity-50 text-white font-medium rounded transition-colors"
                         >
                           {approveMutation.isPending && <Loader2 size={10} className="animate-spin" />}
                           승인
@@ -4649,7 +4649,7 @@ function PartnersSection() {
                         <button
                           onClick={() => rejectMutation.mutate(p.id)}
                           disabled={rejectMutation.isPending}
-                          className="px-2 py-1 text-[10px] border border-red-400/30 text-red-400 hover:bg-red-400/10 disabled:opacity-50 rounded transition-colors"
+                          className="px-2 py-1 text-[10px] border border-red/30 text-red hover:bg-red/10 disabled:opacity-50 rounded transition-colors"
                         >
                           거절
                         </button>
@@ -4657,7 +4657,7 @@ function PartnersSection() {
                     )}
                     <button
                       onClick={() => setEditingPartner(p)}
-                      className="p-1 text-gray-500 hover:text-blue-400 transition-colors"
+                      className="p-1 text-text-tertiary hover:text-blue transition-colors"
                       title="파트너 수정"
                     >
                       <Pencil size={12} />
@@ -4669,7 +4669,7 @@ function PartnersSection() {
                         }
                       }}
                       disabled={deletePartnerMutation.isPending}
-                      className="p-1 text-gray-500 hover:text-red-400 transition-colors disabled:opacity-50"
+                      className="p-1 text-text-tertiary hover:text-red transition-colors disabled:opacity-50"
                       title="파트너 삭제 (휴지통으로 이동)"
                     >
                       <Trash2 size={12} />
@@ -4680,11 +4680,11 @@ function PartnersSection() {
                 {p.status === 'approved' && (
                   <>
                     <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-center bg-bg-2 rounded-lg p-3 mb-2">
-                      <div><p className="text-[10px] text-gray-500">클릭</p><p className="text-sm font-bold text-white">{fmt(p.click_count)}</p></div>
-                      <div><p className="text-[10px] text-gray-500">전환</p><p className="text-sm font-bold text-cyan-400">{p.conversion_count}건</p></div>
-                      <div><p className="text-[10px] text-gray-500">매출</p><p className="text-sm font-bold text-emerald-400">₩{fmt(p.total_sales)}</p></div>
-                      <div><p className="text-[10px] text-gray-500">총 커미션</p><p className="text-sm font-bold text-yellow-400">₩{fmt(p.total_commission)}</p></div>
-                      <div><p className="text-[10px] text-gray-500">미정산</p><p className="text-sm font-bold text-red-400">₩{fmt(p.unpaid_commission)}</p></div>
+                      <div><p className="text-[10px] text-text-tertiary">클릭</p><p className="text-sm font-bold text-text-primary">{fmt(p.click_count)}</p></div>
+                      <div><p className="text-[10px] text-text-tertiary">전환</p><p className="text-sm font-bold text-teal">{p.conversion_count}건</p></div>
+                      <div><p className="text-[10px] text-text-tertiary">매출</p><p className="text-sm font-bold text-green">₩{fmt(p.total_sales)}</p></div>
+                      <div><p className="text-[10px] text-text-tertiary">총 커미션</p><p className="text-sm font-bold text-yellow">₩{fmt(p.total_commission)}</p></div>
+                      <div><p className="text-[10px] text-text-tertiary">미정산</p><p className="text-sm font-bold text-red">₩{fmt(p.unpaid_commission)}</p></div>
                     </div>
                     {p.campaign_links && p.campaign_links.length > 0 ? (
                       <div
@@ -4693,12 +4693,12 @@ function PartnersSection() {
                       >
                         {p.campaign_links.map((cl) => (
                           <div key={cl.pc_id} className="flex items-center gap-2 bg-bg-2 rounded-lg px-3 py-2">
-                            <Link2 size={12} className="text-gray-500 shrink-0" />
+                            <Link2 size={12} className="text-text-tertiary shrink-0" />
                             <div className="flex-1 min-w-0">
-                              <p className="text-[10px] text-gray-500 truncate">{cl.campaign_name || `캠페인 #${cl.campaign_id}`}</p>
-                              <code className="text-[10px] text-gray-400 truncate block">{cl.referral_link}</code>
+                              <p className="text-[10px] text-text-tertiary truncate">{cl.campaign_name || `캠페인 #${cl.campaign_id}`}</p>
+                              <code className="text-[10px] text-text-tertiary truncate block">{cl.referral_link}</code>
                             </div>
-                            <button onClick={() => copyLink(cl.referral_link)} className="text-gray-400 hover:text-white transition-colors shrink-0" title="복사">
+                            <button onClick={() => copyLink(cl.referral_link)} className="text-text-tertiary hover:text-text-primary transition-colors shrink-0" title="복사">
                               <Copy size={12} />
                             </button>
                           </div>
@@ -4709,9 +4709,9 @@ function PartnersSection() {
                         className="flex items-center gap-2 bg-bg-2 rounded-lg px-3 py-2"
                         onClick={e => e.stopPropagation()}
                       >
-                        <Link2 size={12} className="text-gray-500 shrink-0" />
-                        <code className="text-[10px] text-gray-400 flex-1 truncate">{p.referral_link}</code>
-                        <button onClick={() => copyLink(p.referral_link)} className="text-gray-400 hover:text-white transition-colors">
+                        <Link2 size={12} className="text-text-tertiary shrink-0" />
+                        <code className="text-[10px] text-text-tertiary flex-1 truncate">{p.referral_link}</code>
+                        <button onClick={() => copyLink(p.referral_link)} className="text-text-tertiary hover:text-text-primary transition-colors">
                           <Copy size={12} />
                         </button>
                       </div>
@@ -4777,41 +4777,41 @@ function ReferralSection() {
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h2 className="text-lg font-bold text-white">친구추천 프로그램</h2>
+        <h2 className="text-lg font-bold text-text-primary">친구추천 프로그램</h2>
         <button
           onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium rounded-lg transition-colors"
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-green hover:bg-green text-white text-xs font-medium rounded-lg transition-colors"
         >
           <Plus size={14} /> 프로그램 추가
         </button>
       </div>
 
       {isError && (
-        <div className="flex items-center gap-2 px-4 py-2 bg-red-500/10 border border-red-500/20 rounded-lg">
-          <AlertCircle size={14} className="text-red-400" />
-          <p className="text-xs text-red-400">프로그램 목록을 불러오지 못했습니다</p>
+        <div className="flex items-center gap-2 px-4 py-2 bg-red/10 border border-red/20 rounded-lg">
+          <AlertCircle size={14} className="text-red" />
+          <p className="text-xs text-red">프로그램 목록을 불러오지 못했습니다</p>
         </div>
       )}
 
       {showForm && (
-        <div className="bg-bg-3 rounded-xl p-4 border border-emerald-500/30 space-y-3">
-          <h3 className="text-sm font-semibold text-white">새 추천 프로그램 만들기</h3>
+        <div className="bg-bg-3 rounded-xl p-4 border border-green/30 space-y-3">
+          <h3 className="text-sm font-semibold text-text-primary">새 추천 프로그램 만들기</h3>
           <div className="grid md:grid-cols-2 gap-3">
             <div className="md:col-span-2">
-              <label className="text-xs text-gray-400">프로그램명 *</label>
+              <label className="text-xs text-text-tertiary">프로그램명 *</label>
               <input
                 value={form.name}
                 onChange={e => setForm({ ...form, name: e.target.value })}
                 placeholder="예: 친구 추천 프로그램"
-                className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary placeholder:text-gray-600 focus:outline-none focus:border-emerald-500/50"
+                className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-green/50"
               />
             </div>
             <div>
-              <label className="text-xs text-gray-400">보상 유형</label>
+              <label className="text-xs text-text-tertiary">보상 유형</label>
               <select
                 value={form.reward_type}
                 onChange={e => setForm({ ...form, reward_type: e.target.value as 'points' | 'coupon' | 'cash' })}
-                className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-emerald-500/50"
+                className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-green/50"
               >
                 <option value="points">포인트</option>
                 <option value="coupon">쿠폰</option>
@@ -4819,35 +4819,35 @@ function ReferralSection() {
               </select>
             </div>
             <div>
-              <label className="text-xs text-gray-400">추천인 보상</label>
+              <label className="text-xs text-text-tertiary">추천인 보상</label>
               <input
                 type="number"
                 value={form.referrer_reward}
                 onChange={e => setForm({ ...form, referrer_reward: Number(e.target.value) })}
-                className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-emerald-500/50"
+                className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-green/50"
               />
             </div>
             <div>
-              <label className="text-xs text-gray-400">피추천인 보상</label>
+              <label className="text-xs text-text-tertiary">피추천인 보상</label>
               <input
                 type="number"
                 value={form.referee_reward}
                 onChange={e => setForm({ ...form, referee_reward: Number(e.target.value) })}
-                className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-emerald-500/50"
+                className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-green/50"
               />
             </div>
           </div>
           <div className="flex gap-2 justify-end">
             <button
               onClick={() => setShowForm(false)}
-              className="px-3 py-1.5 text-xs text-gray-400 border border-border-primary rounded-lg hover:text-white hover:border-gray-500 transition-colors"
+              className="px-3 py-1.5 text-xs text-text-tertiary border border-border-primary rounded-lg hover:text-text-primary hover:border-border-tertiary transition-colors"
             >
               취소
             </button>
             <button
               onClick={handleCreate}
               disabled={createMutation.isPending}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-medium rounded-lg transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-green hover:bg-green disabled:opacity-50 text-white font-medium rounded-lg transition-colors"
             >
               {createMutation.isPending && <Loader2 size={12} className="animate-spin" />}
               프로그램 생성
@@ -4858,11 +4858,11 @@ function ReferralSection() {
 
       {programs.length === 0 && !isError ? (
         <div className="flex flex-col items-center justify-center py-16 gap-3 bg-bg-3 rounded-xl border border-border-primary">
-          <Gift size={28} className="text-gray-600" />
-          <p className="text-sm text-gray-400">아직 추천 프로그램이 없습니다</p>
+          <Gift size={28} className="text-text-tertiary" />
+          <p className="text-sm text-text-tertiary">아직 추천 프로그램이 없습니다</p>
           <button
             onClick={() => setShowForm(true)}
-            className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium rounded-lg transition-colors"
+            className="flex items-center gap-1.5 px-4 py-2 bg-green hover:bg-green text-white text-xs font-medium rounded-lg transition-colors"
           >
             <Plus size={14} /> 첫 프로그램 만들기
           </button>
@@ -4872,19 +4872,19 @@ function ReferralSection() {
           <div key={prog.id} className="bg-bg-3 rounded-xl p-5 border border-border-primary">
             <div className="flex justify-between items-center mb-4">
               <div>
-                <h3 className="text-sm font-semibold text-white">{prog.name}</h3>
-                <p className="text-xs text-gray-500 mt-0.5">
+                <h3 className="text-sm font-semibold text-text-primary">{prog.name}</h3>
+                <p className="text-xs text-text-tertiary mt-0.5">
                   보상: {prog.reward_type === 'points' ? '포인트' : prog.reward_type === 'coupon' ? '쿠폰' : '현금'}
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <span className={`text-xs px-2 py-1 rounded ${prog.status === 'active' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-gray-500/20 text-gray-400'}`}>
+                <span className={`text-xs px-2 py-1 rounded ${prog.status === 'active' ? 'bg-green/20 text-green' : 'bg-bg-3/20 text-text-tertiary'}`}>
                   {prog.status === 'active' ? '운영중' : '일시정지'}
                 </span>
                 <button
                   onClick={() => toggleMutation.mutate({ id: prog.id, status: prog.status === 'active' ? 'paused' : 'active' })}
                   disabled={toggleMutation.isPending}
-                  className="text-[10px] px-2 py-1 border border-border-primary text-gray-400 hover:text-white hover:border-gray-500 rounded transition-colors disabled:opacity-50"
+                  className="text-[10px] px-2 py-1 border border-border-primary text-text-tertiary hover:text-text-primary hover:border-border-tertiary rounded transition-colors disabled:opacity-50"
                 >
                   {prog.status === 'active' ? '중지' : '재개'}
                 </button>
@@ -4893,39 +4893,39 @@ function ReferralSection() {
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
               <div className="bg-bg-2 rounded-lg p-3 text-center">
-                <p className="text-[10px] text-gray-500">추천인 보상</p>
-                <p className="text-lg font-bold text-emerald-400">{fmt(prog.referrer_reward)}{prog.reward_type === 'points' ? 'P' : prog.reward_type === 'cash' ? '원' : ''}</p>
+                <p className="text-[10px] text-text-tertiary">추천인 보상</p>
+                <p className="text-lg font-bold text-green">{fmt(prog.referrer_reward)}{prog.reward_type === 'points' ? 'P' : prog.reward_type === 'cash' ? '원' : ''}</p>
               </div>
               <div className="bg-bg-2 rounded-lg p-3 text-center">
-                <p className="text-[10px] text-gray-500">피추천인 보상</p>
-                <p className="text-lg font-bold text-cyan-400">{fmt(prog.referee_reward)}{prog.reward_type === 'points' ? 'P' : prog.reward_type === 'cash' ? '원' : ''}</p>
+                <p className="text-[10px] text-text-tertiary">피추천인 보상</p>
+                <p className="text-lg font-bold text-teal">{fmt(prog.referee_reward)}{prog.reward_type === 'points' ? 'P' : prog.reward_type === 'cash' ? '원' : ''}</p>
               </div>
               <div className="bg-bg-2 rounded-lg p-3 text-center">
-                <p className="text-[10px] text-gray-500">총 추천</p>
-                <p className="text-lg font-bold text-white">{prog.total_referrals}</p>
+                <p className="text-[10px] text-text-tertiary">총 추천</p>
+                <p className="text-lg font-bold text-text-primary">{prog.total_referrals}</p>
               </div>
               <div className="bg-bg-2 rounded-lg p-3 text-center">
-                <p className="text-[10px] text-gray-500">가입 전환율</p>
-                <p className="text-lg font-bold text-yellow-400">{fmtPct(prog.conversion_rate)}%</p>
+                <p className="text-[10px] text-text-tertiary">가입 전환율</p>
+                <p className="text-lg font-bold text-yellow">{fmtPct(prog.conversion_rate)}%</p>
               </div>
             </div>
 
             {prog.total_referrals > 0 && (
               <div className="space-y-2">
-                <p className="text-xs text-gray-400">전환 퍼널</p>
+                <p className="text-xs text-text-tertiary">전환 퍼널</p>
                 {[
                   { label: '추천 링크 공유', value: prog.total_referrals, color: '#93c5fd' },
                   { label: '링크 클릭', value: Math.round(prog.total_referrals * 0.8), color: '#60a5fa' },
                   { label: '가입 완료', value: prog.total_signups, color: '#34d399' },
                 ].map((step, idx) => (
                   <div key={idx} className="flex items-center gap-3">
-                    <span className="text-[10px] text-gray-500 w-20 shrink-0">{step.label}</span>
+                    <span className="text-[10px] text-text-tertiary w-20 shrink-0">{step.label}</span>
                     <div className="flex-1 h-6 bg-bg-2 rounded overflow-hidden relative">
                       <div
                         className="h-full rounded"
                         style={{ width: `${(step.value / prog.total_referrals) * 100}%`, backgroundColor: step.color }}
                       />
-                      <span className="absolute inset-0 flex items-center justify-center text-[10px] font-medium text-white">
+                      <span className="absolute inset-0 flex items-center justify-center text-[10px] font-medium text-text-primary">
                         {step.value}
                       </span>
                     </div>
@@ -4964,55 +4964,55 @@ function MyPointsSection() {
 
   return (
     <div className="space-y-5">
-      <h2 className="text-lg font-bold text-white">내 포인트</h2>
+      <h2 className="text-lg font-bold text-text-primary">내 포인트</h2>
 
       <div className="grid md:grid-cols-2 gap-4">
         {/* 포인트 잔액 카드 */}
         <div className="bg-bg-3 rounded-xl p-5 border border-border-primary flex flex-col items-center justify-center text-center">
-          <div className="w-12 h-12 rounded-full bg-yellow-500/10 flex items-center justify-center mb-3">
-            <Coins size={22} className="text-yellow-400" />
+          <div className="w-12 h-12 rounded-full bg-yellow/10 flex items-center justify-center mb-3">
+            <Coins size={22} className="text-yellow" />
           </div>
           {pointsLoading ? (
-            <Loader2 size={20} className="text-emerald-400 animate-spin" />
+            <Loader2 size={20} className="text-green animate-spin" />
           ) : pointsError ? (
-            <p className="text-xs text-red-400">잔액을 불러오지 못했습니다</p>
+            <p className="text-xs text-red">잔액을 불러오지 못했습니다</p>
           ) : (
             <>
-              <p className="text-[10px] text-gray-500 mb-1">보유 포인트</p>
-              <p className="text-4xl font-bold text-yellow-400">{fmt(pointsData?.balance ?? 0)}</p>
-              <p className="text-sm text-gray-500 mt-1">P</p>
+              <p className="text-[10px] text-text-tertiary mb-1">보유 포인트</p>
+              <p className="text-4xl font-bold text-yellow">{fmt(pointsData?.balance ?? 0)}</p>
+              <p className="text-sm text-text-tertiary mt-1">P</p>
             </>
           )}
         </div>
 
         {/* 내 추천 링크 카드 */}
         <div className="bg-bg-3 rounded-xl p-5 border border-border-primary space-y-3">
-          <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-            <Share2 size={14} className="text-emerald-400" /> 내 추천 링크
+          <h3 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+            <Share2 size={14} className="text-green" /> 내 추천 링크
           </h3>
           {referralLoading ? (
             <div className="flex items-center justify-center py-4">
-              <Loader2 size={18} className="text-emerald-400 animate-spin" />
+              <Loader2 size={18} className="text-green animate-spin" />
             </div>
           ) : referralError || !referralData ? (
-            <p className="text-xs text-gray-500">추천 코드를 불러오지 못했습니다</p>
+            <p className="text-xs text-text-tertiary">추천 코드를 불러오지 못했습니다</p>
           ) : (
             <>
               <div className="flex items-center gap-2 bg-bg-2 rounded-lg px-3 py-2">
-                <span className="text-xs text-gray-400 font-mono">코드: </span>
-                <span className="text-xs text-emerald-300 font-mono font-medium flex-1">{referralData.referral_code}</span>
+                <span className="text-xs text-text-tertiary font-mono">코드: </span>
+                <span className="text-xs text-green font-mono font-medium flex-1">{referralData.referral_code}</span>
               </div>
               <div className="flex items-center gap-2 bg-bg-2 rounded-lg px-3 py-2">
-                <Link2 size={12} className="text-gray-500 shrink-0" />
-                <code className="text-[10px] text-gray-400 flex-1 truncate">{referralData.signup_link}</code>
+                <Link2 size={12} className="text-text-tertiary shrink-0" />
+                <code className="text-[10px] text-text-tertiary flex-1 truncate">{referralData.signup_link}</code>
                 <button
                   onClick={() => copyLink(referralData.signup_link)}
-                  className="flex items-center gap-1 px-2 py-1 text-[10px] bg-emerald-600 hover:bg-emerald-700 text-white rounded transition-colors"
+                  className="flex items-center gap-1 px-2 py-1 text-[10px] bg-green hover:bg-green text-white rounded transition-colors"
                 >
                   <Copy size={10} /> 복사
                 </button>
               </div>
-              <p className="text-[10px] text-gray-600">친구가 이 링크로 가입하면 두 분 모두 포인트가 지급됩니다</p>
+              <p className="text-[10px] text-text-tertiary">친구가 이 링크로 가입하면 두 분 모두 포인트가 지급됩니다</p>
             </>
           )}
         </div>
@@ -5020,23 +5020,23 @@ function MyPointsSection() {
 
       {/* 거래 내역 */}
       <div className="bg-bg-3 rounded-xl p-4 border border-border-primary">
-        <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-          <TrendingUp size={14} className="text-cyan-400" /> 포인트 거래 내역
+        <h3 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
+          <TrendingUp size={14} className="text-teal" /> 포인트 거래 내역
         </h3>
         {pointsLoading ? (
           <div className="flex items-center justify-center py-8">
-            <Loader2 size={18} className="text-emerald-400 animate-spin" />
+            <Loader2 size={18} className="text-green animate-spin" />
           </div>
         ) : transactions.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-10 gap-2">
-            <Coins size={24} className="text-gray-600" />
-            <p className="text-xs text-gray-500">거래 내역이 없습니다</p>
+            <Coins size={24} className="text-text-tertiary" />
+            <p className="text-xs text-text-tertiary">거래 내역이 없습니다</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-xs min-w-[420px]">
               <thead>
-                <tr className="text-gray-500 border-b border-border-primary">
+                <tr className="text-text-tertiary border-b border-border-primary">
                   <th className="text-left py-2 px-2 whitespace-nowrap">날짜</th>
                   <th className="text-left py-2 px-2 whitespace-nowrap">사유</th>
                   <th className="text-right py-2 px-2 whitespace-nowrap">금액</th>
@@ -5045,13 +5045,13 @@ function MyPointsSection() {
               </thead>
               <tbody>
                 {transactions.map(tx => (
-                  <tr key={tx.id} className="border-b border-border-primary/50 text-gray-300">
-                    <td className="py-2.5 px-2 text-gray-500 whitespace-nowrap">{tx.created_at?.slice(0, 10)}</td>
-                    <td className="py-2.5 px-2 text-white">{reasonLabel(tx.reason)}</td>
-                    <td className={`py-2.5 px-2 text-right font-medium ${tx.amount >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  <tr key={tx.id} className="border-b border-border-primary/50 text-text-secondary">
+                    <td className="py-2.5 px-2 text-text-tertiary whitespace-nowrap">{tx.created_at?.slice(0, 10)}</td>
+                    <td className="py-2.5 px-2 text-text-primary">{reasonLabel(tx.reason)}</td>
+                    <td className={`py-2.5 px-2 text-right font-medium ${tx.amount >= 0 ? 'text-green' : 'text-red'}`}>
                       {tx.amount >= 0 ? '+' : ''}{fmt(tx.amount)}P
                     </td>
-                    <td className="py-2.5 px-2 text-gray-500 truncate max-w-[160px]">{tx.memo ?? '-'}</td>
+                    <td className="py-2.5 px-2 text-text-tertiary truncate max-w-[160px]">{tx.memo ?? '-'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -5136,7 +5136,7 @@ function SettlementSection() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <h2 className="text-lg font-bold text-white">정산 관리</h2>
+        <h2 className="text-lg font-bold text-text-primary">정산 관리</h2>
         <SearchBar
           value={search}
           onChange={setSearch}
@@ -5147,42 +5147,42 @@ function SettlementSection() {
 
       {/* 매출 발생 기간 필터 */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <span className="text-[11px] text-gray-500">매출 발생 기간</span>
+        <span className="text-[11px] text-text-tertiary">매출 발생 기간</span>
         <DateRangeFilter value={dateRange} onChange={setDateRange} align="right" />
       </div>
 
       {isError && (
-        <div className="flex items-center gap-2 px-4 py-2 bg-red-500/10 border border-red-500/20 rounded-lg">
-          <AlertCircle size={14} className="text-red-400" />
-          <p className="text-xs text-red-400">정산 데이터를 불러오지 못했습니다</p>
+        <div className="flex items-center gap-2 px-4 py-2 bg-red/10 border border-red/20 rounded-lg">
+          <AlertCircle size={14} className="text-red" />
+          <p className="text-xs text-red">정산 데이터를 불러오지 못했습니다</p>
         </div>
       )}
 
       <div className="grid md:grid-cols-3 gap-4">
         <div className="bg-bg-3 rounded-xl p-4 border border-border-primary text-center">
-          <p className="text-xs text-gray-500">총 미정산 금액</p>
-          <p className="text-2xl font-bold text-red-400 mt-1">₩{fmt(totalUnpaid)}</p>
-          <p className="text-[10px] text-gray-600 mt-0.5">{pendingCount}건 대기중</p>
+          <p className="text-xs text-text-tertiary">총 미정산 금액</p>
+          <p className="text-2xl font-bold text-red mt-1">₩{fmt(totalUnpaid)}</p>
+          <p className="text-[10px] text-text-tertiary mt-0.5">{pendingCount}건 대기중</p>
         </div>
         <div className="bg-bg-3 rounded-xl p-4 border border-border-primary text-center">
-          <p className="text-xs text-gray-500">이번 달 정산 예정</p>
-          <p className="text-2xl font-bold text-yellow-400 mt-1">
+          <p className="text-xs text-text-tertiary">이번 달 정산 예정</p>
+          <p className="text-2xl font-bold text-yellow mt-1">
             ₩{fmt(approvedPartners.reduce((s, p) => s + n(p.unpaid_commission), 0))}
           </p>
         </div>
         <div className="bg-bg-3 rounded-xl p-4 border border-border-primary text-center">
-          <p className="text-xs text-gray-500">누적 정산 완료</p>
-          <p className="text-2xl font-bold text-emerald-400 mt-1">₩{fmt(totalPaid)}</p>
+          <p className="text-xs text-text-tertiary">누적 정산 완료</p>
+          <p className="text-2xl font-bold text-green mt-1">₩{fmt(totalPaid)}</p>
         </div>
       </div>
 
       {approvedPartners.length > 0 && (
         <div className="bg-bg-3 rounded-xl p-4 border border-border-primary">
-          <h3 className="text-sm font-semibold text-white mb-3">미정산 파트너</h3>
+          <h3 className="text-sm font-semibold text-text-primary mb-3">미정산 파트너</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-xs min-w-[520px]">
               <thead>
-                <tr className="text-gray-500 border-b border-border-primary">
+                <tr className="text-text-tertiary border-b border-border-primary">
                   <th className="text-left py-2 px-2 whitespace-nowrap">파트너</th>
                   <th className="text-right py-2 px-2 whitespace-nowrap">총 매출</th>
                   <th className="text-right py-2 px-2 whitespace-nowrap">총 커미션</th>
@@ -5192,17 +5192,17 @@ function SettlementSection() {
               </thead>
               <tbody>
                 {approvedPartners.map(p => (
-                  <tr key={p.id} className="border-b border-border-primary/50 text-gray-300">
-                    <td className="py-2.5 px-2 font-medium text-white">{p.name}</td>
+                  <tr key={p.id} className="border-b border-border-primary/50 text-text-secondary">
+                    <td className="py-2.5 px-2 font-medium text-text-primary">{p.name}</td>
                     <td className="py-2.5 px-2 text-right">₩{fmt(p.total_sales)}</td>
                     <td className="py-2.5 px-2 text-right">₩{fmt(p.total_commission)}</td>
-                    <td className="py-2.5 px-2 text-right text-red-400">₩{fmt(p.unpaid_commission)}</td>
+                    <td className="py-2.5 px-2 text-right text-red">₩{fmt(p.unpaid_commission)}</td>
                     <td className="py-2.5 px-2 text-center">
                       <button
                         onClick={() => setExportTarget(p)}
                         disabled={exportMutation.isPending && exportMutation.variables?.partner.id === p.id}
                         title="판매자 유형 선택 후 정산서(요약·전체주문·취소건) 엑셀 다운로드"
-                        className="flex items-center gap-1 mx-auto px-2 py-0.5 text-[10px] bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded transition-colors"
+                        className="flex items-center gap-1 mx-auto px-2 py-0.5 text-[10px] bg-green hover:bg-green disabled:opacity-50 text-white rounded transition-colors"
                       >
                         {exportMutation.isPending && exportMutation.variables?.partner.id === p.id
                           ? <Loader2 size={10} className="animate-spin" />
@@ -5220,22 +5220,22 @@ function SettlementSection() {
 
       <div className="bg-bg-3 rounded-xl p-4 border border-border-primary">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-white">정산 내역</h3>
-          <span className="text-[11px] text-gray-500">
+          <h3 className="text-sm font-semibold text-text-primary">정산 내역</h3>
+          <span className="text-[11px] text-text-tertiary">
             {filteredSettlements.length}건
             {(dateRange.start || dateRange.end || search) && ` (전체 ${settlements.length}건 중)`}
           </span>
         </div>
         {filteredSettlements.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-10 gap-2">
-            <DollarSign size={24} className="text-gray-600" />
-            <p className="text-xs text-gray-500">
+            <DollarSign size={24} className="text-text-tertiary" />
+            <p className="text-xs text-text-tertiary">
               {settlements.length === 0 ? '정산 내역이 없습니다' : '조건에 해당하는 정산 내역이 없습니다'}
             </p>
             {settlements.length > 0 && (dateRange.start || dateRange.end || search) && (
               <button
                 onClick={() => { setDateRange({ start: '', end: '' }); setSearch(''); }}
-                className="text-[11px] text-emerald-400 hover:text-emerald-300 underline mt-1"
+                className="text-[11px] text-green hover:text-green underline mt-1"
               >
                 필터 초기화
               </button>
@@ -5245,7 +5245,7 @@ function SettlementSection() {
           <div className="overflow-x-auto">
             <table className="w-full text-xs min-w-[560px]">
               <thead>
-                <tr className="text-gray-500 border-b border-border-primary">
+                <tr className="text-text-tertiary border-b border-border-primary">
                   <th className="text-left py-2 px-2 whitespace-nowrap">파트너</th>
                   <th className="text-right py-2 px-2 whitespace-nowrap">금액</th>
                   <th className="text-center py-2 px-2 whitespace-nowrap">상태</th>
@@ -5256,22 +5256,22 @@ function SettlementSection() {
               </thead>
               <tbody>
                 {filteredSettlements.map(s => (
-                  <tr key={s.id} className="border-b border-border-primary/50 text-gray-300">
-                    <td className="py-2.5 px-2 font-medium text-white">{s.partner_name}</td>
-                    <td className="py-2.5 px-2 text-right text-emerald-400">₩{fmt(s.amount)}</td>
+                  <tr key={s.id} className="border-b border-border-primary/50 text-text-secondary">
+                    <td className="py-2.5 px-2 font-medium text-text-primary">{s.partner_name}</td>
+                    <td className="py-2.5 px-2 text-right text-green">₩{fmt(s.amount)}</td>
                     <td className="py-2.5 px-2 text-center">
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded ${s.status === 'paid' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded ${s.status === 'paid' ? 'bg-green/20 text-green' : 'bg-yellow/20 text-yellow'}`}>
                         {s.status === 'paid' ? '완료' : '대기'}
                       </span>
                     </td>
-                    <td className="py-2.5 px-2 text-gray-500">{s.created_at?.slice(0, 10)}</td>
-                    <td className="py-2.5 px-2 text-gray-500">{s.paid_at?.slice(0, 10) ?? '-'}</td>
+                    <td className="py-2.5 px-2 text-text-tertiary">{s.created_at?.slice(0, 10)}</td>
+                    <td className="py-2.5 px-2 text-text-tertiary">{s.paid_at?.slice(0, 10) ?? '-'}</td>
                     <td className="py-2.5 px-2 text-center">
                       {s.status === 'pending' && (
                         <button
                           onClick={() => payMutation.mutate(s.id)}
                           disabled={payMutation.isPending}
-                          className="flex items-center gap-1 mx-auto px-2 py-0.5 text-[10px] bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded transition-colors"
+                          className="flex items-center gap-1 mx-auto px-2 py-0.5 text-[10px] bg-green hover:bg-green disabled:opacity-50 text-white rounded transition-colors"
                         >
                           {payMutation.isPending && <Loader2 size={8} className="animate-spin" />}
                           정산하기
@@ -5298,15 +5298,15 @@ function SettlementSection() {
           >
             <div className="flex items-start justify-between mb-4">
               <div>
-                <h3 className="text-base font-bold text-white">판매자 유형 선택</h3>
-                <p className="text-xs text-gray-500 mt-1">
-                  <span className="text-white">{exportTarget.name}</span> 님의 정산서 양식을 선택해주세요
+                <h3 className="text-base font-bold text-text-primary">판매자 유형 선택</h3>
+                <p className="text-xs text-text-tertiary mt-1">
+                  <span className="text-text-primary">{exportTarget.name}</span> 님의 정산서 양식을 선택해주세요
                 </p>
               </div>
               <button
                 onClick={() => setExportTarget(null)}
                 disabled={exportMutation.isPending}
-                className="text-gray-500 hover:text-white text-lg leading-none disabled:opacity-30"
+                className="text-text-tertiary hover:text-text-primary text-lg leading-none disabled:opacity-30"
                 aria-label="닫기"
               >
                 ×
@@ -5317,13 +5317,13 @@ function SettlementSection() {
               <button
                 onClick={() => exportMutation.mutate({ partner: exportTarget, sellerType: 'freelancer' })}
                 disabled={exportMutation.isPending}
-                className="group flex flex-col items-center gap-2 p-4 bg-bg-2 border border-border-primary hover:border-emerald-500/50 rounded-xl transition-colors disabled:opacity-50"
+                className="group flex flex-col items-center gap-2 p-4 bg-bg-2 border border-border-primary hover:border-green/50 rounded-xl transition-colors disabled:opacity-50"
               >
-                <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center group-hover:bg-emerald-500/20 transition-colors">
-                  <Users size={18} className="text-emerald-400" />
+                <div className="w-10 h-10 rounded-full bg-green/10 flex items-center justify-center group-hover:bg-green/20 transition-colors">
+                  <Users size={18} className="text-green" />
                 </div>
                 <div className="text-sm font-semibold text-white">프리랜서</div>
-                <div className="text-[10px] text-gray-500 text-center leading-tight">
+                <div className="text-[10px] text-text-tertiary text-center leading-tight">
                   공급가 기준 정산<br/>소득세 3% + 주민세 0.3% 차감
                 </div>
               </button>
@@ -5331,26 +5331,26 @@ function SettlementSection() {
               <button
                 onClick={() => exportMutation.mutate({ partner: exportTarget, sellerType: 'business' })}
                 disabled={exportMutation.isPending}
-                className="group flex flex-col items-center gap-2 p-4 bg-bg-2 border border-border-primary hover:border-blue-500/50 rounded-xl transition-colors disabled:opacity-50"
+                className="group flex flex-col items-center gap-2 p-4 bg-bg-2 border border-border-primary hover:border-blue/50 rounded-xl transition-colors disabled:opacity-50"
               >
-                <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center group-hover:bg-blue-500/20 transition-colors">
-                  <Briefcase size={18} className="text-blue-400" />
+                <div className="w-10 h-10 rounded-full bg-blue/10 flex items-center justify-center group-hover:bg-blue/20 transition-colors">
+                  <Briefcase size={18} className="text-blue" />
                 </div>
                 <div className="text-sm font-semibold text-white">사업자</div>
-                <div className="text-[10px] text-gray-500 text-center leading-tight">
+                <div className="text-[10px] text-text-tertiary text-center leading-tight">
                   주문금액 기준 정산<br/>세금 차감 없음 (세금계산서 발행)
                 </div>
               </button>
             </div>
 
             {exportMutation.isPending && (
-              <div className="flex items-center justify-center gap-2 mt-4 text-xs text-emerald-400">
+              <div className="flex items-center justify-center gap-2 mt-4 text-xs text-green">
                 <Loader2 size={12} className="animate-spin" />
                 <span>정산서 생성 중…</span>
               </div>
             )}
 
-            <p className="text-[10px] text-gray-600 mt-4 text-center">
+            <p className="text-[10px] text-text-tertiary mt-4 text-center">
               {dateRange.start || dateRange.end
                 ? `기간 필터: ${dateRange.start || '전체'} ~ ${dateRange.end || '전체'}`
                 : '기간 필터 미적용 (전체 기간)'}
@@ -5390,43 +5390,43 @@ function SettingsSection() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-bold text-white">어필리에이트 설정</h2>
+      <h2 className="text-lg font-bold text-text-primary">어필리에이트 설정</h2>
       <div className="grid md:grid-cols-2 gap-4">
         <div className="bg-bg-3 rounded-xl p-4 border border-border-primary space-y-3">
-          <h3 className="text-sm font-semibold text-white">기본 설정</h3>
+          <h3 className="text-sm font-semibold text-text-primary">기본 설정</h3>
           <div>
-            <label className="text-xs text-gray-400">기본 커미션 비율 (%)</label>
+            <label className="text-xs text-text-tertiary">기본 커미션 비율 (%)</label>
             <input
               type="number"
               value={settings.default_commission_rate}
               onChange={e => setSettings({ ...settings, default_commission_rate: Number(e.target.value) })}
-              className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-emerald-500/50"
+              className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-green/50"
             />
           </div>
           <div>
-            <label className="text-xs text-gray-400">쿠키 유효기간 (일)</label>
+            <label className="text-xs text-text-tertiary">쿠키 유효기간 (일)</label>
             <input
               type="number"
               value={settings.cookie_lifetime_days}
               onChange={e => setSettings({ ...settings, cookie_lifetime_days: Number(e.target.value) })}
-              className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-emerald-500/50"
+              className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-green/50"
             />
           </div>
           <div>
-            <label className="text-xs text-gray-400">최소 정산 금액 (₩)</label>
+            <label className="text-xs text-text-tertiary">최소 정산 금액 (₩)</label>
             <input
               type="number"
               value={settings.min_payout_amount}
               onChange={e => setSettings({ ...settings, min_payout_amount: Number(e.target.value) })}
-              className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-emerald-500/50"
+              className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-green/50"
             />
           </div>
           <div>
-            <label className="text-xs text-gray-400">정산 주기</label>
+            <label className="text-xs text-text-tertiary">정산 주기</label>
             <select
               value={settings.payout_cycle}
               onChange={e => setSettings({ ...settings, payout_cycle: e.target.value as 'weekly' | 'biweekly' | 'monthly' })}
-              className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-emerald-500/50"
+              className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary focus:outline-none focus:border-green/50"
             >
               <option value="weekly">주간</option>
               <option value="biweekly">격주</option>
@@ -5436,7 +5436,7 @@ function SettingsSection() {
           <button
             onClick={() => saveMutation.mutate()}
             disabled={saveMutation.isPending}
-            className="flex items-center justify-center gap-1.5 w-full py-2 text-xs font-medium bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg transition-colors"
+            className="flex items-center justify-center gap-1.5 w-full py-2 text-xs font-medium bg-green hover:bg-green disabled:opacity-50 text-white rounded-lg transition-colors"
           >
             {saveMutation.isPending && <Loader2 size={12} className="animate-spin" />}
             설정 저장
@@ -5444,7 +5444,7 @@ function SettingsSection() {
         </div>
 
         <div className="bg-bg-3 rounded-xl p-4 border border-border-primary space-y-3">
-          <h3 className="text-sm font-semibold text-white">알림 설정</h3>
+          <h3 className="text-sm font-semibold text-text-primary">알림 설정</h3>
           {([
             { key: 'notify_new_partner' as const, label: '새 파트너 신청 알림' },
             { key: 'notify_conversion' as const, label: '전환 발생 알림' },
@@ -5452,12 +5452,12 @@ function SettingsSection() {
             { key: 'notify_daily_report' as const, label: '일일 리포트 이메일' },
           ]).map(item => (
             <label key={item.key} className="flex items-center justify-between cursor-pointer">
-              <span className="text-xs text-gray-400">{item.label}</span>
+              <span className="text-xs text-text-tertiary">{item.label}</span>
               <input
                 type="checkbox"
                 checked={settings[item.key]}
                 onChange={e => setSettings({ ...settings, [item.key]: e.target.checked })}
-                className="w-4 h-4 rounded accent-emerald-500"
+                className="w-4 h-4 rounded accent-green"
               />
             </label>
           ))}
@@ -5492,35 +5492,35 @@ function TrackingStatusCard() {
   if (!ts) return null;
 
   const modeInfo = {
-    strict_env: { label: '엄격 (추정 기록도 중단)', cls: 'bg-emerald-500/10 text-emerald-300 ring-emerald-500/20' },
-    strict_auto: { label: '엄격 (자동 전환됨)', cls: 'bg-emerald-500/10 text-emerald-300 ring-emerald-500/20' },
-    loose: { label: '추정 허용 (바인딩 적재 대기)', cls: 'bg-amber-500/10 text-amber-300 ring-amber-500/20' },
-    confirmed_first: { label: '확정 우선 (추정은 참고 기록만)', cls: 'bg-emerald-500/10 text-emerald-300 ring-emerald-500/20' },
-  }[ts.mode] || { label: ts.mode, cls: 'bg-gray-500/10 text-gray-300 ring-gray-500/20' };
+    strict_env: { label: '엄격 (추정 기록도 중단)', cls: 'bg-green/10 text-green ring-green/20' },
+    strict_auto: { label: '엄격 (자동 전환됨)', cls: 'bg-green/10 text-green ring-green/20' },
+    loose: { label: '추정 허용 (바인딩 적재 대기)', cls: 'bg-yellow/10 text-yellow ring-yellow/20' },
+    confirmed_first: { label: '확정 우선 (추정은 참고 기록만)', cls: 'bg-green/10 text-green ring-green/20' },
+  }[ts.mode] || { label: ts.mode, cls: 'bg-bg-3/10 text-text-secondary ring-border-tertiary/20' };
 
   return (
-    <div className="bg-bg-3 rounded-xl p-4 ring-1 ring-white/5">
+    <div className="bg-bg-3 rounded-xl p-4 ring-1 ring-[rgb(var(--color-overlay-rgb)/0.05)]">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <span className="text-sm font-semibold text-white">구매자 식별 추적</span>
+        <span className="text-sm font-semibold text-text-primary">구매자 식별 추적</span>
         <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ring-1 ${modeInfo.cls}`}>
           귀속 모드: {modeInfo.label}
         </span>
-        <span className="text-xs text-gray-400">
-          확정 바인딩 <span className="text-white font-semibold">{ts.binds_total.toLocaleString()}</span>건
-          <span className="text-gray-500"> · 최근 7일 </span>
-          <span className="text-white font-semibold">{ts.binds_7d.toLocaleString()}</span>
-          <span className="text-gray-500">/{ts.auto_threshold_7d}건 (자동 엄격 전환 기준)</span>
+        <span className="text-xs text-text-tertiary">
+          확정 바인딩 <span className="text-text-primary font-semibold">{ts.binds_total.toLocaleString()}</span>건
+          <span className="text-text-tertiary"> · 최근 7일 </span>
+          <span className="text-text-primary font-semibold">{ts.binds_7d.toLocaleString()}</span>
+          <span className="text-text-tertiary">/{ts.auto_threshold_7d}건 (자동 엄격 전환 기준)</span>
         </span>
-        <span className="text-xs text-gray-400">
+        <span className="text-xs text-text-tertiary">
           최근 30일 매출귀속 중 확정 비중{' '}
-          <span className={ts.confirmed_share_30d >= 50 ? 'text-emerald-300 font-semibold' : 'text-amber-300 font-semibold'}>
+          <span className={ts.confirmed_share_30d >= 50 ? 'text-green font-semibold' : 'text-yellow font-semibold'}>
             {ts.confirmed_share_30d}%
           </span>
         </span>
       </div>
       {ts.mode !== 'strict_env' && (
-        <p className="mt-2 text-[11px] leading-relaxed text-gray-500">
-          모든 매출·전환·커미션 집계는 <span className="text-gray-300">확정 귀속(주문완료 바인딩·ref코드·파트너 쿠폰·회원연결)만</span> 포함합니다.
+        <p className="mt-2 text-[11px] leading-relaxed text-text-tertiary">
+          모든 매출·전환·커미션 집계는 <span className="text-text-secondary">확정 귀속(주문완료 바인딩·ref코드·파트너 쿠폰·회원연결)만</span> 포함합니다.
           추정 귀속(라스트클릭)은 집계·정산에서 영구 제외되지만, 기록은 계속 쌓입니다 —
           과거 성과 보정(캘리브레이션)의 분모와 &quot;추정 포함(참고)&quot; 조회에 사용됩니다.
         </p>
@@ -5530,7 +5530,7 @@ function TrackingStatusCard() {
           {ts.binds_by_day.map((b) => {
             const max = Math.max(...ts.binds_by_day.map((x) => x.count), 1);
             return (
-              <div key={b.date} className="flex-1 max-w-[24px] bg-emerald-500/40 rounded-sm" title={`${b.date}: ${b.count}건`}
+              <div key={b.date} className="flex-1 max-w-[24px] bg-green/40 rounded-sm" title={`${b.date}: ${b.count}건`}
                 style={{ height: `${Math.max(8, (b.count / max) * 100)}%` }} />
             );
           })}
@@ -5546,9 +5546,9 @@ function SafeSection({ children }: { children: React.ReactNode }) {
   if (hasError) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">
-        <AlertCircle size={32} className="text-red-400 mb-3" />
-        <p className="text-sm text-gray-400">이 섹션을 로드하는 중 오류가 발생했습니다.</p>
-        <button onClick={() => setHasError(false)} className="mt-2 text-xs text-emerald-400 hover:underline">다시 시도</button>
+        <AlertCircle size={32} className="text-red mb-3" />
+        <p className="text-sm text-text-tertiary">이 섹션을 로드하는 중 오류가 발생했습니다.</p>
+        <button onClick={() => setHasError(false)} className="mt-2 text-xs text-green hover:underline">다시 시도</button>
       </div>
     );
   }
@@ -5578,8 +5578,8 @@ export function AffiliateManaging() {
             onClick={() => setActiveSection(item.key)}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
               activeSection === item.key
-                ? 'bg-emerald-600 text-white'
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
+                ? 'bg-green text-white'
+                : 'text-text-tertiary hover:text-text-primary hover:bg-[rgb(var(--color-overlay-rgb)/0.05)]'
             }`}
           >
             {item.icon} {item.label}

@@ -311,16 +311,16 @@ export function AutoManagement() {
         <div className="flex items-center gap-2">
           <button onClick={() => aiRecommendMutation.mutate()}
             disabled={aiRecommendMutation.isPending}
-            className="text-sm bg-brand/15 text-accent-hover px-4 py-2 rounded-lg hover:bg-purple-200 flex items-center gap-2 disabled:opacity-50 font-medium">
+            className="text-sm bg-brand/15 text-accent-hover px-4 py-2 rounded-lg hover:bg-brand/10 flex items-center gap-2 disabled:opacity-50 font-medium">
             <Bot size={16} /> {aiRecommendMutation.isPending ? 'AI 분석중...' : 'AI 추천'}
           </button>
           <button onClick={() => executeRulesMutation.mutate()}
             disabled={executeRulesMutation.isPending}
-            className="text-sm bg-red/15 text-red px-4 py-2 rounded-lg hover:bg-red-200 flex items-center gap-2 disabled:opacity-50 font-medium">
+            className="text-sm bg-red/15 text-red px-4 py-2 rounded-lg hover:bg-red/10 flex items-center gap-2 disabled:opacity-50 font-medium">
             <PlayCircle size={16} /> {executeRulesMutation.isPending ? '실행중...' : '지금 실행'}
           </button>
           <button onClick={() => setShowRuleForm(!showRuleForm)}
-            className="text-sm bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 flex items-center gap-2 font-medium">
+            className="text-sm bg-brand text-white px-4 py-2 rounded-lg hover:bg-brand flex items-center gap-2 font-medium">
             <Plus size={16} /> 룰 추가
           </button>
         </div>
@@ -339,7 +339,7 @@ export function AutoManagement() {
       {/* AI Recommendations */}
       {aiRecommendMutation.isSuccess && (aiRecommendMutation.data as any)?.recommendations && (
         <div className="bg-brand/10 border border-brand/30 rounded-xl p-5">
-          <h4 className="text-sm font-semibold text-purple-800 mb-3 flex items-center gap-2">
+          <h4 className="text-sm font-semibold text-accent mb-3 flex items-center gap-2">
             <Bot size={16} /> AI 추천 룰
           </h4>
           <div className="space-y-2">
@@ -354,7 +354,7 @@ export function AutoManagement() {
                 </div>
                 <button onClick={() => handleApplyRecommendation(rec)}
                   disabled={createRuleMutation.isPending}
-                  className="text-sm bg-purple-600 text-white px-4 py-1.5 rounded-lg hover:bg-purple-700 ml-3 font-medium">
+                  className="text-sm bg-brand text-white px-4 py-1.5 rounded-lg hover:bg-brand ml-3 font-medium">
                   적용
                 </button>
               </div>
@@ -371,32 +371,32 @@ export function AutoManagement() {
           </h4>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
             <input placeholder="룰 이름 (선택)" value={ruleForm.name} onChange={(e) => setRuleForm(f => ({ ...f, name: e.target.value }))}
-              className="px-3 py-2 border border-border-primary rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400" />
+              className="px-3 py-2 border border-border-primary rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand/50" />
             <select value={ruleForm.target_type} onChange={(e) => setRuleForm(f => ({ ...f, target_type: e.target.value }))}
-              className="px-3 py-2 border border-border-primary rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400">
+              className="px-3 py-2 border border-border-primary rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand/50">
               <option value="campaign">캠페인</option>
               <option value="adset">광고세트</option>
               <option value="ad">광고</option>
             </select>
             <select value={ruleForm.action} onChange={(e) => setRuleForm(f => ({ ...f, action: e.target.value }))}
-              className="px-3 py-2 border border-border-primary rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400">
+              className="px-3 py-2 border border-border-primary rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand/50">
               {ACTION_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
             <select value={ruleForm.metric} onChange={(e) => setRuleForm(f => ({ ...f, metric: e.target.value }))}
-              className="px-3 py-2 border border-border-primary rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400">
+              className="px-3 py-2 border border-border-primary rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand/50">
               {METRIC_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
             <select value={ruleForm.operator} onChange={(e) => setRuleForm(f => ({ ...f, operator: e.target.value }))}
-              className="px-3 py-2 border border-border-primary rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400">
+              className="px-3 py-2 border border-border-primary rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand/50">
               {OPERATOR_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
             <input type="number" placeholder="임계값" value={ruleForm.threshold} onChange={(e) => setRuleForm(f => ({ ...f, threshold: e.target.value }))}
-              className="px-3 py-2 border border-border-primary rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400" />
+              className="px-3 py-2 border border-border-primary rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand/50" />
             {ruleForm.action !== 'pause' && (
               <input type="number" placeholder="변경량 (%)" value={ruleForm.action_value} onChange={(e) => setRuleForm(f => ({ ...f, action_value: e.target.value }))}
-                className="px-3 py-2 border border-border-primary rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400" />
+                className="px-3 py-2 border border-border-primary rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand/50" />
             )}
           </div>
           {/* Secondary condition */}
@@ -418,7 +418,7 @@ export function AutoManagement() {
           </details>
           <div className="flex items-center gap-2">
             <button onClick={handleCreateRule} disabled={!ruleForm.threshold || createRuleMutation.isPending}
-              className="bg-indigo-600 text-white px-5 py-2 rounded-lg text-sm hover:bg-indigo-700 disabled:opacity-50 font-medium">
+              className="bg-brand text-white px-5 py-2 rounded-lg text-sm hover:bg-brand disabled:opacity-50 font-medium">
               {createRuleMutation.isPending ? '생성중...' : '룰 생성'}
             </button>
             <button onClick={() => { setShowRuleForm(false); resetRuleForm(); }}
@@ -556,9 +556,9 @@ export function AutoManagement() {
                       {/* Timeline dot */}
                       <div className="flex flex-col items-center flex-shrink-0">
                         <div className={`w-3 h-3 rounded-full ${
-                          log.action_taken === 'paused' ? 'bg-red-400' :
-                          log.action_taken?.includes('decreased') ? 'bg-orange-400' :
-                          log.action_taken?.includes('increased') ? 'bg-green-400' : 'bg-bg-5'
+                          log.action_taken === 'paused' ? 'bg-red/20' :
+                          log.action_taken?.includes('decreased') ? 'bg-orange/20' :
+                          log.action_taken?.includes('increased') ? 'bg-green/20' : 'bg-bg-5'
                         }`} />
                       </div>
 
@@ -645,7 +645,7 @@ export function AutoManagement() {
           <input type="email" value={reportEmail} onChange={(e) => setReportEmail(e.target.value)} placeholder="이메일 주소" className="flex-1 px-3 py-2 border rounded-lg text-sm" />
           <button onClick={() => emailMutation.mutate({ meta_campaign_id: reportCampaignId || undefined, start_date: reportDates.start, end_date: reportDates.end, email: reportEmail, report_data: savedReport || undefined })}
             disabled={!reportEmail || !reportDates.start || !reportDates.end || emailMutation.isPending}
-            className="bg-purple-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2">
+            className="bg-brand text-white px-4 py-2 rounded-lg text-sm hover:bg-brand disabled:opacity-50 flex items-center gap-2">
             <Mail size={14} /> {emailMutation.isPending ? '발송중...' : '이메일 발송'}
           </button>
           <button onClick={() => testEmailMutation.mutate()}
@@ -678,7 +678,7 @@ export function AutoManagement() {
             <Calendar size={18} className="text-teal" /> 스케줄 리포트
           </h3>
           <button onClick={() => setShowScheduleForm(!showScheduleForm)}
-            className="text-sm bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 flex items-center gap-2 font-medium">
+            className="text-sm bg-teal text-white px-4 py-2 rounded-lg hover:bg-teal flex items-center gap-2 font-medium">
             <Plus size={14} /> 스케줄 추가
           </button>
         </div>
@@ -688,7 +688,7 @@ export function AutoManagement() {
           <div className="px-5 py-4 bg-bg-0 border-b border-border-primary">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
               <input placeholder="스케줄 이름" value={schedForm.name} onChange={(e) => setSchedForm(f => ({ ...f, name: e.target.value }))}
-                className="px-3 py-2 border border-border-primary rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-200 focus:border-teal-400" />
+                className="px-3 py-2 border border-border-primary rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal/30 focus:border-teal/50" />
               <select value={schedForm.schedule_type} onChange={(e) => setSchedForm(f => ({ ...f, schedule_type: e.target.value }))}
                 className="px-3 py-2 border border-border-primary rounded-lg text-sm">
                 <option value="weekly">주간</option>
@@ -717,7 +717,7 @@ export function AutoManagement() {
                     const [h, m] = e.target.value.split(':').map(Number);
                     setSchedForm(f => ({ ...f, send_hour: h || 0, send_minute: m || 0 }));
                   }}
-                  className="px-3 py-2 border border-border-primary rounded-lg text-sm w-full focus:outline-none focus:ring-2 focus:ring-teal-200 focus:border-teal-400"
+                  className="px-3 py-2 border border-border-primary rounded-lg text-sm w-full focus:outline-none focus:ring-2 focus:ring-teal/30 focus:border-teal/50"
                 />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-text-quaternary pointer-events-none">발송</span>
               </div>
@@ -735,11 +735,11 @@ export function AutoManagement() {
                 <option value={30}>최근 30일</option>
               </select>
               <input type="email" placeholder="수신 이메일 (선택)" value={schedForm.email_to} onChange={(e) => setSchedForm(f => ({ ...f, email_to: e.target.value }))}
-                className="px-3 py-2 border border-border-primary rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-200 focus:border-teal-400" />
+                className="px-3 py-2 border border-border-primary rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal/30 focus:border-teal/50" />
             </div>
             <div className="flex items-center gap-2">
               <button onClick={handleCreateSchedule} disabled={!schedForm.name || createScheduleMutation.isPending}
-                className="bg-teal-600 text-white px-5 py-2 rounded-lg text-sm hover:bg-teal-700 disabled:opacity-50 font-medium">
+                className="bg-teal text-white px-5 py-2 rounded-lg text-sm hover:bg-teal disabled:opacity-50 font-medium">
                 {createScheduleMutation.isPending ? '생성중...' : '스케줄 생성'}
               </button>
               <button onClick={() => { setShowScheduleForm(false); resetScheduleForm(); }}
@@ -938,8 +938,8 @@ function ReportNewsletter({ data, onEmail }: { data: any; onEmail?: () => void }
   };
 
   const gradeColors: Record<string, string> = {
-    A: 'from-emerald-500 to-green-600', B: 'from-bg-00 to-indigo-600',
-    C: 'from-yellow-500 to-orange-500', D: 'from-orange-500 to-red-500', F: 'from-red-500 to-red-700',
+    A: 'from-green/20 to-green/20', B: 'from-bg-00 to-brand/20',
+    C: 'from-yellow/20 to-orange/20', D: 'from-orange/20 to-red/20', F: 'from-red/20 to-red',
   };
   const grade = ai?.overall_grade || 'B';
   const gradeGradient = gradeColors[grade] || gradeColors['B'];
@@ -1007,7 +1007,7 @@ function ReportNewsletter({ data, onEmail }: { data: any; onEmail?: () => void }
         </button>
         {onEmail && (
           <button onClick={onEmail}
-            className="flex items-center gap-2 text-sm bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-4 py-2.5 rounded-xl hover:from-purple-700 hover:to-indigo-700 font-medium shadow-[0px_1px_3px_rgba(0,0,0,0.2)] transition-all">
+            className="flex items-center gap-2 text-sm bg-gradient-to-r from-brand to-brand text-white px-4 py-2.5 rounded-xl hover:from-brand hover:to-brand font-medium shadow-[0px_1px_3px_rgba(0,0,0,0.2)] transition-all">
             <Mail size={15} /> 이메일 발송
           </button>
         )}
@@ -1015,19 +1015,19 @@ function ReportNewsletter({ data, onEmail }: { data: any; onEmail?: () => void }
 
       <div id="report-printable" className="rounded-2xl overflow-hidden border border-border-primary shadow-[0px_7px_32px_rgba(0,0,0,0.35)] bg-bg-1">
         {/* Hero Header */}
-        <div className="bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-800 px-6 sm:px-10 py-8 relative overflow-hidden">
+        <div className="bg-gradient-to-br from-slate-900 via-blue to-brand px-6 sm:px-10 py-8 relative overflow-hidden">
           <div className="absolute inset-0 pointer-events-none">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-blue-400/15 to-transparent rounded-full -translate-y-1/2 translate-x-1/3" />
-            <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-indigo-500/10 to-transparent rounded-full translate-y-1/3 -translate-x-1/4" />
+            <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-blue/15 to-transparent rounded-full -translate-y-1/2 translate-x-1/3" />
+            <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-brand/10 to-transparent rounded-full translate-y-1/3 -translate-x-1/4" />
           </div>
           <div className="relative z-10 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-3 mb-3">
-                <div className="w-9 h-9 bg-bg-1/15 backdrop-blur-sm rounded-lg flex items-center justify-center border border-white/10">
+                <div className="w-9 h-9 bg-bg-1/15 backdrop-blur-sm rounded-lg flex items-center justify-center border border-[rgb(var(--color-overlay-rgb)/0.1)]">
                   <BarChart3 size={18} className="text-white" />
                 </div>
                 <div>
-                  <span className="text-blue-300 text-[10px] font-semibold tracking-[0.15em] uppercase block">META-COMMANDER</span>
+                  <span className="text-blue text-[10px] font-semibold tracking-[0.15em] uppercase block">META-COMMANDER</span>
                   <span className="text-white/60 text-xs">Performance Report</span>
                 </div>
               </div>
@@ -1037,18 +1037,18 @@ function ReportNewsletter({ data, onEmail }: { data: any; onEmail?: () => void }
                 <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">성과 분석 리포트</h2>
               )}
               <div className="flex flex-wrap items-center gap-2 mt-2">
-                <span className="text-blue-200/80 text-xs sm:text-sm font-medium bg-bg-1/10 backdrop-blur-sm px-3 py-1 rounded-lg">
+                <span className="text-blue/80 text-xs sm:text-sm font-medium bg-bg-1/10 backdrop-blur-sm px-3 py-1 rounded-lg">
                   {period.start} ~ {period.end}
                 </span>
-                {campaign && <span className="text-blue-200/80 text-xs sm:text-sm bg-bg-1/10 backdrop-blur-sm px-3 py-1 rounded-lg truncate max-w-[200px]">{campaign.name}</span>}
+                {campaign && <span className="text-blue/80 text-xs sm:text-sm bg-bg-1/10 backdrop-blur-sm px-3 py-1 rounded-lg truncate max-w-[200px]">{campaign.name}</span>}
               </div>
             </div>
             {ai?.overall_grade && (
               <div className="flex flex-col items-center shrink-0">
-                <div className={`w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br ${gradeGradient} flex items-center justify-center shadow-[0px_7px_32px_rgba(0,0,0,0.35)] ring-4 ring-white/10`}>
+                <div className={`w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br ${gradeGradient} flex items-center justify-center shadow-[0px_7px_32px_rgba(0,0,0,0.35)] ring-4 ring-[rgb(var(--color-overlay-rgb)/0.1)]`}>
                   <span className="text-2xl sm:text-3xl font-black text-white drop-shadow-[0px_7px_32px_rgba(0,0,0,0.35)]">{grade}</span>
                 </div>
-                <span className="text-[10px] sm:text-xs text-blue-200/70 mt-1.5 font-medium text-center max-w-[180px] line-clamp-2 break-words">{ai.grade_reason || '종합 등급'}</span>
+                <span className="text-[10px] sm:text-xs text-blue/70 mt-1.5 font-medium text-center max-w-[180px] line-clamp-2 break-words">{ai.grade_reason || '종합 등급'}</span>
               </div>
             )}
           </div>
@@ -1057,7 +1057,7 @@ function ReportNewsletter({ data, onEmail }: { data: any; onEmail?: () => void }
         <div className="p-5 sm:p-8 space-y-6">
           {/* Period Summary */}
           {ai?.period_summary && (
-            <div className="bg-gradient-to-r from-bg-0 to-indigo-50 rounded-xl p-4 border border-blue-100/80">
+            <div className="bg-gradient-to-r from-bg-0 to-brand/10 rounded-xl p-4 border border-blue/80">
               <div className="flex items-start gap-3">
                 <div className="w-7 h-7 bg-blue/15 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
                   <BarChart3 size={14} className="text-accent" />
@@ -1080,14 +1080,14 @@ function ReportNewsletter({ data, onEmail }: { data: any; onEmail?: () => void }
           {daily.length > 1 && (
             <div>
               <h4 className="text-xs font-semibold text-text-quaternary uppercase tracking-[0.15em] mb-4 flex items-center gap-2">
-                <Activity size={14} className="text-blue-500" /> 일별 추이
+                <Activity size={14} className="text-blue" /> 일별 추이
               </h4>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {[
-                  { label: '지출', data: spendData, color: '#3b82f6', bg: 'from-bg-0 to-blue-100/50' },
-                  { label: 'ROAS', data: roasData, color: totals.roas >= 1 ? '#10b981' : '#ef4444', bg: totals.roas >= 1 ? 'from-emerald-50 to-green-100/50' : 'from-red-50 to-red-100/50' },
-                  { label: 'CTR (%)', data: ctrData, color: '#10b981', bg: 'from-emerald-50 to-teal-100/50' },
-                  { label: '클릭', data: clickData, color: '#f97316', bg: 'from-orange-50 to-amber-100/50' },
+                  { label: '지출', data: spendData, color: '#3b82f6', bg: 'from-bg-0 to-blue/50' },
+                  { label: 'ROAS', data: roasData, color: totals.roas >= 1 ? '#10b981' : '#ef4444', bg: totals.roas >= 1 ? 'from-green/10 to-green/50' : 'from-red/10 to-red/50' },
+                  { label: 'CTR (%)', data: ctrData, color: '#10b981', bg: 'from-green/10 to-teal/50' },
+                  { label: '클릭', data: clickData, color: '#f97316', bg: 'from-orange/10 to-yellow/50' },
                 ].map((chart) => (
                   <div key={chart.label} className={`bg-gradient-to-br ${chart.bg} rounded-2xl p-4 border border-border-primary/80`}>
                     <h5 className="text-xs font-semibold text-text-tertiary mb-3">{chart.label}</h5>
@@ -1103,7 +1103,7 @@ function ReportNewsletter({ data, onEmail }: { data: any; onEmail?: () => void }
           )}
 
           {ai?.daily_trend_insight && (
-            <div className="bg-gradient-to-r from-sky-50 to-blue-50 rounded-2xl p-4 border border-sky-100">
+            <div className="bg-gradient-to-r from-blue/10 to-blue/10 rounded-2xl p-4 border border-blue/30">
               <p className="text-sm text-accent-hover leading-relaxed">{ai.daily_trend_insight}</p>
             </div>
           )}
@@ -1112,13 +1112,13 @@ function ReportNewsletter({ data, onEmail }: { data: any; onEmail?: () => void }
           {ai?.kpi_highlights && ai.kpi_highlights.length > 0 && (
             <div>
               <h4 className="text-xs font-semibold text-text-quaternary uppercase tracking-[0.15em] mb-4 flex items-center gap-2">
-                <Zap size={14} className="text-amber-500" /> KPI 하이라이트
+                <Zap size={14} className="text-yellow" /> KPI 하이라이트
               </h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {ai.kpi_highlights.map((kpi: any, i: number) => (
                   <div key={i} className="flex items-center gap-4 bg-bg-1 rounded-xl p-4 border border-border-primary shadow-[0px_1px_3px_rgba(0,0,0,0.2)] hover:shadow-[0px_3px_12px_rgba(0,0,0,0.2)] transition-shadow">
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                      kpi.change?.startsWith('+') ? 'bg-gradient-to-br from-green-100 to-emerald-100' : kpi.change?.startsWith('-') ? 'bg-gradient-to-br from-red-100 to-rose-100' : 'bg-gradient-to-br from-blue-100 to-indigo-100'
+                      kpi.change?.startsWith('+') ? 'bg-gradient-to-br from-green/10 to-green/10' : kpi.change?.startsWith('-') ? 'bg-gradient-to-br from-red/10 to-red/10' : 'bg-gradient-to-br from-blue/10 to-brand/10'
                     }`}>
                       {kpi.change?.startsWith('+') ? <ArrowUpRight size={16} className="text-green" /> :
                        kpi.change?.startsWith('-') ? <ArrowDownRight size={16} className="text-red" /> :
@@ -1141,13 +1141,13 @@ function ReportNewsletter({ data, onEmail }: { data: any; onEmail?: () => void }
           {daily.length > 0 && (
             <div>
               <h4 className="text-xs font-semibold text-text-quaternary uppercase tracking-[0.15em] mb-4 flex items-center gap-2">
-                <Calendar size={14} className="text-indigo-500" /> 일별 데이터
+                <Calendar size={14} className="text-accent" /> 일별 데이터
               </h4>
               <div className="rounded-2xl border border-border-primary overflow-hidden shadow-[0px_1px_3px_rgba(0,0,0,0.2)]">
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
                     <thead>
-                      <tr className="bg-gradient-to-r from-slate-50 to-bg-0">
+                      <tr className="bg-gradient-to-r from-bg-1 to-bg-0">
                         <th className="text-left py-3 px-4 text-text-tertiary font-semibold text-xs">날짜</th>
                         <th className="text-right py-3 px-3 text-text-tertiary font-semibold text-xs">지출</th>
                         <th className="text-right py-3 px-3 text-text-tertiary font-semibold text-xs">노출</th>
@@ -1163,7 +1163,7 @@ function ReportNewsletter({ data, onEmail }: { data: any; onEmail?: () => void }
                       {daily.map((row: any, i: number) => {
                         const roas = parseFloat(row.roas || 0);
                         return (
-                          <tr key={i} className={`hover:bg-blue/10/60 transition-colors ${i % 2 === 0 ? 'bg-bg-1' : 'bg-bg-0/40'}`}>
+                          <tr key={i} className={`hover:bg-blue/60 transition-colors ${i % 2 === 0 ? 'bg-bg-1' : 'bg-bg-0/40'}`}>
                             <td className="py-2.5 px-4 text-text-secondary font-medium">{row.date_stop || row.date || '-'}</td>
                             <td className="py-2.5 px-3 text-right font-semibold text-text-primary">{formatSpend(row.spend)}</td>
                             <td className="py-2.5 px-3 text-right text-text-tertiary">{formatNum(row.impressions)}</td>
@@ -1172,7 +1172,7 @@ function ReportNewsletter({ data, onEmail }: { data: any; onEmail?: () => void }
                             <td className="py-2.5 px-3 text-right text-text-tertiary">{parseFloat(row.ctr || '0').toFixed(2)}%</td>
                             <td className="py-2.5 px-3 text-right text-text-tertiary">{formatCPC(row.cpc)}</td>
                             <td className="py-2.5 px-3 text-right text-text-tertiary">{row.conversion_value ? formatSpend(row.conversion_value) : '-'}</td>
-                            <td className={`py-2.5 px-3 text-right font-bold ${roas >= 1 ? 'text-emerald-600' : roas > 0 ? 'text-red' : 'text-text-quaternary'}`}>{formatROAS(row.roas)}</td>
+                            <td className={`py-2.5 px-3 text-right font-bold ${roas >= 1 ? 'text-green' : roas > 0 ? 'text-red' : 'text-text-quaternary'}`}>{formatROAS(row.roas)}</td>
                           </tr>
                         );
                       })}
@@ -1200,12 +1200,12 @@ function ReportNewsletter({ data, onEmail }: { data: any; onEmail?: () => void }
           {ai?.key_insights?.length > 0 && (
             <div>
               <h4 className="text-xs font-semibold text-text-quaternary uppercase tracking-[0.15em] mb-4 flex items-center gap-2">
-                <AlertTriangle size={14} className="text-amber-500" /> 핵심 인사이트
+                <AlertTriangle size={14} className="text-yellow" /> 핵심 인사이트
               </h4>
               <div className="space-y-3">
                 {ai.key_insights.map((insight: string, i: number) => (
-                  <div key={i} className="flex items-start gap-4 bg-gradient-to-r from-amber-50 via-orange-50 to-yellow-50 rounded-xl p-4 border border-amber-100/80 shadow-[0px_1px_3px_rgba(0,0,0,0.2)]">
-                    <div className="w-8 h-8 bg-gradient-to-br from-amber-500 to-orange-500 rounded-xl flex items-center justify-center flex-shrink-0 shadow-[0px_1px_3px_rgba(0,0,0,0.2)]">
+                  <div key={i} className="flex items-start gap-4 bg-gradient-to-r from-yellow/10 via-orange/10 to-yellow/10 rounded-xl p-4 border border-yellow/80 shadow-[0px_1px_3px_rgba(0,0,0,0.2)]">
+                    <div className="w-8 h-8 bg-gradient-to-br from-yellow to-orange rounded-xl flex items-center justify-center flex-shrink-0 shadow-[0px_1px_3px_rgba(0,0,0,0.2)]">
                       <span className="text-white text-xs font-black">{i + 1}</span>
                     </div>
                     <p className="text-sm text-text-primary leading-relaxed pt-1">{insight}</p>
@@ -1219,19 +1219,19 @@ function ReportNewsletter({ data, onEmail }: { data: any; onEmail?: () => void }
           {ai?.recommendations?.length > 0 && (
             <div>
               <h4 className="text-xs font-semibold text-text-quaternary uppercase tracking-[0.15em] mb-4 flex items-center gap-2">
-                <CheckCircle size={14} className="text-green-500" /> 실행 추천
+                <CheckCircle size={14} className="text-green" /> 실행 추천
               </h4>
               <div className="space-y-3">
                 {ai.recommendations.map((rec: any, i: number) => (
                   <div key={i} className={`rounded-xl p-5 border-l-4 shadow-[0px_1px_3px_rgba(0,0,0,0.2)] ${
-                    rec.priority === 'high' ? 'border-l-red-500 bg-gradient-to-r from-red-50 to-bg-1 border border-red-100' :
-                    rec.priority === 'medium' ? 'border-l-yellow-500 bg-gradient-to-r from-yellow-50 to-bg-1 border border-yellow-100' :
-                    'border-l-gray-400 bg-gradient-to-r from-bg-0 to-bg-1 border border-border-primary'
+                    rec.priority === 'high' ? 'border-l-red/50 bg-gradient-to-r from-red/10 to-bg-1 border border-red/30' :
+                    rec.priority === 'medium' ? 'border-l-yellow/50 bg-gradient-to-r from-yellow/10 to-bg-1 border border-yellow/30' :
+                    'border-l-border-secondary bg-gradient-to-r from-bg-0 to-bg-1 border border-border-primary'
                   }`}>
                     <div className="flex items-center gap-2 mb-2">
                       <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
                         rec.priority === 'high' ? 'bg-red text-white' :
-                        rec.priority === 'medium' ? 'bg-yellow text-white' : 'bg-bg-4 text-white'
+                        rec.priority === 'medium' ? 'bg-yellow text-white' : 'bg-bg-4 text-text-primary'
                       }`}>{rec.priority === 'high' ? '긴급' : rec.priority === 'medium' ? '중요' : '참고'}</span>
                       <h5 className="text-sm font-bold text-text-primary">{rec.title}</h5>
                     </div>
@@ -1249,7 +1249,7 @@ function ReportNewsletter({ data, onEmail }: { data: any; onEmail?: () => void }
 
           {/* Fallback AI text */}
           {!ai && aiText && (
-            <div className="bg-gradient-to-br from-bg-0 to-slate-50 rounded-2xl p-6 border border-border-primary">
+            <div className="bg-gradient-to-br from-bg-0 to-bg-1 rounded-2xl p-6 border border-border-primary">
               <h4 className="text-xs font-semibold text-text-quaternary uppercase tracking-[0.15em] mb-3">AI 분석</h4>
               <div className="text-sm text-text-secondary whitespace-pre-wrap leading-relaxed">{aiText}</div>
             </div>
@@ -1257,9 +1257,9 @@ function ReportNewsletter({ data, onEmail }: { data: any; onEmail?: () => void }
         </div>
 
         {/* Footer */}
-        <div className="bg-gradient-to-r from-slate-50 to-bg-0 border-t border-border-primary px-8 py-4 flex items-center justify-between">
+        <div className="bg-gradient-to-r from-bg-1 to-bg-0 border-t border-border-primary px-8 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-5 h-5 bg-gradient-to-r from-blue-600 to-indigo-600 rounded flex items-center justify-center">
+            <div className="w-5 h-5 bg-gradient-to-r from-blue to-brand rounded flex items-center justify-center">
               <span className="text-white text-[8px] font-bold">M</span>
             </div>
             <span className="text-xs text-text-quaternary font-medium">Meta-Commander 자동 생성 리포트</span>
@@ -1276,17 +1276,17 @@ function ReportKPICard({ icon, label, value, sub, sparkData, sparkColor, accent,
   sparkData: number[]; sparkColor: string; accent: string; highlight?: boolean;
 }) {
   const accentBg: Record<string, string> = {
-    blue: 'bg-blue/10', purple: 'bg-brand/10', green: 'bg-emerald-50',
+    blue: 'bg-blue/10', purple: 'bg-brand/10', green: 'bg-green/10',
     orange: 'bg-orange/10', red: 'bg-red/10',
   };
   const accentText: Record<string, string> = {
-    blue: 'text-accent', purple: 'text-accent', green: 'text-emerald-600',
+    blue: 'text-accent', purple: 'text-accent', green: 'text-green',
     orange: 'text-orange', red: 'text-red',
   };
 
   return (
     <div className={`rounded-2xl p-4 border transition-all hover:shadow-[0px_7px_32px_rgba(0,0,0,0.35)] hover:-translate-y-0.5 ${
-      highlight ? 'border-brand/30 bg-gradient-to-br from-bg-0 via-indigo-50 to-bg-0 ring-1 ring-blue-100 shadow-blue-100/50 shadow-[0px_3px_12px_rgba(0,0,0,0.2)]' : 'border-border-primary bg-bg-1 hover:border-border-primary shadow-[0px_1px_3px_rgba(0,0,0,0.2)]'
+      highlight ? 'border-brand/30 bg-gradient-to-br from-bg-0 via-brand/10 to-bg-0 ring-1 ring-blue/30 shadow-blue-100/50 shadow-[0px_3px_12px_rgba(0,0,0,0.2)]' : 'border-border-primary bg-bg-1 hover:border-border-primary shadow-[0px_1px_3px_rgba(0,0,0,0.2)]'
     }`}>
       <div className="flex items-center gap-2 mb-3">
         <div className={`p-2 rounded-xl ${accentBg[accent]} ${accentText[accent]}`}>{icon}</div>

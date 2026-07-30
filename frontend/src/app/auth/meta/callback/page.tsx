@@ -106,7 +106,7 @@ function MetaCallbackContent() {
               <button
                 key={acc.id}
                 onClick={() => selectAccount(acc.account_id)}
-                className="w-full text-left p-4 border border-border-primary rounded-xl hover:border-blue-400 hover:bg-blue/10 transition-colors"
+                className="w-full text-left p-4 border border-border-primary rounded-xl hover:border-blue/50 hover:bg-blue/10 transition-colors"
               >
                 <div className="font-medium text-text-primary">{acc.name}</div>
                 <div className="text-sm text-text-tertiary mt-1">
@@ -122,7 +122,7 @@ function MetaCallbackContent() {
                 <div key={page.id} className="text-sm text-text-tertiary">
                   {page.name}
                   {page.instagram && (
-                    <span className="text-pink-500 ml-2">@{page.instagram.username}</span>
+                    <span className="text-red ml-2">@{page.instagram.username}</span>
                   )}
                 </div>
               ))}
@@ -134,7 +134,7 @@ function MetaCallbackContent() {
       {status === 'success' && (
         <div className="text-center">
           <div className="w-16 h-16 bg-green/15 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg className="w-8 h-8 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-8 h-8 text-green" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
           </div>

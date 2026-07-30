@@ -172,15 +172,15 @@ export function NaverGFADashboard() {
       label: 'CPM',
       value: formatNaverCurrency(kpi.cpm || 0),
       icon: Activity,
-      color: 'text-cyan-600',
+      color: 'text-teal',
       bg: 'bg-teal/10',
     },
     {
       label: 'ROAS',
       value: kpi.roas ? `${(kpi.roas * 100).toFixed(0)}%` : '-',
       icon: TrendingUp,
-      color: 'text-rose-600',
-      bg: 'bg-rose-50',
+      color: 'text-red',
+      bg: 'bg-red/10',
     },
   ];
 
@@ -199,7 +199,7 @@ export function NaverGFADashboard() {
           <select
             value={datePreset}
             onChange={(e) => setDatePreset(e.target.value as DatePreset)}
-            className="rounded-lg border border-border-primary px-3 py-2 text-sm bg-bg-1 focus:border-green focus:ring-1 focus:ring-green-500 focus:outline-none"
+            className="rounded-lg border border-border-primary px-3 py-2 text-sm bg-bg-1 focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
           >
             {DATE_PRESETS.map((p) => (
               <option key={p.value} value={p.value}>{p.label}</option>
@@ -213,7 +213,7 @@ export function NaverGFADashboard() {
                 value={customStartDate}
                 onChange={(e) => setCustomStartDate(e.target.value)}
                 max={customEndDate}
-                className="rounded-lg border border-border-primary px-2 py-1.5 text-sm bg-bg-1 focus:border-green focus:ring-1 focus:ring-green-500 focus:outline-none"
+                className="rounded-lg border border-border-primary px-2 py-1.5 text-sm bg-bg-1 focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
               />
               <span className="text-text-quaternary text-sm">~</span>
               <input
@@ -221,7 +221,7 @@ export function NaverGFADashboard() {
                 value={customEndDate}
                 onChange={(e) => setCustomEndDate(e.target.value)}
                 min={customStartDate}
-                className="rounded-lg border border-border-primary px-2 py-1.5 text-sm bg-bg-1 focus:border-green focus:ring-1 focus:ring-green-500 focus:outline-none"
+                className="rounded-lg border border-border-primary px-2 py-1.5 text-sm bg-bg-1 focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
               />
             </div>
           )}
@@ -391,7 +391,7 @@ export function NaverGFADashboard() {
           <button
             onClick={handleAiAnalysis}
             disabled={aiMutation.isPending}
-            className="flex items-center gap-2 px-4 py-2 bg-green text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 bg-green text-white rounded-lg text-sm font-medium hover:bg-green transition-colors disabled:opacity-50"
           >
             {aiMutation.isPending ? (
               <Loader2 size={16} className="animate-spin" />
@@ -439,7 +439,7 @@ export function NaverGFADashboard() {
                     <ul className="space-y-1">
                       {aiMutation.data.recommendations.map((rec: any, i: number) => (
                         <li key={i} className="flex items-start gap-2 text-sm text-text-secondary">
-                          <span className="text-green-500 mt-0.5">&#9679;</span>
+                          <span className="text-green mt-0.5">&#9679;</span>
                           {typeof rec === 'string' ? rec : rec.description || rec.title}
                         </li>
                       ))}

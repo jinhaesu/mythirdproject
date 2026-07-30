@@ -190,7 +190,7 @@ export function CreativeStudio() {
 
             <div>
               <label className="block text-sm font-medium text-text-secondary mb-1">제품 이미지</label>
-              <div className="border border-dashed border-border-primary rounded-lg p-3 text-center hover:border-primary-400 transition-colors">
+              <div className="border border-dashed border-border-primary rounded-lg p-3 text-center hover:border-brand transition-colors">
                 <input
                   type="file"
                   accept="image/*"
@@ -305,7 +305,7 @@ export function CreativeStudio() {
 
             <div>
               <label className="block text-sm font-medium text-text-secondary mb-1">제품 이미지</label>
-              <div className="border border-dashed border-border-primary rounded-lg p-3 text-center hover:border-primary-400 transition-colors">
+              <div className="border border-dashed border-border-primary rounded-lg p-3 text-center hover:border-brand transition-colors">
                 <input
                   type="file"
                   accept="image/*"

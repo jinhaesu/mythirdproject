@@ -100,17 +100,17 @@ export function AICommandCenter() {
 
   // Color scheme
   const fabGradient = isNaver
-    ? 'bg-gradient-to-r from-green-500 to-green-600'
-    : 'bg-gradient-to-r from-primary-600 to-purple-600';
+    ? 'bg-green'
+    : 'bg-brand';
   const headerGradient = isNaver
-    ? 'bg-gradient-to-r from-green-600 to-green-700'
-    : 'bg-gradient-to-r from-primary-600 to-purple-600';
+    ? 'bg-green'
+    : 'bg-brand';
   const userBubble = isNaver ? 'bg-green text-white' : 'bg-brand text-white';
   const sendBtnClass = isNaver
-    ? 'bg-green hover:bg-green-700'
+    ? 'bg-green hover:bg-green'
     : 'bg-brand hover:bg-accent-hover';
   const focusRing = isNaver
-    ? 'focus:ring-green-500 focus:border-green'
+    ? 'focus:ring-green/50 focus:border-green'
     : 'focus:ring-brand focus:border-brand';
   const suggestHover = isNaver
     ? 'hover:bg-green/10 hover:border-green/30 hover:text-green'

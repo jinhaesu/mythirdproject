@@ -199,7 +199,7 @@ export function NaverGFAManager() {
           {viewMode === 'list' ? (
             <button
               onClick={() => setViewMode('wizard')}
-              className="flex items-center gap-2 px-4 py-2 bg-green text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-green text-white rounded-lg text-sm font-medium hover:bg-green transition-colors"
             >
               <Plus size={16} />
               새 캠페인
@@ -225,7 +225,7 @@ export function NaverGFAManager() {
               <div key={i} className="flex items-center">
                 <div className={`flex items-center gap-2 ${i <= wizardStep ? 'text-green' : 'text-text-quaternary'}`}>
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
-                    i < wizardStep ? 'bg-green text-white' : i === wizardStep ? 'bg-green/15 text-green border-2 border-green-600' : 'bg-bg-2 text-text-quaternary'
+                    i < wizardStep ? 'bg-green text-white' : i === wizardStep ? 'bg-green/15 text-green border-2 border-green/50' : 'bg-bg-2 text-text-quaternary'
                   }`}>
                     {i < wizardStep ? <Check size={16} /> : i + 1}
                   </div>
@@ -248,7 +248,7 @@ export function NaverGFAManager() {
                   type="text"
                   value={campaignForm.name}
                   onChange={(e) => setCampaignForm({ ...campaignForm, name: e.target.value })}
-                  className="w-full rounded-lg border border-border-primary px-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green-500 focus:outline-none"
+                  className="w-full rounded-lg border border-border-primary px-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
                   placeholder="GFA 캠페인 이름"
                 />
               </div>
@@ -280,7 +280,7 @@ export function NaverGFAManager() {
                       type="number"
                       value={campaignForm.dailyBudget}
                       onChange={(e) => setCampaignForm({ ...campaignForm, dailyBudget: Number(e.target.value) })}
-                      className="w-full rounded-lg border border-border-primary pl-8 pr-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green-500 focus:outline-none"
+                      className="w-full rounded-lg border border-border-primary pl-8 pr-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
                       min={10000}
                       step={10000}
                     />
@@ -294,7 +294,7 @@ export function NaverGFAManager() {
                       type="number"
                       value={campaignForm.totalBudget}
                       onChange={(e) => setCampaignForm({ ...campaignForm, totalBudget: Number(e.target.value) })}
-                      className="w-full rounded-lg border border-border-primary pl-8 pr-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green-500 focus:outline-none"
+                      className="w-full rounded-lg border border-border-primary pl-8 pr-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
                       min={0}
                       step={10000}
                     />
@@ -308,7 +308,7 @@ export function NaverGFAManager() {
                     type="date"
                     value={campaignForm.startDate}
                     onChange={(e) => setCampaignForm({ ...campaignForm, startDate: e.target.value })}
-                    className="w-full rounded-lg border border-border-primary px-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green-500 focus:outline-none"
+                    className="w-full rounded-lg border border-border-primary px-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
                   />
                 </div>
                 <div>
@@ -317,7 +317,7 @@ export function NaverGFAManager() {
                     type="date"
                     value={campaignForm.endDate}
                     onChange={(e) => setCampaignForm({ ...campaignForm, endDate: e.target.value })}
-                    className="w-full rounded-lg border border-border-primary px-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green-500 focus:outline-none"
+                    className="w-full rounded-lg border border-border-primary px-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
                   />
                 </div>
               </div>
@@ -334,7 +334,7 @@ export function NaverGFAManager() {
                   type="text"
                   value={adgroupForm.name}
                   onChange={(e) => setAdgroupForm({ ...adgroupForm, name: e.target.value })}
-                  className="w-full rounded-lg border border-border-primary px-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green-500 focus:outline-none"
+                  className="w-full rounded-lg border border-border-primary px-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
                   placeholder="광고그룹 이름"
                 />
               </div>
@@ -344,7 +344,7 @@ export function NaverGFAManager() {
                   <select
                     value={adgroupForm.bidStrategy}
                     onChange={(e) => setAdgroupForm({ ...adgroupForm, bidStrategy: e.target.value })}
-                    className="w-full rounded-lg border border-border-primary px-3 py-2 text-sm bg-bg-1 focus:border-green focus:ring-1 focus:ring-green-500 focus:outline-none"
+                    className="w-full rounded-lg border border-border-primary px-3 py-2 text-sm bg-bg-1 focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
                   >
                     {BID_STRATEGIES.map((s) => <option key={s} value={s}>{s}</option>)}
                   </select>
@@ -357,7 +357,7 @@ export function NaverGFAManager() {
                       type="number"
                       value={adgroupForm.bidAmount}
                       onChange={(e) => setAdgroupForm({ ...adgroupForm, bidAmount: Number(e.target.value) })}
-                      className="w-full rounded-lg border border-border-primary pl-8 pr-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green-500 focus:outline-none"
+                      className="w-full rounded-lg border border-border-primary pl-8 pr-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
                       min={100}
                     />
                   </div>
@@ -369,7 +369,7 @@ export function NaverGFAManager() {
                   <select
                     value={adgroupForm.gender}
                     onChange={(e) => setAdgroupForm({ ...adgroupForm, gender: e.target.value })}
-                    className="w-full rounded-lg border border-border-primary px-3 py-2 text-sm bg-bg-1 focus:border-green focus:ring-1 focus:ring-green-500 focus:outline-none"
+                    className="w-full rounded-lg border border-border-primary px-3 py-2 text-sm bg-bg-1 focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
                   >
                     {GENDERS.map((g) => <option key={g} value={g}>{g}</option>)}
                   </select>
@@ -379,7 +379,7 @@ export function NaverGFAManager() {
                   <select
                     value={adgroupForm.device}
                     onChange={(e) => setAdgroupForm({ ...adgroupForm, device: e.target.value })}
-                    className="w-full rounded-lg border border-border-primary px-3 py-2 text-sm bg-bg-1 focus:border-green focus:ring-1 focus:ring-green-500 focus:outline-none"
+                    className="w-full rounded-lg border border-border-primary px-3 py-2 text-sm bg-bg-1 focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
                   >
                     {DEVICES_LIST.map((d) => <option key={d} value={d}>{d}</option>)}
                   </select>
@@ -399,7 +399,7 @@ export function NaverGFAManager() {
                       }}
                       className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
                         adgroupForm.ageGroups.includes(age)
-                          ? 'bg-green/15 text-green border border-green-300'
+                          ? 'bg-green/15 text-green border border-green/30'
                           : 'bg-bg-2 text-text-tertiary border border-border-primary hover:border-border-primary'
                       }`}
                     >
@@ -425,7 +425,7 @@ export function NaverGFAManager() {
                       }}
                       className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
                         adgroupForm.interests.includes(interest)
-                          ? 'bg-green/15 text-green border border-green-300'
+                          ? 'bg-green/15 text-green border border-green/30'
                           : 'bg-bg-2 text-text-tertiary border border-border-primary hover:border-border-primary'
                       }`}
                     >
@@ -467,7 +467,7 @@ export function NaverGFAManager() {
                   type="text"
                   value={creativeForm.title}
                   onChange={(e) => setCreativeForm({ ...creativeForm, title: e.target.value })}
-                  className="w-full rounded-lg border border-border-primary px-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green-500 focus:outline-none"
+                  className="w-full rounded-lg border border-border-primary px-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
                   placeholder="크리에이티브 제목"
                 />
               </div>
@@ -476,7 +476,7 @@ export function NaverGFAManager() {
                 <textarea
                   value={creativeForm.description}
                   onChange={(e) => setCreativeForm({ ...creativeForm, description: e.target.value })}
-                  className="w-full rounded-lg border border-border-primary px-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green-500 focus:outline-none resize-none"
+                  className="w-full rounded-lg border border-border-primary px-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none resize-none"
                   rows={3}
                   placeholder="크리에이티브 설명"
                 />
@@ -487,7 +487,7 @@ export function NaverGFAManager() {
                   type="url"
                   value={creativeForm.landingUrl}
                   onChange={(e) => setCreativeForm({ ...creativeForm, landingUrl: e.target.value })}
-                  className="w-full rounded-lg border border-border-primary px-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green-500 focus:outline-none"
+                  className="w-full rounded-lg border border-border-primary px-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
                   placeholder="https://example.com"
                 />
               </div>
@@ -497,7 +497,7 @@ export function NaverGFAManager() {
                   type="url"
                   value={creativeForm.imageUrl}
                   onChange={(e) => setCreativeForm({ ...creativeForm, imageUrl: e.target.value })}
-                  className="w-full rounded-lg border border-border-primary px-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green-500 focus:outline-none"
+                  className="w-full rounded-lg border border-border-primary px-4 py-2 text-sm focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
                   placeholder="https://example.com/image.jpg"
                 />
               </div>
@@ -580,7 +580,7 @@ export function NaverGFAManager() {
                   }
                   setWizardStep((wizardStep + 1) as WizardStep);
                 }}
-                className="flex items-center gap-2 px-4 py-2 bg-green text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-green text-white rounded-lg text-sm font-medium hover:bg-green transition-colors"
               >
                 다음
                 <ChevronRight size={16} />
@@ -589,7 +589,7 @@ export function NaverGFAManager() {
               <button
                 onClick={() => createCampaignMutation.mutate()}
                 disabled={createCampaignMutation.isPending}
-                className="flex items-center gap-2 px-6 py-2 bg-green text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors disabled:opacity-50"
+                className="flex items-center gap-2 px-6 py-2 bg-green text-white rounded-lg text-sm font-medium hover:bg-green transition-colors disabled:opacity-50"
               >
                 {createCampaignMutation.isPending ? (
                   <Loader2 size={16} className="animate-spin" />
@@ -620,7 +620,7 @@ export function NaverGFAManager() {
               <p>등록된 GFA 캠페인이 없습니다.</p>
               <button
                 onClick={() => setViewMode('wizard')}
-                className="mt-4 px-4 py-2 bg-green text-white rounded-lg text-sm font-medium hover:bg-green-700"
+                className="mt-4 px-4 py-2 bg-green text-white rounded-lg text-sm font-medium hover:bg-green"
               >
                 첫 GFA 캠페인 만들기
               </button>
