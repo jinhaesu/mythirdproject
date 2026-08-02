@@ -14,7 +14,7 @@ class ClaudeService:
 
     def __init__(self):
         self.client = Anthropic(api_key=settings.ANTHROPIC_API_KEY)
-        self.model = "claude-opus-4-8"
+        self.model = "claude-fable-5"
 
     async def analyze_content_trends(
         self,
