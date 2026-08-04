@@ -150,7 +150,7 @@ async def execute_scheduled_report(sched, db) -> dict:
     # AI Analysis — same detailed prompt as in-app report
     ai_report = None
     try:
-        from app.services.ai import ClaudeService
+        from app.services.ai import ClaudeService, extract_text
         claude = ClaudeService()
         ai_input = {
             "period": report_data["period"],
@@ -223,7 +223,7 @@ async def execute_scheduled_report(sched, db) -> dict:
                     model=model_id, max_tokens=8192,
                     messages=[{"role": "user", "content": ai_prompt}],
                 )
-                ai_text = ai_resp.content[0].text
+                ai_text = extract_text(ai_resp)
                 logger.info("Scheduled report AI raw response (first 300 chars): %s", ai_text[:300])
 
                 # Attempt 1: ```json ... ``` block

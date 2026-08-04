@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.database import get_db
 from app.api.v1.endpoints.auth import get_current_user
 from app.models.user import User
-from app.services.ai import ClaudeService
+from app.services.ai import ClaudeService, extract_text
 from app.services.meta_ads_service import MetaAdsService
 from app.schemas.campaign_planner import (
     # Structure
@@ -211,7 +211,7 @@ JSON 형식으로 응답:
             max_tokens=4000,
             messages=[{"role": "user", "content": prompt}],
         )
-        result = _parse_json_response(response.content[0].text)
+        result = _parse_json_response(extract_text(response))
     except (json.JSONDecodeError, ValueError, IndexError) as e:
         raise HTTPException(status_code=500, detail=f"AI 응답 파싱 실패: {str(e)}")
     except Exception as e:
@@ -364,7 +364,7 @@ JSON 형식으로 응답:
             max_tokens=3000,
             messages=[{"role": "user", "content": prompt}],
         )
-        result = _parse_json_response(response.content[0].text)
+        result = _parse_json_response(extract_text(response))
     except (json.JSONDecodeError, ValueError, IndexError) as e:
         raise HTTPException(status_code=500, detail=f"AI 응답 파싱 실패: {str(e)}")
     except Exception as e:
@@ -473,7 +473,7 @@ JSON 형식으로 응답:
             max_tokens=4000,
             messages=[{"role": "user", "content": prompt}],
         )
-        result = _parse_json_response(response.content[0].text)
+        result = _parse_json_response(extract_text(response))
     except (json.JSONDecodeError, ValueError, IndexError) as e:
         raise HTTPException(status_code=500, detail=f"AI 응답 파싱 실패: {str(e)}")
     except Exception as e:
@@ -688,7 +688,7 @@ JSON 형식으로 응답:
             max_tokens=4000,
             messages=[{"role": "user", "content": prompt}],
         )
-        result = _parse_json_response(response.content[0].text)
+        result = _parse_json_response(extract_text(response))
     except (json.JSONDecodeError, ValueError, IndexError) as e:
         raise HTTPException(status_code=500, detail=f"AI 응답 파싱 실패: {str(e)}")
     except Exception as e:
@@ -787,7 +787,7 @@ JSON 형식으로 응답:
             max_tokens=3000,
             messages=[{"role": "user", "content": prompt}],
         )
-        result = _parse_json_response(response.content[0].text)
+        result = _parse_json_response(extract_text(response))
     except (json.JSONDecodeError, ValueError, IndexError) as e:
         raise HTTPException(status_code=500, detail=f"AI 응답 파싱 실패: {str(e)}")
     except Exception as e:
@@ -1076,7 +1076,7 @@ JSON만 출력하세요."""
                 max_tokens=8192,
                 messages=[{"role": "user", "content": prompt}],
             )
-            raw_text = response.content[0].text
+            raw_text = extract_text(response)
             _log.info(f"Campaign plan AI response length: {len(raw_text)} chars, model: {model_id}")
             result = _parse_json_response(raw_text)
             break

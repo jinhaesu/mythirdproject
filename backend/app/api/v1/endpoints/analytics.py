@@ -27,7 +27,7 @@ from app.schemas.analytics import (
     LearnFromPerformanceRequest, LearnFromPerformanceResponse
 )
 from app.api.v1.endpoints.auth import get_current_user, get_shared_meta_credentials
-from app.services.ai import ClaudeService
+from app.services.ai import ClaudeService, extract_text
 from app.services.meta_ads_service import MetaAdsService
 from app.services.rule_engine import run_rules
 
@@ -245,7 +245,7 @@ Meta 광고 계정 데이터를 분석해 JSON으로 반환하세요.
             }],
         )
 
-        raw = response.content[0].text.strip()
+        raw = extract_text(response)
         logger.info(f"AI analysis response length: {len(raw)}")
 
         # Parse JSON from response - try multiple methods
@@ -1158,14 +1158,14 @@ async def generate_report(
                     model=model_id, max_tokens=8192,
                     messages=[{"role": "user", "content": report_prompt}],
                 )
-                logger.info(f"AI report generated with model: {model_id}, length: {len(ai_resp.content[0].text)}")
+                logger.info(f"AI report generated with model: {model_id}, length: {len(extract_text(ai_resp))}")
                 break
             except Exception as model_err:
                 logger.warning(f"Model {model_id} failed: {model_err}")
                 if model_id == models_to_try[-1]:
                     raise model_err
                 continue
-        ai_text = ai_resp.content[0].text
+        ai_text = extract_text(ai_resp)
         # Try to parse structured JSON with robust parser
         try:
             # Extract from ```json block first
@@ -1594,7 +1594,7 @@ async def ai_recommend_rules(
 
 JSON 배열만 반환. 마크다운 코드블록 없이."""}],
         )
-        raw = resp.content[0].text.strip()
+        raw = extract_text(resp)
         if "```" in raw:
             raw = raw.split("```json")[-1].split("```")[0] if "```json" in raw else raw.split("```")[1].split("```")[0]
         return {"recommendations": json.loads(raw.strip())}

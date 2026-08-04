@@ -9,6 +9,19 @@ from app.core.config import get_settings
 settings = get_settings()
 
 
+def extract_text(response) -> str:
+    """Messages API 응답에서 텍스트 블록만 모아 반환한다.
+
+    Fable 5 계열은 응답 앞에 thinking 등 비텍스트 블록이 올 수 있어
+    content[0].text 직접 접근은 None/AttributeError가 난다.
+    """
+    parts = []
+    for block in (getattr(response, "content", None) or []):
+        if getattr(block, "type", None) == "text" and getattr(block, "text", None):
+            parts.append(block.text)
+    return "\n".join(parts).strip()
+
+
 class ClaudeService:
     """Service for Claude AI text operations."""
 
@@ -58,7 +71,7 @@ JSON 형식으로 응답해주세요:
         )
 
         try:
-            content = response.content[0].text
+            content = extract_text(response)
             # Extract JSON from response
             start = content.find("{")
             end = content.rfind("}") + 1
@@ -68,7 +81,7 @@ JSON 형식으로 응답해주세요:
             pass
 
         return {
-            "summary": response.content[0].text,
+            "summary": extract_text(response),
             "key_insights": [],
             "success_factors": "",
             "recommendations": [],
@@ -105,7 +118,7 @@ JSON 형식으로 응답해주세요:
         )
 
         try:
-            content = response.content[0].text
+            content = extract_text(response)
             start = content.find("{")
             end = content.rfind("}") + 1
             if start >= 0 and end > start:
@@ -149,7 +162,7 @@ JSON 형식으로 응답해주세요:
         )
 
         try:
-            content = response.content[0].text
+            content = extract_text(response)
             start = content.find("{")
             end = content.rfind("}") + 1
             if start >= 0 and end > start:
@@ -194,7 +207,7 @@ JSON 형식으로 응답:
         )
 
         try:
-            content = response.content[0].text
+            content = extract_text(response)
             start = content.find("{")
             end = content.rfind("}") + 1
             if start >= 0 and end > start:
@@ -250,7 +263,7 @@ JSON 형식으로 응답:
         )
 
         try:
-            content = response.content[0].text
+            content = extract_text(response)
             start = content.find("{")
             end = content.rfind("}") + 1
             if start >= 0 and end > start:
@@ -292,7 +305,7 @@ JSON 형식으로 응답:
         )
 
         try:
-            content = response.content[0].text
+            content = extract_text(response)
             start = content.find("{")
             end = content.rfind("}") + 1
             if start >= 0 and end > start:
@@ -347,7 +360,7 @@ JSON 형식으로 응답:
         )
 
         try:
-            content = response.content[0].text
+            content = extract_text(response)
             start = content.find("{")
             end = content.rfind("}") + 1
             if start >= 0 and end > start:
@@ -408,7 +421,7 @@ KPI 데이터:
         )
 
         try:
-            content = response.content[0].text
+            content = extract_text(response)
             start = content.find("{")
             end = content.rfind("}") + 1
             if start >= 0 and end > start:
@@ -480,7 +493,7 @@ JSON 형식으로만 응답해주세요 (다른 텍스트 없이):
         )
 
         try:
-            content = response.content[0].text
+            content = extract_text(response)
             start = content.find("{")
             end = content.rfind("}") + 1
             if start >= 0 and end > start:
@@ -490,6 +503,6 @@ JSON 형식으로만 응답해주세요 (다른 텍스트 없이):
 
         return {
             "target_segment": None,
-            "audience_summary": response.content[0].text if response.content else None,
+            "audience_summary": extract_text(response) or None,
             "follower_estimate": None,
         }

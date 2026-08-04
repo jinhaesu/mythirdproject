@@ -16,7 +16,7 @@ import bcrypt
 from curl_cffi import requests as cf_requests
 
 from app.core.config import get_settings
-from app.services.ai import ClaudeService
+from app.services.ai import ClaudeService, extract_text
 
 logger = logging.getLogger(__name__)
 
@@ -316,7 +316,7 @@ async def ai_review_analysis(product_name: str, stats: Dict, low_reviews: List[D
     try:
         claude = ClaudeService()
         resp = claude.client.messages.create(model=claude.model, max_tokens=1500, messages=[{"role": "user", "content": prompt}])
-        return resp.content[0].text.strip()
+        return extract_text(resp)
     except Exception as e:
         return f"AI 분석 오류: {e}"
 

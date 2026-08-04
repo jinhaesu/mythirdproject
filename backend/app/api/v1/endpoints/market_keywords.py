@@ -15,7 +15,7 @@ from app.models.user import User
 from app.models.market_keyword import MarketKeyword
 from app.models.keyword_rank_schedule import KeywordRankSchedule
 from app.api.v1.endpoints.auth import get_current_user
-from app.services.ai import ClaudeService
+from app.services.ai import ClaudeService, extract_text
 from app.services.market_data import MarketDataService
 from app.services.keyword_rank_service import check_keyword_ranks, analyze_ranks_with_ai, build_rank_report_html, execute_keyword_rank_check
 from app.services.scheduled_report_executor import calc_next_run
@@ -439,7 +439,7 @@ async def compare_keywords(
                 max_tokens=500,
                 messages=[{"role": "user", "content": prompt}],
             )
-            comparison_summary = response.content[0].text.strip()
+            comparison_summary = extract_text(response)
         except Exception as e:
             logger.warning(f"Comparison summary generation failed: {e}")
             comparison_summary = "비교 요약을 생성하는 데 실패했습니다."

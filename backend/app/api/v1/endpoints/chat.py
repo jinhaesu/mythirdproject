@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.services.ai import extract_text
 from app.api.v1.endpoints.auth import get_current_user
 from app.core.config import get_settings
 from app.db.database import get_db
@@ -96,7 +97,7 @@ async def chat(
             system=system,
             messages=messages,
         )
-        full_reply = response.content[0].text
+        full_reply = extract_text(response)
 
         suggested_questions = []
         reply = full_reply

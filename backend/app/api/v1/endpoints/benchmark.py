@@ -18,7 +18,7 @@ from app.schemas.benchmark import (
 )
 from app.api.v1.endpoints.auth import get_current_user
 from app.services.meta import MetaGraphAPI
-from app.services.ai import ClaudeService, VisionService
+from app.services.ai import ClaudeService, VisionService, extract_text
 
 router = APIRouter()
 
@@ -97,7 +97,7 @@ JSON만 출력하세요."""
             max_tokens=4096,
             messages=[{"role": "user", "content": prompt}],
         )
-        text = result.content[0].text.strip()
+        text = extract_text(result)
         if text.startswith("{"):
             return json.loads(text)
         match = re.search(r'\{[\s\S]*\}', text)

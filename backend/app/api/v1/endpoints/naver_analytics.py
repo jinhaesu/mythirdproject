@@ -28,6 +28,7 @@ from app.models.ad_platform import PlatformConnection
 from app.models.auto_rule import AutoRule, AutoRuleLog
 from app.models.user import User
 from app.services.naver import NaverSearchAdsAPI, NaverGFAAPI
+from app.services.ai import extract_text
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -594,6 +595,8 @@ async def _search_naver_shopping(keyword_text: str, brand: str) -> dict:
                             "image": item.get("image"),
                         }
                         break
+            elif resp.status_code == 404:
+                shopping_error = "네이버 쇼핑 검색 API 서비스 종료"
             else:
                 shopping_error = f"HTTP {resp.status_code}"
     except Exception as e:
@@ -1027,7 +1030,7 @@ async def search_ads_ai_analysis(
                 max_tokens=4000,
                 messages=[{"role": "user", "content": prompt}],
             )
-            raw_response = response.content[0].text.strip()
+            raw_response = extract_text(response)
             logger.info("AI analysis succeeded with model: %s (len=%d)", model_id, len(raw_response))
             break
         except Exception as model_err:
@@ -1328,7 +1331,7 @@ async def gfa_ai_analysis(
     db: AsyncSession = Depends(get_db),
 ):
     """GFA AI 분석 (Claude)."""
-    from app.services.ai import ClaudeService
+    from app.services.ai import ClaudeService, extract_text
 
     api = await _get_naver_gfa_api(current_user, db)
     start_date_val, end_date_val = _date_range_to_dates(request.date_range or "last_7_days", request.start_date, request.end_date)
@@ -1394,7 +1397,7 @@ async def gfa_ai_analysis(
                     max_tokens=3000,
                     messages=[{"role": "user", "content": prompt}],
                 )
-                analysis = response.content[0].text
+                analysis = extract_text(response)
                 logger.info("GFA AI analysis succeeded with model: %s", model_id)
                 break
             except Exception as model_err:
@@ -2067,6 +2070,9 @@ class ShoppingSearchResponse(BaseModel):
     keyword: str
     total: int
     items: List[ShoppingItem]
+    # 네이버 쇼핑 검색 오픈API 서비스 종료(404 SE05) 시 False + 안내 메시지
+    available: bool = True
+    error: Optional[str] = None
 
 
 class TrendPoint(BaseModel):
@@ -2123,6 +2129,12 @@ async def _fetch_shopping(keyword: str, display: int) -> ShoppingSearchResponse:
     params = {"query": keyword, "display": min(display, 100)}
     async with httpx.AsyncClient(timeout=15.0) as client:
         resp = await client.get(url, headers=_naver_openapi_headers(), params=params)
+    if resp.status_code == 404:
+        # 네이버 쇼핑 검색 오픈API 서비스 종료(SE05) — 500 대신 안내 응답
+        return ShoppingSearchResponse(
+            keyword=keyword, total=0, items=[], available=False,
+            error="네이버가 쇼핑 검색 오픈API를 서비스 종료하여 쇼핑 랭킹 데이터를 제공할 수 없습니다.",
+        )
     if resp.status_code != 200:
         raise HTTPException(
             status_code=resp.status_code,
@@ -2332,7 +2344,7 @@ async def keyword_research_ai_analysis(
         max_tokens=8000,
         messages=[{"role": "user", "content": prompt}],
     )
-    analysis = response.content[0].text
+    analysis = extract_text(response)
 
     return {"analysis": analysis}
 
