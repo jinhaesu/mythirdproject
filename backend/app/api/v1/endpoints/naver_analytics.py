@@ -29,6 +29,7 @@ from app.models.auto_rule import AutoRule, AutoRuleLog
 from app.models.user import User
 from app.services.naver import NaverSearchAdsAPI, NaverGFAAPI
 from app.services.ai import extract_text
+from app.services.serp_rank_service import fetch_serp_shopping
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -596,7 +597,21 @@ async def _search_naver_shopping(keyword_text: str, brand: str) -> dict:
                         }
                         break
             elif resp.status_code == 404:
-                shopping_error = "네이버 쇼핑 검색 API 서비스 종료"
+                # 쇼핑 검색 API 종료 — 통합검색 쇼핑 블록 노출 순위로 대체
+                serp = await fetch_serp_shopping(client, keyword_text, brand)
+                if serp["ok"]:
+                    total_results = len(serp["items"])
+                    if serp["brand_ranks"]:
+                        best = serp["brand_ranks"][0]
+                        shopping_rank = best["rank"]
+                        matched_product = {
+                            "title": best["title"],
+                            "price": best["price"],
+                            "mallName": "",
+                            "image": "",
+                        }
+                else:
+                    shopping_error = "쇼핑 데이터 수집 실패 (통합검색 크롤 오류)"
             else:
                 shopping_error = f"HTTP {resp.status_code}"
     except Exception as e:
@@ -2073,6 +2088,8 @@ class ShoppingSearchResponse(BaseModel):
     # 네이버 쇼핑 검색 오픈API 서비스 종료(404 SE05) 시 False + 안내 메시지
     available: bool = True
     error: Optional[str] = None
+    # "openapi" | "serp_block" — serp_block은 통합검색 쇼핑 블록 크롤 (상위 노출 카드만)
+    source: str = "openapi"
 
 
 class TrendPoint(BaseModel):
@@ -2130,10 +2147,26 @@ async def _fetch_shopping(keyword: str, display: int) -> ShoppingSearchResponse:
     async with httpx.AsyncClient(timeout=15.0) as client:
         resp = await client.get(url, headers=_naver_openapi_headers(), params=params)
     if resp.status_code == 404:
-        # 네이버 쇼핑 검색 오픈API 서비스 종료(SE05) — 500 대신 안내 응답
+        # 네이버 쇼핑 검색 오픈API 서비스 종료(SE05) — 통합검색 쇼핑 블록 크롤로 대체
+        async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as serp_client:
+            serp = await fetch_serp_shopping(serp_client, keyword, "널담")
+        if serp["ok"]:
+            serp_items = [
+                ShoppingItem(
+                    title=it["title"], link=it["link"], image=it["image"],
+                    lprice=it["price"], hprice="", mall_name="",
+                    product_id=it["nv_mid"], brand="", maker="",
+                    category1="", category2="", category3="", category4="",
+                )
+                for it in serp["items"][:display]
+            ]
+            return ShoppingSearchResponse(
+                keyword=keyword, total=len(serp_items), items=serp_items,
+                available=True, source="serp_block",
+            )
         return ShoppingSearchResponse(
             keyword=keyword, total=0, items=[], available=False,
-            error="네이버가 쇼핑 검색 오픈API를 서비스 종료하여 쇼핑 랭킹 데이터를 제공할 수 없습니다.",
+            error="네이버 쇼핑 검색 API 종료 후 통합검색 쇼핑 블록 수집도 실패했습니다. 잠시 후 다시 시도해주세요.",
         )
     if resp.status_code != 200:
         raise HTTPException(

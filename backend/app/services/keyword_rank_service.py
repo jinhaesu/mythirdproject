@@ -1,4 +1,5 @@
 """키워드 순위 체크 + AI 분석 + 이메일 발송 서비스."""
+import asyncio
 import logging
 import json
 from typing import Dict, Any, List, Optional
@@ -9,6 +10,7 @@ import resend
 
 from app.core.config import get_settings
 from app.services.ai import ClaudeService, extract_text
+from app.services.serp_rank_service import fetch_serp_shopping
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -21,7 +23,11 @@ async def check_keyword_ranks(
     """네이버 쇼핑/블로그에서 키워드별 브랜드 순위를 체크한다.
 
     Returns list of:
-      {keyword, shopping_ranks, blog_ranks, shopping_total, blog_total}
+      {keyword, shopping_ranks, blog_ranks, shopping_total, blog_total,
+       shopping_available, shopping_source, brand_chip}
+
+    쇼핑 순위는 쇼핑 검색 오픈API 종료(SE05) 이후 통합검색(SERP)
+    쇼핑 블록 노출 순위로 대체됐다 (shopping_source="serp_block").
     """
     results = []
     naver_id = settings.NAVER_CLIENT_ID
@@ -35,53 +41,38 @@ async def check_keyword_ranks(
         "X-Naver-Client-Secret": naver_secret,
     }
 
-    # 네이버 쇼핑 검색 오픈API(shop.json)는 서비스 종료(404 SE05) 상태다.
-    # 첫 키워드에서 404가 확인되면 이후 쇼핑 호출은 건너뛰고
-    # shopping_available=False 로 표기해 "미노출"과 구분한다.
-    shop_api_available = True
-
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        for keyword in keywords:
+    async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+        for i, keyword in enumerate(keywords):
             rank_data: Dict[str, Any] = {
                 "keyword": keyword,
                 "shopping_ranks": [],
                 "blog_ranks": [],
                 "shopping_total": 0,
                 "blog_total": 0,
-                "shopping_available": shop_api_available,
+                "shopping_available": True,
+                "shopping_source": "serp_block",
+                "brand_chip": False,
             }
 
-            # 네이버 쇼핑 검색
-            if shop_api_available:
-                try:
-                    shop_resp = await client.get(
-                        "https://openapi.naver.com/v1/search/shop.json",
-                        params={"query": keyword, "display": 100, "sort": "sim"},
-                        headers=headers,
-                    )
-                    if shop_resp.status_code == 200:
-                        shop_data = shop_resp.json()
-                        rank_data["shopping_total"] = shop_data.get("total", 0)
-                        items = shop_data.get("items", [])
-                        for idx, item in enumerate(items, 1):
-                            title = item.get("title", "").replace("<b>", "").replace("</b>", "")
-                            mall = item.get("mallName", "")
-                            if brand_name in title or brand_name in mall:
-                                rank_data["shopping_ranks"].append({
-                                    "rank": idx,
-                                    "title": title,
-                                    "price": item.get("lprice", ""),
-                                    "mall": mall,
-                                    "link": item.get("link", ""),
-                                })
-                    elif shop_resp.status_code == 404:
-                        shop_api_available = False
-                        rank_data["shopping_available"] = False
-                        logger.warning("[KeywordRank] Naver Shopping API discontinued (404 SE05) — skipping shopping ranks")
-                    else:
-                        logger.warning(f"[KeywordRank] Naver Shopping HTTP {shop_resp.status_code} for '{keyword}'")
-                except Exception as e:
-                    logger.warning(f"[KeywordRank] Naver Shopping error for '{keyword}': {e}")
+            # 네이버 쇼핑 — 통합검색 쇼핑 블록 크롤 (쇼핑 검색 API 종료 대체)
+            if i > 0:
+                await asyncio.sleep(0.6)  # SERP 요청 간격 (봇 차단 예방)
+            serp = await fetch_serp_shopping(client, keyword, brand_name)
+            if serp["ok"]:
+                rank_data["shopping_total"] = len(serp["items"])
+                rank_data["brand_chip"] = serp["brand_chip"]
+                rank_data["shopping_ranks"] = [
+                    {
+                        "rank": br["rank"],
+                        "title": br["title"],
+                        "price": br["price"],
+                        "mall": "",
+                        "link": br["link"],
+                    }
+                    for br in serp["brand_ranks"]
+                ]
+            else:
+                rank_data["shopping_available"] = False
 
             # 네이버 블로그 검색
             try:
@@ -127,12 +118,16 @@ async def analyze_ranks_with_ai(rank_results: List[Dict[str, Any]], brand_name: 
         blog_total = r.get("blog_total", 0)
 
         if r.get("shopping_available") is False:
-            shop_str = "쇼핑 데이터 없음 (네이버 쇼핑 검색 API 서비스 종료)"
+            shop_str = "쇼핑 데이터 수집 실패"
         elif shop_ranks:
             best_shop = min(shop_ranks, key=lambda x: x["rank"])
-            shop_str = f"쇼핑 최고순위 {best_shop['rank']}위/{shop_total}건 ({best_shop['title']})"
+            chip = " · 브랜드필터 노출" if r.get("brand_chip") else ""
+            shop_str = f"통합검색 쇼핑블록 {best_shop['rank']}위/{shop_total}개 카드{chip} ({best_shop['title']})"
+        elif shop_total == 0:
+            shop_str = "통합검색에 쇼핑블록 없음 (비상거래성 키워드)"
         else:
-            shop_str = f"쇼핑 미노출 (총 {shop_total}건 중 100위 내 없음)"
+            chip = " (단, 브랜드필터에는 노출)" if r.get("brand_chip") else ""
+            shop_str = f"쇼핑블록 미노출 (카드 {shop_total}개 중 없음){chip}"
 
         if blog_ranks:
             best_blog = min(blog_ranks, key=lambda x: x["rank"])
@@ -145,10 +140,12 @@ async def analyze_ranks_with_ai(rank_results: List[Dict[str, Any]], brand_name: 
     summary_text = "\n".join(summary_lines)
 
     shopping_note = (
-        "\n\n참고: 네이버 쇼핑 검색 API가 서비스 종료되어 쇼핑 순위 데이터는 수집할 수 없습니다. "
-        "쇼핑 순위에 대한 추측은 하지 말고 블로그 노출 중심으로 분석해주세요."
-        if shopping_unavailable else ""
+        "\n\n참고: 쇼핑 순위는 네이버 '통합검색 결과의 쇼핑 블록'(상위 5~20개 카드) 노출 기준입니다. "
+        "쇼핑 검색 API 종료로 쇼핑 버티컬 전체 100위 데이터는 없으며, "
+        "통합검색 쇼핑블록은 사용자가 검색 시 가장 먼저 보는 영역이므로 실질 노출 지표로 해석해주세요."
     )
+    if shopping_unavailable:
+        shopping_note += " 일부 키워드는 쇼핑 데이터 수집에 실패해 블로그 중심으로 분석해야 합니다."
 
     prompt = f"""당신은 네이버 SEO 및 커머스 마케팅 전문가입니다.
 다음은 '{brand_name}' 브랜드의 네이버 검색 순위 현황입니다:
@@ -184,11 +181,11 @@ async def analyze_ranks_with_ai(rank_results: List[Dict[str, Any]], brand_name: 
             shop = r.get("shopping_ranks", [])
             blog = r.get("blog_ranks", [])
             if r.get("shopping_available") is False:
-                pass  # 쇼핑 API 종료 — 쇼핑 줄 생략
+                pass  # 쇼핑 수집 실패 — 쇼핑 줄 생략
             elif shop:
-                lines.append(f"- {kw} 쇼핑: {shop[0]['rank']}위")
+                lines.append(f"- {kw} 쇼핑블록: {shop[0]['rank']}위")
             else:
-                lines.append(f"- {kw} 쇼핑: 100위 내 미노출")
+                lines.append(f"- {kw} 쇼핑블록: 미노출")
             if blog:
                 lines.append(f"- {kw} 블로그: {blog[0]['rank']}위")
             else:
@@ -216,17 +213,21 @@ def build_rank_report_html(
         blog_total = r.get("blog_total", 0)
 
         if r.get("shopping_available") is False:
-            shop_text = "<span style='color:#9ca3af;'>제공 종료</span>"
-            shop_detail = "<br><small style='color:#9ca3af'>네이버 쇼핑 검색 API 서비스 종료</small>"
+            shop_text = "<span style='color:#9ca3af;'>수집 실패</span>"
+            shop_detail = ""
         elif shop_ranks:
             best_shop = min(shop_ranks, key=lambda x: x["rank"])
             shop_rank = best_shop["rank"]
-            shop_color = "#22c55e" if shop_rank <= 10 else "#f59e0b" if shop_rank <= 30 else "#ef4444"
-            shop_text = f"<span style='color:{shop_color};font-weight:bold;'>{shop_rank}위</span> / {shop_total:,}건"
+            shop_color = "#22c55e" if shop_rank <= 3 else "#f59e0b" if shop_rank <= 10 else "#ef4444"
+            chip = " · 브랜드필터" if r.get("brand_chip") else ""
+            shop_text = f"<span style='color:{shop_color};font-weight:bold;'>{shop_rank}위</span> / 블록 {shop_total}개{chip}"
             shop_detail = f"<br><small style='color:#666'>{best_shop['title'][:40]}</small>"
-        else:
-            shop_text = f"<span style='color:#ef4444;font-weight:bold;'>미노출</span> / {shop_total:,}건"
+        elif shop_total == 0:
+            shop_text = "<span style='color:#9ca3af;'>쇼핑블록 없음</span>"
             shop_detail = ""
+        else:
+            shop_text = f"<span style='color:#ef4444;font-weight:bold;'>미노출</span> / 블록 {shop_total}개"
+            shop_detail = "<br><small style='color:#9ca3af'>브랜드필터 노출</small>" if r.get("brand_chip") else ""
 
         if blog_ranks:
             best_blog = min(blog_ranks, key=lambda x: x["rank"])
@@ -268,7 +269,7 @@ def build_rank_report_html(
         <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
           <tr style="background:#f8fafc;">
             <th style="padding:10px 12px;text-align:left;border-bottom:2px solid #e2e8f0;">키워드</th>
-            <th style="padding:10px 12px;text-align:left;border-bottom:2px solid #e2e8f0;">네이버 쇼핑</th>
+            <th style="padding:10px 12px;text-align:left;border-bottom:2px solid #e2e8f0;">쇼핑 (통합검색 블록)</th>
             <th style="padding:10px 12px;text-align:left;border-bottom:2px solid #e2e8f0;">네이버 블로그</th>
           </tr>
           {keyword_rows}

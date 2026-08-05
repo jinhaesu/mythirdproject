@@ -507,7 +507,7 @@ export function NaverKeywordResearch() {
       const { data } = await api.get('/naver/keyword-research/shopping', {
         params: { keyword: searchedKeyword, display: 40 },
       });
-      return data as { items: ShoppingItem[]; available?: boolean; error?: string };
+      return data as { items: ShoppingItem[]; available?: boolean; error?: string; source?: string };
     },
     enabled: !!searchedKeyword,
     retry: 1,
@@ -941,10 +941,9 @@ export function NaverKeywordResearch() {
             ) : shoppingData?.available === false ? (
               <div className="flex flex-col items-center justify-center py-16 gap-3 text-text-quaternary">
                 <AlertCircle size={40} className="text-yellow" />
-                <p className="text-sm font-medium text-text-secondary">네이버 쇼핑 검색 API 서비스 종료</p>
+                <p className="text-sm font-medium text-text-secondary">쇼핑 데이터 수집 실패</p>
                 <p className="text-xs text-center max-w-md">
-                  {shoppingData.error || '네이버가 쇼핑 검색 오픈API 제공을 중단하여 쇼핑 랭킹을 표시할 수 없습니다.'}
-                  <br />검색량 트렌드·블로그 순위 모니터링은 정상 제공됩니다.
+                  {shoppingData.error || '쇼핑 데이터를 가져오지 못했습니다. 잠시 후 다시 시도해주세요.'}
                 </p>
               </div>
             ) : shoppingError ? (
@@ -953,11 +952,18 @@ export function NaverKeywordResearch() {
                 <span className="text-sm">쇼핑 데이터를 불러오지 못했습니다.</span>
               </div>
             ) : shoppingItems.length > 0 ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                {shoppingItems.map((item, idx) => (
-                  <ProductCard key={item.productId ?? idx} item={item} rank={idx + 1} />
-                ))}
-              </div>
+              <>
+                {shoppingData?.source === 'serp_block' && (
+                  <p className="text-xs text-text-quaternary mb-3 bg-bg-0 border border-border-primary rounded-lg px-3 py-2">
+                    네이버 쇼핑 검색 API 종료로, 통합검색 결과의 <span className="font-medium text-text-secondary">쇼핑 블록 상위 노출 상품</span> 기준으로 표시됩니다. 사용자가 검색 시 실제로 보는 노출 순서입니다.
+                  </p>
+                )}
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                  {shoppingItems.map((item, idx) => (
+                    <ProductCard key={item.productId ?? idx} item={item} rank={idx + 1} />
+                  ))}
+                </div>
+              </>
             ) : (
               <div className="flex flex-col items-center justify-center py-20 gap-3 text-text-quaternary">
                 <ShoppingBag size={48} className="text-text-quaternary" />
@@ -1002,12 +1008,17 @@ function RankResultCard({ data }: { data: any }) {
         <span className="text-sm font-semibold text-text-primary min-w-[100px]">{data.keyword}</span>
         <div className="flex items-center gap-6 flex-wrap gap-y-1">
           <div className="text-xs">
-            <span className="text-text-tertiary mr-1.5">쇼핑</span>
+            <span className="text-text-tertiary mr-1.5">쇼핑블록</span>
             {shopUnavailable
-              ? <span className="text-text-quaternary" title="네이버가 쇼핑 검색 오픈API를 서비스 종료했습니다">API 종료</span>
+              ? <span className="text-text-quaternary" title="통합검색 쇼핑 블록 수집 실패">수집 실패</span>
               : shopRanks.length > 0
-                ? <>{rankBadge(shopRanks[0].rank)} <span className="text-text-quaternary">/ {data.shopping_total?.toLocaleString()}건</span></>
-                : <span className="text-red font-medium">미노출</span>}
+                ? <>{rankBadge(shopRanks[0].rank)} <span className="text-text-quaternary">/ {data.shopping_total?.toLocaleString()}개 카드</span></>
+                : (data.shopping_total ?? 0) === 0
+                  ? <span className="text-text-quaternary" title="이 키워드 통합검색에는 쇼핑 블록이 없습니다">블록 없음</span>
+                  : <span className="text-red font-medium">미노출</span>}
+            {data.brand_chip && (
+              <span className="ml-1.5 px-1.5 py-0.5 bg-green/10 text-green rounded text-[10px] border border-green/30" title="쇼핑 블록 브랜드 필터에 브랜드가 노출됩니다">브랜드필터</span>
+            )}
           </div>
           <div className="text-xs">
             <span className="text-text-tertiary mr-1.5">블로그</span>
@@ -1285,11 +1296,12 @@ function KeywordRankMonitor({ brandName, registeredKeywords = [] }: { brandName:
               <h3 className="text-sm font-semibold text-text-primary">
                 순위 결과 ({rankResult.keywords_checked || rankResult.rank_results.length}개 키워드)
               </h3>
-              {rankResult.rank_results.some((r: any) => r.shopping_available === false) && (
-                <p className="text-xs text-yellow bg-yellow/10 border border-yellow/30 rounded-lg px-3 py-2">
-                  네이버가 쇼핑 검색 오픈API를 서비스 종료하여 쇼핑 순위는 수집할 수 없습니다. 블로그 순위 중심으로 모니터링됩니다.
-                </p>
-              )}
+              <p className="text-xs text-text-quaternary bg-bg-0 border border-border-primary rounded-lg px-3 py-2">
+                쇼핑 순위는 네이버 <span className="font-medium text-text-secondary">통합검색 쇼핑 블록</span> 노출 순위 기준입니다 (쇼핑검색 API 종료 대체 · 사용자가 검색 시 실제로 보는 영역).
+                {rankResult.rank_results.some((r: any) => r.shopping_available === false) && (
+                  <span className="text-yellow"> 일부 키워드는 쇼핑 데이터 수집에 실패했습니다.</span>
+                )}
+              </p>
               <div className="space-y-2">
                 {rankResult.rank_results.map((r: any, i: number) => (
                   <RankResultCard key={i} data={r} />
