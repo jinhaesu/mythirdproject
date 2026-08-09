@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     # NAVER API HUB (네이버클라우드 중개 통합 API 플랫폼 — 검색·쇼핑·트렌드 등)
     NAVER_HUB_CLIENT_ID: str = ""
     NAVER_HUB_CLIENT_SECRET: str = ""
-    NAVER_HUB_API_BASE: str = "https://naveropenapi.apigw.ntruss.com"
+    NAVER_HUB_API_BASE: str = "https://naverapihub.apigw.ntruss.com"
 
     # Naver Search Ads API (검색광고)
     NAVER_ADS_API_KEY: str = ""

@@ -21,6 +21,7 @@ import {
   NaverReports,
   NaverKeywordResearch,
   NaverReviewMonitor,
+  NaverInsights,
 } from '@/components/tabs/naver';
 import { AICommandCenter } from '@/components/chat/AICommandCenter';
 import NuldamSystemBar from '@/components/NuldamSystemBar';
@@ -154,6 +155,7 @@ export default function Home() {
           <>
             {naverActiveTab === 0 && <NaverSearchAdsDashboard />}
             {naverActiveTab === 1 && <NaverKeywordResearch />}
+            {naverActiveTab === 8 && <NaverInsights />}
             {naverActiveTab === 7 && <NaverReviewMonitor />}
             {naverActiveTab === 2 && <NaverSearchAdsManager />}
             {naverActiveTab === 3 && <NaverGFADashboard />}

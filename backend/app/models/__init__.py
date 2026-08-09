@@ -32,6 +32,7 @@ from app.models.kpi import (
 )
 from app.models.influencer import InfluencerSeeding
 from app.models.sponsorship import Sponsorship
+from app.models.naver_insight import NaverMentionDaily
 
 __all__ = [
     "User",
@@ -77,4 +78,5 @@ __all__ = [
     "MallVisitorsDaily",
     "InfluencerSeeding",
     "Sponsorship",
+    "NaverMentionDaily",
 ]

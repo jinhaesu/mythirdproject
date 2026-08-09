@@ -465,4 +465,12 @@ async def run_kpi_collector_loop() -> None:
         except Exception as e:
             logger.error(f"[KPI Collector] privacy 증분 동기화 루프 에러: {e}", exc_info=True)
 
+        try:
+            from app.services.naver_mention_service import capture_daily_snapshots
+            async with AsyncSessionLocal() as db:
+                s = await capture_daily_snapshots(db)
+                logger.info(f"[KPI Collector] 네이버 언급량 스냅샷 완료: {s}건")
+        except Exception as e:
+            logger.error(f"[KPI Collector] 언급량 스냅샷 루프 에러: {e}", exc_info=True)
+
         await asyncio.sleep(6 * 3600)

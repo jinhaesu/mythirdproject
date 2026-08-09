@@ -6,6 +6,7 @@ from app.api.v1.endpoints import (
     naver_analytics, naver_campaign, affiliate, partner_auth, partner_portal,
 )
 from app.api.v1.endpoints import cafe24, webhooks, insights, kpi, influencer, sponsorship
+from app.api.v1.endpoints import naver_insights
 
 api_router = APIRouter()
 
@@ -147,4 +148,11 @@ api_router.include_router(
     sponsorship.router,
     prefix="/sponsorship",
     tags=["Sponsorship"]
+)
+
+# Naver Insights (API HUB — 검색어트렌드/쇼핑인사이트/언급량/감성 마인드맵)
+api_router.include_router(
+    naver_insights.router,
+    prefix="/naver-insights",
+    tags=["Naver Insights"]
 )

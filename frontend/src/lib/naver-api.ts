@@ -407,6 +407,71 @@ export const naverKeywordResearchApi = {
   },
 };
 
+// ── 네이버 인사이트 (API HUB — 검색어트렌드/쇼핑인사이트/언급량/감성 마인드맵) ──
+
+export interface TrendResult {
+  title: string;
+  data: { period: string; ratio: number }[];
+}
+
+export const naverInsightsApi = {
+  getStatus: async (): Promise<{ configured: boolean }> => {
+    const { data } = await api.get('/naver-insights/status');
+    return data;
+  },
+
+  getShoppingCategories: async (): Promise<{ categories: { name: string; code: string }[] }> => {
+    const { data } = await api.get('/naver-insights/shopping-categories');
+    return data;
+  },
+
+  searchTrend: async (body: {
+    keyword_groups: { name: string; keywords: string[] }[];
+    start_date?: string;
+    end_date?: string;
+    time_unit?: string;
+  }): Promise<{ results: TrendResult[]; startDate: string; endDate: string; as_of: string }> => {
+    const { data } = await api.post('/naver-insights/search-trend', body);
+    return data;
+  },
+
+  shoppingCategoryTrend: async (body: {
+    categories: { name: string; code: string }[];
+    start_date?: string;
+    end_date?: string;
+    time_unit?: string;
+  }): Promise<{ results: TrendResult[]; startDate: string; endDate: string; as_of: string }> => {
+    const { data } = await api.post('/naver-insights/shopping-category-trend', body);
+    return data;
+  },
+
+  shoppingKeywordTrend: async (body: {
+    category_code: string;
+    keywords: string[];
+    start_date?: string;
+    end_date?: string;
+    time_unit?: string;
+  }): Promise<{ results: TrendResult[]; startDate: string; endDate: string; as_of: string }> => {
+    const { data } = await api.post('/naver-insights/shopping-keyword-trend', body);
+    return data;
+  },
+
+  getMentions: async (keyword: string, display = 10) => {
+    const { data } = await api.get('/naver-insights/mentions', { params: { keyword, display } });
+    return data;
+  },
+
+  getMentionHistory: async (keyword: string, days = 90) => {
+    const { data } = await api.get('/naver-insights/mention-history', { params: { keyword, days } });
+    return data;
+  },
+
+  sentimentMindmap: async (keyword: string, sample = 30) => {
+    const { data } = await api.post('/naver-insights/sentiment-mindmap', { keyword, sample });
+    return data;
+  },
+};
+
 // Currency & number formatting utilities for Naver (KRW only)
 export function formatNaverCurrency(amount: number): string {
   return `\u20A9${Math.round(amount).toLocaleString('ko-KR')}`;
