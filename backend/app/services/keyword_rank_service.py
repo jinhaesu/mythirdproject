@@ -198,6 +198,7 @@ def build_rank_report_html(
     ai_analysis: str,
     brand_name: str = "널담",
     check_time: Optional[str] = None,
+    insights_html: str = "",
 ) -> str:
     """키워드 순위 리포트 HTML 이메일을 생성한다."""
     if not check_time:
@@ -286,6 +287,7 @@ def build_rank_report_html(
         </div>
       </td>
     </tr>
+{insights_html}
 
     <!-- Footer -->
     <tr>
@@ -336,6 +338,19 @@ async def execute_keyword_rank_check(
     # AI 분석
     ai_analysis = await analyze_ranks_with_ai(rank_results, brand_name)
 
+    # 네이버 인사이트 섹션 (실패해도 순위 리포트는 발송)
+    insights_html = ""
+    try:
+        from app.services.naver_insights_service import (
+            build_insights_html_section,
+            collect_insights_report_data,
+        )
+
+        insights_data = await collect_insights_report_data(db)
+        insights_html = build_insights_html_section(insights_data)
+    except Exception as e:
+        logger.warning(f"[KeywordRank] 인사이트 섹션 생성 실패(순위만 발송): {e}")
+
     from datetime import timezone, timedelta
     kst = timezone(timedelta(hours=9))
     check_time = datetime.now(kst).strftime("%Y-%m-%d %H:%M KST")
@@ -345,12 +360,12 @@ async def execute_keyword_rank_check(
     email_error = None
     if sched.email_to and settings.RESEND_API_KEY:
         try:
-            html = build_rank_report_html(rank_results, ai_analysis, brand_name, check_time)
+            html = build_rank_report_html(rank_results, ai_analysis, brand_name, check_time, insights_html)
             resend.api_key = settings.RESEND_API_KEY
             resend.Emails.send({
                 "from": settings.RESEND_FROM_EMAIL,
                 "to": [sched.email_to],
-                "subject": f"[{brand_name}] 키워드 순위 리포트 - {check_time}",
+                "subject": f"[{brand_name}] 키워드 순위·인사이트 리포트 - {check_time}",
                 "html": html,
             })
             email_sent = True

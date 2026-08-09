@@ -20,7 +20,6 @@ import {
   NaverAutoManagement,
   NaverReports,
   NaverKeywordResearch,
-  NaverReviewMonitor,
   NaverInsights,
 } from '@/components/tabs/naver';
 import { AICommandCenter } from '@/components/chat/AICommandCenter';
@@ -32,7 +31,7 @@ const _verifiedMagicTokens = new Set<string>();
 
 export default function Home() {
   const { isAuthenticated, setAuth, logout } = useAuthStore();
-  const { activeTab, activePlatform, naverActiveTab, setActiveTab } = useAppStore();
+  const { activeTab, activePlatform, naverActiveTab, setActiveTab, setNaverActiveTab } = useAppStore();
   const [verifying, setVerifying] = useState(false);
 
   // 탭 id 0은 데이터 대시보드로 재사용 (구 시장 분석 자리).
@@ -40,6 +39,11 @@ export default function Home() {
   useEffect(() => {
     if (activeTab === 1 || activeTab === 2 || activeTab === 3) setActiveTab(0);
   }, [activeTab, setActiveTab]);
+
+  // 리뷰 모니터링(7) 메뉴 제거 — 저장된 탭 상태는 네이버 인사이트로
+  useEffect(() => {
+    if (naverActiveTab === 7) setNaverActiveTab(8);
+  }, [naverActiveTab, setNaverActiveTab]);
 
   // 인터셉터의 401 발생 알림을 받아 로그아웃 처리 — 강제 reload 대신
   useEffect(() => {
@@ -156,7 +160,6 @@ export default function Home() {
             {naverActiveTab === 0 && <NaverSearchAdsDashboard />}
             {naverActiveTab === 1 && <NaverKeywordResearch />}
             {naverActiveTab === 8 && <NaverInsights />}
-            {naverActiveTab === 7 && <NaverReviewMonitor />}
             {naverActiveTab === 2 && <NaverSearchAdsManager />}
             {naverActiveTab === 3 && <NaverGFADashboard />}
             {naverActiveTab === 4 && <NaverGFAManager />}

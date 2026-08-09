@@ -239,75 +239,12 @@ async def sentiment_mindmap(
     if not api_hub.is_configured():
         raise HTTPException(status_code=503, detail="NAVER API HUB 키가 설정되지 않았습니다.")
 
-    # 최근 블로그 글 수집 (정확도순 + 최신순 섞어 다양성 확보)
-    posts: List[Dict[str, str]] = []
-    seen_links: set = set()
-    for sort in ("date", "sim"):
-        r = await api_hub.search("blog", req.keyword, display=req.sample, sort=sort)
-        if not r["ok"]:
-            continue
-        for it in r["data"].get("items", []):
-            link = it.get("link", "")
-            if link in seen_links:
-                continue
-            seen_links.add(link)
-            posts.append({
-                "title": clean_text(it.get("title", "")),
-                "description": clean_text(it.get("description", "")),
-                "date": it.get("postdate", ""),
-            })
-    if not posts:
-        raise HTTPException(status_code=502, detail="블로그 글을 수집하지 못했습니다.")
-    posts = posts[: req.sample * 2]
-
-    corpus = "\n".join(
-        f"- [{p['date']}] {p['title']} :: {p['description']}" for p in posts
-    )
-
-    prompt = f"""다음은 '{req.keyword}'에 대한 최근 네이버 블로그 글 {len(posts)}건의 제목·요약입니다.
-
-{corpus}
-
-위 글들에서 '{req.keyword}'에 대한 소비자 반응을 분석해 아래 JSON만 출력하세요(설명·마크다운 금지).
-
-{{
-  "positive": [{{"word": "긍정 단어/표현", "weight": 1~10 빈도·강도 점수, "context": "어떤 맥락인지 한 문장"}}],
-  "negative": [{{"word": "부정 단어/표현", "weight": 1~10, "context": "한 문장"}}],
-  "themes": [{{"name": "주요 화제(제품명·상황 등)", "sentiment": "positive|negative|neutral", "count": 언급횟수}}],
-  "summary": "전체 여론 요약 2~3문장 (긍정:부정 비중 포함)"
-}}
-
-규칙:
-- positive/negative 각 5~12개, weight 내림차순
-- 단어는 실제 글에 등장한 한국어 표현 그대로 (예: "쫀득하다", "달다", "배송 빠름")
-- 광고성 상투어("최고", "강추" 남발)는 weight를 낮게
-- themes는 3~8개"""
+    from app.services.naver_insights_service import analyze_blog_sentiment
 
     try:
-        from app.services.ai import ClaudeService, extract_text
-
-        claude = ClaudeService()
-        response = claude.client.messages.create(
-            model=claude.model,
-            max_tokens=3000,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        text = extract_text(response)
-        if not text:
-            raise ValueError("AI 응답에 텍스트 블록이 없습니다")
-        # JSON 블록만 추출 (앞뒤 잡설 방어)
-        start_i, end_i = text.find("{"), text.rfind("}")
-        parsed = json.loads(text[start_i:end_i + 1])
+        result = await analyze_blog_sentiment(req.keyword, sample=req.sample)
     except Exception as exc:
         logger.error(f"[NaverInsights] 감성 분석 실패: {exc}")
         raise HTTPException(status_code=502, detail=f"AI 감성 분석 실패: {exc}")
 
-    return {
-        "keyword": req.keyword,
-        "sample_size": len(posts),
-        "positive": parsed.get("positive", []),
-        "negative": parsed.get("negative", []),
-        "themes": parsed.get("themes", []),
-        "summary": parsed.get("summary", ""),
-        "as_of": datetime.utcnow().isoformat(),
-    }
+    return {**result, "as_of": datetime.utcnow().isoformat()}
