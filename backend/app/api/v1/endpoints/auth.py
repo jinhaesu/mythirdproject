@@ -653,6 +653,27 @@ async def meta_oauth_callback(
 
         await db.commit()
 
+        # 재연동 성공 → 수집기 만료 플래그 해제 + 토큰 만료시각 기록 + 즉시 재수집
+        import asyncio as _asyncio
+
+        from app.services.meta_insights_collector import collector_state, collect_insights
+        from app.services.meta_token_service import token_state, fetch_token_expiry
+
+        collector_state["token_expired"] = False
+        collector_state["last_error"] = None
+        expiry = await fetch_token_expiry(long_lived_token)
+        token_state["expires_at"] = expiry.isoformat() if expiry else None
+
+        async def _kick_collect():
+            from app.db.database import AsyncSessionLocal
+            try:
+                async with AsyncSessionLocal() as _db:
+                    await collect_insights(_db)
+            except Exception as exc:
+                logger.warning(f"[MetaOAuth] 재연동 직후 수집 실패(다음 주기 재시도): {exc}")
+
+        _asyncio.create_task(_kick_collect())
+
         return {
             "success": True,
             "meta_user_id": profile.get("id"),
@@ -853,6 +874,9 @@ async def get_connections_status(
     """모든 외부 플랫폼 연결 상태 한번에 반환 (Cafe24 / Meta / Naver)."""
     from datetime import datetime as _dt, timedelta as _td
 
+    from app.services.meta_insights_collector import collector_state as _meta_collector_state
+    from app.services.meta_token_service import token_state as _meta_token_state
+
     # Cafe24 (shared)
     cafe24_user = current_user if current_user.cafe24_access_token else await get_shared_cafe24_user(db)
     cafe24_connected = bool(cafe24_user and cafe24_user.cafe24_access_token)
@@ -881,6 +905,8 @@ async def get_connections_status(
             "connected": meta_connected,
             "user_id": meta_user.meta_user_id if meta_user else None,
             "ad_account_id": meta_user.meta_ad_account_id if meta_user else None,
+            "token_expired": _meta_collector_state.get("token_expired", False),
+            "token_expires_at": _meta_token_state.get("expires_at"),
         },
         "naver": {
             "connected": naver_connected,

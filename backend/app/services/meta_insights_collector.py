@@ -305,13 +305,29 @@ async def run_collector_loop() -> None:
     """1시간 주기 Meta 인사이트 수집 루프.
 
     - 시작 즉시 1회 실행
+    - 24시간마다 장기 토큰 롤링 재교환(만료 예방) — 실패 시 다음 시간에 재시도
     - 예외 발생 시 log + collector_state.last_error 기록 후 루프 계속
     """
+    import time as _time
+
     from app.db.database import AsyncSessionLocal
+    from app.services.meta_token_service import refresh_shared_meta_token
 
     logger.info("[MetaInsights] 수집 루프 시작 (1시간 주기)")
 
+    refresh_interval = 24 * 3600
+    last_refresh: Optional[float] = None
+
     while True:
+        # ── 토큰 롤링 갱신 (24시간 주기, 실패 시 매시간 재시도) ──
+        if last_refresh is None or (_time.monotonic() - last_refresh) >= refresh_interval:
+            try:
+                async with AsyncSessionLocal() as db:
+                    if await refresh_shared_meta_token(db):
+                        last_refresh = _time.monotonic()
+            except Exception as exc:
+                logger.warning(f"[MetaInsights] 토큰 갱신 실패(다음 주기 재시도): {exc}")
+
         collector_state["running"] = True
         try:
             async with AsyncSessionLocal() as db:

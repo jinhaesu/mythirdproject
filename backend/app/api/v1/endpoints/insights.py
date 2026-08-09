@@ -424,6 +424,7 @@ async def get_insights_status(
     """수집기 상태 및 DB 요약 반환."""
     from app.models.meta_insight import MetaInsightDaily
     from app.services.meta_insights_collector import collector_state
+    from app.services.meta_token_service import token_state
 
     count_result = await db.execute(
         select(func.count()).select_from(MetaInsightDaily)
@@ -435,6 +436,8 @@ async def get_insights_status(
         "total_rows": total_rows,
         "token_expired": collector_state.get("token_expired", False),
         "last_error": collector_state.get("last_error"),
+        "token_expires_at": token_state.get("expires_at"),
+        "token_last_refresh": token_state.get("last_refresh"),
     }
 
 

@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     META_APP_ID: str = ""
     META_APP_SECRET: str = ""
     META_ACCESS_TOKEN: str = ""
-    META_API_VERSION: str = "v19.0"
+    META_API_VERSION: str = "v23.0"
     META_GRAPH_API_BASE: str = "https://graph.facebook.com"
 
     # AI Services

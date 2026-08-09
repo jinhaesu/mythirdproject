@@ -166,7 +166,7 @@ export const authApi = {
 
 export interface ConnectionsStatus {
   cafe24: { connected: boolean; mall_id?: string | null; expires_at?: string | null; expiring_soon?: boolean };
-  meta: { connected: boolean; user_id?: string | null; ad_account_id?: string | null };
+  meta: { connected: boolean; user_id?: string | null; ad_account_id?: string | null; token_expired?: boolean; token_expires_at?: string | null };
   naver: { connected: boolean; search_ads: boolean; gfa: boolean };
 }
 

@@ -19,6 +19,18 @@ export function Header() {
   const [selectedPageId, setSelectedPageId] = useState('');
   const [selectedIgId, setSelectedIgId] = useState('');
   const [savingSettings, setSavingSettings] = useState(false);
+  const [metaExpired, setMetaExpired] = useState(false);
+
+  // Meta 토큰 만료 여부 확인 (연동돼 있어도 토큰이 만료됐을 수 있음)
+  useEffect(() => {
+    if (isAuthenticated && user?.meta_connected) {
+      authApi.getConnectionsStatus()
+        .then(s => setMetaExpired(!!s.meta?.token_expired))
+        .catch(() => {});
+    } else {
+      setMetaExpired(false);
+    }
+  }, [isAuthenticated, user?.meta_connected]);
 
   // Load Meta account details when settings is opened
   useEffect(() => {
@@ -189,17 +201,17 @@ export function Header() {
           {isAuthenticated && user && (
             <div className="flex items-center gap-2 sm:gap-3">
               <ThemeToggle />
-              {!user.meta_connected && (
+              {(!user.meta_connected || metaExpired) && (
                 <button
                   onClick={handleMetaConnect}
                   disabled={connecting}
                   className="flex items-center gap-2 px-2.5 sm:px-4 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
-                  style={{ backgroundColor: 'var(--color-brand-bg)', color: 'var(--color-text-primary)', border: '1px solid transparent' }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--color-accent-hover)'; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--color-brand-bg)'; }}
+                  style={{ backgroundColor: metaExpired ? 'var(--color-red)' : 'var(--color-brand-bg)', color: metaExpired ? '#fff' : 'var(--color-text-primary)', border: '1px solid transparent' }}
+                  onMouseEnter={e => { if (!metaExpired) (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--color-accent-hover)'; }}
+                  onMouseLeave={e => { if (!metaExpired) (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--color-brand-bg)'; }}
                 >
                   <Link2 size={14} />
-                  <span className="hidden sm:inline">{connecting ? '연결 중...' : 'Meta 연결하기'}</span>
+                  <span className="hidden sm:inline">{connecting ? '연결 중...' : metaExpired ? 'Meta 재연동 필요' : 'Meta 연결하기'}</span>
                 </button>
               )}
 
@@ -219,8 +231,8 @@ export function Header() {
                   </div>
                   <div className="hidden sm:block text-left">
                     <p className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>{user.full_name || user.email}</p>
-                    <p className="text-xs" style={{ color: user.meta_connected ? 'var(--color-green)' : 'var(--color-orange)' }}>
-                      {user.meta_connected ? 'Meta 연동됨' : 'Meta 연동 필요'}
+                    <p className="text-xs" style={{ color: metaExpired ? 'var(--color-red)' : user.meta_connected ? 'var(--color-green)' : 'var(--color-orange)' }}>
+                      {metaExpired ? 'Meta 토큰 만료' : user.meta_connected ? 'Meta 연동됨' : 'Meta 연동 필요'}
                     </p>
                   </div>
                   <ChevronDown size={14} style={{ color: 'var(--color-text-tertiary)' }} />
@@ -239,7 +251,9 @@ export function Header() {
                       <div style={{ borderBottom: '1px solid var(--color-border-secondary)' }}>
                         <div className="px-4 py-2">
                           <p className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>Meta 계정</p>
-                          <p className="text-sm font-medium" style={{ color: 'var(--color-green)' }}>연동됨</p>
+                          <p className="text-sm font-medium" style={{ color: metaExpired ? 'var(--color-red)' : 'var(--color-green)' }}>
+                            {metaExpired ? '토큰 만료 — 재연동 필요' : '연동됨'}
+                          </p>
                         </div>
                         <div className="flex" style={{ borderTop: '1px solid var(--color-border-secondary)' }}>
                           <button
