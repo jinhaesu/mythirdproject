@@ -70,21 +70,33 @@ async def analyze_blog_sentiment(keyword: str, sample: int = 30) -> Dict[str, An
 - positive/negative 각 5~12개, weight 내림차순
 - 단어는 실제 글에 등장한 한국어 표현 그대로 (예: "쫀득하다", "달다", "배송 빠름")
 - 광고성 상투어("최고", "강추" 남발)는 weight를 낮게
-- themes는 3~8개"""
+- themes는 3~8개
+- JSON 문자열 값 안에 큰따옴표(")를 절대 쓰지 말 것 — 인용이 필요하면 작은따옴표 사용"""
 
     from app.services.ai import ClaudeService, extract_text
 
     claude = ClaudeService()
-    response = claude.client.messages.create(
-        model=claude.model,
-        max_tokens=3000,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    text = extract_text(response)
-    if not text:
-        raise ValueError("AI 응답에 텍스트 블록이 없습니다")
-    start_i, end_i = text.find("{"), text.rfind("}")
-    parsed = json.loads(text[start_i:end_i + 1])
+    parsed = None
+    last_error: Optional[Exception] = None
+    for attempt in range(2):  # 모델이 깨진 JSON을 낼 때가 있어 1회 재시도
+        response = claude.client.messages.create(
+            model=claude.model,
+            max_tokens=3000,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        text = extract_text(response)
+        if not text:
+            last_error = ValueError("AI 응답에 텍스트 블록이 없습니다")
+            continue
+        start_i, end_i = text.find("{"), text.rfind("}")
+        try:
+            parsed = json.loads(text[start_i:end_i + 1])
+            break
+        except Exception as exc:
+            last_error = exc
+            logger.warning(f"[InsightsReport] 감성 JSON 파싱 실패(시도 {attempt + 1}/2): {exc}")
+    if parsed is None:
+        raise ValueError(f"감성 분석 JSON 파싱 실패: {last_error}")
     return {
         "keyword": keyword,
         "sample_size": len(posts),
