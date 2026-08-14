@@ -19,7 +19,10 @@ from app.api.v1.endpoints.auth import get_current_user
 from app.db.database import get_db
 from app.models.user import User
 from app.services.naver import api_hub
-from app.services.naver_mention_service import clean_text, fetch_mentions, upsert_mention_snapshot
+from app.services.naver_insights_service import apply_absolute_scale, fetch_monthly_volumes
+from app.services.naver_mention_service import (
+    clean_text, count_blog_posts_since, fetch_mentions, upsert_mention_snapshot,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -42,120 +45,6 @@ def _default_range(days: int = 90) -> tuple:
     end = date.today() - timedelta(days=1)  # 데이터랩은 전일까지 제공
     start = end - timedelta(days=days)
     return start.isoformat(), end.isoformat()
-
-
-# ── 절대 검색량 환산 (데이터랩 상대지수 × 검색광고 키워드도구 월간 검색량) ──
-
-def _norm_kw(k: str) -> str:
-    return (k or "").replace(" ", "").upper()
-
-
-def _qc_num(v) -> int:
-    """키워드도구 검색량 값 파싱 — '< 10' 형태는 최소 근사값 5로 처리."""
-    try:
-        return int(v)
-    except (TypeError, ValueError):
-        return 5 if "<" in str(v) else 0
-
-
-async def _fetch_monthly_volumes(keywords: List[str]) -> Dict[str, Dict[str, int]]:
-    """검색광고 키워드도구로 키워드별 최근 30일 절대 검색량 조회.
-
-    반환: {정규화키워드: {pc, mobile, total}}. 자격증명 미설정/실패 시 {} (호출측 폴백).
-    """
-    from app.core.config import get_settings
-
-    settings = get_settings()
-    if not (
-        settings.NAVER_ADS_API_KEY
-        and settings.NAVER_ADS_SECRET_KEY
-        and settings.NAVER_ADS_CUSTOMER_ID
-    ):
-        return {}
-
-    from app.services.naver.search_ads_api import NaverSearchAdsAPI
-
-    client = NaverSearchAdsAPI(
-        api_key=settings.NAVER_ADS_API_KEY,
-        secret_key=settings.NAVER_ADS_SECRET_KEY,
-        customer_id=settings.NAVER_ADS_CUSTOMER_ID,
-    )
-    try:
-        rows = await client.get_keyword_search_volume(
-            [k.replace(" ", "") for k in keywords if k.strip()][:5]
-        )
-    except Exception as exc:
-        logger.warning(f"[NaverInsights] 키워드도구 검색량 조회 실패: {exc}")
-        return {}
-
-    wanted = {_norm_kw(k) for k in keywords}
-    out: Dict[str, Dict[str, int]] = {}
-    for r in rows:
-        rk = _norm_kw(r.get("relKeyword", ""))
-        if rk in wanted and rk not in out:
-            pc = _qc_num(r.get("monthlyPcQcCnt"))
-            mo = _qc_num(r.get("monthlyMobileQcCnt"))
-            out[rk] = {"pc": pc, "mobile": mo, "total": pc + mo}
-    return out
-
-
-def _bucket_range(period_str: str, time_unit: str) -> tuple:
-    """데이터랩 버킷의 (시작일, 종료일). period는 버킷 시작일."""
-    start = date.fromisoformat(period_str)
-    if time_unit == "week":
-        return start, start + timedelta(days=6)
-    if time_unit == "month":
-        nxt = date(start.year + (start.month == 12), start.month % 12 + 1, 1)
-        return start, nxt - timedelta(days=1)
-    return start, start
-
-
-def _apply_absolute_scale(
-    results: List[dict], time_unit: str, end_date_str: str,
-    volumes: Dict[str, Dict[str, int]], kw_by_title: Dict[str, str],
-) -> bool:
-    """상대지수 시리즈에 absolute(추정 쿼리수) 필드 부여.
-
-    스케일: 최근 30일 창과 각 버킷의 겹침 일수를 가중해
-    Σ(ratio×overlap비율) ↔ 월간검색량×(창일수/30) 이 일치하도록 k 산출.
-    """
-    try:
-        end_dt = date.fromisoformat(end_date_str)
-    except ValueError:
-        return False
-    window_start = end_dt - timedelta(days=29)
-    applied = False
-
-    for res in results:
-        kw = kw_by_title.get(res.get("title", ""))
-        vol = volumes.get(_norm_kw(kw)) if kw else None
-        pts = res.get("data", [])
-        res["monthly_volume"] = vol
-        if not vol or not vol.get("total") or not pts:
-            continue
-        weighted = 0.0
-        window_days = 0
-        for p in pts:
-            try:
-                b_start, b_end = _bucket_range(p["period"], time_unit)
-            except (KeyError, ValueError):
-                continue
-            o_start = max(b_start, window_start)
-            o_end = min(b_end, end_dt)
-            if o_start > o_end:
-                continue
-            overlap = (o_end - o_start).days + 1
-            bucket_days = (b_end - b_start).days + 1
-            weighted += float(p.get("ratio", 0)) * (overlap / bucket_days)
-            window_days += overlap
-        if weighted <= 0 or window_days <= 0:
-            continue
-        k = (vol["total"] * (window_days / 30.0)) / weighted
-        for p in pts:
-            p["absolute"] = round(float(p.get("ratio", 0)) * k)
-        res["scale_factor"] = k
-        applied = True
-    return applied
 
 
 # ── 상태/프리셋 ──────────────────────────────────────────────────────────────
@@ -217,8 +106,8 @@ async def search_trend(
 
     data = r["data"]
     kw_by_title = {g.name: g.keywords[0] for g in req.keyword_groups if g.keywords}
-    volumes = await _fetch_monthly_volumes(list(kw_by_title.values()))
-    absolute_available = _apply_absolute_scale(
+    volumes = await fetch_monthly_volumes(list(kw_by_title.values()))
+    absolute_available = apply_absolute_scale(
         data.get("results", []), req.time_unit, end_date, volumes, kw_by_title,
     ) if volumes else False
 
@@ -310,13 +199,18 @@ async def shopping_keyword_trend(
 async def get_mentions(
     keyword: str,
     display: int = 10,
+    days: Optional[int] = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """블로그+카페 언급 총량 및 최근 게시물. 조회 시 오늘자 스냅샷도 저장."""
+    """블로그+카페 언급 총량 및 최근 게시물. 조회 시 오늘자 스냅샷도 저장.
+
+    days 주어지면 기간 내 블로그 신규 글 수(blog_period)도 실집계
+    (카페는 API가 작성일 미제공이라 누적만 가능).
+    """
     if not api_hub.is_configured():
         raise HTTPException(status_code=503, detail="NAVER API HUB 키가 설정되지 않았습니다.")
-    result = await fetch_mentions(keyword, display=min(display, 30))
+    result = await fetch_mentions(keyword, display=min(display, 50))
     try:
         await upsert_mention_snapshot(
             db, keyword,
@@ -325,7 +219,19 @@ async def get_mentions(
         )
     except Exception as exc:
         logger.warning(f"[NaverInsights] 스냅샷 저장 실패: {exc}")
-    return {**result, "as_of": datetime.utcnow().isoformat()}
+
+    blog_period = None
+    if days:
+        try:
+            blog_period = await count_blog_posts_since(keyword, days=min(days, 1095))
+        except Exception as exc:
+            logger.warning(f"[NaverInsights] 기간 내 블로그 집계 실패: {exc}")
+    return {
+        **result,
+        "blog_period": blog_period,
+        "period_days": days,
+        "as_of": datetime.utcnow().isoformat(),
+    }
 
 
 @router.get("/mention-history")
@@ -358,7 +264,8 @@ async def get_mention_history(
 
 class SentimentMindmapRequest(BaseModel):
     keyword: str
-    sample: int = Field(default=30, ge=5, le=50)
+    sample: int = Field(default=60, ge=5, le=150)
+    days: Optional[int] = Field(default=None, ge=7, le=1095)
 
 
 @router.post("/sentiment-mindmap")
@@ -366,14 +273,14 @@ async def sentiment_mindmap(
     req: SentimentMindmapRequest,
     current_user: User = Depends(get_current_user),
 ):
-    """최근 블로그 글에서 긍정/부정 단어를 추출해 마인드맵 데이터로 반환."""
+    """블로그 글에서 긍정/부정 단어를 추출해 마인드맵 데이터로 반환 (days=기간 필터)."""
     if not api_hub.is_configured():
         raise HTTPException(status_code=503, detail="NAVER API HUB 키가 설정되지 않았습니다.")
 
     from app.services.naver_insights_service import analyze_blog_sentiment
 
     try:
-        result = await analyze_blog_sentiment(req.keyword, sample=req.sample)
+        result = await analyze_blog_sentiment(req.keyword, sample=req.sample, days=req.days)
     except Exception as exc:
         logger.error(f"[NaverInsights] 감성 분석 실패: {exc}")
         raise HTTPException(status_code=502, detail=f"AI 감성 분석 실패: {exc}")

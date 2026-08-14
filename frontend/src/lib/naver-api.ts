@@ -458,8 +458,8 @@ export const naverInsightsApi = {
     return data;
   },
 
-  getMentions: async (keyword: string, display = 10) => {
-    const { data } = await api.get('/naver-insights/mentions', { params: { keyword, display } });
+  getMentions: async (keyword: string, display = 10, days?: number) => {
+    const { data } = await api.get('/naver-insights/mentions', { params: { keyword, display, days } });
     return data;
   },
 
@@ -468,8 +468,8 @@ export const naverInsightsApi = {
     return data;
   },
 
-  sentimentMindmap: async (keyword: string, sample = 30) => {
-    const { data } = await api.post('/naver-insights/sentiment-mindmap', { keyword, sample });
+  sentimentMindmap: async (keyword: string, sample = 60, days?: number) => {
+    const { data } = await api.post('/naver-insights/sentiment-mindmap', { keyword, sample, days });
     return data;
   },
 };

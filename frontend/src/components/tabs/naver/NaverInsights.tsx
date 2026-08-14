@@ -195,18 +195,26 @@ function StatusBanner() {
   );
 }
 
-function PeriodPicker({ days, setDays, unit, setUnit }: {
-  days: number; setDays: (d: number) => void;
-  unit: string; setUnit: (u: string) => void;
-}) {
+function PeriodButtons({ days, setDays }: { days: number; setDays: (d: number) => void }) {
   return (
-    <div className="flex items-center gap-1.5 flex-wrap">
+    <>
       {PERIOD_OPTIONS.map((p) => (
         <button key={p.days} onClick={() => setDays(p.days)}
           className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border ${days === p.days ? 'bg-brand text-white border-transparent' : 'bg-bg-0 text-text-tertiary border-border-primary'}`}>
           {p.label}
         </button>
       ))}
+    </>
+  );
+}
+
+function PeriodPicker({ days, setDays, unit, setUnit }: {
+  days: number; setDays: (d: number) => void;
+  unit: string; setUnit: (u: string) => void;
+}) {
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap">
+      <PeriodButtons days={days} setDays={setDays} />
       <span className="w-px h-4 bg-border-primary mx-1" />
       {TIME_UNITS.map((t) => (
         <button key={t.value} onClick={() => setUnit(t.value)}
@@ -440,19 +448,21 @@ function ShoppingKeywordPanel() {
 function MentionPanel() {
   const [keyword, setKeyword] = useState(BRAND_NAME);
   const [submitted, setSubmitted] = useState(BRAND_NAME);
+  const [days, setDays] = useState(90);
 
   const { data, isFetching, refetch } = useQuery({
-    queryKey: ['ni-mentions', submitted],
-    queryFn: () => naverInsightsApi.getMentions(submitted, 8),
+    queryKey: ['ni-mentions', submitted, days],
+    queryFn: () => naverInsightsApi.getMentions(submitted, 30, days),
     retry: 1,
   });
   const { data: history } = useQuery({
-    queryKey: ['ni-mention-history', submitted],
-    queryFn: () => naverInsightsApi.getMentionHistory(submitted),
+    queryKey: ['ni-mention-history', submitted, days],
+    queryFn: () => naverInsightsApi.getMentionHistory(submitted, days),
     retry: 1,
   });
 
   const historyRows = history?.history ?? [];
+  const periodLabel = PERIOD_OPTIONS.find(p => p.days === days)?.label ?? `${days}일`;
 
   return (
     <div className="bg-bg-1 border border-border-primary rounded-xl p-4">
@@ -461,7 +471,8 @@ function MentionPanel() {
           <MessageCircle size={14} className="text-[#03C75A]" /> 블로그/카페 언급량 모니터링
           <span className="text-[10px] font-normal text-text-quaternary">6시간마다 자동 스냅샷 → 추이 누적</span>
         </h3>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5"><PeriodButtons days={days} setDays={setDays} /></div>
           <input value={keyword} onChange={(e: ChangeEvent<HTMLInputElement>) => setKeyword(e.target.value)}
             className="px-3 py-1.5 bg-bg-0 border border-border-primary rounded-lg text-xs text-text-secondary w-40 focus:outline-none focus:border-brand" />
           <button onClick={() => { setSubmitted(keyword.trim()); refetch(); }} disabled={isFetching}
@@ -472,7 +483,16 @@ function MentionPanel() {
       </div>
 
       {data && (
-        <div className="grid grid-cols-2 gap-3 mb-4">
+        <div className="grid grid-cols-3 gap-3 mb-4">
+          <div className="bg-bg-0 border border-[#03C75A]/30 rounded-lg p-3">
+            <p className="text-[10px] text-text-quaternary mb-1">최근 {periodLabel} 블로그 신규 글</p>
+            <p className="text-xl font-bold text-[#03C75A]">
+              {data.blog_period
+                ? `${data.blog_period.count.toLocaleString('ko-KR')}${data.blog_period.exact ? '' : '+'}`
+                : '–'}
+              {data.blog_period && <span className="text-xs font-normal text-text-quaternary ml-1">건</span>}
+            </p>
+          </div>
           <div className="bg-bg-0 border border-border-primary rounded-lg p-3">
             <p className="text-[10px] text-text-quaternary mb-1">블로그 누적 언급</p>
             <p className="text-xl font-bold text-text-primary">
@@ -486,6 +506,7 @@ function MentionPanel() {
               {data.cafe?.total >= 0 ? data.cafe.total.toLocaleString('ko-KR') : '수집 실패'}
               {data.cafe?.total >= 0 && <span className="text-xs font-normal text-text-quaternary ml-1">건</span>}
             </p>
+            <p className="text-[9px] text-text-quaternary mt-0.5">카페는 API가 작성일 미제공 → 누적만</p>
           </div>
         </div>
       )}
@@ -516,7 +537,7 @@ function MentionPanel() {
           <div key={kind}>
             <p className="text-[11px] font-semibold text-text-tertiary mb-1.5">{kind === 'blog' ? '최근 블로그 글' : '최근 카페 글'}</p>
             <div className="space-y-1.5">
-              {(data?.[kind]?.items ?? []).slice(0, 5).map((it: any, i: number) => (
+              {(data?.[kind]?.items ?? []).slice(0, 8).map((it: any, i: number) => (
                 <a key={i} href={it.link} target="_blank" rel="noreferrer"
                   className="block bg-bg-0 border border-border-primary rounded-lg px-3 py-2 hover:border-brand transition-colors">
                   <p className="text-xs text-text-secondary line-clamp-1 flex items-center gap-1">
@@ -539,9 +560,10 @@ function MentionPanel() {
 // 5) 긍정/부정 마인드맵
 function SentimentPanel() {
   const [keyword, setKeyword] = useState(BRAND_NAME);
+  const [days, setDays] = useState(90);
 
   const m = useMutation({
-    mutationFn: () => naverInsightsApi.sentimentMindmap(keyword.trim(), 30),
+    mutationFn: () => naverInsightsApi.sentimentMindmap(keyword.trim(), 60, days),
     onError: (e: any) => toast.error(e?.response?.data?.detail || '감성 분석 실패'),
   });
 
@@ -550,9 +572,10 @@ function SentimentPanel() {
       <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
         <h3 className="text-sm font-semibold text-text-secondary flex items-center gap-1.5">
           <Brain size={14} className="text-[#03C75A]" /> 블로그 여론 마인드맵
-          <span className="text-[10px] font-normal text-text-quaternary">최근 블로그 글 AI 분석 — 긍정/부정 단어 도식화</span>
+          <span className="text-[10px] font-normal text-text-quaternary">기간 내 블로그 글 AI 분석 (표본 최대 60건) — 긍정/부정 단어 도식화</span>
         </h3>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5"><PeriodButtons days={days} setDays={setDays} /></div>
           <input value={keyword} onChange={(e: ChangeEvent<HTMLInputElement>) => setKeyword(e.target.value)}
             className="px-3 py-1.5 bg-bg-0 border border-border-primary rounded-lg text-xs text-text-secondary w-40 focus:outline-none focus:border-brand" />
           <button onClick={() => keyword.trim() ? m.mutate() : toast.error('키워드를 입력하세요')} disabled={m.isPending}
@@ -572,7 +595,7 @@ function SentimentPanel() {
           <div className="bg-bg-0 border border-border-primary rounded-lg p-3 mb-3">
             <p className="text-xs text-text-secondary leading-relaxed">{m.data.summary}</p>
             <p className="text-[10px] text-text-quaternary mt-1.5">
-              분석 표본: 블로그 글 {m.data.sample_size}건 · 기준: {String(m.data.as_of).slice(0, 10)}
+              분석 표본: {m.data.period_days ? `최근 ${m.data.period_days}일 ` : ''}블로그 글 {m.data.sample_size}건 · 기준: {String(m.data.as_of).slice(0, 10)}
             </p>
           </div>
           {(m.data.themes ?? []).length > 0 && (

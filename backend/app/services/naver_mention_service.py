@@ -1,7 +1,7 @@
 """블로그/카페 언급량 수집 + 일별 스냅샷 저장."""
 import logging
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any, Dict, List
 
 from sqlalchemy import select
@@ -43,6 +43,36 @@ async def fetch_mentions(keyword: str, display: int = 10) -> Dict[str, Any]:
         ]
         result[key] = {"total": int(data.get("total", 0)), "items": items}
     return result
+
+
+async def count_blog_posts_since(
+    keyword: str, days: int, max_scan: int = 1000,
+) -> Dict[str, Any]:
+    """기간 내(오늘-days ~) 작성된 블로그 글 수 — postdate 기준 실집계.
+
+    최신순 정렬로 100건씩 페이지 스캔하며 cutoff보다 오래된 글이 나오면 중단.
+    API 스캔 상한(1000건) 도달 시 exact=False (count는 하한값 → 'N+건'으로 표기).
+    카페글은 API가 작성일을 제공하지 않아 이 방식 불가.
+    """
+    cutoff = (date.today() - timedelta(days=days)).strftime("%Y%m%d")
+    count = 0
+    start = 1
+    while start <= max_scan - 99:
+        r = await api_hub.search("blog", keyword, display=100, start=start, sort="date")
+        if not r["ok"]:
+            return {"count": count, "exact": False, "error": r.get("error")}
+        items = r["data"].get("items", [])
+        if not items:
+            return {"count": count, "exact": True}
+        for it in items:
+            pd = it.get("postdate", "")
+            if pd and pd < cutoff:
+                return {"count": count, "exact": True}
+            count += 1
+        if len(items) < 100:
+            return {"count": count, "exact": True}
+        start += 100
+    return {"count": count, "exact": False}
 
 
 async def upsert_mention_snapshot(
