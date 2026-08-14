@@ -411,7 +411,9 @@ export const naverKeywordResearchApi = {
 
 export interface TrendResult {
   title: string;
-  data: { period: string; ratio: number }[];
+  data: { period: string; ratio: number; absolute?: number }[];
+  /** 검색광고 키워드도구 월간 검색량 (검색어 트렌드에서만 제공) */
+  monthly_volume?: { pc: number; mobile: number; total: number } | null;
 }
 
 export const naverInsightsApi = {
@@ -430,7 +432,7 @@ export const naverInsightsApi = {
     start_date?: string;
     end_date?: string;
     time_unit?: string;
-  }): Promise<{ results: TrendResult[]; startDate: string; endDate: string; as_of: string }> => {
+  }): Promise<{ results: TrendResult[]; startDate: string; endDate: string; as_of: string; absolute_available?: boolean }> => {
     const { data } = await api.post('/naver-insights/search-trend', body);
     return data;
   },

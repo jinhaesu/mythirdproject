@@ -21,6 +21,8 @@ const PERIOD_OPTIONS = [
   { label: '3개월', days: 90 },
   { label: '6개월', days: 180 },
   { label: '1년', days: 365 },
+  { label: '2년', days: 730 },
+  { label: '3년', days: 1095 },
 ];
 
 const TIME_UNITS = [
@@ -38,8 +40,8 @@ function rangeFor(days: number) {
   return { start_date: fmt(start), end_date: fmt(end) };
 }
 
-/** 데이터랩 results[] → recharts 시리즈 [{period, [title]: ratio}] */
-function mergeSeries(results: TrendResult[]) {
+/** 데이터랩 results[] → recharts 시리즈 [{period, [title]: 값}] — useAbsolute면 절대 쿼리수 우선 */
+function mergeSeries(results: TrendResult[], useAbsolute = false) {
   const periods = new Set<string>();
   results.forEach((r) => r.data.forEach((p) => periods.add(p.period)));
   const sorted = Array.from(periods).sort();
@@ -47,10 +49,18 @@ function mergeSeries(results: TrendResult[]) {
     const row: Record<string, string | number> = { period };
     results.forEach((r) => {
       const found = r.data.find((p) => p.period === period);
-      if (found) row[r.title] = found.ratio;
+      if (found) row[r.title] = useAbsolute ? (found.absolute ?? found.ratio) : found.ratio;
     });
     return row;
   });
+}
+
+/** 축 눈금용 축약 표기 (12000 → 1.2만) */
+function compactNum(v: number): string {
+  if (Math.abs(v) >= 100000000) return `${(v / 100000000).toFixed(1)}억`;
+  if (Math.abs(v) >= 10000) return `${(v / 10000).toFixed(1)}만`;
+  if (Math.abs(v) >= 1000) return `${(v / 1000).toFixed(1)}천`;
+  return String(Math.round(v));
 }
 
 /** 최근 7포인트 vs 이전 7포인트 평균 변화율(%) */
@@ -62,8 +72,8 @@ function recentDelta(data: { ratio: number }[]): number | null {
   return ((recent - prev) / prev) * 100;
 }
 
-function TrendLineChart({ results }: { results: TrendResult[] }) {
-  const series = useMemo(() => mergeSeries(results), [results]);
+function TrendLineChart({ results, useAbsolute = false }: { results: TrendResult[]; useAbsolute?: boolean }) {
+  const series = useMemo(() => mergeSeries(results, useAbsolute), [results, useAbsolute]);
   if (series.length === 0) {
     return <p className="text-xs text-text-quaternary py-6 text-center">데이터가 없습니다.</p>;
   }
@@ -73,10 +83,15 @@ function TrendLineChart({ results }: { results: TrendResult[] }) {
         <LineChart data={series} margin={{ top: 8, right: 16, left: 8, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-primary)" />
           <XAxis dataKey="period" tick={{ fontSize: 10, fill: 'var(--color-text-tertiary)' }} />
-          <YAxis tick={{ fontSize: 10, fill: 'var(--color-text-tertiary)' }} />
+          <YAxis tick={{ fontSize: 10, fill: 'var(--color-text-tertiary)' }}
+            tickFormatter={useAbsolute ? (v: number) => compactNum(v) : undefined}
+            width={useAbsolute ? 52 : 40} />
           <RechartsTooltip
             contentStyle={{ backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)', borderRadius: 8, fontSize: 11 }}
             labelStyle={{ color: 'var(--color-text-secondary)' }}
+            formatter={useAbsolute
+              ? (value: number | string, name: string) => [`${Number(value).toLocaleString('ko-KR')}회`, name]
+              : undefined}
           />
           <Legend wrapperStyle={{ fontSize: 11 }} />
           {results.map((r, i) => (
@@ -225,7 +240,7 @@ function SearchTrendPanel() {
       <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
         <h3 className="text-sm font-semibold text-text-secondary flex items-center gap-1.5">
           <TrendingUp size={14} className="text-[#03C75A]" /> 검색어 트렌드
-          <span className="text-[10px] font-normal text-text-quaternary">통합검색 검색량 상대지수 (데이터랩)</span>
+          <span className="text-[10px] font-normal text-text-quaternary">절대 검색량(월간 쿼리수 환산) — 데이터랩 × 검색광고 키워드도구</span>
         </h3>
         <PeriodPicker days={days} setDays={setDays} unit={unit} setUnit={setUnit} />
       </div>
@@ -240,14 +255,38 @@ function SearchTrendPanel() {
       </div>
       {m.data && (
         <>
+          <VolumeChips results={m.data.results} />
           <DeltaChips results={m.data.results} />
-          <TrendLineChart results={m.data.results} />
-          <AsOf date={m.data.endDate} />
+          <TrendLineChart results={m.data.results} useAbsolute={m.data.absolute_available === true} />
+          {m.data.absolute_available === true ? (
+            <p className="text-[10px] text-text-quaternary mt-2">
+              데이터 기준일: {m.data.endDate} · 절대값은 검색광고 키워드도구의 최근 30일 검색량을 기준으로 데이터랩 상대지수를 환산한 추정 쿼리수입니다.
+            </p>
+          ) : (
+            <p className="text-[10px] text-yellow mt-2">
+              키워드도구 검색량을 가져오지 못해 상대지수(최대 100)로 표시 중입니다. 데이터 기준일: {m.data.endDate}
+            </p>
+          )}
         </>
       )}
       {!m.data && !m.isPending && (
         <p className="text-xs text-text-quaternary py-4 text-center">키워드를 입력하고 조회를 눌러주세요.</p>
       )}
+    </div>
+  );
+}
+
+function VolumeChips({ results }: { results: TrendResult[] }) {
+  const withVol = results.filter((r) => r.monthly_volume?.total);
+  if (withVol.length === 0) return null;
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap mb-2">
+      {withVol.map((r) => (
+        <span key={r.title} className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-[#03C75A]/10 text-[#03C75A] border border-[#03C75A]/30">
+          {r.title} 월간 {r.monthly_volume!.total.toLocaleString('ko-KR')}회
+          <span className="opacity-70"> (PC {r.monthly_volume!.pc.toLocaleString('ko-KR')} · 모바일 {r.monthly_volume!.mobile.toLocaleString('ko-KR')})</span>
+        </span>
+      ))}
     </div>
   );
 }
