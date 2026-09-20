@@ -108,6 +108,12 @@ async def cafe24_auth_callback(
     await db.commit()
     logger.info(f"[Cafe24] Connected mall={user.cafe24_mall_id} for user={user.id}")
 
+    # 디자인 스코프가 부여됐으면 tracker.js ScriptTag 자동 설치 (실패해도 연동은 성공)
+    if "mall.write_design" in (user.cafe24_scopes or "") and settings.BACKEND_URL:
+        tracker_src = f"{settings.BACKEND_URL.rstrip('/')}/api/v1/affiliate/tracker.js"
+        install = await cafe24_svc.ensure_tracker_scripttag(user, db, tracker_src)
+        logger.info(f"[Cafe24] tracker scripttag auto-install: {install}")
+
     return RedirectResponse(f"{settings.FRONTEND_URL}/?cafe24=connected")
 
 

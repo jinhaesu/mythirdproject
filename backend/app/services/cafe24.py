@@ -296,6 +296,35 @@ async def api_request(
         return resp.json()
 
 
+async def ensure_tracker_scripttag(user, db, tracker_src: str) -> dict:
+    """어필리에이트 tracker.js를 ScriptTags API로 전 페이지(PC+모바일)에 주입. 멱등.
+
+    스킨 레이아웃 수작업 설치는 모바일 상품/카테고리 페이지에 누락되는 사고가
+    있었음(2026-09 총학 공구 바인딩 유실) → API 주입으로 전 페이지 보장.
+    scope: mall.read_design / mall.write_design 필요.
+    """
+    try:
+        existing = await api_request(user, db, "GET", "/api/v2/admin/scripttags")
+    except Exception as e:
+        return {"installed": False, "step": "list", "error": str(e)[:300]}
+
+    src_base = tracker_src.split("?")[0]
+    for t in existing.get("scripttags") or []:
+        if (t.get("src") or "").split("?")[0] == src_base:
+            return {"installed": True, "already": True, "script_no": t.get("script_no")}
+
+    try:
+        res = await api_request(
+            user, db, "POST", "/api/v2/admin/scripttags",
+            json={"shop_no": 1, "request": {"src": tracker_src, "display_location": ["all"]}},
+        )
+        tag = res.get("scripttag") or {}
+        logger.info(f"[Cafe24] tracker scripttag installed: script_no={tag.get('script_no')}")
+        return {"installed": True, "already": False, "script_no": tag.get("script_no")}
+    except Exception as e:
+        return {"installed": False, "step": "create", "error": str(e)[:300]}
+
+
 async def list_products(
     user, db, q: Optional[str] = None, limit: int = 50, include_hidden: bool = False
 ) -> list:

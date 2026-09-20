@@ -2390,7 +2390,9 @@ async def track_referral_click(
         # 클릭 토큰(nref)을 목적지 URL에 부착 — 스토어의 tracker.js가 저장했다가
         # 주문완료 페이지에서 (주문번호, 토큰)을 click-bind로 전송해 확정 귀속.
         sep = "&" if "?" in redirect_url else "?"
-        redirect_url = f"{redirect_url}{sep}nref={cookie_id}"
+        # fragment(#nref)도 함께 부착 — Cafe24가 품절/비공개 등으로 302시킬 때
+        # 쿼리는 유실되지만 fragment는 브라우저가 리다이렉트 후에도 보존한다.
+        redirect_url = f"{redirect_url}{sep}nref={cookie_id}#nref={cookie_id}"
         logger.info(f"[Track] click recorded: code={referral_code} partner={partner_id} campaign={campaign_id}")
     else:
         # 캠페인 자체 클릭 — partner_id NULL 허용하도록 로그만
@@ -2418,6 +2420,12 @@ _TRACKER_JS_TEMPLATE = r"""
     // 루트 도메인 쿠키 — m.도메인/www.도메인 사이에서도 토큰 공유 (localStorage는 origin별 분리)
     var root = location.hostname.replace(/^(m|www)\./i, '');
     var t = qs.get('nref');
+    if (!t) {
+      // 쿼리에 없으면 fragment에서 복구 — Cafe24 내부 리다이렉트로 쿼리가
+      // 유실돼도 fragment는 브라우저가 보존한다.
+      var hm = (location.hash || '').match(/nref=([0-9a-f]{16,64})/i);
+      if (hm) t = hm[1];
+    }
     if (t && /^[0-9a-f]{16,64}$/i.test(t)) {
       localStorage.setItem('nd_ref_token', t);
       localStorage.setItem('nd_ref_ts', String(Date.now()));
@@ -2445,7 +2453,7 @@ _TRACKER_JS_TEMPLATE = r"""
     var url = '__BACKEND__/api/v1/affiliate/click-bind';
     // text/plain — CORS preflight 없이 전송 (서버는 raw body를 JSON 파싱)
     // token이 없어도 전송 — 서버가 "주문완료 페이지 도달" 진단 핑으로 집계
-    var payload = JSON.stringify({ order_id: oid, token: token });
+    var payload = JSON.stringify({ order_id: oid, token: token, host: location.hostname });
     if (navigator.sendBeacon) {
       navigator.sendBeacon(url, new Blob([payload], { type: 'text/plain' }));
     } else {
@@ -2465,7 +2473,15 @@ _TRACKER_JS_TEMPLATE = r"""
 # 주문완료 페이지 도달 진단 카운터 (배포 후 리셋 — 바인딩 0건 원인 구분용)
 # ping_no_token: 스크립트는 실행됐지만 localStorage에 클릭 토큰 없음
 # ping_unknown_token: 토큰이 왔지만 클릭 기록과 불일치
-_order_page_pings = {"no_token": 0, "unknown_token": 0, "bound": 0, "since": None}
+_order_page_pings = {"no_token": 0, "unknown_token": 0, "bound": 0, "since": None, "hosts": {}}
+
+
+def _count_ping_host(host: str, outcome: str) -> None:
+    """도메인별 핑 결과 카운트 — PC(nuldam.com)/모바일(m.) 어느 쪽에서 토큰이
+    유실되는지 구분하는 진단용 (배포 후 리셋)."""
+    h = (host or "?")[:60]
+    bucket = _order_page_pings["hosts"].setdefault(h, {"no_token": 0, "with_token": 0})
+    bucket["with_token" if outcome != "no_token" else "no_token"] += 1
 
 
 @router.get("/tracker.js")
@@ -2481,6 +2497,39 @@ async def serve_tracker_js():
     js = _TRACKER_JS_TEMPLATE.replace("__BACKEND__", backend)
     return _Resp(content=js, media_type="application/javascript",
                  headers={"Cache-Control": "public, max-age=3600"})
+
+
+@router.post("/install-tracker-scripttag")
+async def install_tracker_scripttag(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """카페24 ScriptTags API로 tracker.js를 전 페이지(PC+모바일)에 설치.
+
+    스킨 레이아웃 수작업 설치가 모바일 상품/카테고리 페이지를 누락했던 문제의
+    영구 해결책. mall.write_design 스코프 필요 — 없으면 needs_reauth 반환.
+    """
+    from app.api.v1.endpoints.auth import get_shared_cafe24_user
+    import app.services.cafe24 as _c24
+    from app.core.config import get_settings as _gs
+
+    cafe24_user = current_user if current_user.cafe24_access_token else await get_shared_cafe24_user(db)
+    if not cafe24_user:
+        raise HTTPException(status_code=400, detail="Cafe24 스토어 연결이 필요합니다.")
+    granted = cafe24_user.cafe24_scopes or ""
+    if "mall.write_design" not in granted:
+        return {
+            "installed": False,
+            "needs_reauth": True,
+            "detail": "토큰에 mall.write_design 스코프가 없습니다. 카페24 재연동이 필요합니다.",
+        }
+    backend = (_gs().BACKEND_URL or "").rstrip("/")
+    if not backend:
+        raise HTTPException(status_code=500, detail="BACKEND_URL 미설정")
+    result = await _c24.ensure_tracker_scripttag(
+        cafe24_user, db, f"{backend}/api/v1/affiliate/tracker.js"
+    )
+    return result
 
 
 @router.post("/click-bind")
@@ -2502,6 +2551,7 @@ async def bind_order_click(request: Request, db: AsyncSession = Depends(get_db))
 
     order_id = str(data.get("order_id") or "").strip()[:100]
     token = str(data.get("token") or "").strip()[:100]
+    ping_host = str(data.get("host") or "").strip()[:60]
     if _order_page_pings["since"] is None:
         _order_page_pings["since"] = datetime.utcnow().isoformat()
     if not order_id:
@@ -2510,8 +2560,10 @@ async def bind_order_click(request: Request, db: AsyncSession = Depends(get_db))
         # 진단 핑: 주문완료 페이지에서 스크립트는 실행됐지만 클릭 토큰이 없음
         # (오가닉 주문이거나, 인앱브라우저 등에서 localStorage 유실)
         _order_page_pings["no_token"] += 1
-        logger.info(f"[ClickBind] ping(no_token): order={order_id}")
+        _count_ping_host(ping_host, "no_token")
+        logger.info(f"[ClickBind] ping(no_token): order={order_id} host={ping_host}")
         return {"status": "no_token_ping"}
+    _count_ping_host(ping_host, "with_token")
 
     click = await find_click_by_token(db, token)
     if not click:
