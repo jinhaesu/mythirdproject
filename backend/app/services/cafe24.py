@@ -301,7 +301,7 @@ async def ensure_tracker_scripttag(user, db, tracker_src: str) -> dict:
 
     스킨 레이아웃 수작업 설치는 모바일 상품/카테고리 페이지에 누락되는 사고가
     있었음(2026-09 총학 공구 바인딩 유실) → API 주입으로 전 페이지 보장.
-    scope: mall.read_design / mall.write_design 필요.
+    scope: mall.read_application / mall.write_application 필요 (공식문서 확인 2026-09-20).
     """
     try:
         existing = await api_request(user, db, "GET", "/api/v2/admin/scripttags")

@@ -2517,11 +2517,11 @@ async def install_tracker_scripttag(
     if not cafe24_user:
         raise HTTPException(status_code=400, detail="Cafe24 스토어 연결이 필요합니다.")
     granted = cafe24_user.cafe24_scopes or ""
-    if "mall.write_design" not in granted:
+    if "mall.write_application" not in granted:
         return {
             "installed": False,
             "needs_reauth": True,
-            "detail": "토큰에 mall.write_design 스코프가 없습니다. 카페24 재연동이 필요합니다.",
+            "detail": "토큰에 mall.write_application 스코프가 없습니다. 카페24 재연동이 필요합니다.",
         }
     backend = (_gs().BACKEND_URL or "").rstrip("/")
     if not backend:
