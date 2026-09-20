@@ -2496,7 +2496,9 @@ async def serve_tracker_js():
     backend = (_gs().BACKEND_URL or "").rstrip("/")
     js = _TRACKER_JS_TEMPLATE.replace("__BACKEND__", backend)
     return _Resp(content=js, media_type="application/javascript",
-                 headers={"Cache-Control": "public, max-age=3600"})
+                 headers={"Cache-Control": "public, max-age=3600",
+                          # Cafe24 ScriptTags가 src 검증 시 요구 (없으면 422)
+                          "Access-Control-Allow-Origin": "*"})
 
 
 @router.post("/install-tracker-scripttag")
