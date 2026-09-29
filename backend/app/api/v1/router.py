@@ -25,6 +25,14 @@ api_router.include_router(
     tags=["Marketing Activities"]
 )
 
+# 공구 보드 (어필리에이트 캠페인 묶음 + 일정/목표)
+from app.api.v1.endpoints import groupbuys  # noqa: E402
+api_router.include_router(
+    groupbuys.router,
+    prefix="/groupbuys",
+    tags=["Group Buys"]
+)
+
 # Authentication
 api_router.include_router(
     auth.router,

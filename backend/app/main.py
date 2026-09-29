@@ -5,12 +5,13 @@ import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.core.config import get_settings
 from app.api.v1.router import api_router
+from app.api.v1.endpoints.auth import get_current_user as _require_auth
 from app.db.database import init_db
 
 logging.basicConfig(level=logging.INFO)
@@ -324,7 +325,7 @@ async def scheduler_status():
 
 
 @app.post("/api/v1/affiliate/poll-cafe24")
-async def manual_poll_cafe24(lookback_hours: int = 24):
+async def manual_poll_cafe24(lookback_hours: int = 24, _user=Depends(_require_auth)):
     """Cafe24 주문 폴링 수동 실행 — 즉시 현재까지의 주문을 조회해 conversion 반영."""
     from app.services.cafe24_poller import poll_cafe24_orders
     result = await poll_cafe24_orders(lookback_hours=lookback_hours)
@@ -332,7 +333,7 @@ async def manual_poll_cafe24(lookback_hours: int = 24):
 
 
 @app.post("/api/v1/affiliate/cleanup-conversions")
-async def cleanup_unattributable_conversions(hours: int = 24):
+async def cleanup_unattributable_conversions(hours: int = 24, _user=Depends(_require_auth)):
     """
     최근 N시간 내 생성된 ReferralConversion 중 ref/쿠폰으로 매칭 안 된 것을 정리.
     "전역 최근 클릭 fallback"으로 잘못 귀속된 비어필리에이트 주문 제거용.
@@ -373,7 +374,7 @@ async def cleanup_unattributable_conversions(hours: int = 24):
 
 
 @app.post("/api/v1/affiliate/conversions/delete-by-order")
-async def delete_conversion_by_order(order_id: str):
+async def delete_conversion_by_order(order_id: str, _user=Depends(_require_auth)):
     """특정 cafe24_order_id의 ReferralConversion 단건 삭제 (수동 정정용)."""
     from sqlalchemy import delete as _delete, select as _select
     from app.db.database import AsyncSessionLocal as _S
@@ -399,7 +400,7 @@ async def delete_conversion_by_order(order_id: str):
 
 
 @app.post("/api/v1/affiliate/conversions/purge-by-campaign")
-async def purge_conversions_by_campaign(campaign_id: int):
+async def purge_conversions_by_campaign(campaign_id: int, _user=Depends(_require_auth)):
     """특정 캠페인의 ReferralConversion을 전부 삭제. 잘못 귀속된 과거 데이터 초기화용."""
     from sqlalchemy import delete as _delete, select as _select, func as _func
     from app.db.database import AsyncSessionLocal as _S
@@ -420,8 +421,8 @@ async def purge_conversions_by_campaign(campaign_id: int):
 
 
 @app.get("/api/v1/affiliate/debug/timeseries")
-async def debug_timeseries(days: int = 30):
-    """timeseries raw 데이터 (디버그용, 인증 없음)."""
+async def debug_timeseries(days: int = 30, _user=Depends(_require_auth)):
+    """timeseries raw 데이터 (디버그용)."""
     from datetime import timedelta as _td
     from sqlalchemy import select as _select, func as _func
     from app.db.database import AsyncSessionLocal as _S
@@ -449,7 +450,7 @@ async def debug_timeseries(days: int = 30):
 
 
 @app.get("/api/v1/affiliate/debug/cafe24-order")
-async def debug_cafe24_order(order_id: str):
+async def debug_cafe24_order(order_id: str, _user=Depends(_require_auth)):
     """특정 Cafe24 주문 raw payload 조회 (디버그용)."""
     from app.db.database import AsyncSessionLocal as _S
     from app.api.v1.endpoints.auth import get_shared_cafe24_user
@@ -469,8 +470,8 @@ async def debug_cafe24_order(order_id: str):
 
 
 @app.get("/api/v1/affiliate/debug/conversions")
-async def debug_list_conversions():
-    """모든 ReferralConversion 조회 (디버그용, 인증 없음)."""
+async def debug_list_conversions(_user=Depends(_require_auth)):
+    """모든 ReferralConversion 조회 (디버그용)."""
     from sqlalchemy import select as _select, desc as _desc
     from app.db.database import AsyncSessionLocal as _S
     from app.models.affiliate import ReferralConversion, AffiliatePartner, AffiliateCampaign
@@ -506,7 +507,7 @@ async def debug_list_conversions():
 
 
 @app.post("/api/v1/affiliate/conversions/purge-all")
-async def purge_all_conversions():
+async def purge_all_conversions(_user=Depends(_require_auth)):
     """모든 ReferralConversion 삭제. nuclear 옵션 — 폴링이 다음 주기에 재구축."""
     from sqlalchemy import delete as _delete, select as _select, func as _func
     from app.db.database import AsyncSessionLocal as _S

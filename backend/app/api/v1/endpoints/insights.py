@@ -556,3 +556,104 @@ async def export_insights_excel(
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quoted}"},
     )
+
+
+# ── 일별 원본 테이블 (팀 구글시트 MAIN SHEET 대체) ──────────────────────────
+# 캠페인×일별 원본 스냅샷을 표/CSV로 제공 — Meta 광고관리자 CSV를 시트에
+# 수동으로 붙여넣던 작업을 대체한다.
+
+def _daily_rows_query(since_date: date, until_date: date, campaign_q: Optional[str]):
+    from app.models.meta_insight import MetaInsightDaily as M
+
+    q = select(M).where(
+        M.level == "campaign", M.date >= since_date, M.date <= until_date
+    )
+    if campaign_q:
+        q = q.where(M.object_name.ilike(f"%{campaign_q}%"))
+    return q
+
+
+def _daily_row_out(m) -> Dict[str, Any]:
+    return {
+        "date": m.date.isoformat(),
+        "campaign_name": m.object_name or m.campaign_name,
+        "spend": m.spend,
+        "impressions": m.impressions,
+        "clicks": m.clicks,
+        "reach": m.reach,
+        "frequency": round(m.frequency, 2),
+        "conversions": m.conversions,
+        "revenue": m.revenue,
+        "roas": _safe_div(m.revenue, m.spend),
+        "ctr": _safe_div(m.clicks * 100, m.impressions),
+        "cpc": round(_safe_div(m.spend, m.clicks), 0),
+        "cpm": round(_safe_div(m.spend * 1000, m.impressions), 0),
+    }
+
+
+@router.get("/daily-table")
+async def get_daily_table(
+    days: int = Query(default=30, ge=1, le=400),
+    since: Optional[str] = Query(default=None),
+    until: Optional[str] = Query(default=None),
+    campaign_q: Optional[str] = Query(default=None, description="캠페인명 검색"),
+    limit: int = Query(default=200, le=1000),
+    offset: int = 0,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """캠페인×일별 원본 스냅샷 테이블 (최신 날짜 → 지출 내림차순)."""
+    from app.models.meta_insight import MetaInsightDaily as M
+
+    since_date, until_date = _resolve_trend_range(days, since, until)
+    base = _daily_rows_query(since_date, until_date, campaign_q)
+    total = (await db.execute(
+        select(func.count()).select_from(base.subquery())
+    )).scalar() or 0
+    rows = (await db.execute(
+        base.order_by(M.date.desc(), M.spend.desc()).limit(limit).offset(offset)
+    )).scalars().all()
+    return {"total": total, "since": since_date.isoformat(), "until": until_date.isoformat(),
+            "items": [_daily_row_out(m) for m in rows]}
+
+
+@router.get("/daily-export")
+async def export_daily_csv(
+    days: int = Query(default=30, ge=1, le=400),
+    since: Optional[str] = Query(default=None),
+    until: Optional[str] = Query(default=None),
+    campaign_q: Optional[str] = Query(default=None),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """캠페인×일별 원본 전체 CSV 다운로드 (시트 백필/외부 분석용)."""
+    import csv as _csv
+    from io import StringIO
+    from urllib.parse import quote
+
+    from fastapi.responses import StreamingResponse
+    from app.models.meta_insight import MetaInsightDaily as M
+
+    since_date, until_date = _resolve_trend_range(days, since, until)
+    rows = (await db.execute(
+        _daily_rows_query(since_date, until_date, campaign_q)
+        .order_by(M.date, M.spend.desc())
+    )).scalars().all()
+
+    buf = StringIO()
+    w = _csv.writer(buf)
+    headers = ["날짜", "캠페인", "지출", "노출", "클릭", "도달", "빈도",
+               "구매", "구매전환값", "ROAS", "CTR(%)", "CPC", "CPM"]
+    w.writerow(headers)
+    for m in rows:
+        d = _daily_row_out(m)
+        w.writerow([d["date"], d["campaign_name"], d["spend"], d["impressions"],
+                    d["clicks"], d["reach"], d["frequency"], d["conversions"],
+                    d["revenue"], d["roas"], d["ctr"], d["cpc"], d["cpm"]])
+
+    filename = f"meta_일별원본_{since_date.isoformat()}_{until_date.isoformat()}.csv"
+    return StreamingResponse(
+        iter(["﻿" + buf.getvalue()]),  # BOM — 엑셀 한글 호환
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"},
+    )

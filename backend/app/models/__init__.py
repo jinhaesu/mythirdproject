@@ -34,6 +34,7 @@ from app.models.influencer import InfluencerSeeding
 from app.models.sponsorship import Sponsorship
 from app.models.naver_insight import NaverMentionDaily
 from app.models.marketing_activity import MarketingActivity
+from app.models.group_buy import GroupBuy, GroupBuyCampaign
 
 __all__ = [
     "User",
@@ -81,4 +82,6 @@ __all__ = [
     "Sponsorship",
     "NaverMentionDaily",
     "MarketingActivity",
+    "GroupBuy",
+    "GroupBuyCampaign",
 ]
