@@ -21,15 +21,19 @@ export const MENUS: { key: MenuKey; name: string; icon: any; subTabs: SubTabDef[
   { key: 'home', name: '홈', icon: Home, subTabs: [] },
   {
     key: 'affiliate', name: '공구·어필리에이트', icon: Megaphone,
-    subTabs: [], // AffiliateManaging이 자체 서브탭 보유
+    subTabs: [
+      { id: 0, name: '공구 보드' },
+      { id: 1, name: '어필리에이트 운영' },
+    ],
   },
   {
     key: 'ads', name: '광고 성과', icon: LineChart,
     subTabs: [
       { id: 0, name: 'Meta 성과' },
-      { id: 1, name: '네이버 검색광고' },
-      { id: 2, name: 'GFA' },
-      { id: 3, name: '채널 광고비 통합' },
+      { id: 1, name: 'Meta 일별 데이터' },
+      { id: 2, name: '네이버 검색광고' },
+      { id: 3, name: 'GFA' },
+      { id: 4, name: '채널 광고비 통합' },
     ],
   },
   {

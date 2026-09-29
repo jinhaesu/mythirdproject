@@ -13,6 +13,8 @@ import {
   DataDashboard,
   HomeDashboard,
   ActivitiesBoard,
+  GroupBuyBoard,
+  MetaDailyTable,
 } from '@/components/tabs';
 import {
   NaverSearchAdsDashboard,
@@ -141,13 +143,19 @@ export default function Home() {
       <MainNav />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {activeMenu === 'home' && <HomeDashboard />}
-        {activeMenu === 'affiliate' && <AffiliateManaging />}
+        {activeMenu === 'affiliate' && (
+          <>
+            {sub('affiliate') === 0 && <GroupBuyBoard />}
+            {sub('affiliate') === 1 && <AffiliateManaging />}
+          </>
+        )}
         {activeMenu === 'ads' && (
           <>
             {sub('ads') === 0 && <PerformanceDashboard />}
-            {sub('ads') === 1 && <NaverSearchAdsDashboard />}
-            {sub('ads') === 2 && <NaverGFADashboard />}
-            {sub('ads') === 3 && <DataDashboard />}
+            {sub('ads') === 1 && <MetaDailyTable />}
+            {sub('ads') === 2 && <NaverSearchAdsDashboard />}
+            {sub('ads') === 3 && <NaverGFADashboard />}
+            {sub('ads') === 4 && <DataDashboard />}
           </>
         )}
         {activeMenu === 'intel' && (

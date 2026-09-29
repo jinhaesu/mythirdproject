@@ -10,3 +10,5 @@ export { MarketingKPI } from './MarketingKPI';
 export { ExternalMarketingKPI } from './ExternalMarketingKPI';
 export { HomeDashboard } from './HomeDashboard';
 export { ActivitiesBoard } from './ActivitiesBoard';
+export { GroupBuyBoard } from './GroupBuyBoard';
+export { MetaDailyTable } from './MetaDailyTable';

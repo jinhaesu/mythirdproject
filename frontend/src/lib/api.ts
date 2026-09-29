@@ -1839,6 +1839,66 @@ export const activitiesApi = {
   },
 };
 
+// ─── 공구 보드 ───────────────────────────────────────────────────────────────
+export interface GroupBuyInput {
+  name: string;
+  description?: string | null;
+  status: string; // planned|active|done
+  start_date?: string | null;
+  end_date?: string | null;
+  target_revenue?: number | null;
+  memo?: string | null;
+  campaign_ids?: number[];
+}
+
+export const groupbuysApi = {
+  list: async (): Promise<any[]> => {
+    const { data } = await api.get('/groupbuys');
+    return data;
+  },
+  detail: async (id: number): Promise<any> => {
+    const { data } = await api.get(`/groupbuys/${id}`);
+    return data;
+  },
+  create: async (payload: GroupBuyInput): Promise<any> => {
+    const { data } = await api.post('/groupbuys', payload);
+    return data;
+  },
+  update: async (id: number, payload: GroupBuyInput): Promise<any> => {
+    const { data } = await api.patch(`/groupbuys/${id}`, payload);
+    return data;
+  },
+  remove: async (id: number): Promise<void> => {
+    await api.delete(`/groupbuys/${id}`);
+  },
+  attachCampaigns: async (id: number, campaign_ids: number[]): Promise<any> => {
+    const { data } = await api.post(`/groupbuys/${id}/campaigns`, { campaign_ids });
+    return data;
+  },
+  detachCampaign: async (id: number, campaignId: number): Promise<void> => {
+    await api.delete(`/groupbuys/${id}/campaigns/${campaignId}`);
+  },
+  candidates: async (q: string, excludeGroupBuy?: number): Promise<{ id: number; name: string; status: string }[]> => {
+    const { data } = await api.get('/groupbuys/candidates', {
+      params: { q: q || undefined, exclude_group_buy: excludeGroupBuy },
+    });
+    return data;
+  },
+};
+
+// ─── Meta 일별 원본 테이블 (MAIN SHEET 대체) ─────────────────────────────────
+export const insightsDailyApi = {
+  table: async (params: {
+    days?: number; since?: string; until?: string; campaign_q?: string;
+    limit?: number; offset?: number;
+  } = {}): Promise<{ total: number; since: string; until: string; items: any[] }> => {
+    const { data } = await api.get('/insights/daily-table', { params });
+    return data;
+  },
+  exportCsv: (params: { days?: number; since?: string; until?: string; campaign_q?: string } = {}) =>
+    downloadFile('/insights/daily-export', params),
+};
+
 // Currency & number formatting utilities
 export function formatCurrency(amount: number, currency: string = 'KRW'): string {
   if (currency === 'KRW') {
