@@ -7,8 +7,23 @@ from app.api.v1.endpoints import (
 )
 from app.api.v1.endpoints import cafe24, webhooks, insights, kpi, influencer, sponsorship
 from app.api.v1.endpoints import naver_insights
+from app.api.v1.endpoints import activities, home
 
 api_router = APIRouter()
+
+# 홈 브리핑 (통합 대시보드)
+api_router.include_router(
+    home.router,
+    prefix="/home",
+    tags=["Home"]
+)
+
+# 마케팅 활동 기록 (콘텐츠/인플루언서/체험단/서포터즈)
+api_router.include_router(
+    activities.router,
+    prefix="/activities",
+    tags=["Marketing Activities"]
+)
 
 # Authentication
 api_router.include_router(
