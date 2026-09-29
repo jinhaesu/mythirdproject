@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { User, StyleExtraction, Creative, Campaign, AutoPlanResponse, PerformanceFeedback, CampaignStatusType, PublishOptions } from '@/types';
+import type { User } from '@/types';
 
 interface AuthState {
   user: User | null;
@@ -35,123 +35,18 @@ export const useAuthStore = create<AuthState>()(
 export type MenuKey = 'home' | 'affiliate' | 'ads' | 'intel' | 'activities' | 'kpi' | 'tools';
 
 interface AppState {
-  // 업무 중심 메뉴 (신규 IA)
   activeMenu: MenuKey;
   setActiveMenu: (menu: MenuKey) => void;
   menuSubTab: Partial<Record<MenuKey, number>>;
   setMenuSubTab: (menu: MenuKey, tab: number) => void;
-
-  activeTab: number;
-  setActiveTab: (tab: number) => void;
-
-  // Platform switcher (Meta vs Naver vs Affiliate)
-  activePlatform: 'meta' | 'naver' | 'affiliate';
-  setActivePlatform: (platform: 'meta' | 'naver' | 'affiliate') => void;
-
-  // Naver internal tab
-  naverActiveTab: number;
-  setNaverActiveTab: (tab: number) => void;
-
-  // Affiliate internal tab
-  affiliateActiveTab: number;
-  setAffiliateActiveTab: (tab: number) => void;
-
-  // Style from TAB 1 to pass to TAB 2
-  selectedStyle: StyleExtraction | null;
-  stylePrompt: string | null;
-  setSelectedStyle: (style: StyleExtraction | null, prompt: string | null) => void;
-
-  // Creatives from TAB 2 for TAB 3
-  selectedCreatives: Creative[];
-  setSelectedCreatives: (creatives: Creative[]) => void;
-  addSelectedCreative: (creative: Creative) => void;
-  removeSelectedCreative: (id: number) => void;
-  clearSelectedCreatives: () => void;
-
-  // Campaign for TAB 4
-  selectedCampaign: Campaign | null;
-  setSelectedCampaign: (campaign: Campaign | null) => void;
-
-  // Auto Plan result from CampaignPlanner → AdsController
-  autoPlanResult: AutoPlanResponse | null;
-  setAutoPlanResult: (result: AutoPlanResponse | null) => void;
-
-  // Performance feedback cache
-  performanceFeedbacks: Record<string, PerformanceFeedback>;
-  setPerformanceFeedback: (campaignId: string, feedback: PerformanceFeedback) => void;
-
-  // Campaign filter
-  campaignStatusFilter: CampaignStatusType | 'ALL';
-  setCampaignStatusFilter: (filter: CampaignStatusType | 'ALL') => void;
-
-  // Publishing options
-  publishOptions: PublishOptions;
-  setPublishOptions: (options: Partial<PublishOptions>) => void;
 }
 
+// 구 플랫폼 스위처(activeTab/naverActiveTab 등)와 소재→캠페인 전달 상태는
+// 2026-09 개편에서 해당 화면들과 함께 제거됐다.
 export const useAppStore = create<AppState>((set) => ({
   activeMenu: 'home',
   setActiveMenu: (menu) => set({ activeMenu: menu }),
   menuSubTab: {},
   setMenuSubTab: (menu, tab) =>
     set((state) => ({ menuSubTab: { ...state.menuSubTab, [menu]: tab } })),
-
-  activeTab: 4, // 기본 탭: 성과 분석
-  setActiveTab: (tab) => set({ activeTab: tab }),
-
-  activePlatform: 'meta',
-  setActivePlatform: (platform) => set({ activePlatform: platform }),
-
-  naverActiveTab: 0,
-  setNaverActiveTab: (tab) => set({ naverActiveTab: tab }),
-
-  affiliateActiveTab: 0,
-  setAffiliateActiveTab: (tab) => set({ affiliateActiveTab: tab }),
-
-  selectedStyle: null,
-  stylePrompt: null,
-  setSelectedStyle: (style, prompt) => set({ selectedStyle: style, stylePrompt: prompt }),
-
-  selectedCreatives: [],
-  setSelectedCreatives: (creatives) => set({ selectedCreatives: creatives }),
-  addSelectedCreative: (creative) =>
-    set((state) => ({
-      selectedCreatives: state.selectedCreatives.some((c) => c.id === creative.id)
-        ? state.selectedCreatives
-        : [...state.selectedCreatives, creative],
-    })),
-  removeSelectedCreative: (id) =>
-    set((state) => ({
-      selectedCreatives: state.selectedCreatives.filter((c) => c.id !== id),
-    })),
-  clearSelectedCreatives: () => set({ selectedCreatives: [] }),
-
-  selectedCampaign: null,
-  setSelectedCampaign: (campaign) => set({ selectedCampaign: campaign }),
-
-  autoPlanResult: null,
-  setAutoPlanResult: (result) => set({ autoPlanResult: result }),
-
-  performanceFeedbacks: {},
-  setPerformanceFeedback: (campaignId, feedback) =>
-    set((state) => ({
-      performanceFeedbacks: { ...state.performanceFeedbacks, [campaignId]: feedback },
-    })),
-
-  campaignStatusFilter: 'ALL',
-  setCampaignStatusFilter: (filter) => set({ campaignStatusFilter: filter }),
-
-  publishOptions: {
-    campaign_id: 0,
-    launch_immediately: true,
-    budget_type: 'DAILY',
-    advantage_plus: false,
-    advantage_plus_audience: false,
-    advantage_plus_creative: false,
-    currency: 'KRW',
-  },
-  setPublishOptions: (options) =>
-    set((state) => ({
-      publishOptions: { ...state.publishOptions, ...options },
-    })),
 }));

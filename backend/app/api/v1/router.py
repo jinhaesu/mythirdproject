@@ -40,46 +40,22 @@ api_router.include_router(
     tags=["Authentication"]
 )
 
-# TAB 1: Market Intelligence
-api_router.include_router(
-    benchmark.router,
-    prefix="/benchmark",
-    tags=["Market Intelligence"]
-)
-
-# TAB 2: Creative Studio
-api_router.include_router(
-    creative.router,
-    prefix="/creative",
-    tags=["Creative Studio"]
-)
-
-# TAB 3: Ads Controller
-api_router.include_router(
-    campaign.router,
-    prefix="/campaign",
-    tags=["Ads Controller"]
-)
-
-# Campaign Planner (구조설계, 타겟, 카피, UTM, CSV분석, 소재예측)
-api_router.include_router(
-    campaign_planner.router,
-    prefix="/campaign-planner",
-    tags=["Campaign Planner"]
-)
+# ── 2026-09 개편에서 언마운트된 죽은 기능 라우터 ─────────────────────────────
+# 벤치마크(/benchmark)·소재 스튜디오(/creative)·Meta 캠페인 발행(/campaign)·
+# 캠페인 플래너(/campaign-planner)·수익 대시보드(/dashboard)는 3월 이후 미사용
+# (DB 실측: campaigns 12건·creatives 65건 3월 말 마지막, platform_connections 0건)
+# + 프론트 진입점 제거됨. 코드는 보존 — 다시 쓰려면 아래 include_router 복원.
+# api_router.include_router(benchmark.router, prefix="/benchmark", tags=["Market Intelligence"])
+# api_router.include_router(creative.router, prefix="/creative", tags=["Creative Studio"])
+# api_router.include_router(campaign.router, prefix="/campaign", tags=["Ads Controller"])
+# api_router.include_router(campaign_planner.router, prefix="/campaign-planner", tags=["Campaign Planner"])
+# api_router.include_router(dashboard.router, prefix="/dashboard", tags=["Dashboard & Revenue"])
 
 # TAB 4: Performance Dashboard
 api_router.include_router(
     analytics.router,
     prefix="/analytics",
     tags=["Performance Dashboard"]
-)
-
-# Dashboard & Revenue Analytics (Toryt)
-api_router.include_router(
-    dashboard.router,
-    prefix="/dashboard",
-    tags=["Dashboard & Revenue"]
 )
 
 # Market Keywords (Keyword Monitoring)

@@ -26,8 +26,9 @@ const META_GREETING = '안녕하세요! Meta-Commander AI 어시스턴트입니�
 const NAVER_GREETING = '안녕하세요! 네이버 커맨더 AI 어시스턴트입니다.\n\n검색광고 키워드 관리, GFA 캠페인 운영, 입찰가 최적화, 성과 분석 등 무엇이든 도와드리겠습니다.\n\n어떤 도움이 필요하신가요?';
 
 export function AICommandCenter() {
-  const { activePlatform } = useAppStore();
-  const isNaver = activePlatform === 'naver';
+  // 개편(2026-09): 플랫폼 스위처 제거 — 네이버 관련 메뉴에서만 네이버 컨텍스트
+  const { activeMenu } = useAppStore();
+  const isNaver = activeMenu === 'intel';
 
   const [isOpen, setIsOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -37,20 +38,20 @@ export function AICommandCenter() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>(META_SUGGESTIONS);
-  const [lastPlatform, setLastPlatform] = useState(activePlatform);
+  const [lastPlatform, setLastPlatform] = useState(isNaver);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Reset chat when platform switches
+  // Reset chat when platform context switches
   useEffect(() => {
-    if (activePlatform !== lastPlatform) {
-      setLastPlatform(activePlatform);
+    if (isNaver !== lastPlatform) {
+      setLastPlatform(isNaver);
       setMessages([
-        { role: 'assistant', content: activePlatform === 'naver' ? NAVER_GREETING : META_GREETING },
+        { role: 'assistant', content: isNaver ? NAVER_GREETING : META_GREETING },
       ]);
-      setSuggestedQuestions(activePlatform === 'naver' ? NAVER_SUGGESTIONS : META_SUGGESTIONS);
+      setSuggestedQuestions(isNaver ? NAVER_SUGGESTIONS : META_SUGGESTIONS);
     }
-  }, [activePlatform, lastPlatform]);
+  }, [isNaver, lastPlatform]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
