@@ -8,3 +8,5 @@ export { AutoManagement } from './AutoManagement';
 export { AffiliateManaging } from './AffiliateManaging';
 export { MarketingKPI } from './MarketingKPI';
 export { ExternalMarketingKPI } from './ExternalMarketingKPI';
+export { HomeDashboard } from './HomeDashboard';
+export { ActivitiesBoard } from './ActivitiesBoard';

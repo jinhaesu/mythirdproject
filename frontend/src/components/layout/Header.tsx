@@ -2,14 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import { Settings, LogOut, User, ChevronDown, Link2, Unlink, X, Instagram, Facebook, Globe } from 'lucide-react';
-import { useAuthStore, useAppStore } from '@/store';
+import { useAuthStore } from '@/store';
 import { authApi } from '@/lib/api';
 import toast from 'react-hot-toast';
 import { ThemeToggle } from '@/components/ThemeToggle';
 
 export function Header() {
   const { user, logout, isAuthenticated, setAuth, token } = useAuthStore();
-  const { activePlatform, setActivePlatform } = useAppStore();
   const [showMenu, setShowMenu] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
@@ -86,116 +85,15 @@ export function Header() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between flex-wrap gap-y-2 py-2 lg:py-0 lg:h-14 lg:flex-nowrap">
           <div className="flex items-center gap-3">
-            {/* Dynamic logo based on active platform */}
+            {/* 업무 중심 개편(2026-09) — 플랫폼 스위처 제거, 단일 브랜드. 메뉴는 MainNav가 담당 */}
             <div className="flex items-center gap-2">
-              {activePlatform === 'meta' ? (
-                <div className="w-7 h-7 bg-gradient-to-r from-meta-blue to-meta-instagram rounded-md flex items-center justify-center">
-                  <span className="text-white font-bold text-xs">M</span>
-                </div>
-              ) : activePlatform === 'naver' ? (
-                <div className="w-7 h-7 rounded-md flex items-center justify-center" style={{ backgroundColor: '#2DB400' }}>
-                  <span className="text-white font-bold text-xs">N</span>
-                </div>
-              ) : (
-                <div className="w-7 h-7 rounded-md flex items-center justify-center" style={{ backgroundColor: '#059669' }}>
-                  <span className="text-white font-bold text-xs">A</span>
-                </div>
-              )}
+              <div className="w-7 h-7 rounded-md flex items-center justify-center" style={{ backgroundColor: 'var(--color-brand-bg)' }}>
+                <span className="text-white font-bold text-xs">널</span>
+              </div>
               <span className="font-semibold text-base" style={{ color: 'var(--color-brand-bg)', letterSpacing: '-0.022em' }}>
-                {activePlatform === 'meta' ? 'Meta-Commander' : activePlatform === 'naver' ? '네이버 커맨더' : '어필리에이트 매니징'}
+                널담 마케팅
               </span>
             </div>
-            <span
-              className="hidden sm:inline-block px-2 py-0.5 rounded text-xs font-medium"
-              style={{
-                backgroundColor: 'rgba(94,106,210,0.18)',
-                color: 'var(--color-text-primary)',
-                border: '1px solid rgba(130,143,255,0.4)',
-              }}
-            >
-              Beta
-            </span>
-
-            {/* Platform Switcher */}
-            {isAuthenticated && (
-              <div
-                className="flex items-center rounded-full p-0.5 ml-2"
-                style={{ backgroundColor: 'rgb(var(--color-overlay-rgb) / 0.05)', border: '1px solid rgb(var(--color-overlay-rgb) / 0.08)' }}
-              >
-                <button
-                  onClick={() => setActivePlatform('meta')}
-                  className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all"
-                  style={
-                    activePlatform === 'meta'
-                      ? { backgroundColor: 'var(--color-brand-bg)', color: 'var(--color-text-primary)' }
-                      : { color: 'var(--color-text-tertiary)' }
-                  }
-                  onMouseEnter={e => {
-                    if (activePlatform !== 'meta') {
-                      (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'rgb(var(--color-overlay-rgb) / 0.07)';
-                      (e.currentTarget as HTMLButtonElement).style.color = 'var(--color-text-primary)';
-                    }
-                  }}
-                  onMouseLeave={e => {
-                    if (activePlatform !== 'meta') {
-                      (e.currentTarget as HTMLButtonElement).style.backgroundColor = '';
-                      (e.currentTarget as HTMLButtonElement).style.color = 'var(--color-text-tertiary)';
-                    }
-                  }}
-                >
-                  <span className="w-4 h-4 flex items-center justify-center text-[10px] font-bold">M</span>
-                  <span className="hidden sm:inline">Meta</span>
-                </button>
-                <button
-                  onClick={() => setActivePlatform('naver')}
-                  className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all"
-                  style={
-                    activePlatform === 'naver'
-                      ? { backgroundColor: '#2DB400', color: 'var(--color-text-primary)' }
-                      : { color: 'var(--color-text-tertiary)' }
-                  }
-                  onMouseEnter={e => {
-                    if (activePlatform !== 'naver') {
-                      (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'rgb(var(--color-overlay-rgb) / 0.07)';
-                      (e.currentTarget as HTMLButtonElement).style.color = 'var(--color-text-primary)';
-                    }
-                  }}
-                  onMouseLeave={e => {
-                    if (activePlatform !== 'naver') {
-                      (e.currentTarget as HTMLButtonElement).style.backgroundColor = '';
-                      (e.currentTarget as HTMLButtonElement).style.color = 'var(--color-text-tertiary)';
-                    }
-                  }}
-                >
-                  <span className="w-4 h-4 flex items-center justify-center text-[10px] font-bold">N</span>
-                  <span className="hidden sm:inline">Naver</span>
-                </button>
-                <button
-                  onClick={() => setActivePlatform('affiliate')}
-                  className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all"
-                  style={
-                    activePlatform === 'affiliate'
-                      ? { backgroundColor: '#059669', color: 'var(--color-text-primary)' }
-                      : { color: 'var(--color-text-tertiary)' }
-                  }
-                  onMouseEnter={e => {
-                    if (activePlatform !== 'affiliate') {
-                      (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'rgb(var(--color-overlay-rgb) / 0.07)';
-                      (e.currentTarget as HTMLButtonElement).style.color = 'var(--color-text-primary)';
-                    }
-                  }}
-                  onMouseLeave={e => {
-                    if (activePlatform !== 'affiliate') {
-                      (e.currentTarget as HTMLButtonElement).style.backgroundColor = '';
-                      (e.currentTarget as HTMLButtonElement).style.color = 'var(--color-text-tertiary)';
-                    }
-                  }}
-                >
-                  <span className="w-4 h-4 flex items-center justify-center text-[10px] font-bold">A</span>
-                  <span className="hidden sm:inline">어필리에이트</span>
-                </button>
-              </div>
-            )}
           </div>
 
           {isAuthenticated && user && (

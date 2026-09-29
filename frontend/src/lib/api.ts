@@ -1767,6 +1767,78 @@ export const sponsorshipApi = {
   },
 };
 
+// ─── 홈 브리핑 (업무 중심 개편 2026-09) ─────────────────────────────────────
+export const homeApi = {
+  /** 전 채널 통합 브리핑 — DB 로컬 집계라 즉시 로딩 */
+  getBriefing: async (): Promise<any> => {
+    const { data } = await api.get('/home/briefing');
+    return data;
+  },
+};
+
+// ─── 마케팅 활동 기록 (콘텐츠/인플루언서/체험단/서포터즈) ────────────────────
+export interface MarketingActivityRow {
+  id: number;
+  activity_type: string;
+  product?: string | null;
+  product_category?: string | null;
+  channel?: string | null;
+  purpose?: string | null;
+  status?: string | null;
+  period_month: string;
+  activity_date?: string | null;
+  quantity: number;
+  views: number;
+  reach: number;
+  likes: number;
+  comments: number;
+  saves: number;
+  shares: number;
+  follows: number;
+  cost: number;
+  cost_per_view?: number | null;
+  notes?: string | null;
+  source: string;
+}
+
+export type MarketingActivityInput = Omit<MarketingActivityRow, 'id' | 'cost_per_view' | 'source'> & {
+  source?: string;
+};
+
+export const activitiesApi = {
+  list: async (params: {
+    activity_type?: string; month_from?: string; month_to?: string;
+    channel?: string; product?: string; q?: string; limit?: number; offset?: number;
+  } = {}): Promise<{ total: number; items: MarketingActivityRow[] }> => {
+    const { data } = await api.get('/activities', { params });
+    return data;
+  },
+  create: async (payload: MarketingActivityInput): Promise<MarketingActivityRow> => {
+    const { data } = await api.post('/activities', payload);
+    return data;
+  },
+  update: async (id: number, payload: MarketingActivityInput): Promise<MarketingActivityRow> => {
+    const { data } = await api.patch(`/activities/${id}`, payload);
+    return data;
+  },
+  remove: async (id: number): Promise<void> => {
+    await api.delete(`/activities/${id}`);
+  },
+  meta: async (): Promise<{
+    activity_types: string[]; channels: string[]; products: string[];
+    product_categories: string[]; purposes: string[];
+  }> => {
+    const { data } = await api.get('/activities/meta');
+    return data;
+  },
+  summary: async (params: { month_from?: string; month_to?: string; activity_type?: string } = {}): Promise<{
+    by_month_channel: any[]; by_product: any[]; by_type: any[];
+  }> => {
+    const { data } = await api.get('/activities/summary', { params });
+    return data;
+  },
+};
+
 // Currency & number formatting utilities
 export function formatCurrency(amount: number, currency: string = 'KRW'): string {
   if (currency === 'KRW') {

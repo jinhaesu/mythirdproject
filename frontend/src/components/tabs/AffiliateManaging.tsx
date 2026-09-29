@@ -5469,13 +5469,17 @@ function SettingsSection() {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
+// 팀이 실제 쓰는 핵심 4개만 전면 배치 — 나머지는 '더보기'로 접힘 (2026-09 개편)
 const NAV_ITEMS: { key: SectionKey; label: string; icon: React.ReactNode }[] = [
   { key: 'dashboard', label: '대시보드', icon: <BarChart2 size={14} /> },
   { key: 'campaigns', label: '캠페인 관리', icon: <Megaphone size={14} /> },
   { key: 'partners', label: '파트너 관리', icon: <Users size={14} /> },
+  { key: 'settlement', label: '정산 관리', icon: <DollarSign size={14} /> },
+];
+
+const MORE_NAV_ITEMS: { key: SectionKey; label: string; icon: React.ReactNode }[] = [
   { key: 'referral', label: '친구추천', icon: <Gift size={14} /> },
   { key: 'points', label: '내 포인트', icon: <Coins size={14} /> },
-  { key: 'settlement', label: '정산 관리', icon: <DollarSign size={14} /> },
   { key: 'settings', label: '설정', icon: <Settings size={14} /> },
 ];
 
@@ -5562,6 +5566,8 @@ function SafeSection({ children }: { children: React.ReactNode }) {
 
 export function AffiliateManaging() {
   const [activeSection, setActiveSection] = useState<SectionKey>('dashboard');
+  const [showMore, setShowMore] = useState(false);
+  const moreActive = MORE_NAV_ITEMS.some(i => i.key === activeSection);
 
   return (
     <div className="space-y-4">
@@ -5570,7 +5576,7 @@ export function AffiliateManaging() {
       <Cafe24Banner />
       <TrackingStatusCard />
 
-      {/* 탭 네비게이션 */}
+      {/* 탭 네비게이션 — 핵심 4개 + 더보기 */}
       <div className="flex items-center gap-1 bg-bg-3 rounded-xl p-1 overflow-x-auto">
         {NAV_ITEMS.map(item => (
           <button
@@ -5580,6 +5586,27 @@ export function AffiliateManaging() {
               activeSection === item.key
                 ? 'bg-green text-white'
                 : 'text-text-tertiary hover:text-text-primary hover:bg-[rgb(var(--color-overlay-rgb)/0.05)]'
+            }`}
+          >
+            {item.icon} {item.label}
+          </button>
+        ))}
+        <button
+          onClick={() => setShowMore(v => !v)}
+          className={`px-3 py-2 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
+            moreActive ? 'text-text-primary' : 'text-text-quaternary hover:text-text-primary'
+          }`}
+        >
+          더보기 {showMore || moreActive ? '▾' : '▸'}
+        </button>
+        {(showMore || moreActive) && MORE_NAV_ITEMS.map(item => (
+          <button
+            key={item.key}
+            onClick={() => setActiveSection(item.key)}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
+              activeSection === item.key
+                ? 'bg-green text-white'
+                : 'text-text-quaternary hover:text-text-primary hover:bg-[rgb(var(--color-overlay-rgb)/0.05)]'
             }`}
           >
             {item.icon} {item.label}

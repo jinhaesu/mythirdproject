@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore, useAppStore } from '@/store';
 import { authApi } from '@/lib/api';
-import { Header, TabNav, NaverTabNav } from '@/components/layout';
+import { Header, MainNav } from '@/components/layout';
 import {
   PerformanceDashboard,
   AutoManagement,
@@ -11,6 +11,8 @@ import {
   MarketingKPI,
   ExternalMarketingKPI,
   DataDashboard,
+  HomeDashboard,
+  ActivitiesBoard,
 } from '@/components/tabs';
 import {
   NaverSearchAdsDashboard,
@@ -31,19 +33,8 @@ const _verifiedMagicTokens = new Set<string>();
 
 export default function Home() {
   const { isAuthenticated, setAuth, logout } = useAuthStore();
-  const { activeTab, activePlatform, naverActiveTab, setActiveTab, setNaverActiveTab } = useAppStore();
+  const { activeMenu, menuSubTab } = useAppStore();
   const [verifying, setVerifying] = useState(false);
-
-  // 탭 id 0은 데이터 대시보드로 재사용 (구 시장 분석 자리).
-  // 소재 제작(1)·캠페인 기획(2)·광고 집행(3) 메뉴 제거 — 저장된 탭 상태는 대시보드로
-  useEffect(() => {
-    if (activeTab === 1 || activeTab === 2 || activeTab === 3) setActiveTab(0);
-  }, [activeTab, setActiveTab]);
-
-  // 리뷰 모니터링(7) 메뉴 제거 — 저장된 탭 상태는 네이버 인사이트로
-  useEffect(() => {
-    if (naverActiveTab === 7) setNaverActiveTab(8);
-  }, [naverActiveTab, setNaverActiveTab]);
 
   // 인터셉터의 401 발생 알림을 받아 로그아웃 처리 — 강제 reload 대신
   useEffect(() => {
@@ -140,34 +131,47 @@ export default function Home() {
     return <LoginPage />;
   }
 
+  // 업무 중심 메뉴 → 컴포넌트 매핑 (기존 탭 컴포넌트 재배치, 2026-09 개편)
+  const sub = (key: keyof typeof menuSubTab) => menuSubTab[key] ?? 0;
+
   return (
     <div className="min-h-screen bg-bg-0">
       <NuldamSystemBar current="marketing" />
       <Header />
-      {activePlatform === 'meta' ? <TabNav /> : activePlatform === 'naver' ? <NaverTabNav /> : null}
+      <MainNav />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {activePlatform === 'meta' && (
+        {activeMenu === 'home' && <HomeDashboard />}
+        {activeMenu === 'affiliate' && <AffiliateManaging />}
+        {activeMenu === 'ads' && (
           <>
-            {activeTab === 0 && <DataDashboard />}
-            {activeTab === 4 && <PerformanceDashboard />}
-            {activeTab === 5 && <AutoManagement />}
-            {activeTab === 6 && <MarketingKPI />}
-            {activeTab === 7 && <ExternalMarketingKPI />}
+            {sub('ads') === 0 && <PerformanceDashboard />}
+            {sub('ads') === 1 && <NaverSearchAdsDashboard />}
+            {sub('ads') === 2 && <NaverGFADashboard />}
+            {sub('ads') === 3 && <DataDashboard />}
           </>
         )}
-        {activePlatform === 'naver' && (
+        {activeMenu === 'intel' && (
           <>
-            {naverActiveTab === 0 && <NaverSearchAdsDashboard />}
-            {naverActiveTab === 1 && <NaverKeywordResearch />}
-            {naverActiveTab === 8 && <NaverInsights />}
-            {naverActiveTab === 2 && <NaverSearchAdsManager />}
-            {naverActiveTab === 3 && <NaverGFADashboard />}
-            {naverActiveTab === 4 && <NaverGFAManager />}
-            {naverActiveTab === 5 && <NaverAutoManagement />}
-            {naverActiveTab === 6 && <NaverReports />}
+            {sub('intel') === 0 && <NaverInsights />}
+            {sub('intel') === 1 && <NaverKeywordResearch />}
           </>
         )}
-        {activePlatform === 'affiliate' && <AffiliateManaging />}
+        {activeMenu === 'activities' && <ActivitiesBoard />}
+        {activeMenu === 'kpi' && (
+          <>
+            {sub('kpi') === 0 && <MarketingKPI />}
+            {sub('kpi') === 1 && <ExternalMarketingKPI />}
+          </>
+        )}
+        {activeMenu === 'tools' && (
+          <>
+            {sub('tools') === 0 && <NaverSearchAdsManager />}
+            {sub('tools') === 1 && <NaverGFAManager />}
+            {sub('tools') === 2 && <AutoManagement />}
+            {sub('tools') === 3 && <NaverAutoManagement />}
+            {sub('tools') === 4 && <NaverReports />}
+          </>
+        )}
       </main>
       <AICommandCenter />
     </div>

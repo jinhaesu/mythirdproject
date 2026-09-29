@@ -31,7 +31,16 @@ export const useAuthStore = create<AuthState>()(
   )
 );
 
+// 업무 중심 개편(2026-09) 최상위 메뉴
+export type MenuKey = 'home' | 'affiliate' | 'ads' | 'intel' | 'activities' | 'kpi' | 'tools';
+
 interface AppState {
+  // 업무 중심 메뉴 (신규 IA)
+  activeMenu: MenuKey;
+  setActiveMenu: (menu: MenuKey) => void;
+  menuSubTab: Partial<Record<MenuKey, number>>;
+  setMenuSubTab: (menu: MenuKey, tab: number) => void;
+
   activeTab: number;
   setActiveTab: (tab: number) => void;
 
@@ -81,6 +90,12 @@ interface AppState {
 }
 
 export const useAppStore = create<AppState>((set) => ({
+  activeMenu: 'home',
+  setActiveMenu: (menu) => set({ activeMenu: menu }),
+  menuSubTab: {},
+  setMenuSubTab: (menu, tab) =>
+    set((state) => ({ menuSubTab: { ...state.menuSubTab, [menu]: tab } })),
+
   activeTab: 4, // 기본 탭: 성과 분석
   setActiveTab: (tab) => set({ activeTab: tab }),
 
