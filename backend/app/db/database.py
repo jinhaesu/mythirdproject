@@ -128,8 +128,9 @@ async def init_db():
         except Exception:
             pass  # Column already exists
 
-    # Add link / metrics_as_of columns to marketing_activities if missing (2026-09-30)
-    for col_ddl in ["link VARCHAR(500)", "metrics_as_of DATE"]:
+    # Add link / metrics_as_of / entry_kind columns to marketing_activities if missing (2026-09-30)
+    for col_ddl in ["link VARCHAR(500)", "metrics_as_of DATE",
+                    "entry_kind VARCHAR(10) DEFAULT 'actual'"]:
         try:
             async with engine.begin() as conn:
                 await conn.execute(

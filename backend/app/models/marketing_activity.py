@@ -20,6 +20,8 @@ class MarketingActivity(Base):
 
     # 분류 축
     activity_type: Mapped[str] = mapped_column(String(30), index=True)  # content|influencer|experience|supporters|etc
+    # 실적(actual) vs 향후 계획(plan) — 계획은 실적 집계에서 제외, 나중에 실적 전환
+    entry_kind: Mapped[str] = mapped_column(String(10), default="actual", server_default="actual", index=True)
     product: Mapped[Optional[str]] = mapped_column(String(200), nullable=True, index=True)  # 제품명
     product_category: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)  # 제품류
     channel: Mapped[Optional[str]] = mapped_column(String(50), nullable=True, index=True)  # 인스타그램|유튜브|블로그|틱톡…

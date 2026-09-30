@@ -145,7 +145,10 @@ async def home_briefing(
             func.count(MarketingActivity.id),
             func.coalesce(func.sum(MarketingActivity.views), 0),
             func.coalesce(func.sum(MarketingActivity.cost), 0),
-        ).where(MarketingActivity.period_month == month_str)
+        ).where(
+            MarketingActivity.period_month == month_str,
+            MarketingActivity.entry_kind == "actual",
+        )
     )).first()
 
     # ── 연동 상태 ────────────────────────────────────────────────────────

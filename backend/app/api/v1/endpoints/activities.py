@@ -24,6 +24,7 @@ ACTIVITY_TYPES = ["content", "influencer", "experience", "supporters", "etc"]
 
 class ActivityIn(BaseModel):
     activity_type: str = Field(..., max_length=30)
+    entry_kind: str = Field("actual", max_length=10)  # actual(실적) | plan(계획)
     product: Optional[str] = Field(None, max_length=200)
     product_category: Optional[str] = Field(None, max_length=100)
     channel: Optional[str] = Field(None, max_length=50)
@@ -49,7 +50,7 @@ class ActivityIn(BaseModel):
 def _apply(row: MarketingActivity, data: ActivityIn) -> None:
     from datetime import date as _date
 
-    for f in ("activity_type", "product", "product_category", "channel", "purpose",
+    for f in ("activity_type", "entry_kind", "product", "product_category", "channel", "purpose",
               "status", "period_month", "quantity", "views", "reach", "likes",
               "comments", "saves", "shares", "follows", "cost", "link", "notes", "source"):
         setattr(row, f, getattr(data, f))
@@ -61,6 +62,7 @@ def _row_out(a: MarketingActivity) -> dict:
     return {
         "id": a.id,
         "activity_type": a.activity_type,
+        "entry_kind": getattr(a, "entry_kind", None) or "actual",
         "product": a.product,
         "product_category": a.product_category,
         "channel": a.channel,
@@ -85,9 +87,11 @@ def _row_out(a: MarketingActivity) -> dict:
     }
 
 
-def _filters(query, activity_type, month_from, month_to, channel, product, q):
+def _filters(query, activity_type, month_from, month_to, channel, product, q, entry_kind=None):
     if activity_type:
         query = query.where(MarketingActivity.activity_type == activity_type)
+    if entry_kind:
+        query = query.where(MarketingActivity.entry_kind == entry_kind)
     if month_from:
         query = query.where(MarketingActivity.period_month >= month_from)
     if month_to:
@@ -109,6 +113,7 @@ def _filters(query, activity_type, month_from, month_to, channel, product, q):
 @router.get("")
 async def list_activities(
     activity_type: Optional[str] = None,
+    entry_kind: Optional[str] = None,
     month_from: Optional[str] = None,
     month_to: Optional[str] = None,
     channel: Optional[str] = None,
@@ -119,9 +124,9 @@ async def list_activities(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    base = _filters(select(MarketingActivity), activity_type, month_from, month_to, channel, product, q)
+    base = _filters(select(MarketingActivity), activity_type, month_from, month_to, channel, product, q, entry_kind)
     total = (await db.execute(
-        _filters(select(func.count(MarketingActivity.id)), activity_type, month_from, month_to, channel, product, q)
+        _filters(select(func.count(MarketingActivity.id)), activity_type, month_from, month_to, channel, product, q, entry_kind)
     )).scalar() or 0
     rows = (await db.execute(
         base.order_by(
@@ -231,6 +236,7 @@ async def activity_summary(
     month_from: Optional[str] = None,
     month_to: Optional[str] = None,
     activity_type: Optional[str] = None,
+    entry_kind: str = "actual",  # 집계는 기본 실적만 (계획 제외)
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -247,6 +253,8 @@ async def activity_summary(
             q = q.where(MarketingActivity.period_month <= month_to)
         if activity_type:
             q = q.where(MarketingActivity.activity_type == activity_type)
+        if entry_kind and entry_kind != "all":
+            q = q.where(MarketingActivity.entry_kind == entry_kind)
         return q
 
     A = MarketingActivity
