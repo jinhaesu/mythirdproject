@@ -8,3 +8,5 @@ export { HomeDashboard } from './HomeDashboard';
 export { ActivitiesBoard } from './ActivitiesBoard';
 export { GroupBuyBoard } from './GroupBuyBoard';
 export { MetaDailyTable } from './MetaDailyTable';
+export { AdSpendBoard } from './AdSpendBoard';
+export { GoalOverview } from './GoalOverview';

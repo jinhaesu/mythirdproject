@@ -1780,6 +1780,7 @@ export const homeApi = {
 export interface MarketingActivityRow {
   id: number;
   activity_type: string;
+  entry_kind: string; // actual(실적) | plan(계획)
   product?: string | null;
   product_category?: string | null;
   channel?: string | null;
@@ -1809,7 +1810,7 @@ export type MarketingActivityInput = Omit<MarketingActivityRow, 'id' | 'cost_per
 
 export const activitiesApi = {
   list: async (params: {
-    activity_type?: string; month_from?: string; month_to?: string;
+    activity_type?: string; entry_kind?: string; month_from?: string; month_to?: string;
     channel?: string; product?: string; q?: string; limit?: number; offset?: number;
   } = {}): Promise<{ total: number; items: MarketingActivityRow[] }> => {
     const { data } = await api.get('/activities', { params });
@@ -1899,6 +1900,53 @@ export const insightsDailyApi = {
   },
   exportCsv: (params: { days?: number; since?: string; until?: string; campaign_q?: string } = {}) =>
     downloadFile('/insights/daily-export', params),
+};
+
+// ─── 광고비 일보 (매체별 일별 광고비) ────────────────────────────────────────
+export interface AdMediaRow {
+  media_id: number; name: string; group_name?: string | null; inflow?: string | null;
+  auto: boolean; auto_source?: string | null; memo?: string | null;
+  daily: Record<string, number>;
+  month_total: number; limit_amount?: number | null; plan_amount?: number | null;
+  usage_pct?: number | null;
+}
+
+export const adspendApi = {
+  board: async (month: string): Promise<{
+    month: string; days_in_month: number; rows: AdMediaRow[];
+    day_totals: Record<string, number>;
+    totals: { spend: number; limit: number; plan: number; usage_pct: number | null };
+    as_of: string;
+  }> => {
+    const { data } = await api.get('/adspend/board', { params: { month } });
+    return data;
+  },
+  upsertEntry: async (media_id: number, date: string, amount: number) => {
+    const { data } = await api.put('/adspend/entry', { media_id, date, amount });
+    return data;
+  },
+  upsertBudget: async (media_id: number, month: string, payload: { limit_amount?: number; plan_amount?: number }) => {
+    const { data } = await api.put('/adspend/budget', { media_id, month, ...payload });
+    return data;
+  },
+  createMedia: async (payload: {
+    name: string; group_name?: string; inflow?: string; auto_source?: string | null;
+    sort_order?: number; memo?: string;
+  }) => {
+    const { data } = await api.post('/adspend/media', payload);
+    return data;
+  },
+  updateMedia: async (id: number, payload: any, active?: boolean) => {
+    const { data } = await api.patch(`/adspend/media/${id}`, payload, { params: { active } });
+    return data;
+  },
+  monthlySummary: async (month: string): Promise<{
+    month: string; by_inflow: { inflow: string; spend: number; limit: number; plan: number }[];
+    totals: { spend: number; limit: number; plan: number; usage_pct: number | null };
+  }> => {
+    const { data } = await api.get('/adspend/monthly-summary', { params: { month } });
+    return data;
+  },
 };
 
 // Currency & number formatting utilities

@@ -30,6 +30,7 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 const EMPTY_FORM: MarketingActivityInput = {
   activity_type: 'content',
+  entry_kind: 'actual',
   product: '', product_category: '', channel: '', purpose: '', status: '',
   period_month: new Date().toISOString().slice(0, 7),
   activity_date: null,
@@ -46,6 +47,7 @@ const METRIC_FIELDS: (keyof MarketingActivityInput)[] = [
 export function ActivitiesBoard() {
   const qc = useQueryClient();
   const [typeFilter, setTypeFilter] = useState<string>('');
+  const [kindFilter, setKindFilter] = useState<'actual' | 'plan'>('actual');
   const [monthFrom, setMonthFrom] = useState<string>(() => {
     const d = new Date(); d.setMonth(d.getMonth() - 11);
     return d.toISOString().slice(0, 7);
@@ -58,6 +60,7 @@ export function ActivitiesBoard() {
 
   const listParams = {
     activity_type: typeFilter || undefined,
+    entry_kind: kindFilter,
     month_from: monthFrom || undefined,
     month_to: monthTo || undefined,
     channel: channelFilter || undefined,
@@ -84,6 +87,12 @@ export function ActivitiesBoard() {
     onSuccess: () => { toast.success('삭제했습니다'); invalidate(); },
     onError: () => toast.error('삭제 실패'),
   });
+  const convertMut = useMutation({
+    mutationFn: (row: MarketingActivityRow) =>
+      activitiesApi.update(row.id, { ...row, entry_kind: 'actual', metrics_as_of: today() }),
+    onSuccess: () => { toast.success('실적으로 전환했습니다 — 조회수 등 실제 값을 채워 주세요'); invalidate(); },
+    onError: () => toast.error('전환 실패'),
+  });
 
   // 월별×채널 스택 차트 데이터
   const monthChart = useMemo(() => {
@@ -103,6 +112,18 @@ export function ActivitiesBoard() {
     <div className="space-y-4">
       {/* 필터 + 추가 */}
       <div className="flex flex-wrap items-center gap-2">
+        {/* 실적/계획 토글 */}
+        <div className="flex items-center rounded-lg p-0.5" style={{ backgroundColor: 'rgb(var(--color-overlay-rgb) / 0.05)' }}>
+          {([['actual', '실적'], ['plan', '계획']] as const).map(([kv, label]) => (
+            <button key={kv} onClick={() => { setKindFilter(kv); setPage(0); }}
+              className="px-3 py-1.5 rounded-md text-xs font-medium transition-colors"
+              style={kindFilter === kv
+                ? { backgroundColor: kv === 'plan' ? '#b46900' : 'var(--color-brand-bg)', color: '#fff' }
+                : { color: 'var(--color-text-tertiary)' }}>
+              {label}
+            </button>
+          ))}
+        </div>
         <div className="flex items-center rounded-lg p-0.5" style={{ backgroundColor: 'rgb(var(--color-overlay-rgb) / 0.05)' }}>
           {['', 'content', 'influencer', 'experience', 'supporters', 'etc'].map((t) => (
             <button
@@ -269,6 +290,13 @@ export function ActivitiesBoard() {
                     <td className="px-3 py-2 text-text-tertiary tabular-nums text-right">{row.cost_per_view != null ? `₩${row.cost_per_view}` : '-'}</td>
                     <td className="px-3 py-2 whitespace-nowrap">
                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {row.entry_kind === 'plan' && (
+                          <button
+                            onClick={() => convertMut.mutate(row)}
+                            className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-green/15 text-green hover:bg-green/25 whitespace-nowrap"
+                            title="집행 완료 — 실적으로 전환"
+                          >실적 전환</button>
+                        )}
                         <button onClick={() => setEditing(row)} className="p-1 text-text-tertiary hover:text-text-primary" title="수정"><Pencil size={13} /></button>
                         <button
                           onClick={() => { if (confirm('이 기록을 삭제할까요?')) removeMut.mutate(row.id); }}
@@ -355,6 +383,14 @@ function ActivityFormModal({
           <button onClick={onClose} className="p-1 text-text-tertiary hover:text-text-primary"><X size={16} /></button>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] text-text-tertiary">구분 *</span>
+            <select value={form.entry_kind || 'actual'} onChange={(e) => set('entry_kind', e.target.value)}
+              className="px-2 py-1.5 rounded-lg text-xs bg-bg-2 border border-border-primary text-text-primary">
+              <option value="actual">실적 (집행 완료)</option>
+              <option value="plan">계획 (예정)</option>
+            </select>
+          </label>
           <label className="flex flex-col gap-1">
             <span className="text-[11px] text-text-tertiary">유형 *</span>
             <select value={form.activity_type} onChange={(e) => set('activity_type', e.target.value)}

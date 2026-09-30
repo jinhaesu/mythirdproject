@@ -33,7 +33,7 @@ export const MENUS: { key: MenuKey; name: string; icon: any; subTabs: SubTabDef[
       { id: 1, name: 'Meta 일별 데이터' },
       { id: 2, name: '네이버 검색광고' },
       { id: 3, name: 'GFA' },
-      { id: 4, name: '채널 광고비 통합' },
+      { id: 4, name: '광고비 일보' },
     ],
   },
   {
@@ -50,8 +50,10 @@ export const MENUS: { key: MenuKey; name: string; icon: any; subTabs: SubTabDef[
   {
     key: 'kpi', name: 'KPI·목표', icon: Target,
     subTabs: [
-      { id: 0, name: '자사몰 KPI' },
-      { id: 1, name: '외부 채널 KPI' },
+      { id: 0, name: '달성 현황' },
+      { id: 1, name: '자사몰 KPI' },
+      { id: 2, name: '외부 채널 KPI' },
+      { id: 3, name: '채널 성과 분석' },
     ],
   },
   {

@@ -15,6 +15,8 @@ import {
   ActivitiesBoard,
   GroupBuyBoard,
   MetaDailyTable,
+  AdSpendBoard,
+  GoalOverview,
 } from '@/components/tabs';
 import {
   NaverSearchAdsDashboard,
@@ -155,7 +157,7 @@ export default function Home() {
             {sub('ads') === 1 && <MetaDailyTable />}
             {sub('ads') === 2 && <NaverSearchAdsDashboard />}
             {sub('ads') === 3 && <NaverGFADashboard />}
-            {sub('ads') === 4 && <DataDashboard />}
+            {sub('ads') === 4 && <AdSpendBoard />}
           </>
         )}
         {activeMenu === 'intel' && (
@@ -167,8 +169,10 @@ export default function Home() {
         {activeMenu === 'activities' && <ActivitiesBoard />}
         {activeMenu === 'kpi' && (
           <>
-            {sub('kpi') === 0 && <MarketingKPI />}
-            {sub('kpi') === 1 && <ExternalMarketingKPI />}
+            {sub('kpi') === 0 && <GoalOverview />}
+            {sub('kpi') === 1 && <MarketingKPI />}
+            {sub('kpi') === 2 && <ExternalMarketingKPI />}
+            {sub('kpi') === 3 && <DataDashboard />}
           </>
         )}
         {activeMenu === 'tools' && (
