@@ -123,6 +123,17 @@ export const naverSearchAdsApi = {
 
 // ═══ Naver GFA API ═══
 export const naverGFAApi = {
+  /** GFA 오픈API 연결 상태 (네이버 로그인 OAuth) */
+  getStatus: async (): Promise<{ connected: boolean; ad_account_no?: string | null }> => {
+    const { data } = await api.get('/naver/gfa/status');
+    return data;
+  },
+  /** 네이버 로그인 동의 URL 발급 → 브라우저 이동용 */
+  startAuth: async (): Promise<{ auth_url: string }> => {
+    const { data } = await api.get('/naver/gfa/auth/start');
+    return data;
+  },
+
   getOverview: async (dateRange = 'last_7_days', startDate?: string, endDate?: string) => {
     const params: any = { date_range: dateRange };
     if (dateRange === 'custom' && startDate && endDate) {

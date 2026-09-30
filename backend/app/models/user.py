@@ -40,6 +40,14 @@ class User(Base):
     naver_gfa_connected: Mapped[bool] = mapped_column(Boolean, default=False)
     naver_ads_customer_id: Mapped[Optional[str]] = mapped_column(String(255))
 
+    # 네이버 GFA(성과형 디스플레이) 오픈API — 네이버 로그인 OAuth 토큰 (2026-09-30)
+    # openapi.naver.com/v1/ad-api, 발급 앱 = 개발자센터(NAVER_CLIENT_ID/SECRET)
+    naver_gfa_access_token: Mapped[Optional[str]] = mapped_column(Text)
+    naver_gfa_refresh_token: Mapped[Optional[str]] = mapped_column(Text)
+    naver_gfa_token_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    naver_gfa_ad_account_no: Mapped[Optional[str]] = mapped_column(String(50))
+    naver_gfa_manager_account_no: Mapped[Optional[str]] = mapped_column(String(50))
+
     # Brand settings (JSON stored as text for simplicity)
     brand_settings: Mapped[Optional[str]] = mapped_column(Text)  # JSON: logo, colors, etc.
 

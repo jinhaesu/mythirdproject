@@ -90,11 +90,29 @@ export function NaverGFADashboard() {
   const effectiveStartDate = datePreset === 'custom' ? customStartDate : undefined;
   const effectiveEndDate = datePreset === 'custom' ? customEndDate : undefined;
 
+  // 연결 상태 (네이버 로그인 OAuth — 오픈API 재구현 2026-09-30)
+  const { data: gfaStatus } = useQuery({
+    queryKey: ['naver-gfa-status'],
+    queryFn: () => naverGFAApi.getStatus(),
+    retry: 1,
+  });
+  const gfaConnected = gfaStatus?.connected !== false;
+
+  const connectGFA = async () => {
+    try {
+      const { auth_url } = await naverGFAApi.startAuth();
+      window.location.href = auth_url;
+    } catch {
+      toast.error('연결 URL 발급 실패');
+    }
+  };
+
   // Fetch overview
   const { data: overview, isLoading: loadingOverview, refetch: refetchOverview } = useQuery({
     queryKey: ['naver-gfa-overview', effectiveDateRange, effectiveStartDate, effectiveEndDate],
     queryFn: () => naverGFAApi.getOverview(effectiveDateRange, effectiveStartDate, effectiveEndDate),
     retry: 1,
+    enabled: gfaConnected,
   });
 
   // Fetch campaigns
@@ -186,6 +204,24 @@ export function NaverGFADashboard() {
 
   return (
     <div className="space-y-6">
+      {/* 미연결 배너 — 네이버 로그인으로 GFA 오픈API 연결 */}
+      {gfaStatus && !gfaStatus.connected && (
+        <div className="px-4 py-4 rounded-xl border border-yellow/30 bg-yellow/10 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium text-yellow">네이버 GFA가 아직 연결되지 않았습니다</p>
+            <p className="text-xs text-text-tertiary mt-0.5">
+              GFA 광고계정 권한이 있는 네이버 계정으로 로그인 동의 한 번이면 성과 데이터가 자동 수집됩니다.
+            </p>
+          </div>
+          <button
+            onClick={connectGFA}
+            className="px-4 py-2 rounded-lg text-sm font-medium text-white"
+            style={{ backgroundColor: '#03C75A' }}
+          >
+            네이버 계정으로 GFA 연결
+          </button>
+        </div>
+      )}
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>

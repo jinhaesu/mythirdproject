@@ -80,6 +80,15 @@ api_router.include_router(
     tags=["AI Command Center"]
 )
 
+# Naver GFA 오픈API (올바른 재구현 — naver_analytics의 구 GFA 경로보다 먼저
+# 등록해 /naver/gfa/* 경로를 이 라우터가 우선 처리한다)
+from app.api.v1.endpoints import naver_gfa  # noqa: E402
+api_router.include_router(
+    naver_gfa.router,
+    prefix="/naver",
+    tags=["Naver GFA"]
+)
+
 # Naver Advertising Analytics (검색광고 + GFA)
 api_router.include_router(
     naver_analytics.router,
