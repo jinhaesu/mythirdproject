@@ -22,8 +22,6 @@ import {
   CHANNEL_COLORS, CHANNEL_LABELS,
   achievementBadge, fmtNum, fmtWon, targetText,
 } from './kpi/format';
-import { InfluencerSeedingCard } from './kpi/InfluencerSeedingCard';
-import { SponsorshipCard } from './kpi/SponsorshipCard';
 import { NaverQueriesCard } from './kpi/NaverQueriesCard';
 
 // 그 외(자사몰 외) 채널: 네이버 SA/GFA 자동 채널 + 수동 채널 (스택 차트/테이블 전체 집계 대상)
@@ -427,8 +425,8 @@ export function ExternalMarketingKPI() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-xl font-bold text-text-primary">그 외 마케팅 KPI</h2>
-          <p className="text-xs text-text-tertiary mt-1">외부 채널 광고비, 공동구매 매출, 시딩·협찬을 한눈에 관리합니다.</p>
+          <h2 className="text-xl font-bold text-text-primary">외부 채널 KPI</h2>
+          <p className="text-xs text-text-tertiary mt-1">외부 채널 매출 기입·공동구매(어필리에이트) 매출·목표 관리 — 광고비 기입은 광고비 일보, 시딩·협찬은 활동 기록</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center bg-bg-2 rounded-lg p-0.5">
@@ -502,11 +500,15 @@ export function ExternalMarketingKPI() {
 
           {/* 채널 광고비 관리 */}
           <div className="bg-bg-1 border border-border-primary rounded-xl p-4">
-            <h3 className="text-sm font-semibold text-text-secondary mb-3 flex items-center gap-1.5">
+            <h3 className="text-sm font-semibold text-text-secondary mb-1 flex items-center gap-1.5">
               <Layers size={14} className="text-blue" />
-              채널 광고비 관리
+              채널 광고비·매출 관리
               <span className="text-[10px] font-normal text-text-quaternary">우측 축: 총 매출</span>
             </h3>
+            <p className="text-[11px] text-text-quaternary mb-3">
+              일별 광고비 기입의 정본은 <b className="text-text-tertiary">광고 성과 › 광고비 일보</b>입니다.
+              이 표는 채널별 <b className="text-text-tertiary">월 매출 기입</b>(ROAS 분석용)과 월 단위 요약 관리에 사용하세요.
+            </p>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={channelChartData} margin={{ top: 8, right: 16, left: 8, bottom: 0 }}>
@@ -831,11 +833,10 @@ export function ExternalMarketingKPI() {
       {/* 네이버 검색량 추이 */}
       <NaverQueriesCard />
 
-      {/* 인플루언서 시딩 */}
-      <InfluencerSeedingCard />
-
-      {/* 협찬 관리 */}
-      <SponsorshipCard />
+      {/* 시딩·협찬 카드는 2026-09 개편에서 제거 — 활동 기록 모듈이 대체 (기록 0건이던 죽은 화면) */}
+      <div className="bg-bg-1 border border-border-primary rounded-xl px-4 py-3 text-xs text-text-tertiary">
+        인플루언서 시딩·체험단·협찬 집행 기록은 <b className="text-text-secondary">활동 기록</b> 메뉴에서 관리합니다.
+      </div>
     </div>
   );
 }

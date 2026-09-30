@@ -15,6 +15,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { downloadFile, kpiApi } from '@/lib/api';
+import { useAppStore } from '@/store';
 import type {
   KPIChannelSpend, KPIChannelSpendUpdatePayload, KPIGoal, KPIGoalUpdatePayload,
   KPIGranularity, KPIMonthSummary,
@@ -193,6 +194,7 @@ function ChannelSpendRow({
 // ─── Main component ───
 
 export function MarketingKPI() {
+  const { setActiveMenu, setMenuSubTab } = useAppStore();
   const queryClient = useQueryClient();
   const [granularity, setGranularity] = useState<KPIGranularity>('month');
   const [monthsRange, setMonthsRange] = useState<3 | 6 | 12>(6);
@@ -382,7 +384,7 @@ export function MarketingKPI() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-xl font-bold text-text-primary">자사몰 마케팅 KPI</h2>
-          <p className="text-xs text-text-tertiary mt-1">채널별 광고비, CAC/LTV, 자사몰 지표를 한눈에 관리합니다.</p>
+          <p className="text-xs text-text-tertiary mt-1">목표 대비 CAC·LTV·전환율·신규고객 — 목표는 아래 &quot;목표 설정&quot;에서 입력 (광고비 기입은 광고비 일보)</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center bg-bg-2 rounded-lg p-0.5">
@@ -520,111 +522,72 @@ export function MarketingKPI() {
             />
           </div>
 
-          {/* 채널 광고비 */}
-          <div className="bg-bg-1 border border-border-primary rounded-xl p-4">
-            <h3 className="text-sm font-semibold text-text-secondary mb-3 flex items-center gap-1.5">
-              <Layers size={14} className="text-blue" />
-              채널 광고비
-              <span className="text-[10px] font-normal text-text-quaternary">우측 축: 자사몰 매출</span>
-            </h3>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={channelChartData} margin={{ top: 8, right: 16, left: 8, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-primary)" />
-                  <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'var(--color-text-tertiary)' }} />
-                  <YAxis
-                    yAxisId="left"
-                    tick={{ fontSize: 10, fill: 'var(--color-text-tertiary)' }}
-                    tickFormatter={(v: number) => (v >= 10000 ? `${Math.round(v / 10000)}만` : String(v))}
-                  />
-                  <YAxis
-                    yAxisId="right"
-                    orientation="right"
-                    tick={{ fontSize: 10, fill: 'var(--color-green)' }}
-                    tickFormatter={(v: number) => (v >= 10000 ? `${Math.round(v / 10000)}만` : String(v))}
-                  />
-                  <RechartsTooltip
-                    contentStyle={{ backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)', borderRadius: 8, fontSize: 11 }}
-                    labelStyle={{ color: 'var(--color-text-secondary)' }}
-                    formatter={(value: any, name: any) => [
-                      fmtWon(Number(value)),
-                      name === 'revenue' ? '자사몰 매출' : (CHANNEL_LABELS[name as string] || name),
-                    ]}
-                  />
-                  <Legend
-                    wrapperStyle={{ fontSize: 11 }}
-                    formatter={(value: string) => (value === 'revenue' ? '자사몰 매출' : (CHANNEL_LABELS[value] || value))}
-                  />
-                  {CHANNEL_KEYS.map((ch) => (
-                    <Bar key={ch} yAxisId="left" dataKey={ch} name={ch} stackId="spend" fill={CHANNEL_COLORS[ch]} />
-                  ))}
-                  <Line yAxisId="right" type="monotone" dataKey="revenue" name="revenue" stroke="var(--color-green)" strokeWidth={2} />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </div>
-
-            {isMonthMode && (
-              <>
-                <div className="overflow-x-auto mt-4">
-                  <table className="w-full min-w-[640px] text-left">
-                    <thead>
-                      <tr className="border-b border-border-primary text-[10px] text-text-quaternary uppercase tracking-wide">
-                        <th className="px-3 py-2 whitespace-nowrap">월</th>
-                        <th className="px-3 py-2 whitespace-nowrap">채널</th>
-                        <th className="px-3 py-2 whitespace-nowrap">예산</th>
-                        <th className="px-3 py-2 whitespace-nowrap">실적</th>
-                        <th className="px-3 py-2 whitespace-nowrap">메모</th>
-                        <th className="px-3 py-2" />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {spendRows.map((row) => (
-                        <ChannelSpendRow
-                          key={row.key}
-                          month={row.month}
-                          item={row.item}
-                          autoValue={row.channel === 'meta' ? months.find((m) => m.month === row.month)?.meta_spend : undefined}
-                          onSave={(payload) => updateChannelSpendMutation.mutate(payload)}
-                          onDelete={(id) => deleteChannelSpendMutation.mutate(id)}
-                        />
-                      ))}
-                      {spendRows.length === 0 && (
-                        <tr>
-                          <td colSpan={6} className="px-3 py-6 text-center text-xs text-text-quaternary">
-                            등록된 채널 광고비가 없습니다.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border-primary flex-wrap">
-                  <select
-                    value={newChannel}
-                    onChange={(e: ChangeEvent<HTMLSelectElement>) => setNewChannel(e.target.value)}
-                    className="px-2 py-1.5 bg-bg-0 border border-border-primary rounded-lg text-xs text-text-secondary focus:outline-none focus:border-brand"
-                  >
-                    {CHANNEL_KEYS.map((ch) => (
-                      <option key={ch} value={ch}>{CHANNEL_LABELS[ch]}</option>
-                    ))}
-                  </select>
-                  <input
-                    type="month"
-                    value={newMonth}
-                    onChange={(e: ChangeEvent<HTMLInputElement>) => setNewMonth(e.target.value)}
-                    className="px-2 py-1.5 bg-bg-0 border border-border-primary rounded-lg text-xs text-text-secondary focus:outline-none focus:border-brand"
-                  />
+          {/* 목표 설정 폼 — 카드 바로 아래로 이동 (2026-09-30 사용성 개편) */}
+          {isMonthMode && (
+            <div className="bg-bg-1 border border-border-primary rounded-xl p-4">
+              <button onClick={() => setGoalFormOpen((v) => !v)} className="w-full flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-text-secondary flex items-center gap-1.5">
+                  <Target size={14} className="text-accent" />
+                  목표 설정
+                  <span className="text-[10px] font-normal text-text-quaternary">위 카드의 목표값을 여기서 입력합니다</span>
+                </h3>
+                {goalFormOpen ? <ChevronDown size={16} className="text-text-tertiary" /> : <ChevronRight size={16} className="text-text-tertiary" />}
+              </button>
+              {goalFormOpen && (
+                <div className="mt-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs text-text-tertiary w-20">대상 월</label>
+                    <input
+                      type="month"
+                      value={goalMonth}
+                      onChange={(e: ChangeEvent<HTMLInputElement>) => setGoalMonth(e.target.value)}
+                      className="px-2 py-1.5 bg-bg-0 border border-border-primary rounded-lg text-xs text-text-secondary focus:outline-none focus:border-brand"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    <GoalInput label="목표 CAC (₩)" value={targetCac} onChange={setTargetCac} />
+                    <GoalInput label="목표 LTV (₩)" value={targetLtv} onChange={setTargetLtv} />
+                    <GoalInput label="목표 LTV/CAC" value={targetLtvCac} onChange={setTargetLtvCac} step="0.01" />
+                    <GoalInput label="목표 구매전환율 (%)" value={targetConversionRate} onChange={setTargetConversionRate} step="0.01" />
+                    <GoalInput label="목표 AOV (₩)" value={targetAov} onChange={setTargetAov} />
+                    <GoalInput label="목표 신규 고객수" value={targetNewCustomers} onChange={setTargetNewCustomers} />
+                    <GoalInput label="실적 구매전환율 (%)" value={actualConversionRate} onChange={setActualConversionRate} step="0.01" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-text-tertiary block mb-1">메모</label>
+                    <textarea
+                      value={goalMemo}
+                      onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setGoalMemo(e.target.value)}
+                      rows={2}
+                      className="w-full bg-bg-0 border border-border-primary rounded-lg px-3 py-2 text-xs text-text-secondary focus:outline-none focus:border-brand"
+                    />
+                  </div>
                   <button
-                    onClick={addSpend}
-                    disabled={updateChannelSpendMutation.isPending}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-brand text-white text-xs font-medium rounded-lg hover:bg-accent-hover disabled:opacity-50"
+                    onClick={handleSaveGoal}
+                    disabled={updateGoalMutation.isPending}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-brand text-white text-sm font-medium rounded-lg hover:bg-accent-hover disabled:opacity-50 transition-all"
                   >
-                    <Plus size={12} /> 채널 추가
+                    {updateGoalMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} 저장
                   </button>
                 </div>
-              </>
-            )}
+              )}
+            </div>
+          )}
+
+          {/* 광고비 기입은 광고비 일보로 일원화 (2026-09-30 개편) */}
+          <div className="bg-bg-1 border border-border-primary rounded-xl px-4 py-3 flex flex-wrap items-center gap-2">
+            <Layers size={14} className="text-blue shrink-0" />
+            <p className="text-xs text-text-secondary flex-1 min-w-[200px]">
+              채널별 광고비 기입·조회는 <b className="text-text-primary">광고 성과 › 광고비 일보</b>에서 합니다.
+              CAC 계산의 광고비는 메타·네이버 검색광고 자동 수집분 기준입니다.
+            </p>
+            <button
+              onClick={() => { setActiveMenu('ads'); setMenuSubTab('ads', 4); }}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium text-white hover:opacity-90"
+              style={{ backgroundColor: 'var(--color-brand-bg)' }}
+            >
+              광고비 일보 열기
+            </button>
           </div>
 
           {/* CAC / LTV 추이 */}
@@ -819,56 +782,6 @@ export function MarketingKPI() {
             </div>
           </div>
 
-          {/* 목표 설정 폼 (월별 모드 전용) */}
-          {isMonthMode && (
-            <div className="bg-bg-1 border border-border-primary rounded-xl p-4">
-              <button onClick={() => setGoalFormOpen((v) => !v)} className="w-full flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-text-secondary flex items-center gap-1.5">
-                  <Target size={14} className="text-accent" />
-                  목표 설정
-                </h3>
-                {goalFormOpen ? <ChevronDown size={16} className="text-text-tertiary" /> : <ChevronRight size={16} className="text-text-tertiary" />}
-              </button>
-              {goalFormOpen && (
-                <div className="mt-4 space-y-3">
-                  <div className="flex items-center gap-2">
-                    <label className="text-xs text-text-tertiary w-20">대상 월</label>
-                    <input
-                      type="month"
-                      value={goalMonth}
-                      onChange={(e: ChangeEvent<HTMLInputElement>) => setGoalMonth(e.target.value)}
-                      className="px-2 py-1.5 bg-bg-0 border border-border-primary rounded-lg text-xs text-text-secondary focus:outline-none focus:border-brand"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                    <GoalInput label="목표 CAC (₩)" value={targetCac} onChange={setTargetCac} />
-                    <GoalInput label="목표 LTV (₩)" value={targetLtv} onChange={setTargetLtv} />
-                    <GoalInput label="목표 LTV/CAC" value={targetLtvCac} onChange={setTargetLtvCac} step="0.01" />
-                    <GoalInput label="목표 구매전환율 (%)" value={targetConversionRate} onChange={setTargetConversionRate} step="0.01" />
-                    <GoalInput label="목표 AOV (₩)" value={targetAov} onChange={setTargetAov} />
-                    <GoalInput label="목표 신규 고객수" value={targetNewCustomers} onChange={setTargetNewCustomers} />
-                    <GoalInput label="실적 구매전환율 (%)" value={actualConversionRate} onChange={setActualConversionRate} step="0.01" />
-                  </div>
-                  <div>
-                    <label className="text-xs text-text-tertiary block mb-1">메모</label>
-                    <textarea
-                      value={goalMemo}
-                      onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setGoalMemo(e.target.value)}
-                      rows={2}
-                      className="w-full bg-bg-0 border border-border-primary rounded-lg px-3 py-2 text-xs text-text-secondary focus:outline-none focus:border-brand"
-                    />
-                  </div>
-                  <button
-                    onClick={handleSaveGoal}
-                    disabled={updateGoalMutation.isPending}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-brand text-white text-sm font-medium rounded-lg hover:bg-accent-hover disabled:opacity-50 transition-all"
-                  >
-                    {updateGoalMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} 저장
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
         </>
       )}
     </div>

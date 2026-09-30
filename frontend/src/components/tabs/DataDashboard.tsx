@@ -103,8 +103,11 @@ export function DataDashboard() {
       {/* 헤더 + 기간 선택 */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h2 className="text-lg font-semibold text-white">데이터 대시보드</h2>
-          <p className="text-xs text-text-tertiary">채널별 월간 광고비·ROAS·조회수 — 자사몰/그 외 마케팅 KPI 탭 입력과 자동 연동</p>
+          <h2 className="text-lg font-semibold text-text-primary">채널 성과 분석</h2>
+          <p className="text-xs text-text-tertiary">
+            채널별 월간 광고비·매출·ROAS — 메타·네이버 검색광고는 자동 수집,
+            채널 매출은 <b className="text-text-secondary">외부 채널 KPI</b>에서 기입, 일별 광고비 기입은 <b className="text-text-secondary">광고비 일보</b>
+          </p>
         </div>
         <div className="flex items-center gap-1">
           {([3, 6, 12] as const).map(mm => (
