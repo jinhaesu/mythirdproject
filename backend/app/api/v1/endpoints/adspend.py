@@ -250,6 +250,142 @@ async def upsert_budget(
     return {"media_id": payload.media_id, "month": payload.month}
 
 
+# ─── 채널 ROAS 보드 (유입채널 × 월 — 광고비 자동 + 매출 기입) ────────────────
+
+async def _inflow_spend_by_month(db: AsyncSession, months: list) -> dict:
+    """{(month, inflow): spend} — 일보 수동 기입 + 자동 매체(meta/naver_sa)."""
+    m_from, m_to = months[0], months[-1]
+    d_from, _ = _month_range(m_from)
+    _, d_to = _month_range(m_to)
+
+    media = (await db.execute(select(AdMedia).where(AdMedia.active.is_(True)))).scalars().all()
+    inflow_of = {m.id: (m.inflow or "기타") for m in media}
+    auto_media = [(m.id, m.auto_source) for m in media if m.auto_source]
+
+    out: dict = {}
+    rows = (await db.execute(
+        select(
+            AdMediaSpendDaily.media_id,
+            func.to_char(AdMediaSpendDaily.date, "YYYY-MM"),
+            func.coalesce(func.sum(AdMediaSpendDaily.amount), 0),
+        ).where(AdMediaSpendDaily.date >= d_from, AdMediaSpendDaily.date < d_to)
+        .group_by(AdMediaSpendDaily.media_id, func.to_char(AdMediaSpendDaily.date, "YYYY-MM"))
+    )).all()
+    for mid, month, amt in rows:
+        key = (month, inflow_of.get(mid, "기타"))
+        out[key] = out.get(key, 0) + float(amt)
+    for mid, source in auto_media:
+        daily = await _auto_daily(db, source, d_from, d_to)
+        for d, amt in daily.items():
+            key = (d[:7], inflow_of.get(mid, "기타"))
+            out[key] = out.get(key, 0) + amt
+    return out
+
+
+@router.get("/roas-board")
+async def roas_board(
+    months_back: int = Query(default=6, ge=1, le=24),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """유입채널별 월 광고비(일보 자동 합산) × 매출(기입/자사몰 자동) × ROAS.
+
+    구 '채널 성과 분석'(monthly_channel_spends 소수 채널) 대체 —
+    광고비 일보의 전체 유입채널 축으로 분석한다. 금액 원 단위(VAT 포함).
+    """
+    from app.models import ChannelRevenue, MallOrder
+
+    this_month = date.today().strftime("%Y-%m")
+    months = [_month_add(this_month, i) for i in range(-months_back + 1, 1)]
+    spend_by = await _inflow_spend_by_month(db, months)
+
+    # 매출: 기입값 + 자사몰 자동(mall_orders paid 월합)
+    rev_rows = (await db.execute(
+        select(ChannelRevenue).where(
+            ChannelRevenue.month >= months[0], ChannelRevenue.month <= months[-1]
+        )
+    )).scalars().all()
+    rev_by = {(r.month, r.inflow): r.revenue for r in rev_rows}
+    d_from, _ = _month_range(months[0])
+    _, d_to = _month_range(months[-1])
+    mall_rows = (await db.execute(
+        select(
+            func.to_char(MallOrder.order_date, "YYYY-MM"),
+            func.coalesce(func.sum(MallOrder.amount), 0),
+        ).where(MallOrder.status == "paid", MallOrder.order_date >= d_from, MallOrder.order_date < d_to)
+        .group_by(func.to_char(MallOrder.order_date, "YYYY-MM"))
+    )).all()
+    mall_rev = {m: float(v) for m, v in mall_rows}
+
+    # 예산(Limit·사업계획) — 유입채널별 월합
+    budgets = (await db.execute(
+        select(AdMediaBudget).where(AdMediaBudget.month.in_(months))
+    )).scalars().all()
+    media = (await db.execute(select(AdMedia))).scalars().all()
+    inflow_of = {m.id: (m.inflow or "기타") for m in media}
+    limit_by: dict = {}
+    for b in budgets:
+        key = (b.month, inflow_of.get(b.media_id, "기타"))
+        limit_by[key] = limit_by.get(key, 0) + (b.limit_amount or 0)
+
+    inflows = sorted({k[1] for k in list(spend_by) + list(rev_by) + list(limit_by)})
+    cells = []
+    for m in months:
+        for inf in inflows:
+            spend = round(spend_by.get((m, inf), 0), 0)
+            is_mall = inf == "자사몰"
+            revenue = mall_rev.get(m) if is_mall else rev_by.get((m, inf))
+            limit_amt = round(limit_by.get((m, inf), 0), 0) or None
+            if not spend and not revenue and not limit_amt:
+                continue
+            cells.append({
+                "month": m, "inflow": inf,
+                "spend": spend,
+                "limit": limit_amt,
+                "usage_pct": round(spend / limit_amt * 100, 1) if limit_amt else None,
+                "revenue": round(revenue, 0) if revenue is not None else None,
+                "revenue_auto": is_mall,
+                "roas": round(revenue / spend, 2) if revenue and spend else None,
+            })
+    return {
+        "as_of": datetime.utcnow().isoformat(),
+        "months": months,
+        "this_month": this_month,
+        "inflows": inflows,
+        "cells": cells,
+    }
+
+
+class RevenueUpsert(BaseModel):
+    month: str = Field(..., min_length=7, max_length=7)
+    inflow: str = Field(..., max_length=100)
+    revenue: float = Field(..., ge=0)
+
+
+@router.put("/revenue")
+async def upsert_channel_revenue(
+    payload: RevenueUpsert,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.models import ChannelRevenue
+
+    if payload.inflow == "자사몰":
+        raise HTTPException(status_code=422, detail="자사몰 매출은 주문 데이터에서 자동 집계됩니다")
+    row = (await db.execute(select(ChannelRevenue).where(
+        ChannelRevenue.month == payload.month, ChannelRevenue.inflow == payload.inflow
+    ))).scalar_one_or_none()
+    if payload.revenue == 0:
+        if row:
+            await db.delete(row)
+    elif row:
+        row.revenue = payload.revenue
+    else:
+        db.add(ChannelRevenue(month=payload.month, inflow=payload.inflow, revenue=payload.revenue))
+    await db.commit()
+    return {"month": payload.month, "inflow": payload.inflow, "revenue": payload.revenue}
+
+
 @router.get("/monthly-summary")
 async def monthly_summary(
     month: str = Query(..., min_length=7, max_length=7),

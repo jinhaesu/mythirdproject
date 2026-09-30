@@ -42,6 +42,23 @@ class AdMediaBudget(Base):
     __table_args__ = (UniqueConstraint("media_id", "month", name="uq_ad_media_budget"),)
 
 
+class ChannelRevenue(Base):
+    """유입채널(inflow)×월 매출 기입 — ROAS 분석용.
+
+    광고비는 일보(ad_media_spend_daily)에서 자동 합산되므로 매출만 기입하면
+    채널 ROAS가 계산된다. 자사몰은 mall_orders에서 자동 집계(기입 불필요).
+    """
+    __tablename__ = "channel_revenues"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
+    month: Mapped[str] = mapped_column(String(7), index=True)  # "YYYY-MM"
+    inflow: Mapped[str] = mapped_column(String(100), index=True)  # ad_media.inflow와 동일 축
+    revenue: Mapped[float] = mapped_column(Float, default=0)
+    memo: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+
+    __table_args__ = (UniqueConstraint("month", "inflow", name="uq_channel_revenue_month_inflow"),)
+
+
 class AdMediaSpendDaily(Base):
     """매체×일 광고비 (수동 기입; auto_source 매체는 조회 시 자동 계산)."""
     __tablename__ = "ad_media_spend_daily"
