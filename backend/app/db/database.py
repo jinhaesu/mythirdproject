@@ -105,16 +105,39 @@ async def init_db():
     except Exception as e:
         logger.warning(f"Enum sync skipped (not PostgreSQL?): {e}")
 
-    # Add meta_ig_account_id column if missing (create_all doesn't alter existing tables)
+    # ── users 컬럼 사전 조회 (2026-09-30) ──────────────────────────────────
+    # users는 모든 요청이 읽는 테이블이라, 이미 존재하는 컬럼에 대한 반복 ALTER가
+    # 장시간 트랜잭션(KPI 수집기 등)의 공유 락에 막혀 각 8초(lock_timeout)씩
+    # 소진 → 누적 2분+ → 헬스체크 실패로 배포가 죽는 사고가 있었음.
+    # 카탈로그 조회는 락 경합이 없으므로, 존재하는 컬럼은 ALTER 자체를 생략한다.
+    _users_cols: set = set()
     try:
         async with engine.begin() as conn:
-            await conn.execute(
+            res = await conn.execute(
                 __import__('sqlalchemy').text(
-                    "ALTER TABLE users ADD COLUMN meta_ig_account_id VARCHAR(255)"
+                    "SELECT column_name FROM information_schema.columns WHERE table_name = 'users'"
                 )
             )
-    except Exception:
-        pass  # Column already exists
+            _users_cols = {r[0] for r in res}
+    except Exception as e:
+        logger.warning(f"users column preload skipped: {e}")
+
+    async def _add_users_col(col_name: str, col_ddl: str) -> None:
+        if col_name in _users_cols:
+            return
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(
+                    __import__('sqlalchemy').text(
+                        f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col_name} {col_ddl}"
+                    )
+                )
+            logger.info(f"[init_db] users.{col_name} added")
+        except Exception as e:
+            logger.warning(f"[init_db] users.{col_name} skipped: {e}")
+
+    # Add meta_ig_account_id column if missing (create_all doesn't alter existing tables)
+    await _add_users_col("meta_ig_account_id", "VARCHAR(255)")
 
     # Add send_hour / send_minute columns to scheduled_reports if missing
     for col, default in [("send_hour", 9), ("send_minute", 0)]:
@@ -129,22 +152,14 @@ async def init_db():
             pass  # Column already exists
 
     # Add Naver GFA OAuth columns to users if missing (2026-09-30)
-    for col_ddl in [
-        "naver_gfa_access_token TEXT",
-        "naver_gfa_refresh_token TEXT",
-        "naver_gfa_token_expires_at TIMESTAMP",
-        "naver_gfa_ad_account_no VARCHAR(50)",
-        "naver_gfa_manager_account_no VARCHAR(50)",
+    for col_name, col_ddl in [
+        ("naver_gfa_access_token", "TEXT"),
+        ("naver_gfa_refresh_token", "TEXT"),
+        ("naver_gfa_token_expires_at", "TIMESTAMP"),
+        ("naver_gfa_ad_account_no", "VARCHAR(50)"),
+        ("naver_gfa_manager_account_no", "VARCHAR(50)"),
     ]:
-        try:
-            async with engine.begin() as conn:
-                await conn.execute(
-                    __import__('sqlalchemy').text(
-                        f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col_ddl}"
-                    )
-                )
-        except Exception:
-            pass  # Column already exists
+        await _add_users_col(col_name, col_ddl)
 
     # Add link / metrics_as_of / entry_kind columns to marketing_activities if missing (2026-09-30)
     for col_ddl in ["link VARCHAR(500)", "metrics_as_of DATE",
@@ -170,32 +185,14 @@ async def init_db():
     except Exception:
         pass  # Column already exists
 
-    # Add meta_page_id and meta_pixel_id to users if missing
-    for col in ["meta_page_id", "meta_pixel_id"]:
-        try:
-            async with engine.begin() as conn:
-                await conn.execute(
-                    __import__('sqlalchemy').text(
-                        f"ALTER TABLE users ADD COLUMN {col} VARCHAR(255)"
-                    )
-                )
-        except Exception:
-            pass
-
-    # Add meta_dataset_id and default_currency to users if missing
+    # Add meta_page_id / meta_pixel_id / meta_dataset_id / default_currency to users if missing
     for col, col_type in [
+        ("meta_page_id", "VARCHAR(255)"),
+        ("meta_pixel_id", "VARCHAR(255)"),
         ("meta_dataset_id", "VARCHAR(255)"),
         ("default_currency", "VARCHAR(10) DEFAULT 'KRW'"),
     ]:
-        try:
-            async with engine.begin() as conn:
-                await conn.execute(
-                    __import__('sqlalchemy').text(
-                        f"ALTER TABLE users ADD COLUMN {col} {col_type}"
-                    )
-                )
-        except Exception:
-            pass
+        await _add_users_col(col, col_type)
 
     # Add new campaign columns if missing
     campaign_cols = [
@@ -261,24 +258,15 @@ async def init_db():
                 logger.warning(f"Affiliate table {tbl_name} create skipped: {te}")
 
     # Add Naver advertising columns to users if missing
-    naver_cols = [
+    for col, col_type in [
         ("naver_search_ads_connected", "BOOLEAN DEFAULT FALSE"),
         ("naver_gfa_connected", "BOOLEAN DEFAULT FALSE"),
         ("naver_ads_customer_id", "VARCHAR(255)"),
-    ]
-    for col, col_type in naver_cols:
-        try:
-            async with engine.begin() as conn:
-                await conn.execute(
-                    __import__('sqlalchemy').text(
-                        f"ALTER TABLE users ADD COLUMN {col} {col_type}"
-                    )
-                )
-        except Exception:
-            pass
+    ]:
+        await _add_users_col(col, col_type)
 
     # Phase 1 — Cafe24 OAuth + referral columns on users
-    cafe24_user_cols = [
+    for col, col_type in [
         ("cafe24_mall_id", "VARCHAR(100)"),
         ("cafe24_access_token", "TEXT"),
         ("cafe24_refresh_token", "TEXT"),
@@ -286,17 +274,8 @@ async def init_db():
         ("cafe24_scopes", "TEXT"),
         ("referral_code", "VARCHAR(20)"),
         ("referred_by_user_id", "INTEGER"),
-    ]
-    for col, col_type in cafe24_user_cols:
-        try:
-            async with engine.begin() as conn:
-                await conn.execute(
-                    __import__('sqlalchemy').text(
-                        f"ALTER TABLE users ADD COLUMN {col} {col_type}"
-                    )
-                )
-        except Exception:
-            pass
+    ]:
+        await _add_users_col(col, col_type)
 
     # referral_code unique index on users
     try:

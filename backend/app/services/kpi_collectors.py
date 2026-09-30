@@ -198,6 +198,7 @@ async def collect_mall_visitors(db: AsyncSession, since: date, until: date) -> i
     if not cafe24_user:
         logger.warning("[KPI Collector] Cafe24 연결된 계정이 없습니다 — 방문자수 수집 생략.")
         return 0
+    await db.commit()  # users 공유 락 즉시 해제 (startup ALTER 블로킹 방지)
 
     if since > until:
         logger.warning(f"[KPI Collector] since({since}) > until({until}) — 수집 생략.")
@@ -317,6 +318,9 @@ async def sync_mall_members(db: AsyncSession, limit: int = 300) -> dict:
     if not cafe24_user:
         logger.warning("[KPI Collector] Cafe24 연결 계정 없음 — 회원 동기화 생략.")
         return {"enriched": 0, "remaining": 0}
+    # users 공유 락 즉시 해제 — 이 트랜잭션이 수 분간 열려 있으면 배포 startup의
+    # ALTER TABLE users가 락에 막혀 헬스체크 실패로 죽는다 (2026-09-30 사고).
+    await db.commit()
 
     known = select(MallMember.member_id)
     pending_rows = (
@@ -366,6 +370,7 @@ async def backfill_members_privacy(db: AsyncSession, since: date, until: date) -
     cafe24_user = await get_shared_cafe24_user_or_none(db)
     if not cafe24_user:
         return {"upserted": 0, "error": "Cafe24 연결 계정 없음"}
+    await db.commit()  # users 공유 락 즉시 해제 (startup ALTER 블로킹 방지)
 
     upserted = 0
     page_limit = 500
