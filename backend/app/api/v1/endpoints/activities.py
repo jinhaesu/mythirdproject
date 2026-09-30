@@ -40,6 +40,8 @@ class ActivityIn(BaseModel):
     shares: int = 0
     follows: int = 0
     cost: float = 0
+    link: Optional[str] = Field(None, max_length=500)  # 콘텐츠/게시물 URL
+    metrics_as_of: Optional[str] = None  # 지표(조회수 등) 기준일 "YYYY-MM-DD"
     notes: Optional[str] = Field(None, max_length=500)
     source: str = "manual"
 
@@ -49,9 +51,10 @@ def _apply(row: MarketingActivity, data: ActivityIn) -> None:
 
     for f in ("activity_type", "product", "product_category", "channel", "purpose",
               "status", "period_month", "quantity", "views", "reach", "likes",
-              "comments", "saves", "shares", "follows", "cost", "notes", "source"):
+              "comments", "saves", "shares", "follows", "cost", "link", "notes", "source"):
         setattr(row, f, getattr(data, f))
     row.activity_date = _date.fromisoformat(data.activity_date) if data.activity_date else None
+    row.metrics_as_of = _date.fromisoformat(data.metrics_as_of) if data.metrics_as_of else None
 
 
 def _row_out(a: MarketingActivity) -> dict:
@@ -75,6 +78,8 @@ def _row_out(a: MarketingActivity) -> dict:
         "follows": a.follows,
         "cost": a.cost,
         "cost_per_view": round(a.cost / a.views, 2) if a.views else None,
+        "link": a.link,
+        "metrics_as_of": a.metrics_as_of.isoformat() if a.metrics_as_of else None,
         "notes": a.notes,
         "source": a.source,
     }

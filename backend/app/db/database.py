@@ -128,6 +128,18 @@ async def init_db():
         except Exception:
             pass  # Column already exists
 
+    # Add link / metrics_as_of columns to marketing_activities if missing (2026-09-30)
+    for col_ddl in ["link VARCHAR(500)", "metrics_as_of DATE"]:
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(
+                    __import__('sqlalchemy').text(
+                        f"ALTER TABLE marketing_activities ADD COLUMN IF NOT EXISTS {col_ddl}"
+                    )
+                )
+        except Exception:
+            pass  # Column already exists
+
     # Add targeting_segments column to campaigns if missing
     try:
         async with engine.begin() as conn:

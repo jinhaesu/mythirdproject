@@ -41,6 +41,10 @@ class MarketingActivity(Base):
     follows: Mapped[int] = mapped_column(Integer, default=0)
     cost: Mapped[float] = mapped_column(Float, default=0)  # KRW
 
+    link: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)  # 콘텐츠/게시물 URL
+    # 조회수 등 지표의 스냅샷 기준일 — 조회수는 계속 오르므로 "언제 시점 값인지" 기록
+    metrics_as_of: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+
     notes: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     source: Mapped[str] = mapped_column(String(20), default="manual")  # manual | sheet_import
 

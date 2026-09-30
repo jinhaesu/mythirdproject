@@ -11,7 +11,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend,
 } from 'recharts';
-import { Plus, Pencil, Trash2, X } from 'lucide-react';
+import { ExternalLink, Plus, Pencil, Trash2, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
   activitiesApi, type MarketingActivityRow, type MarketingActivityInput, formatNumber,
@@ -26,14 +26,22 @@ const TYPE_LABELS: Record<string, string> = {
   etc: '기타',
 };
 
+const today = () => new Date().toISOString().slice(0, 10);
+
 const EMPTY_FORM: MarketingActivityInput = {
   activity_type: 'content',
   product: '', product_category: '', channel: '', purpose: '', status: '',
   period_month: new Date().toISOString().slice(0, 7),
   activity_date: null,
   quantity: 1, views: 0, reach: 0, likes: 0, comments: 0, saves: 0, shares: 0, follows: 0,
-  cost: 0, notes: '',
+  cost: 0, link: '', metrics_as_of: today(), notes: '',
 };
+
+// 이 필드들이 바뀌면 지표 기준일을 오늘로 자동 갱신 (조회수는 계속 오르는 값이라
+// "언제 시점의 숫자인지"가 함께 기록돼야 함)
+const METRIC_FIELDS: (keyof MarketingActivityInput)[] = [
+  'views', 'reach', 'likes', 'comments', 'saves', 'shares', 'follows',
+];
 
 export function ActivitiesBoard() {
   const qc = useQueryClient();
@@ -234,11 +242,29 @@ export function ActivitiesBoard() {
                         {TYPE_LABELS[row.activity_type] || row.activity_type}
                       </span>
                     </td>
-                    <td className="px-3 py-2 text-text-primary max-w-[180px] truncate" title={row.product || ''}>{row.product || '-'}</td>
+                    <td className="px-3 py-2 text-text-primary max-w-[180px]">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="truncate" title={row.product || ''}>{row.product || '-'}</span>
+                        {row.link && (
+                          <a href={row.link} target="_blank" rel="noopener noreferrer"
+                            className="shrink-0 text-text-quaternary hover:text-brand transition-colors" title="콘텐츠 열기"
+                            onClick={(e) => e.stopPropagation()}>
+                            <ExternalLink size={12} />
+                          </a>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-3 py-2 text-text-secondary whitespace-nowrap">{row.channel || '-'}</td>
                     <td className="px-3 py-2 text-text-tertiary whitespace-nowrap">{row.purpose || '-'}</td>
                     <td className="px-3 py-2 text-text-secondary tabular-nums text-right">{fmtNum(row.quantity)}</td>
-                    <td className="px-3 py-2 text-text-primary tabular-nums text-right">{fmtNum(row.views)}</td>
+                    <td className="px-3 py-2 text-right">
+                      <span className="text-text-primary tabular-nums">{fmtNum(row.views)}</span>
+                      {row.metrics_as_of && (
+                        <span className="block text-[9px] text-text-quaternary leading-tight">
+                          {row.metrics_as_of.slice(5).replace('-', '/')} 기준
+                        </span>
+                      )}
+                    </td>
                     <td className="px-3 py-2 text-text-secondary tabular-nums text-right">{fmtWon(row.cost)}</td>
                     <td className="px-3 py-2 text-text-tertiary tabular-nums text-right">{row.cost_per_view != null ? `₩${row.cost_per_view}` : '-'}</td>
                     <td className="px-3 py-2 whitespace-nowrap">
@@ -299,7 +325,13 @@ function ActivityFormModal({
     onError: () => toast.error('저장 실패 — 입력값을 확인해 주세요'),
   });
 
-  const set = (k: keyof MarketingActivityInput, v: any) => setForm((f) => ({ ...f, [k]: v }));
+  const set = (k: keyof MarketingActivityInput, v: any) =>
+    setForm((f) => ({
+      ...f,
+      [k]: v,
+      // 지표를 고치면 기준일을 오늘로 자동 갱신 (직접 바꾸면 그 값 유지)
+      ...(METRIC_FIELDS.includes(k) ? { metrics_as_of: today() } : {}),
+    }));
   const numField = (k: keyof MarketingActivityInput, label: string) => (
     <label className="flex flex-col gap-1">
       <span className="text-[11px] text-text-tertiary">{label}</span>
@@ -375,6 +407,18 @@ function ActivityFormModal({
           {numField('saves', '저장')}
           {numField('shares', '공유')}
           {numField('follows', '팔로우')}
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] text-text-tertiary">지표 기준일</span>
+            <input type="date" value={form.metrics_as_of || ''} onChange={(e) => set('metrics_as_of', e.target.value || null)}
+              className="px-2 py-1.5 rounded-lg text-xs bg-bg-2 border border-border-primary text-text-primary" />
+            <span className="text-[10px] text-text-quaternary">조회수를 고치면 오늘로 자동 갱신</span>
+          </label>
+          <label className="flex flex-col gap-1 col-span-2">
+            <span className="text-[11px] text-text-tertiary">콘텐츠 링크</span>
+            <input type="url" value={form.link || ''} onChange={(e) => set('link', e.target.value)}
+              placeholder="https:// 게시물·영상 주소"
+              className="px-2 py-1.5 rounded-lg text-xs bg-bg-2 border border-border-primary text-text-primary" />
+          </label>
           <label className="flex flex-col gap-1 col-span-2 sm:col-span-3">
             <span className="text-[11px] text-text-tertiary">메모</span>
             <input value={form.notes || ''} onChange={(e) => set('notes', e.target.value)}

@@ -1797,6 +1797,8 @@ export interface MarketingActivityRow {
   follows: number;
   cost: number;
   cost_per_view?: number | null;
+  link?: string | null;
+  metrics_as_of?: string | null; // 조회수 등 지표 기준일
   notes?: string | null;
   source: string;
 }
