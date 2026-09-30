@@ -10,7 +10,6 @@ import {
   AffiliateManaging,
   MarketingKPI,
   ExternalMarketingKPI,
-  DataDashboard,
   HomeDashboard,
   ActivitiesBoard,
   GroupBuyBoard,
@@ -172,7 +171,6 @@ export default function Home() {
             {sub('kpi') === 0 && <GoalOverview />}
             {sub('kpi') === 1 && <MarketingKPI />}
             {sub('kpi') === 2 && <ExternalMarketingKPI />}
-            {sub('kpi') === 3 && <DataDashboard />}
           </>
         )}
         {activeMenu === 'tools' && (

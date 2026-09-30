@@ -498,7 +498,60 @@ export function ExternalMarketingKPI() {
             />
           </div>
 
-          {/* 채널 광고비 관리 */}
+          {/* 목표 설정 폼 — 카드 바로 아래로 이동 (2026-09-30 사용성 개편) */}
+          <div className="bg-bg-1 border border-border-primary rounded-xl p-4">
+            <button onClick={() => setGoalFormOpen((v) => !v)} className="w-full flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-text-secondary flex items-center gap-1.5">
+                <Target size={14} className="text-accent" />
+                목표 설정
+                <span className="text-[10px] font-normal text-text-quaternary">위 카드의 목표값을 여기서 입력합니다</span>
+              </h3>
+              {goalFormOpen ? <ChevronDown size={16} className="text-text-tertiary" /> : <ChevronRight size={16} className="text-text-tertiary" />}
+            </button>
+            {goalFormOpen && (
+              <div className="mt-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-text-tertiary w-20">대상 월</label>
+                  <input
+                    type="month"
+                    value={goalMonth}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setGoalMonth(e.target.value)}
+                    className="px-2 py-1.5 bg-bg-0 border border-border-primary rounded-lg text-xs text-text-secondary focus:outline-none focus:border-brand"
+                  />
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  <GoalInput label="목표 광고비 (₩)" value={targetSpend} onChange={setTargetSpend} />
+                  <GoalInput label="목표 매출 (₩)" value={targetRevenue} onChange={setTargetRevenue} />
+                  <GoalInput label="매출 보정(집계 외 수동 가산, ₩)" value={actualRevenueManual} onChange={setActualRevenueManual} />
+                </div>
+                <div>
+                  <label className="text-xs text-text-tertiary block mb-1">메모</label>
+                  <textarea
+                    value={goalMemo}
+                    onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setGoalMemo(e.target.value)}
+                    rows={2}
+                    className="w-full bg-bg-0 border border-border-primary rounded-lg px-3 py-2 text-xs text-text-secondary focus:outline-none focus:border-brand"
+                  />
+                </div>
+                <button
+                  onClick={handleSaveGoal}
+                  disabled={updateGoalMutation.isPending}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-brand text-white text-sm font-medium rounded-lg hover:bg-accent-hover disabled:opacity-50 transition-all"
+                >
+                  {updateGoalMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} 저장
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* 채널별 광고비·매출·ROAS는 KPI 대시보드로 이전 (2026-09-30) */}
+          <div className="bg-bg-1 border border-border-primary rounded-xl px-4 py-3 text-xs text-text-tertiary">
+            채널별 광고비·매출 기입과 ROAS 분석은 <b className="text-text-secondary">KPI·목표 › 대시보드</b>에서 합니다
+            (광고비는 광고비 일보에서 자동 합산).
+          </div>
+
+          {/* ↓ 구 채널 광고비·매출 관리 섹션 — 대시보드로 이전되어 렌더 중단 (코드 보존) */}
+          {false && (
           <div className="bg-bg-1 border border-border-primary rounded-xl p-4">
             <h3 className="text-sm font-semibold text-text-secondary mb-1 flex items-center gap-1.5">
               <Layers size={14} className="text-blue" />
@@ -710,6 +763,7 @@ export function ExternalMarketingKPI() {
               </div>
             </div>
           </div>
+          )}
 
           {/* 공동구매(어필리에이트) 매출 */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -783,50 +837,6 @@ export function ExternalMarketingKPI() {
             </div>
           </div>
 
-          {/* 목표 설정 폼 */}
-          <div className="bg-bg-1 border border-border-primary rounded-xl p-4">
-            <button onClick={() => setGoalFormOpen((v) => !v)} className="w-full flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-text-secondary flex items-center gap-1.5">
-                <Target size={14} className="text-accent" />
-                목표 설정
-              </h3>
-              {goalFormOpen ? <ChevronDown size={16} className="text-text-tertiary" /> : <ChevronRight size={16} className="text-text-tertiary" />}
-            </button>
-            {goalFormOpen && (
-              <div className="mt-4 space-y-3">
-                <div className="flex items-center gap-2">
-                  <label className="text-xs text-text-tertiary w-20">대상 월</label>
-                  <input
-                    type="month"
-                    value={goalMonth}
-                    onChange={(e: ChangeEvent<HTMLInputElement>) => setGoalMonth(e.target.value)}
-                    className="px-2 py-1.5 bg-bg-0 border border-border-primary rounded-lg text-xs text-text-secondary focus:outline-none focus:border-brand"
-                  />
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  <GoalInput label="목표 광고비 (₩)" value={targetSpend} onChange={setTargetSpend} />
-                  <GoalInput label="목표 매출 (₩)" value={targetRevenue} onChange={setTargetRevenue} />
-                  <GoalInput label="매출 보정(집계 외 수동 가산, ₩)" value={actualRevenueManual} onChange={setActualRevenueManual} />
-                </div>
-                <div>
-                  <label className="text-xs text-text-tertiary block mb-1">메모</label>
-                  <textarea
-                    value={goalMemo}
-                    onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setGoalMemo(e.target.value)}
-                    rows={2}
-                    className="w-full bg-bg-0 border border-border-primary rounded-lg px-3 py-2 text-xs text-text-secondary focus:outline-none focus:border-brand"
-                  />
-                </div>
-                <button
-                  onClick={handleSaveGoal}
-                  disabled={updateGoalMutation.isPending}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-brand text-white text-sm font-medium rounded-lg hover:bg-accent-hover disabled:opacity-50 transition-all"
-                >
-                  {updateGoalMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} 저장
-                </button>
-              </div>
-            )}
-          </div>
         </>
       )}
 

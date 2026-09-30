@@ -50,10 +50,9 @@ export const MENUS: { key: MenuKey; name: string; icon: any; subTabs: SubTabDef[
   {
     key: 'kpi', name: 'KPI·목표', icon: Target,
     subTabs: [
-      { id: 0, name: '달성 현황' },
+      { id: 0, name: '대시보드' },
       { id: 1, name: '자사몰 KPI' },
       { id: 2, name: '외부 채널 KPI' },
-      { id: 3, name: '채널 성과 분석' },
     ],
   },
   {

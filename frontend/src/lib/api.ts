@@ -1940,6 +1940,20 @@ export const adspendApi = {
     const { data } = await api.patch(`/adspend/media/${id}`, payload, { params: { active } });
     return data;
   },
+  roasBoard: async (monthsBack = 6): Promise<{
+    months: string[]; this_month: string; inflows: string[]; as_of: string;
+    cells: {
+      month: string; inflow: string; spend: number; limit: number | null;
+      usage_pct: number | null; revenue: number | null; revenue_auto: boolean; roas: number | null;
+    }[];
+  }> => {
+    const { data } = await api.get('/adspend/roas-board', { params: { months_back: monthsBack } });
+    return data;
+  },
+  upsertRevenue: async (month: string, inflow: string, revenue: number) => {
+    const { data } = await api.put('/adspend/revenue', { month, inflow, revenue });
+    return data;
+  },
   monthlySummary: async (month: string): Promise<{
     month: string; by_inflow: { inflow: string; spend: number; limit: number; plan: number }[];
     totals: { spend: number; limit: number; plan: number; usage_pct: number | null };
