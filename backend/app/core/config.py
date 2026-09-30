@@ -40,6 +40,11 @@ class Settings(BaseSettings):
     # NAVER API HUB (네이버클라우드 중개 통합 API 플랫폼 — 검색·쇼핑·트렌드 등)
     NAVER_HUB_CLIENT_ID: str = ""
     NAVER_HUB_CLIENT_SECRET: str = ""
+
+    # 네이버 로그인 OAuth 전용 앱 (GFA 광고 오픈API 연동용).
+    # 미설정 시 NAVER_CLIENT_ID/SECRET(검색·데이터랩 앱)으로 폴백.
+    NAVER_LOGIN_CLIENT_ID: str = ""
+    NAVER_LOGIN_CLIENT_SECRET: str = ""
     NAVER_HUB_API_BASE: str = "https://naverapihub.apigw.ntruss.com"
 
     # Naver Search Ads API (검색광고)

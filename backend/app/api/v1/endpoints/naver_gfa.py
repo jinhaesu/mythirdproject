@@ -40,6 +40,13 @@ NID_AUTH_URL = "https://nid.naver.com/oauth2.0/authorize"
 _oauth_states: Dict[str, int] = {}
 
 
+def _oauth_client() -> tuple[str, str]:
+    """GFA용 네이버 로그인 앱 자격 — 전용(NAVER_LOGIN_*) 우선, 없으면 기존 앱 폴백."""
+    cid = settings.NAVER_LOGIN_CLIENT_ID or settings.NAVER_CLIENT_ID
+    secret = settings.NAVER_LOGIN_CLIENT_SECRET or settings.NAVER_CLIENT_SECRET
+    return cid, secret
+
+
 async def _get_gfa_user(current_user: User, db: AsyncSession) -> Optional[User]:
     """GFA 토큰 보유 유저 (본인 우선, 없으면 공유 계정)."""
     if current_user.naver_gfa_refresh_token:
@@ -58,11 +65,12 @@ async def _ensure_token(user: User, db: AsyncSession) -> str:
     if (user.naver_gfa_access_token and user.naver_gfa_token_expires_at
             and user.naver_gfa_token_expires_at - now > timedelta(minutes=5)):
         return user.naver_gfa_access_token
+    cid, secret = _oauth_client()
     async with httpx.AsyncClient(timeout=15) as client:
         resp = await client.post(NID_TOKEN_URL, params={
             "grant_type": "refresh_token",
-            "client_id": settings.NAVER_CLIENT_ID,
-            "client_secret": settings.NAVER_CLIENT_SECRET,
+            "client_id": cid,
+            "client_secret": secret,
             "refresh_token": user.naver_gfa_refresh_token,
         })
     data = resp.json()
@@ -160,16 +168,17 @@ def _derive(m: Dict[str, float]) -> Dict[str, Any]:
 
 @router.get("/gfa/auth/start")
 async def gfa_auth_start(current_user: User = Depends(get_current_user)):
-    if not settings.NAVER_CLIENT_ID:
-        raise HTTPException(status_code=400, detail="NAVER_CLIENT_ID 미설정")
+    cid, _ = _oauth_client()
+    if not cid:
+        raise HTTPException(status_code=400, detail="NAVER_LOGIN_CLIENT_ID 미설정")
     state = _secrets.token_urlsafe(16)
     _oauth_states[state] = current_user.id
     redirect_uri = f"{settings.BACKEND_URL.rstrip('/')}/api/v1/naver/gfa/auth/callback"
     auth_url = (
-        f"{NID_AUTH_URL}?response_type=code&client_id={settings.NAVER_CLIENT_ID}"
+        f"{NID_AUTH_URL}?response_type=code&client_id={cid}"
         f"&redirect_uri={redirect_uri}&state={state}"
     )
-    return {"auth_url": auth_url, "redirect_uri": redirect_uri}
+    return {"auth_url": auth_url, "redirect_uri": redirect_uri, "client_id": cid}
 
 
 @router.get("/gfa/auth/callback")
@@ -183,11 +192,12 @@ async def gfa_auth_callback(
     user_id = _oauth_states.pop(state or "", None)
     if error or not code or not user_id:
         return RedirectResponse(f"{front}/?gfa=error&reason={error or 'invalid_state'}")
+    cid, secret = _oauth_client()
     async with httpx.AsyncClient(timeout=15) as client:
         resp = await client.post(NID_TOKEN_URL, params={
             "grant_type": "authorization_code",
-            "client_id": settings.NAVER_CLIENT_ID,
-            "client_secret": settings.NAVER_CLIENT_SECRET,
+            "client_id": cid,
+            "client_secret": secret,
             "code": code,
             "state": state,
         })
