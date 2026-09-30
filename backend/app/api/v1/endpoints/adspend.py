@@ -10,7 +10,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.endpoints.auth import get_current_user
@@ -275,7 +275,7 @@ async def _inflow_spend_by_month(db: AsyncSession, months: list) -> dict:
             func.to_char(AdMediaSpendDaily.date, "YYYY-MM"),
             func.coalesce(func.sum(AdMediaSpendDaily.amount), 0),
         ).where(AdMediaSpendDaily.date >= d_from, AdMediaSpendDaily.date < d_to)
-        .group_by(AdMediaSpendDaily.media_id, func.to_char(AdMediaSpendDaily.date, "YYYY-MM"))
+        .group_by(text("1, 2"))  # to_char 포맷이 바인드 파라미터로 렌더돼 표현식 GROUP BY가 불일치 → 위치 지정
     )).all()
     for mid, month, amt in rows:
         key = (month, inflow_of.get(mid, "기타"))
@@ -319,7 +319,7 @@ async def roas_board(
             func.to_char(MallOrder.order_date, "YYYY-MM"),
             func.coalesce(func.sum(MallOrder.amount), 0),
         ).where(MallOrder.status == "paid", MallOrder.order_date >= d_from, MallOrder.order_date < d_to)
-        .group_by(func.to_char(MallOrder.order_date, "YYYY-MM"))
+        .group_by(text("1"))
     )).all()
     mall_rev = {m: float(v) for m, v in mall_rows}
 
