@@ -30,6 +30,12 @@ router = APIRouter()
 AUTO_SOURCES = {"meta", "naver_sa"}
 
 
+def _month_add(month: str, delta: int) -> str:
+    y, m = int(month[:4]), int(month[5:7])
+    total = y * 12 + (m - 1) + delta
+    return f"{total // 12:04d}-{total % 12 + 1:02d}"
+
+
 def _month_range(month: str):
     y, m = int(month[:4]), int(month[5:7])
     start = date(y, m, 1)
