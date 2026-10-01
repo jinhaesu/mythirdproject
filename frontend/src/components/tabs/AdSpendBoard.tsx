@@ -33,6 +33,7 @@ export function AdSpendBoard() {
   const [month, setMonth] = useState(thisMonth());
   const [editCell, setEditCell] = useState<{ mediaId: number; date: string } | null>(null);
   const [editLimit, setEditLimit] = useState<number | null>(null); // media_id
+  const [editNote, setEditNote] = useState<number | null>(null); // media_id
   const [cellValue, setCellValue] = useState('');
   const [showAddMedia, setShowAddMedia] = useState(false);
 
@@ -54,6 +55,12 @@ export function AdSpendBoard() {
       adspendApi.upsertBudget(mediaId, month, { limit_amount: limit }),
     onSuccess: invalidate,
     onError: () => toast.error('Limit 저장 실패'),
+  });
+  const noteMut = useMutation({
+    mutationFn: ({ mediaId, note }: { mediaId: number; note: string }) =>
+      adspendApi.upsertBudget(mediaId, month, { note }),
+    onSuccess: invalidate,
+    onError: () => toast.error('비고 저장 실패'),
   });
 
   const days = board?.days_in_month ?? 30;
@@ -142,7 +149,7 @@ export function AdSpendBoard() {
       ) : (
         <div className="rounded-xl overflow-hidden" style={{ backgroundColor: 'var(--color-bg-level-1)', border: '1px solid var(--color-border-primary)' }}>
           <div className="overflow-x-auto max-h-[70vh] overflow-y-auto">
-            <table className="text-[11px] border-collapse" style={{ minWidth: `${340 + days * 52}px` }}>
+            <table className="text-[11px] border-collapse" style={{ minWidth: `${480 + days * 52}px` }}>
               <thead className="sticky top-0 z-20" style={{ backgroundColor: 'var(--color-bg-level-2)' }}>
                 <tr>
                   <th className="sticky left-0 z-30 px-2 py-2 text-left font-medium text-text-tertiary min-w-[190px]" style={{ backgroundColor: 'var(--color-bg-level-2)' }}>매체</th>
@@ -154,13 +161,14 @@ export function AdSpendBoard() {
                   <th className="px-2 py-2 text-right font-medium text-text-secondary min-w-[70px]">합계</th>
                   <th className="px-2 py-2 text-right font-medium text-text-quaternary min-w-[70px]">Limit</th>
                   <th className="px-2 py-2 text-right font-medium text-text-quaternary min-w-[52px]">사용율</th>
+                  <th className="px-2 py-2 text-left font-medium text-text-quaternary min-w-[140px]">비고</th>
                 </tr>
               </thead>
               <tbody>
                 {groups.map(([inflow, rows]) => (
                   <Fragment key={inflow}>
                     <tr>
-                      <td colSpan={days + 4} className="sticky left-0 px-2 py-1.5 text-[10px] font-bold" style={{ backgroundColor: 'rgb(var(--color-overlay-rgb) / 0.06)', color: 'var(--color-accent-hover)' }}>
+                      <td colSpan={days + 5} className="sticky left-0 px-2 py-1.5 text-[10px] font-bold" style={{ backgroundColor: 'rgb(var(--color-overlay-rgb) / 0.06)', color: 'var(--color-accent-hover)' }}>
                         {inflow}
                       </td>
                     </tr>
@@ -229,6 +237,24 @@ export function AdSpendBoard() {
                           r.usage_pct == null ? 'text-text-quaternary' :
                           r.usage_pct > 100 ? 'text-red' : r.usage_pct > 90 ? 'text-yellow' : 'text-green'
                         }`}>{r.usage_pct != null ? `${Math.round(r.usage_pct)}%` : '-'}</td>
+                        <td className="p-0">
+                          {editNote === r.media_id ? (
+                            <input
+                              autoFocus
+                              defaultValue={r.note || ''}
+                              onChange={(e) => setCellValue(e.target.value)}
+                              onBlur={() => { noteMut.mutate({ mediaId: r.media_id, note: cellValue.trim() }); setEditNote(null); }}
+                              onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setEditNote(null); }}
+                              className="w-[140px] px-1.5 py-1 text-[11px] bg-bg-2 border border-brand outline-none"
+                            />
+                          ) : (
+                            <button
+                              onClick={() => { setCellValue(r.note || ''); setEditNote(r.media_id); }}
+                              className="w-full max-w-[160px] px-1.5 py-1 text-left truncate text-text-tertiary hover:text-text-primary hover:bg-[rgb(var(--color-overlay-rgb)/0.07)]"
+                              title={r.note || '비고 입력'}
+                            >{r.note || '·'}</button>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </Fragment>
@@ -243,6 +269,7 @@ export function AdSpendBoard() {
                   <td className="px-2 py-1.5 text-right font-bold text-text-primary tabular-nums">{k(board?.totals.spend)}</td>
                   <td className="px-2 py-1.5 text-right text-text-quaternary tabular-nums">{k(board?.totals.limit)}</td>
                   <td className="px-2 py-1.5 text-right text-text-quaternary tabular-nums">{board?.totals.usage_pct != null ? `${board.totals.usage_pct}%` : ''}</td>
+                  <td />
                 </tr>
               </tfoot>
             </table>

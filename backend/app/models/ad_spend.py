@@ -39,6 +39,7 @@ class AdMediaBudget(Base):
     month: Mapped[str] = mapped_column(String(7), index=True)  # "YYYY-MM"
     limit_amount: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     plan_amount: Mapped[Optional[float]] = mapped_column(Float, nullable=True)  # 사업계획
+    note: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)  # 월별 비고 (일보 우측 비고란)
 
     __table_args__ = (UniqueConstraint("media_id", "month", name="uq_ad_media_budget"),)
 

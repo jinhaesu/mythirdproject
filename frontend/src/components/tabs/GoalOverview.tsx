@@ -205,7 +205,9 @@ export function GoalOverview() {
       <div className="rounded-xl overflow-hidden" style={{ backgroundColor: 'var(--color-bg-level-1)', border: '1px solid var(--color-border-primary)' }}>
         <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: '1px solid var(--color-border-primary)' }}>
           <h3 className="text-sm font-semibold text-text-primary">{parseInt(month.slice(5), 10)}월 채널별 광고비·매출·ROAS</h3>
-          <span className="text-[10px] text-text-quaternary">매출 칸 클릭 → 기입 (원 단위, VAT 포함 기준 통일)</span>
+          <span className="text-[10px] text-text-quaternary">
+            SALES 배지 = 매출 자동 연동(공급가·VAT별도) · 미연동 채널만 매출 칸 클릭 기입
+          </span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
@@ -233,10 +235,10 @@ export function GoalOverview() {
                   }`}>{r.usage_pct !== null ? `${Math.round(r.usage_pct)}%` : '-'}</td>
                   <td className="px-2 py-2 w-32"><ProgressBar pct={r.usage_pct} /></td>
                   <td className="px-4 py-2 text-right">
-                    {r.revenue_auto ? (
-                      <span className="tabular-nums text-text-primary" title="자사몰 주문 데이터 자동 집계">
-                        {r.revenue != null ? fmtWon(r.revenue) : '-'}
-                        <span className="ml-1 px-1 rounded text-[8px] font-bold bg-green/15 text-green align-middle">자동</span>
+                    {r.sales_linked ? (
+                      <span className="tabular-nums text-text-primary" title="SALES 시스템(CSA) 매출 자동 연동 — 공급가(VAT별도)">
+                        {r.revenue != null ? fmtWon(r.revenue) : <span className="text-text-quaternary">SALES 집계 전</span>}
+                        <span className="ml-1 px-1 rounded text-[8px] font-bold bg-green/15 text-green align-middle">SALES</span>
                       </span>
                     ) : editRev === r.inflow ? (
                       <input
@@ -285,7 +287,7 @@ export function GoalOverview() {
       </div>
       {board && (
         <p className="text-[10px] text-text-quaternary text-right">
-          기준: {month} · 광고비 일보 실시간 집계 · ROAS = 채널 매출 ÷ 채널 광고비 (매출 미기입 채널은 표시 안 됨)
+          기준: {month} · 광고비 = 일보 집계(VAT포함) · 매출 = SALES 시스템 공급가(VAT별도, 매칭 채널 자동) · ROAS = 매출 ÷ 광고비
         </p>
       )}
     </div>

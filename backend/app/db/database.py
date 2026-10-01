@@ -161,16 +161,18 @@ async def init_db():
     ]:
         await _add_users_col(col_name, col_ddl)
 
-    # Add owner column to ad_media if missing (2026-10-01 — 일보 10월 포맷 담당자 축)
-    try:
-        async with engine.begin() as conn:
-            await conn.execute(
-                __import__('sqlalchemy').text(
-                    "ALTER TABLE ad_media ADD COLUMN IF NOT EXISTS owner VARCHAR(50)"
+    # Add owner column to ad_media / note to ad_media_budgets if missing (2026-10-01)
+    for tbl, col_ddl in [("ad_media", "owner VARCHAR(50)"),
+                         ("ad_media_budgets", "note VARCHAR(300)")]:
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(
+                    __import__('sqlalchemy').text(
+                        f"ALTER TABLE {tbl} ADD COLUMN IF NOT EXISTS {col_ddl}"
+                    )
                 )
-            )
-    except Exception:
-        pass
+        except Exception:
+            pass
 
     # Add link / metrics_as_of / entry_kind columns to marketing_activities if missing (2026-09-30)
     for col_ddl in ["link VARCHAR(500)", "metrics_as_of DATE",

@@ -170,6 +170,7 @@ async def spend_board(
             "month_total": total,
             "limit_amount": limit_amt,
             "plan_amount": b.plan_amount if b else None,
+            "note": b.note if b else None,  # 월별 비고
             "usage_pct": round(total / limit_amt * 100, 1) if limit_amt else None,
         })
 
@@ -234,6 +235,7 @@ class BudgetUpsert(BaseModel):
     month: str = Field(..., min_length=7, max_length=7)
     limit_amount: Optional[float] = None
     plan_amount: Optional[float] = None
+    note: Optional[str] = Field(None, max_length=300)  # 월별 비고
 
 
 @router.put("/budget")
@@ -252,6 +254,8 @@ async def upsert_budget(
         row.limit_amount = payload.limit_amount
     if payload.plan_amount is not None:
         row.plan_amount = payload.plan_amount
+    if payload.note is not None:
+        row.note = payload.note.strip() or None
     await db.commit()
     return {"media_id": payload.media_id, "month": payload.month}
 
@@ -417,7 +421,7 @@ async def export_month_xlsx(
             ws.cell(ri, 6 + days, round(r["limit_amount"])).number_format = money
         if r["usage_pct"] is not None:
             ws.cell(ri, 7 + days, r["usage_pct"] / 100).number_format = "0%"
-        ws.cell(ri, 8 + days, (meta.memo if meta else None) or "")
+        ws.cell(ri, 8 + days, r.get("note") or (meta.memo if meta else None) or "")
         ri += 1
 
     # 합계 행
@@ -449,6 +453,71 @@ async def export_month_xlsx(
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"},
     )
+
+
+# ─── SALES(CSA) 채널 매출 연동 ───────────────────────────────────────────────
+# myfirstproject CSA 대시보드에서 월×채널 매출(공급가, VAT별도·월정액 차감 후)을
+# 가져와 ROAS를 자동 계산한다. 이름이 명확히 대응하는 채널만 매핑하고(대표 지시),
+# 애매한 채널(B2B·오프라인 CVS/마트·GS샵 홈쇼핑·11번가 슈팅 등)은 수동 기입 유지.
+import time as _time
+
+CSA_BASE = "https://myfirstproject-api-557811875995.asia-northeast3.run.app"
+
+INFLOW_TO_CSA: dict = {
+    "자사몰": ["카페24"],
+    "네이버스토어": ["스마트스토어"],
+    "쿠팡 WING": ["쿠팡 WING"],
+    "쿠팡 (사입)": ["쿠팡 로켓"],
+    "토스쇼핑": ["토스"],
+    "G마켓": ["지마켓"],
+    "옥션": ["옥션"],
+    "알리익스프레스": ["알리익스프레스"],
+    "11번가": ["11번가"],
+    "카카오 스토어": ["카카오톡스토어"],
+    "카카오선물하기": ["카카오선물하기"],
+    "올리브영": ["올리브영"],
+    "올웨이즈": ["올웨이즈"],
+    "GS샵": ["GS 샵"],
+    "CJ온스타일": ["CJ온스타일"],
+    "롯데ON": ["롯데온"],
+    "지그재그": ["카카오스타일"],  # 지그재그 운영명 = 카카오스타일
+    "이지웰": ["이지웰"],
+    "에이블리": ["에이블리"],
+    "Tdeal": ["T deal"],
+    "신세계라이브쇼핑": ["신세계 라이브쇼핑"],
+    "신세계TV": ["신세계 TV 쇼핑"],
+    "비마트": ["B마트"],
+    "컬리": ["마켓컬리"],
+}
+
+_csa_cache: dict = {}  # month -> {"data": {channel_name: revenue}, "expires": ts}
+_CSA_TTL = 600
+
+
+async def _csa_month_revenues(month: str) -> Optional[dict]:
+    """해당 월의 CSA 채널별 매출 {채널명: revenue}. 실패 시 None (수동 기입 폴백)."""
+    now = _time.time()
+    cached = _csa_cache.get(month)
+    if cached and cached["expires"] > now:
+        return cached["data"]
+    d_from, d_to = _month_range(month)
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.get(f"{CSA_BASE}/api/csa/dashboard", params={
+                "period_start": d_from.isoformat(),
+                "period_end": (d_to - timedelta(days=1)).isoformat(),
+                "granularity": "month",
+            })
+        if resp.status_code != 200:
+            logger.warning(f"[CSA] dashboard {month} -> {resp.status_code}")
+            return None
+        data = {c["channel_name"]: float(c.get("revenue") or 0)
+                for c in resp.json().get("channels", [])}
+        _csa_cache[month] = {"data": data, "expires": now + _CSA_TTL}
+        return data
+    except Exception as e:
+        logger.warning(f"[CSA] dashboard {month} 실패: {e}")
+        return None
 
 
 # ─── 채널 ROAS 보드 (유입채널 × 월 — 광고비 자동 + 매출 기입) ────────────────
@@ -500,23 +569,16 @@ async def roas_board(
     months = [_month_add(this_month, i) for i in range(-months_back + 1, 1)]
     spend_by = await _inflow_spend_by_month(db, months)
 
-    # 매출: 기입값 + 자사몰 자동(mall_orders paid 월합)
+    # 매출: ① SALES(CSA) 매칭 채널 = 자동 ② 미매칭 채널 = 수동 기입(channel_revenues)
+    import asyncio as _asyncio
     rev_rows = (await db.execute(
         select(ChannelRevenue).where(
             ChannelRevenue.month >= months[0], ChannelRevenue.month <= months[-1]
         )
     )).scalars().all()
     rev_by = {(r.month, r.inflow): r.revenue for r in rev_rows}
-    d_from, _ = _month_range(months[0])
-    _, d_to = _month_range(months[-1])
-    mall_rows = (await db.execute(
-        select(
-            func.to_char(MallOrder.order_date, "YYYY-MM"),
-            func.coalesce(func.sum(MallOrder.amount), 0),
-        ).where(MallOrder.status == "paid", MallOrder.order_date >= d_from, MallOrder.order_date < d_to)
-        .group_by(text("1"))
-    )).all()
-    mall_rev = {m: float(v) for m, v in mall_rows}
+    csa_results = await _asyncio.gather(*[_csa_month_revenues(m) for m in months])
+    csa_by_month = dict(zip(months, csa_results))
 
     # 예산(Limit·사업계획) — 유입채널별 월합
     budgets = (await db.execute(
@@ -532,10 +594,20 @@ async def roas_board(
     inflows = sorted({k[1] for k in list(spend_by) + list(rev_by) + list(limit_by)})
     cells = []
     for m in months:
+        csa = csa_by_month.get(m)
         for inf in inflows:
             spend = round(spend_by.get((m, inf), 0), 0)
-            is_mall = inf == "자사몰"
-            revenue = mall_rev.get(m) if is_mall else rev_by.get((m, inf))
+            csa_names = INFLOW_TO_CSA.get(inf)
+            revenue = None
+            source = None
+            if csa_names and csa is not None:
+                revenue = sum(csa.get(n, 0) for n in csa_names)
+                source = "sales"
+                if revenue == 0:
+                    revenue = None  # 해당 월 SALES 데이터 없음(미업로드) — 빈 값으로
+            if revenue is None and rev_by.get((m, inf)) is not None:
+                revenue = rev_by[(m, inf)]
+                source = "manual"
             limit_amt = round(limit_by.get((m, inf), 0), 0) or None
             if not spend and not revenue and not limit_amt:
                 continue
@@ -545,7 +617,9 @@ async def roas_board(
                 "limit": limit_amt,
                 "usage_pct": round(spend / limit_amt * 100, 1) if limit_amt else None,
                 "revenue": round(revenue, 0) if revenue is not None else None,
-                "revenue_auto": is_mall,
+                "revenue_auto": source == "sales",
+                "revenue_source": source,
+                "sales_linked": bool(csa_names),
                 "roas": round(revenue / spend, 2) if revenue and spend else None,
             })
     return {
@@ -571,8 +645,8 @@ async def upsert_channel_revenue(
 ):
     from app.models import ChannelRevenue
 
-    if payload.inflow == "자사몰":
-        raise HTTPException(status_code=422, detail="자사몰 매출은 주문 데이터에서 자동 집계됩니다")
+    if payload.inflow in INFLOW_TO_CSA:
+        raise HTTPException(status_code=422, detail="SALES 시스템 연동 채널은 매출이 자동 집계됩니다")
     row = (await db.execute(select(ChannelRevenue).where(
         ChannelRevenue.month == payload.month, ChannelRevenue.inflow == payload.inflow
     ))).scalar_one_or_none()

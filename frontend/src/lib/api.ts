@@ -1917,6 +1917,7 @@ export interface AdMediaRow {
   auto: boolean; auto_source?: string | null; memo?: string | null;
   daily: Record<string, number>;
   month_total: number; limit_amount?: number | null; plan_amount?: number | null;
+  note?: string | null;
   usage_pct?: number | null;
 }
 
@@ -1934,7 +1935,7 @@ export const adspendApi = {
     const { data } = await api.put('/adspend/entry', { media_id, date, amount });
     return data;
   },
-  upsertBudget: async (media_id: number, month: string, payload: { limit_amount?: number; plan_amount?: number }) => {
+  upsertBudget: async (media_id: number, month: string, payload: { limit_amount?: number; plan_amount?: number; note?: string }) => {
     const { data } = await api.put('/adspend/budget', { media_id, month, ...payload });
     return data;
   },
@@ -1953,7 +1954,8 @@ export const adspendApi = {
     months: string[]; this_month: string; inflows: string[]; as_of: string;
     cells: {
       month: string; inflow: string; spend: number; limit: number | null;
-      usage_pct: number | null; revenue: number | null; revenue_auto: boolean; roas: number | null;
+      usage_pct: number | null; revenue: number | null; revenue_auto: boolean;
+      revenue_source?: 'sales' | 'manual' | null; sales_linked?: boolean; roas: number | null;
     }[];
   }> => {
     const { data } = await api.get('/adspend/roas-board', { params: { months_back: monthsBack } });
