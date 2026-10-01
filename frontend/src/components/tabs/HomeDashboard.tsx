@@ -11,7 +11,7 @@ import {
   ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip,
 } from 'recharts';
 import {
-  ShoppingBag, LineChart, Megaphone, MessageCircle, ClipboardList,
+  LineChart, Megaphone, MessageCircle, ClipboardList, Receipt, Target,
   ArrowUpRight, ArrowDownRight, CheckCircle2, AlertCircle, ChevronRight,
 } from 'lucide-react';
 import { homeApi } from '@/lib/api';
@@ -62,6 +62,18 @@ function SectionCard({
         )}
       </div>
       {children}
+    </div>
+  );
+}
+
+function MiniProgress({ pct }: { pct: number | null | undefined }) {
+  if (pct === null || pct === undefined) {
+    return <div className="h-1.5 rounded-full" style={{ backgroundColor: 'rgb(var(--color-overlay-rgb) / 0.07)' }} />;
+  }
+  const color = pct > 100 ? '#EA4335' : pct >= 90 ? '#F0BF00' : '#27A644';
+  return (
+    <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'rgb(var(--color-overlay-rgb) / 0.07)' }}>
+      <div className="h-full rounded-full" style={{ width: `${Math.min(100, pct)}%`, backgroundColor: color }} />
     </div>
   );
 }
@@ -202,16 +214,86 @@ export function HomeDashboard() {
           )}
         </SectionCard>
 
-        {/* 활동 기록 */}
+        {/* 활동 기록 — 월별 조회수 미니 차트 */}
         <SectionCard title={`활동 기록 · ${monthLabel}`} icon={ClipboardList} menu="input" subTab={1}>
           <div className="flex gap-6 flex-wrap">
             <Metric label="기록" value={`${fmtNum(b.activities?.month_rows)}건`} />
             <Metric label="조회수 합계" value={fmtNum(b.activities?.month_views)} />
             <Metric label="집행 비용" value={fmtWon(b.activities?.month_cost)} />
           </div>
-          <p className="text-[11px] text-text-quaternary">
-            콘텐츠·인플루언서·체험단·서포터즈 집행을 시트 대신 여기에 기록하면 월별·채널별로 자동 집계됩니다.
-          </p>
+          {(b.activities_monthly || []).length > 0 && (
+            <div className="h-28">
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={b.activities_monthly.map((m: any) => ({ ...m, label: m.month.slice(2) }))} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
+                  <XAxis dataKey="label" tick={{ fontSize: 9, fill: 'var(--color-text-quaternary)' }} tickLine={false} axisLine={false} />
+                  <YAxis hide />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)', borderRadius: 8, fontSize: 11 }}
+                    formatter={(v: any, name: any) => (name === '비용' ? [fmtWon(v), name] : [fmtNum(v), name])}
+                  />
+                  <Bar dataKey="views" name="조회수" fill="#4EA7FC" opacity={0.6} radius={[3, 3, 0, 0]} />
+                  <Line dataKey="cost" name="비용" stroke="#F0BF00" strokeWidth={2} dot={false} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </SectionCard>
+
+        {/* 광고비 일보 — 집행 vs Limit + 6개월 추이 */}
+        <SectionCard title={`광고비 일보 · ${monthLabel}`} icon={Receipt} menu="input" subTab={0}>
+          <div className="flex gap-6 flex-wrap">
+            <Metric label="집행" value={fmtWon(b.adspend?.month_spend)} />
+            <Metric label="Limit" value={b.adspend?.month_limit ? fmtWon(b.adspend.month_limit) : '-'} />
+            <Metric
+              label="사용율"
+              value={b.adspend?.usage_pct != null ? `${b.adspend.usage_pct}%` : '-'}
+            />
+          </div>
+          <MiniProgress pct={b.adspend?.usage_pct} />
+          {(b.adspend?.monthly || []).length > 0 && (
+            <div className="h-28">
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={b.adspend.monthly.map((m: any) => ({ ...m, label: m.month.slice(2) }))} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
+                  <XAxis dataKey="label" tick={{ fontSize: 9, fill: 'var(--color-text-quaternary)' }} tickLine={false} axisLine={false} />
+                  <YAxis hide />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)', borderRadius: 8, fontSize: 11 }}
+                    formatter={(v: any, name: any) => [fmtWon(v), name]}
+                  />
+                  <Bar dataKey="spend" name="집행" fill="#7070FF" opacity={0.6} radius={[3, 3, 0, 0]} />
+                  <Line dataKey="limit" name="Limit" stroke="#EA4335" strokeWidth={1.5} strokeDasharray="4 3" dot={false} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </SectionCard>
+
+        {/* KPI 목표 현황 */}
+        <SectionCard title={`목표 현황 · ${monthLabel}`} icon={Target} menu="analysis" subTab={0}>
+          <div className="space-y-2.5">
+            <div>
+              <div className="flex items-center justify-between text-[11px] mb-1">
+                <span className="text-text-tertiary">자사몰 매출 vs 외부 목표 매출</span>
+                <span className="text-text-secondary tabular-nums">
+                  {fmtWon(b.sales?.month_amount)}{b.goal?.ext_target_revenue ? ` / ${fmtWon(b.goal.ext_target_revenue)}` : ' / 목표 미입력'}
+                </span>
+              </div>
+              <MiniProgress pct={b.goal?.ext_target_revenue ? Math.round((b.sales?.month_amount / b.goal.ext_target_revenue) * 100) : null} />
+            </div>
+            <div>
+              <div className="flex items-center justify-between text-[11px] mb-1">
+                <span className="text-text-tertiary">광고비 집행 vs Limit</span>
+                <span className="text-text-secondary tabular-nums">
+                  {fmtWon(b.adspend?.month_spend)}{b.adspend?.month_limit ? ` / ${fmtWon(b.adspend.month_limit)}` : ''}
+                </span>
+              </div>
+              <MiniProgress pct={b.adspend?.usage_pct} />
+            </div>
+            <p className="text-[11px] text-text-quaternary">
+              목표 CAC {b.goal?.target_cac ? fmtWon(b.goal.target_cac) : '미입력'} · 목표 신규고객 {b.goal?.target_new_customers ? fmtNum(b.goal.target_new_customers) : '미입력'}
+              — 목표는 <b className="text-text-tertiary">입력 › 월 목표 입력</b>에서
+            </p>
+          </div>
         </SectionCard>
       </div>
       <p className="text-[10px] text-text-quaternary text-right">

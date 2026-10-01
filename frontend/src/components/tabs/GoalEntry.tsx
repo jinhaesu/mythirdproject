@@ -46,8 +46,8 @@ export function GoalEntry() {
   const { setActiveMenu, setMenuSubTab } = useAppStore();
   const [month, setMonth] = useState(thisMonth());
 
-  const { data: mallGoals } = useQuery({ queryKey: ['kpi', 'goals'], queryFn: () => kpiApi.listGoals(24) });
-  const { data: extGoals } = useQuery({ queryKey: ['kpi', 'ext-goals'], queryFn: () => externalKpiApi.listGoals(24) });
+  const { data: mallGoals } = useQuery({ queryKey: ['kpi', 'goals'], queryFn: () => kpiApi.listGoals(24, 6) });
+  const { data: extGoals } = useQuery({ queryKey: ['kpi', 'ext-goals'], queryFn: () => externalKpiApi.listGoals(24, 6) });
 
   const [mall, setMall] = useState({ cac: '', ltv: '', ltvCac: '', conv: '', aov: '', newCust: '', memo: '' });
   const [ext, setExt] = useState({ spend: '', revenue: '', manual: '', memo: '' });

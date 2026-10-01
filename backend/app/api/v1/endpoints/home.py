@@ -151,6 +151,46 @@ async def home_briefing(
         )
     )).first()
 
+    # ── 광고비 일보 — 이번 달 + 최근 6개월 월별 집행/Limit ────────────────
+    from app.api.v1.endpoints.adspend import _inflow_spend_by_month, _month_add
+    from app.models import AdMediaBudget
+
+    months6 = [_month_add(month_str, i) for i in range(-5, 1)]
+    spend_by = await _inflow_spend_by_month(db, months6)
+    spend_per_month = {m: 0.0 for m in months6}
+    for (m, _inf), v in spend_by.items():
+        if m in spend_per_month:
+            spend_per_month[m] += v
+    limit_rows = (await db.execute(
+        select(AdMediaBudget.month, func.coalesce(func.sum(AdMediaBudget.limit_amount), 0))
+        .where(AdMediaBudget.month.in_(months6))
+        .group_by(AdMediaBudget.month)
+    )).all()
+    limit_per_month = {m: float(v) for m, v in limit_rows}
+    adspend_month_spend = round(spend_per_month.get(month_str, 0), 0)
+    adspend_month_limit = round(limit_per_month.get(month_str, 0), 0)
+
+    # ── 활동 기록 — 최근 6개월 월별 조회수/비용 (실적만) ─────────────────
+    act_monthly_rows = (await db.execute(
+        select(
+            MarketingActivity.period_month,
+            func.coalesce(func.sum(MarketingActivity.views), 0),
+            func.coalesce(func.sum(MarketingActivity.cost), 0),
+            func.count(MarketingActivity.id),
+        ).where(
+            MarketingActivity.period_month.in_(months6),
+            MarketingActivity.entry_kind == "actual",
+        ).group_by(MarketingActivity.period_month)
+    )).all()
+    act_by_month = {m: {"views": int(v), "cost": float(c), "rows": int(n)}
+                    for m, v, c, n in act_monthly_rows}
+
+    # ── 이번 달 목표 (외부 매출 목표 포함) ───────────────────────────────
+    from app.models import ExternalMarketingGoal
+    ext_goal = (await db.execute(
+        select(ExternalMarketingGoal).where(ExternalMarketingGoal.month == month_str)
+    )).scalar_one_or_none()
+
     # ── 연동 상태 ────────────────────────────────────────────────────────
     cafe24_user = current_user if current_user.cafe24_access_token else await get_shared_cafe24_user(db)
     meta_connected = (await db.execute(
@@ -176,7 +216,24 @@ async def home_briefing(
             "month_planned_spend": month_planned_spend,
             "target_new_customers": goal.target_new_customers if goal else None,
             "target_cac": goal.target_cac if goal else None,
+            "ext_target_revenue": ext_goal.target_revenue if ext_goal else None,
+            "ext_target_spend": ext_goal.target_spend if ext_goal else None,
         },
+        "adspend": {
+            "month_spend": adspend_month_spend,
+            "month_limit": adspend_month_limit,
+            "usage_pct": round(adspend_month_spend / adspend_month_limit * 100, 1)
+            if adspend_month_limit else None,
+            "monthly": [
+                {"month": m, "spend": round(spend_per_month.get(m, 0), 0),
+                 "limit": round(limit_per_month.get(m, 0), 0)}
+                for m in months6
+            ],
+        },
+        "activities_monthly": [
+            {"month": m, **act_by_month.get(m, {"views": 0, "cost": 0, "rows": 0})}
+            for m in months6
+        ],
         "meta": {
             "spend_7d": meta_spend7,
             "revenue_7d": meta_rev7,

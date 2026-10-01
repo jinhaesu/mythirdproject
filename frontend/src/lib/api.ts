@@ -1454,9 +1454,10 @@ export const kpiApi = {
   },
 
   /** 월별 목표 upsert */
-  listGoals: async (months = 12): Promise<KPIGoal[]> => {
-    const { data } = await api.get<KPIGoal[]>('/kpi/goals', { params: { months } });
-    return data;
+  listGoals: async (months = 12, includeFuture = 0): Promise<KPIGoal[]> => {
+    // 응답은 {goals: [...]} 래핑 — 배열로 언래핑해서 반환
+    const { data } = await api.get<any>('/kpi/goals', { params: { months, include_future: includeFuture } });
+    return data?.goals ?? data ?? [];
   },
   updateGoal: async (month: string, payload: KPIGoalUpdatePayload): Promise<KPIGoal> => {
     const { data } = await api.put<KPIGoal>(`/kpi/goals/${month}`, payload);
@@ -1599,9 +1600,9 @@ export const externalKpiApi = {
     return data;
   },
 
-  listGoals: async (months = 12): Promise<KPIExternalGoal[]> => {
-    const { data } = await api.get<KPIExternalGoal[]>('/kpi/external-goals', { params: { months } });
-    return data;
+  listGoals: async (months = 12, includeFuture = 0): Promise<KPIExternalGoal[]> => {
+    const { data } = await api.get<any>('/kpi/external-goals', { params: { months, include_future: includeFuture } });
+    return data?.goals ?? data ?? [];
   },
   /** 월별 그 외 채널 목표 upsert (목표 광고비/목표 매출/기타 판매채널 매출) */
   updateGoal: async (month: string, payload: KPIExternalGoalUpdatePayload): Promise<KPIExternalGoal> => {

@@ -79,12 +79,18 @@ def _month_bounds(month: str) -> tuple[date, date]:
     return start, date(year, mon, last_day)
 
 
-def _recent_months(n: int) -> list[str]:
-    """오늘이 속한 월을 포함해 최근 n개월 (오래된 순 → 최신 순)."""
+def _recent_months(n: int, include_future: int = 0) -> list[str]:
+    """오늘이 속한 월을 포함해 최근 n개월 (+미래 include_future개월, 오래된 순)."""
     today = date.today()
     y, m = today.year, today.month
+    # 미래 월부터 시작점 이동 (목표 미리 입력 프리필용)
+    for _ in range(include_future):
+        m += 1
+        if m == 13:
+            m = 1
+            y += 1
     months = []
-    for _ in range(n):
+    for _ in range(n + include_future):
         months.append(f"{y:04d}-{m:02d}")
         m -= 1
         if m == 0:
@@ -779,11 +785,12 @@ async def upsert_marketing_goal(
 @router.get("/goals")
 async def list_marketing_goals(
     months: int = Query(default=12, ge=1, le=24),
+    include_future: int = Query(default=0, ge=0, le=12),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """최근 N개월 범위 내 저장된 마케팅 목표 목록 (없는 월은 생략)."""
-    month_list = _recent_months(months)
+    """최근 N개월(+미래 include_future개월) 범위 내 저장된 마케팅 목표 목록."""
+    month_list = _recent_months(months, include_future)
     result = await db.execute(
         select(MarketingGoal)
         .where(MarketingGoal.month.in_(month_list))
@@ -828,11 +835,12 @@ async def upsert_external_marketing_goal(
 @router.get("/external-goals")
 async def list_external_marketing_goals(
     months: int = Query(default=12, ge=1, le=24),
+    include_future: int = Query(default=0, ge=0, le=12),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """최근 N개월 범위 내 저장된 그 외(외부) 마케팅 목표 목록 (없는 월은 생략)."""
-    month_list = _recent_months(months)
+    """최근 N개월(+미래) 범위 내 저장된 그 외(외부) 마케팅 목표 목록."""
+    month_list = _recent_months(months, include_future)
     result = await db.execute(
         select(ExternalMarketingGoal)
         .where(ExternalMarketingGoal.month.in_(month_list))
