@@ -36,6 +36,8 @@ export function AdSpendBoard() {
   const [editNote, setEditNote] = useState<number | null>(null); // media_id
   const [cellValue, setCellValue] = useState('');
   const [showAddMedia, setShowAddMedia] = useState(false);
+  const [inflowF, setInflowF] = useState(''); // '' = 전체
+  const [ownerF, setOwnerF] = useState(''); // '' = 전체
 
   const { data: board, isLoading } = useQuery({
     queryKey: ['adspend', 'board', month],
@@ -70,16 +72,48 @@ export function AdSpendBoard() {
   );
   const todayIso = new Date().toISOString().slice(0, 10);
 
+  // 필터 옵션 (이달 전체 행 기준)
+  const inflowOptions = useMemo(
+    () => Array.from(new Set((board?.rows || []).map((r) => r.inflow || '기타'))),
+    [board],
+  );
+  const ownerOptions = useMemo(
+    () => Array.from(new Set((board?.rows || []).map((r) => r.owner).filter(Boolean))) as string[],
+    [board],
+  );
+
+  // 필터 적용된 행
+  const filteredRows = useMemo(
+    () => (board?.rows || []).filter((r) =>
+      (!inflowF || (r.inflow || '기타') === inflowF) && (!ownerF || r.owner === ownerF)),
+    [board, inflowF, ownerF],
+  );
+  const isFiltered = !!(inflowF || ownerF);
+
   // 유입채널별 그룹핑
   const groups = useMemo(() => {
     const map = new Map<string, AdMediaRow[]>();
-    (board?.rows || []).forEach((r) => {
+    filteredRows.forEach((r) => {
       const key = r.inflow || '기타';
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(r);
     });
     return Array.from(map.entries());
-  }, [board]);
+  }, [filteredRows]);
+
+  // 필터 반영 합계 (필터 없으면 서버 totals 그대로)
+  const view = useMemo(() => {
+    if (!board) return null;
+    if (!isFiltered) return { dayTotals: board.day_totals, ...board.totals };
+    const dayTotals: Record<string, number> = {};
+    let spend = 0; let limit = 0;
+    filteredRows.forEach((r) => {
+      Object.entries(r.daily).forEach(([d, v]) => { dayTotals[d] = (dayTotals[d] || 0) + v; });
+      spend += r.month_total || 0;
+      limit += r.limit_amount || 0;
+    });
+    return { dayTotals, spend, limit, plan: 0, usage_pct: limit ? Math.round((spend / limit) * 1000) / 10 : null };
+  }, [board, filteredRows, isFiltered]);
 
   const commitCell = () => {
     if (!editCell) return;
@@ -106,6 +140,20 @@ export function AdSpendBoard() {
             className="px-2 py-1.5 rounded-lg text-xs bg-bg-2 border border-border-primary text-text-primary" />
           <button onClick={() => setMonth(monthAdd(month, 1))} className="p-1.5 rounded-lg border border-border-primary text-text-tertiary hover:text-text-primary"><ChevronRight size={13} /></button>
         </div>
+        <select value={inflowF} onChange={(e) => setInflowF(e.target.value)}
+          className="px-2 py-1.5 rounded-lg text-xs bg-bg-2 border border-border-primary text-text-primary max-w-[150px]">
+          <option value="">유입채널 전체</option>
+          {inflowOptions.map((o) => <option key={o} value={o}>{o}</option>)}
+        </select>
+        <select value={ownerF} onChange={(e) => setOwnerF(e.target.value)}
+          className="px-2 py-1.5 rounded-lg text-xs bg-bg-2 border border-border-primary text-text-primary max-w-[120px]">
+          <option value="">담당자 전체</option>
+          {ownerOptions.map((o) => <option key={o} value={o}>{o}</option>)}
+        </select>
+        {isFiltered && (
+          <button onClick={() => { setInflowF(''); setOwnerF(''); }}
+            className="px-2 py-1.5 rounded-lg text-xs text-red border border-red/40 hover:bg-red/10">필터 해제</button>
+        )}
         <button
           onClick={async () => {
             try { await adspendApi.exportXlsx(month); toast.success('엑셀 다운로드 시작'); }
@@ -122,19 +170,19 @@ export function AdSpendBoard() {
         </button>
       </div>
 
-      {/* 월 요약 */}
-      {board && (
+      {/* 월 요약 (필터 반영) */}
+      {board && view && (
         <div className="flex flex-wrap gap-3">
           {[
-            { label: `${parseInt(month.slice(5), 10)}월 집행`, value: fmtWon(board.totals.spend) },
-            { label: 'Limit 합계', value: fmtWon(board.totals.limit) },
+            { label: `${parseInt(month.slice(5), 10)}월 집행${isFiltered ? ' (필터)' : ''}`, value: fmtWon(view.spend) },
+            { label: 'Limit 합계', value: fmtWon(view.limit) },
             {
               label: '사용율',
-              value: board.totals.usage_pct != null ? `${board.totals.usage_pct}%` : '-',
-              cls: board.totals.usage_pct != null && board.totals.usage_pct > 100 ? 'text-red' :
-                board.totals.usage_pct != null && board.totals.usage_pct > 90 ? 'text-yellow' : 'text-green',
+              value: view.usage_pct != null ? `${view.usage_pct}%` : '-',
+              cls: view.usage_pct != null && view.usage_pct > 100 ? 'text-red' :
+                view.usage_pct != null && view.usage_pct > 90 ? 'text-yellow' : 'text-green',
             },
-            { label: '매체 수', value: String(board.rows.length) },
+            { label: '매체 수', value: isFiltered ? `${filteredRows.length} / ${board.rows.length}` : String(board.rows.length) },
           ].map((c) => (
             <div key={c.label} className="rounded-xl px-4 py-2.5" style={{ backgroundColor: 'var(--color-bg-level-1)', border: '1px solid var(--color-border-primary)' }}>
               <p className="text-[10px] text-text-quaternary">{c.label}</p>
@@ -262,13 +310,13 @@ export function AdSpendBoard() {
               </tbody>
               <tfoot className="sticky bottom-0" style={{ backgroundColor: 'var(--color-bg-level-2)' }}>
                 <tr style={{ borderTop: '2px solid var(--color-border-primary)' }}>
-                  <td className="sticky left-0 px-2 py-1.5 font-bold text-text-primary" style={{ backgroundColor: 'var(--color-bg-level-2)' }}>일별 합계</td>
+                  <td className="sticky left-0 px-2 py-1.5 font-bold text-text-primary" style={{ backgroundColor: 'var(--color-bg-level-2)' }}>일별 합계{isFiltered ? ' (필터)' : ''}</td>
                   {dates.map((d) => (
-                    <td key={d} className="px-1 py-1.5 text-right font-medium text-text-secondary tabular-nums">{k(board?.day_totals[d])}</td>
+                    <td key={d} className="px-1 py-1.5 text-right font-medium text-text-secondary tabular-nums">{k(view?.dayTotals[d])}</td>
                   ))}
-                  <td className="px-2 py-1.5 text-right font-bold text-text-primary tabular-nums">{k(board?.totals.spend)}</td>
-                  <td className="px-2 py-1.5 text-right text-text-quaternary tabular-nums">{k(board?.totals.limit)}</td>
-                  <td className="px-2 py-1.5 text-right text-text-quaternary tabular-nums">{board?.totals.usage_pct != null ? `${board.totals.usage_pct}%` : ''}</td>
+                  <td className="px-2 py-1.5 text-right font-bold text-text-primary tabular-nums">{k(view?.spend)}</td>
+                  <td className="px-2 py-1.5 text-right text-text-quaternary tabular-nums">{k(view?.limit)}</td>
+                  <td className="px-2 py-1.5 text-right text-text-quaternary tabular-nums">{view?.usage_pct != null ? `${view.usage_pct}%` : ''}</td>
                   <td />
                 </tr>
               </tfoot>
@@ -279,7 +327,7 @@ export function AdSpendBoard() {
 
       {showAddMedia && (
         <AddMediaModal
-          existingInflows={groups.map(([g]) => g)}
+          existingInflows={inflowOptions}
           onClose={() => setShowAddMedia(false)}
           onSaved={() => { setShowAddMedia(false); invalidate(); }}
         />

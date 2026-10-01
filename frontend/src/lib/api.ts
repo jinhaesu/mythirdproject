@@ -1914,6 +1914,7 @@ export const insightsDailyApi = {
 // ─── 광고비 일보 (매체별 일별 광고비) ────────────────────────────────────────
 export interface AdMediaRow {
   media_id: number; name: string; group_name?: string | null; inflow?: string | null;
+  owner?: string | null;
   auto: boolean; auto_source?: string | null; memo?: string | null;
   daily: Record<string, number>;
   month_total: number; limit_amount?: number | null; plan_amount?: number | null;
@@ -1950,7 +1951,7 @@ export const adspendApi = {
     const { data } = await api.patch(`/adspend/media/${id}`, payload, { params: { active } });
     return data;
   },
-  roasBoard: async (monthsBack = 6): Promise<{
+  roasBoard: async (opts: number | { monthsBack?: number; monthFrom?: string; monthTo?: string } = 6): Promise<{
     months: string[]; this_month: string; inflows: string[]; as_of: string;
     cells: {
       month: string; inflow: string; spend: number; limit: number | null;
@@ -1958,7 +1959,11 @@ export const adspendApi = {
       revenue_source?: 'sales' | 'manual' | null; sales_linked?: boolean; roas: number | null;
     }[];
   }> => {
-    const { data } = await api.get('/adspend/roas-board', { params: { months_back: monthsBack } });
+    const o = typeof opts === 'number' ? { monthsBack: opts } : opts;
+    const params: Record<string, any> = {};
+    if (o.monthFrom && o.monthTo) { params.month_from = o.monthFrom; params.month_to = o.monthTo; }
+    else params.months_back = o.monthsBack ?? 6;
+    const { data } = await api.get('/adspend/roas-board', { params });
     return data;
   },
   upsertRevenue: async (month: string, inflow: string, revenue: number) => {

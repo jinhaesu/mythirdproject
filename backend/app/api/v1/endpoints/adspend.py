@@ -556,6 +556,8 @@ async def _inflow_spend_by_month(db: AsyncSession, months: list) -> dict:
 @router.get("/roas-board")
 async def roas_board(
     months_back: int = Query(default=6, ge=1, le=24),
+    month_from: str | None = Query(default=None, min_length=7, max_length=7),
+    month_to: str | None = Query(default=None, min_length=7, max_length=7),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -563,11 +565,23 @@ async def roas_board(
 
     구 '채널 성과 분석'(monthly_channel_spends 소수 채널) 대체 —
     광고비 일보의 전체 유입채널 축으로 분석한다. 금액 원 단위(VAT 포함).
+    month_from/month_to(YYYY-MM)를 함께 주면 커스텀 범위(최대 24개월)가 months_back보다 우선.
     """
     from app.models import ChannelRevenue, MallOrder
 
     this_month = date.today().strftime("%Y-%m")
-    months = [_month_add(this_month, i) for i in range(-months_back + 1, 1)]
+    if month_from and month_to:
+        import re as _re
+        if not (_re.fullmatch(r"\d{4}-\d{2}", month_from) and _re.fullmatch(r"\d{4}-\d{2}", month_to)):
+            raise HTTPException(status_code=422, detail="month_from/month_to는 YYYY-MM 형식이어야 합니다")
+        if month_from > month_to:
+            month_from, month_to = month_to, month_from
+        span = (int(month_to[:4]) - int(month_from[:4])) * 12 + int(month_to[5:7]) - int(month_from[5:7]) + 1
+        if span > 24:
+            raise HTTPException(status_code=422, detail="조회 범위는 최대 24개월입니다")
+        months = [_month_add(month_from, i) for i in range(span)]
+    else:
+        months = [_month_add(this_month, i) for i in range(-months_back + 1, 1)]
     spend_by = await _inflow_spend_by_month(db, months)
 
     # 매출: ① SALES(CSA) 매칭 채널 = 자동 ② 미매칭 채널 = 수동 기입(channel_revenues)
