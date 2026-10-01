@@ -10,7 +10,7 @@
  */
 import { Fragment, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Download, Plus, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { adspendApi, type AdMediaRow } from '@/lib/api';
 import { fmtWon } from '@/components/tabs/kpi/format';
@@ -99,6 +99,15 @@ export function AdSpendBoard() {
             className="px-2 py-1.5 rounded-lg text-xs bg-bg-2 border border-border-primary text-text-primary" />
           <button onClick={() => setMonth(monthAdd(month, 1))} className="p-1.5 rounded-lg border border-border-primary text-text-tertiary hover:text-text-primary"><ChevronRight size={13} /></button>
         </div>
+        <button
+          onClick={async () => {
+            try { await adspendApi.exportXlsx(month); toast.success('엑셀 다운로드 시작'); }
+            catch { toast.error('다운로드 실패'); }
+          }}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-text-secondary border border-border-primary hover:text-text-primary"
+        >
+          <Download size={13} /> 엑셀
+        </button>
         <button onClick={() => setShowAddMedia(true)}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white hover:opacity-90"
           style={{ backgroundColor: 'var(--color-brand-bg)' }}>

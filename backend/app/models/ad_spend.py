@@ -23,6 +23,7 @@ class AdMedia(Base):
     group_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)  # 메타|네이버|CRM|카카오|고정광고…
     inflow: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)  # 유입: 자사몰|네이버스토어|토스…
     auto_source: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # meta|naver_sa → 일별 자동 채움
+    owner: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)  # 판매 담당자 (10월 포맷 축)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
     memo: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)

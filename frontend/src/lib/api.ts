@@ -1954,6 +1954,7 @@ export const adspendApi = {
     const { data } = await api.put('/adspend/revenue', { month, inflow, revenue });
     return data;
   },
+  exportXlsx: (month: string) => downloadFile('/adspend/export', { month }),
   monthlySummary: async (month: string): Promise<{
     month: string; by_inflow: { inflow: string; spend: number; limit: number; plan: number }[];
     totals: { spend: number; limit: number; plan: number; usage_pct: number | null };

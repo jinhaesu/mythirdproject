@@ -165,7 +165,7 @@ async def spend_board(
         out_rows.append({
             "media_id": m.id, "name": m.name, "group_name": m.group_name,
             "inflow": m.inflow, "auto": bool(m.auto_source), "auto_source": m.auto_source,
-            "memo": m.memo,
+            "owner": m.owner, "memo": m.memo,
             "daily": daily,
             "month_total": total,
             "limit_amount": limit_amt,
@@ -254,6 +254,194 @@ async def upsert_budget(
         row.plan_amount = payload.plan_amount
     await db.commit()
     return {"media_id": payload.media_id, "month": payload.month}
+
+
+# ─── 월 단위 일괄 임포트 (시트 백필/포맷 동기화) ─────────────────────────────
+
+def _norm_name(s: str) -> str:
+    import re as _re
+    return _re.sub(r"\s+", " ", (s or "")).strip()
+
+
+class ImportRow(BaseModel):
+    name: str = Field(..., max_length=200)
+    owner: Optional[str] = Field(None, max_length=50)
+    inflow: Optional[str] = Field(None, max_length=100)
+    group_name: Optional[str] = Field(None, max_length=100)
+    limit_amount: Optional[float] = None
+    plan_amount: Optional[float] = None
+    daily: dict = Field(default_factory=dict)  # {"1".."31": 금액(원)}
+
+
+class MonthImport(BaseModel):
+    month: str = Field(..., min_length=7, max_length=7)
+    rows: list[ImportRow]
+    update_master: bool = False  # True면 매체의 inflow/group/owner/sort를 이 리스트 기준으로 갱신
+
+
+@router.post("/import-month")
+async def import_month(
+    payload: MonthImport,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """한 달치 일보를 일괄 적재 — 매체는 이름(공백 정규화)으로 매칭, 없으면 생성.
+
+    daily 금액은 원 단위(VAT 포함). 같은 (매체,일) 기존 값은 교체.
+    update_master=True면 매체 정렬/분류를 이 리스트 순서 기준으로 표준화한다.
+    """
+    if len(payload.rows) > 300:
+        raise HTTPException(status_code=422, detail="한 번에 300행까지")
+    d_from, d_to = _month_range(payload.month)
+    media_all = (await db.execute(select(AdMedia))).scalars().all()
+    by_name = {_norm_name(m.name): m for m in media_all}
+
+    created = updated = entries = budgets = 0
+    for i, row in enumerate(payload.rows):
+        key = _norm_name(row.name)
+        if not key:
+            continue
+        m = by_name.get(key)
+        if not m:
+            m = AdMedia(
+                name=key, owner=row.owner, inflow=row.inflow,
+                group_name=row.group_name, sort_order=(i + 1) * 10,
+            )
+            db.add(m)
+            await db.flush()
+            by_name[key] = m
+            created += 1
+        elif payload.update_master:
+            m.owner = row.owner or m.owner
+            m.inflow = row.inflow or m.inflow
+            m.group_name = row.group_name or m.group_name
+            m.sort_order = (i + 1) * 10
+            m.active = True
+            updated += 1
+
+        if row.limit_amount is not None or row.plan_amount is not None:
+            b = (await db.execute(select(AdMediaBudget).where(
+                AdMediaBudget.media_id == m.id, AdMediaBudget.month == payload.month
+            ))).scalar_one_or_none()
+            if not b:
+                b = AdMediaBudget(media_id=m.id, month=payload.month)
+                db.add(b)
+            if row.limit_amount is not None:
+                b.limit_amount = row.limit_amount
+            if row.plan_amount is not None:
+                b.plan_amount = row.plan_amount
+            budgets += 1
+
+        for day_str, amt in (row.daily or {}).items():
+            try:
+                d = date(int(payload.month[:4]), int(payload.month[5:7]), int(day_str))
+            except ValueError:
+                continue
+            if not (d_from <= d < d_to) or amt is None:
+                continue
+            ex = (await db.execute(select(AdMediaSpendDaily).where(
+                AdMediaSpendDaily.media_id == m.id, AdMediaSpendDaily.date == d
+            ))).scalar_one_or_none()
+            if float(amt) == 0:
+                if ex:
+                    await db.delete(ex)
+                continue
+            if ex:
+                ex.amount = float(amt)
+            else:
+                db.add(AdMediaSpendDaily(media_id=m.id, date=d, amount=float(amt)))
+            entries += 1
+
+    await db.commit()
+    return {"month": payload.month, "media_created": created, "media_updated": updated,
+            "entries": entries, "budgets": budgets}
+
+
+@router.get("/export")
+async def export_month_xlsx(
+    month: str = Query(..., min_length=7, max_length=7),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """일보 엑셀 다운로드 — 10월 포맷(담당자|판매채널|광고분류|광고매체|일별|TOTAL|계획|사용율)."""
+    from io import BytesIO
+    from urllib.parse import quote
+
+    from fastapi.responses import StreamingResponse
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
+    from openpyxl.utils import get_column_letter
+
+    board = await spend_board(month=month, current_user=current_user, db=db)
+    media_meta = {m.id: m for m in (await db.execute(select(AdMedia))).scalars().all()}
+    days = board["days_in_month"]
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = f"광고비 일보 {int(month[5:7])}월"
+    header_font = Font(bold=True)
+    header_fill = PatternFill(start_color="D9D9D9", end_color="D9D9D9", fill_type="solid")
+    center = Alignment(horizontal="center", vertical="center")
+    money = "#,##0"
+
+    headers = ["판매 담당자", "판매채널", "광고분류", "광고매체"] + \
+        [f"{int(month[5:7])}.{d}" for d in range(1, days + 1)] + \
+        ["TOTAL", "광고비 계획(Limit)", "사용율", "비고"]
+    for ci, h in enumerate(headers, start=1):
+        cell = ws.cell(row=1, column=ci, value=h)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = center
+
+    ri = 2
+    for r in board["rows"]:
+        meta = media_meta.get(r["media_id"])
+        ws.cell(ri, 1, (meta.owner if meta else None) or "")
+        ws.cell(ri, 2, r["inflow"] or "")
+        ws.cell(ri, 3, r["group_name"] or "")
+        ws.cell(ri, 4, r["name"] + (" (자동)" if r["auto"] else ""))
+        for d in range(1, days + 1):
+            v = r["daily"].get(f"{month}-{d:02d}")
+            if v:
+                c = ws.cell(ri, 4 + d, round(v))
+                c.number_format = money
+        ws.cell(ri, 5 + days, round(r["month_total"])).number_format = money
+        if r["limit_amount"]:
+            ws.cell(ri, 6 + days, round(r["limit_amount"])).number_format = money
+        if r["usage_pct"] is not None:
+            ws.cell(ri, 7 + days, r["usage_pct"] / 100).number_format = "0%"
+        ws.cell(ri, 8 + days, (meta.memo if meta else None) or "")
+        ri += 1
+
+    # 합계 행
+    ws.cell(ri, 4, "합계").font = header_font
+    for d in range(1, days + 1):
+        v = board["day_totals"].get(f"{month}-{d:02d}")
+        if v:
+            c = ws.cell(ri, 4 + d, round(v))
+            c.number_format = money
+            c.font = header_font
+    ws.cell(ri, 5 + days, round(board["totals"]["spend"])).number_format = money
+    ws.cell(ri, 5 + days).font = header_font
+    if board["totals"]["limit"]:
+        ws.cell(ri, 6 + days, round(board["totals"]["limit"])).number_format = money
+    if board["totals"]["usage_pct"] is not None:
+        ws.cell(ri, 7 + days, board["totals"]["usage_pct"] / 100).number_format = "0%"
+
+    ws.freeze_panes = "E2"
+    for i, w in enumerate([10, 14, 12, 30] + [9] * days + [13, 14, 8, 16], start=1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+    ws.cell(ri + 2, 4, "단위: 원 (VAT 포함) · 시스템 광고비 일보 export")
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    filename = f"광고비일보_{month}.xlsx"
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"},
+    )
 
 
 # ─── 채널 ROAS 보드 (유입채널 × 월 — 광고비 자동 + 매출 기입) ────────────────
