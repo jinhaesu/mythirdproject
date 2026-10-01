@@ -136,7 +136,7 @@ export function HomeDashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Meta 광고 */}
-        <SectionCard title="Meta 광고 · 최근 7일" icon={LineChart} menu="ads" subTab={0}>
+        <SectionCard title="Meta 광고 · 최근 7일" icon={LineChart} menu="live" subTab={0}>
           <div className="flex gap-6 flex-wrap">
             <Metric label="지출" value={fmtWon(b.meta?.spend_7d)} sub={<DeltaChip pct={b.meta?.spend_delta_pct} />} />
             <Metric label="전환 매출" value={fmtWon(b.meta?.revenue_7d)} />
@@ -203,7 +203,7 @@ export function HomeDashboard() {
         </SectionCard>
 
         {/* 활동 기록 */}
-        <SectionCard title={`활동 기록 · ${monthLabel}`} icon={ClipboardList} menu="activities">
+        <SectionCard title={`활동 기록 · ${monthLabel}`} icon={ClipboardList} menu="input" subTab={1}>
           <div className="flex gap-6 flex-wrap">
             <Metric label="기록" value={`${fmtNum(b.activities?.month_rows)}건`} />
             <Metric label="조회수 합계" value={fmtNum(b.activities?.month_views)} />

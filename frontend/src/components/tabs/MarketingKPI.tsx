@@ -582,7 +582,7 @@ export function MarketingKPI() {
               CAC 계산의 광고비는 메타·네이버 검색광고 자동 수집분 기준입니다.
             </p>
             <button
-              onClick={() => { setActiveMenu('ads'); setMenuSubTab('ads', 4); }}
+              onClick={() => { setActiveMenu('input'); setMenuSubTab('input', 0); }}
               className="px-3 py-1.5 rounded-lg text-xs font-medium text-white hover:opacity-90"
               style={{ backgroundColor: 'var(--color-brand-bg)' }}
             >

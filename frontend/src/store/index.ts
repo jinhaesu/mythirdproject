@@ -31,8 +31,8 @@ export const useAuthStore = create<AuthState>()(
   )
 );
 
-// 업무 중심 개편(2026-09) 최상위 메뉴
-export type MenuKey = 'home' | 'affiliate' | 'ads' | 'intel' | 'activities' | 'kpi' | 'tools';
+// 속성 기반 메뉴 재편(2026-10): 입력(결과·계획) / 분석(계획 대비) / 실시간(자동 수집)
+export type MenuKey = 'home' | 'input' | 'analysis' | 'live' | 'intel' | 'affiliate' | 'tools';
 
 interface AppState {
   activeMenu: MenuKey;

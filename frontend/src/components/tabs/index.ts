@@ -10,3 +10,4 @@ export { GroupBuyBoard } from './GroupBuyBoard';
 export { MetaDailyTable } from './MetaDailyTable';
 export { AdSpendBoard } from './AdSpendBoard';
 export { GoalOverview } from './GoalOverview';
+export { GoalEntry } from './GoalEntry';

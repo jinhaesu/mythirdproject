@@ -16,6 +16,7 @@ import {
   MetaDailyTable,
   AdSpendBoard,
   GoalOverview,
+  GoalEntry,
 } from '@/components/tabs';
 import {
   NaverSearchAdsDashboard,
@@ -144,19 +145,26 @@ export default function Home() {
       <MainNav />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {activeMenu === 'home' && <HomeDashboard />}
-        {activeMenu === 'affiliate' && (
+        {activeMenu === 'input' && (
           <>
-            {sub('affiliate') === 0 && <GroupBuyBoard />}
-            {sub('affiliate') === 1 && <AffiliateManaging />}
+            {sub('input') === 0 && <AdSpendBoard />}
+            {sub('input') === 1 && <ActivitiesBoard />}
+            {sub('input') === 2 && <GoalEntry />}
           </>
         )}
-        {activeMenu === 'ads' && (
+        {activeMenu === 'analysis' && (
           <>
-            {sub('ads') === 0 && <PerformanceDashboard />}
-            {sub('ads') === 1 && <MetaDailyTable />}
-            {sub('ads') === 2 && <NaverSearchAdsDashboard />}
-            {sub('ads') === 3 && <NaverGFADashboard />}
-            {sub('ads') === 4 && <AdSpendBoard />}
+            {sub('analysis') === 0 && <GoalOverview />}
+            {sub('analysis') === 1 && <MarketingKPI />}
+            {sub('analysis') === 2 && <ExternalMarketingKPI />}
+          </>
+        )}
+        {activeMenu === 'live' && (
+          <>
+            {sub('live') === 0 && <PerformanceDashboard />}
+            {sub('live') === 1 && <MetaDailyTable />}
+            {sub('live') === 2 && <NaverSearchAdsDashboard />}
+            {sub('live') === 3 && <NaverGFADashboard />}
           </>
         )}
         {activeMenu === 'intel' && (
@@ -165,12 +173,10 @@ export default function Home() {
             {sub('intel') === 1 && <NaverKeywordResearch />}
           </>
         )}
-        {activeMenu === 'activities' && <ActivitiesBoard />}
-        {activeMenu === 'kpi' && (
+        {activeMenu === 'affiliate' && (
           <>
-            {sub('kpi') === 0 && <GoalOverview />}
-            {sub('kpi') === 1 && <MarketingKPI />}
-            {sub('kpi') === 2 && <ExternalMarketingKPI />}
+            {sub('affiliate') === 0 && <GroupBuyBoard />}
+            {sub('affiliate') === 1 && <AffiliateManaging />}
           </>
         )}
         {activeMenu === 'tools' && (

@@ -8,7 +8,7 @@
  * 기존 탭 컴포넌트는 그대로 재사용하고 배치만 바꾼다 (page.tsx 참조).
  */
 import {
-  Home, Megaphone, LineChart, Compass, ClipboardList, Target, Wrench,
+  Home, Megaphone, PenLine, Activity, Compass, Target, Wrench,
 } from 'lucide-react';
 import { useAppStore, type MenuKey } from '@/store';
 
@@ -17,23 +17,33 @@ export interface SubTabDef {
   name: string;
 }
 
+// 속성 기반 재편(2026-10): 홈(브리핑) → 입력(결과·계획 기입) →
+// 성과 분석(계획 대비 결과) → 실시간 채널(자동 수집) → 인텔리전스 → 운영 → 도구
 export const MENUS: { key: MenuKey; name: string; icon: any; subTabs: SubTabDef[] }[] = [
   { key: 'home', name: '홈', icon: Home, subTabs: [] },
   {
-    key: 'affiliate', name: '공구·어필리에이트', icon: Megaphone,
+    key: 'input', name: '입력', icon: PenLine,
     subTabs: [
-      { id: 0, name: '공구 보드' },
-      { id: 1, name: '어필리에이트 운영' },
+      { id: 0, name: '광고비 일보' },
+      { id: 1, name: '활동 기록' },
+      { id: 2, name: '월 목표 입력' },
     ],
   },
   {
-    key: 'ads', name: '광고 성과', icon: LineChart,
+    key: 'analysis', name: '성과 분석', icon: Target,
+    subTabs: [
+      { id: 0, name: 'KPI 대시보드' },
+      { id: 1, name: '자사몰 KPI' },
+      { id: 2, name: '외부 채널 KPI' },
+    ],
+  },
+  {
+    key: 'live', name: '실시간 채널', icon: Activity,
     subTabs: [
       { id: 0, name: 'Meta 성과' },
       { id: 1, name: 'Meta 일별 데이터' },
       { id: 2, name: '네이버 검색광고' },
       { id: 3, name: 'GFA' },
-      { id: 4, name: '광고비 일보' },
     ],
   },
   {
@@ -44,15 +54,10 @@ export const MENUS: { key: MenuKey; name: string; icon: any; subTabs: SubTabDef[
     ],
   },
   {
-    key: 'activities', name: '활동 기록', icon: ClipboardList,
-    subTabs: [],
-  },
-  {
-    key: 'kpi', name: 'KPI·목표', icon: Target,
+    key: 'affiliate', name: '공구·어필리에이트', icon: Megaphone,
     subTabs: [
-      { id: 0, name: '대시보드' },
-      { id: 1, name: '자사몰 KPI' },
-      { id: 2, name: '외부 채널 KPI' },
+      { id: 0, name: '공구 보드' },
+      { id: 1, name: '어필리에이트 운영' },
     ],
   },
   {

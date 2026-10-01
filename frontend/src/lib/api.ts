@@ -1454,6 +1454,10 @@ export const kpiApi = {
   },
 
   /** 월별 목표 upsert */
+  listGoals: async (months = 12): Promise<KPIGoal[]> => {
+    const { data } = await api.get<KPIGoal[]>('/kpi/goals', { params: { months } });
+    return data;
+  },
   updateGoal: async (month: string, payload: KPIGoalUpdatePayload): Promise<KPIGoal> => {
     const { data } = await api.put<KPIGoal>(`/kpi/goals/${month}`, payload);
     return data;
@@ -1595,6 +1599,10 @@ export const externalKpiApi = {
     return data;
   },
 
+  listGoals: async (months = 12): Promise<KPIExternalGoal[]> => {
+    const { data } = await api.get<KPIExternalGoal[]>('/kpi/external-goals', { params: { months } });
+    return data;
+  },
   /** 월별 그 외 채널 목표 upsert (목표 광고비/목표 매출/기타 판매채널 매출) */
   updateGoal: async (month: string, payload: KPIExternalGoalUpdatePayload): Promise<KPIExternalGoal> => {
     const { data } = await api.put<KPIExternalGoal>(`/kpi/external-goals/${month}`, payload);
