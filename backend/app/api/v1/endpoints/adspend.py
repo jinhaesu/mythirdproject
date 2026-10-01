@@ -297,6 +297,7 @@ async def import_month(
     by_name = {_norm_name(m.name): m for m in media_all}
 
     created = updated = entries = budgets = 0
+    pending_daily: dict = {}  # (media_id, date) — 같은 요청 내 중복 방어 (동일 매체명 복수 행)
     for i, row in enumerate(payload.rows):
         key = _norm_name(row.name)
         if not key:
@@ -339,17 +340,23 @@ async def import_month(
                 continue
             if not (d_from <= d < d_to) or amt is None:
                 continue
-            ex = (await db.execute(select(AdMediaSpendDaily).where(
-                AdMediaSpendDaily.media_id == m.id, AdMediaSpendDaily.date == d
-            ))).scalar_one_or_none()
+            cache_key = (m.id, d)
+            ex = pending_daily.get(cache_key) or (await db.execute(
+                select(AdMediaSpendDaily).where(
+                    AdMediaSpendDaily.media_id == m.id, AdMediaSpendDaily.date == d
+                )
+            )).scalar_one_or_none()
             if float(amt) == 0:
                 if ex:
                     await db.delete(ex)
+                    pending_daily.pop(cache_key, None)
                 continue
             if ex:
                 ex.amount = float(amt)
             else:
-                db.add(AdMediaSpendDaily(media_id=m.id, date=d, amount=float(amt)))
+                ex = AdMediaSpendDaily(media_id=m.id, date=d, amount=float(amt))
+                db.add(ex)
+            pending_daily[cache_key] = ex
             entries += 1
 
     await db.commit()
