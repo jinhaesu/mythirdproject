@@ -19,7 +19,7 @@ from app.models.user import User
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-ACTIVITY_TYPES = ["content", "influencer", "experience", "supporters", "etc"]
+ACTIVITY_TYPES = ["content", "influencer", "experience", "crew", "supporters", "etc"]
 
 
 class ActivityIn(BaseModel):

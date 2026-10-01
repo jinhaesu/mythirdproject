@@ -22,6 +22,7 @@ const TYPE_LABELS: Record<string, string> = {
   content: '콘텐츠',
   influencer: '인플루언서',
   experience: '체험단',
+  crew: '크루',
   supporters: '서포터즈',
   etc: '기타',
 };
@@ -125,7 +126,7 @@ export function ActivitiesBoard() {
           ))}
         </div>
         <div className="flex items-center rounded-lg p-0.5" style={{ backgroundColor: 'rgb(var(--color-overlay-rgb) / 0.05)' }}>
-          {['', 'content', 'influencer', 'experience', 'supporters', 'etc'].map((t) => (
+          {['', 'content', 'influencer', 'experience', 'crew', 'supporters', 'etc'].map((t) => (
             <button
               key={t || 'all'}
               onClick={() => { setTypeFilter(t); setPage(0); }}
