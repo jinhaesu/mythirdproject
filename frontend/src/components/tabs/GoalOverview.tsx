@@ -153,19 +153,24 @@ export function GoalOverview() {
     return { data, series: hasOthers ? [...series, '기타'] : series };
   }, [board, cells, sel, inflowsBySpend]);
 
-  // 채널별 ROAS 라인 비교 (선택 채널, 선택 없으면 기간 광고비 상위 5)
+  // 채널별 ROAS·매출 라인 비교 (선택 채널, 선택 없으면 기간 광고비 상위 5)
   const roasCompare = useMemo(() => {
-    if (!board) return { data: [] as any[], series: [] as string[] };
+    if (!board) return { data: [] as any[], revData: [] as any[], series: [] as string[] };
     const series = (sel.length ? inflowsBySpend.filter((i) => sel.includes(i)) : inflowsBySpend.slice(0, 5)).slice(0, 10);
-    const data = board.months.map((m) => {
+    const data: any[] = [];
+    const revData: any[] = [];
+    board.months.forEach((m) => {
       const row: any = { month: m.slice(2) };
+      const revRow: any = { month: m.slice(2) };
       series.forEach((inf) => {
         const c = (board.cells || []).find((x) => x.month === m && x.inflow === inf);
         row[inf] = c?.roas ?? null;
+        revRow[inf] = c?.revenue ?? null;
       });
-      return row;
+      data.push(row);
+      revData.push(revRow);
     });
-    return { data, series };
+    return { data, revData, series };
   }, [board, sel, inflowsBySpend]);
 
   // 채널 × 월 흐름 매트릭스 (선택 채널, 선택 없으면 상위 8)
@@ -357,26 +362,52 @@ export function GoalOverview() {
       {roasCompare.series.length > 0 && roasCompare.data.length > 0 && (
         <div className="rounded-xl p-4" style={{ backgroundColor: 'var(--color-bg-level-1)', border: '1px solid var(--color-border-primary)' }}>
           <h3 className="text-sm font-semibold text-text-primary mb-1">
-            채널별 ROAS 흐름 비교 {sel.length ? `(선택 ${sel.length}채널)` : '(광고비 상위 5채널)'}
+            채널별 ROAS · 매출 흐름 비교 {sel.length ? `(선택 ${sel.length}채널)` : '(광고비 상위 5채널)'}
           </h3>
           <p className="text-[10px] text-text-quaternary mb-3">매출 데이터가 있는 채널·월만 라인이 그려집니다 — 위 칩에서 채널을 골라 비교하세요</p>
-          <div className="h-56">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={roasCompare.data} margin={{ top: 8, right: 8, left: 4, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-primary)" />
-                <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'var(--color-text-quaternary)' }} tickLine={false} axisLine={false} />
-                <YAxis tick={{ fontSize: 10, fill: 'var(--color-text-quaternary)' }} tickLine={false} axisLine={false}
-                  tickFormatter={(v: number) => `${v}x`} width={40} />
-                <RechartsTooltip
-                  contentStyle={{ backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)', borderRadius: 8, fontSize: 11 }}
-                  formatter={(v: any, name: any) => [v != null ? `${v}x` : '-', name]}
-                />
-                <Legend wrapperStyle={{ fontSize: 10 }} />
-                {roasCompare.series.map((inf, i) => (
-                  <Line key={inf} type="monotone" dataKey={inf} stroke={PALETTE[i % PALETTE.length]} strokeWidth={2} dot={{ r: 2.5 }} connectNulls />
-                ))}
-              </LineChart>
-            </ResponsiveContainer>
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            <div>
+              <p className="text-[11px] font-medium text-text-tertiary mb-1.5">ROAS</p>
+              <div className="h-56">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={roasCompare.data} margin={{ top: 8, right: 8, left: 4, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-primary)" />
+                    <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'var(--color-text-quaternary)' }} tickLine={false} axisLine={false} />
+                    <YAxis tick={{ fontSize: 10, fill: 'var(--color-text-quaternary)' }} tickLine={false} axisLine={false}
+                      tickFormatter={(v: number) => `${v}x`} width={40} />
+                    <RechartsTooltip
+                      contentStyle={{ backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)', borderRadius: 8, fontSize: 11 }}
+                      formatter={(v: any, name: any) => [v != null ? `${v}x` : '-', name]}
+                    />
+                    <Legend wrapperStyle={{ fontSize: 10 }} />
+                    {roasCompare.series.map((inf, i) => (
+                      <Line key={inf} type="monotone" dataKey={inf} stroke={PALETTE[i % PALETTE.length]} strokeWidth={2} dot={{ r: 2.5 }} connectNulls />
+                    ))}
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+            <div>
+              <p className="text-[11px] font-medium text-text-tertiary mb-1.5">매출 (SALES 공급가·기입값)</p>
+              <div className="h-56">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={roasCompare.revData} margin={{ top: 8, right: 8, left: 4, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-primary)" />
+                    <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'var(--color-text-quaternary)' }} tickLine={false} axisLine={false} />
+                    <YAxis tick={{ fontSize: 10, fill: 'var(--color-text-quaternary)' }} tickLine={false} axisLine={false}
+                      tickFormatter={(v: number) => (v >= 100000000 ? `${(v / 100000000).toFixed(1)}억` : v >= 10000 ? `${Math.round(v / 10000)}만` : String(v))} width={48} />
+                    <RechartsTooltip
+                      contentStyle={{ backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)', borderRadius: 8, fontSize: 11 }}
+                      formatter={(v: any, name: any) => [v != null ? fmtWon(Number(v)) : '-', name]}
+                    />
+                    <Legend wrapperStyle={{ fontSize: 10 }} />
+                    {roasCompare.series.map((inf, i) => (
+                      <Line key={inf} type="monotone" dataKey={inf} stroke={PALETTE[i % PALETTE.length]} strokeWidth={2} dot={{ r: 2.5 }} connectNulls />
+                    ))}
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
           </div>
         </div>
       )}
