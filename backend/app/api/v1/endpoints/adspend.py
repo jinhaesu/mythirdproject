@@ -8,6 +8,7 @@ import logging
 from datetime import date, datetime, timedelta
 from typing import Optional
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select, text
