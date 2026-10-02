@@ -32,7 +32,7 @@ export const useAuthStore = create<AuthState>()(
 );
 
 // 속성 기반 메뉴 재편(2026-10): 입력(결과·계획) / 분석(계획 대비) / 실시간(자동 수집)
-export type MenuKey = 'home' | 'input' | 'analysis' | 'live' | 'intel' | 'affiliate' | 'tools';
+export type MenuKey = 'home' | 'input' | 'analysis' | 'live' | 'intel' | 'affiliate' | 'sponsorship' | 'tools';
 
 interface AppState {
   activeMenu: MenuKey;

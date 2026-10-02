@@ -8,7 +8,7 @@
  * 기존 탭 컴포넌트는 그대로 재사용하고 배치만 바꾼다 (page.tsx 참조).
  */
 import {
-  Home, Megaphone, PenLine, Activity, Compass, Target, Wrench,
+  Home, Megaphone, PenLine, Activity, Compass, Target, Wrench, Gift,
 } from 'lucide-react';
 import { useAppStore, type MenuKey } from '@/store';
 
@@ -58,6 +58,13 @@ export const MENUS: { key: MenuKey; name: string; icon: any; subTabs: SubTabDef[
     subTabs: [
       { id: 0, name: '공구 보드' },
       { id: 1, name: '어필리에이트 운영' },
+    ],
+  },
+  {
+    key: 'sponsorship', name: '협찬 관리', icon: Gift,
+    subTabs: [
+      { id: 0, name: '협찬 등록·목록' },
+      { id: 1, name: '협찬 분석' },
     ],
   },
   {

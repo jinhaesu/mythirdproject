@@ -11,3 +11,5 @@ export { MetaDailyTable } from './MetaDailyTable';
 export { AdSpendBoard } from './AdSpendBoard';
 export { GoalOverview } from './GoalOverview';
 export { GoalEntry } from './GoalEntry';
+export { SponsorshipBoard } from './SponsorshipBoard';
+export { SponsorshipAnalytics } from './SponsorshipAnalytics';

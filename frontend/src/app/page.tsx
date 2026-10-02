@@ -17,6 +17,8 @@ import {
   AdSpendBoard,
   GoalOverview,
   GoalEntry,
+  SponsorshipBoard,
+  SponsorshipAnalytics,
 } from '@/components/tabs';
 import {
   NaverSearchAdsDashboard,
@@ -177,6 +179,12 @@ export default function Home() {
           <>
             {sub('affiliate') === 0 && <GroupBuyBoard />}
             {sub('affiliate') === 1 && <AffiliateManaging />}
+          </>
+        )}
+        {activeMenu === 'sponsorship' && (
+          <>
+            {sub('sponsorship') === 0 && <SponsorshipBoard />}
+            {sub('sponsorship') === 1 && <SponsorshipAnalytics />}
           </>
         )}
         {activeMenu === 'tools' && (

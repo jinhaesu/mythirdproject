@@ -28,3 +28,30 @@ class Sponsorship(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
     )
+
+
+class SponsorshipItem(Base):
+    """협찬 품목 — 협찬 1건에 복수 품목·수량 (product/quantity 레거시 컬럼은
+    합계 요약으로만 유지)."""
+    __tablename__ = "sponsorship_items"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
+    sponsorship_id: Mapped[int] = mapped_column(Integer, index=True)
+    product: Mapped[str] = mapped_column(String(200))  # 품목명
+    quantity: Mapped[int] = mapped_column(Integer, default=0)
+    estimated_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)  # 품목 환산 금액(원)
+    note: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+
+
+class SponsorshipOutcome(Base):
+    """협찬 결과물 — 사진/영상/포스팅/보도 등 산출물 링크·지표 기록."""
+    __tablename__ = "sponsorship_outcomes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
+    sponsorship_id: Mapped[int] = mapped_column(Integer, index=True)
+    kind: Mapped[str] = mapped_column(String(50))  # 사진|영상|SNS 포스팅|보도|후기|기타
+    link: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    views: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # 조회/노출수
+    note: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
+    occurred_at: Mapped[Optional[date]] = mapped_column(Date, nullable=True)  # 게시/보도일
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

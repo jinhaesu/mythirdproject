@@ -1694,88 +1694,6 @@ export const influencerApi = {
   },
 };
 
-// ─── Sponsorship (협찬 관리) API (/sponsorship 라우터) ───
-
-export type SponsorshipEventType = 'festival' | 'club' | 'marathon' | 'conference' | 'etc';
-
-export interface SponsorshipEvent {
-  id: number;
-  target_name: string;
-  event_type: string;
-  sponsored_at: string; // YYYY-MM-DD
-  product: string;
-  quantity: number;
-  estimated_value?: number | null;
-  reason?: string | null;
-  expected_effect?: string | null;
-  conditions?: string | null;
-  notes?: string | null;
-  created_at?: string;
-  updated_at?: string;
-}
-
-export interface SponsorshipEventCreatePayload {
-  target_name: string;
-  event_type: string;
-  sponsored_at: string;
-  product: string;
-  quantity: number;
-  estimated_value?: number;
-  reason?: string;
-  expected_effect?: string;
-  conditions?: string;
-  notes?: string;
-}
-
-export type SponsorshipEventUpdatePayload = Partial<SponsorshipEventCreatePayload>;
-
-export interface SponsorshipByMonth { month: string; count: number; quantity: number; estimated_value: number; }
-export interface SponsorshipByProduct { product: string; count: number; quantity: number; }
-export interface SponsorshipByEventType { event_type: string; count: number; quantity: number; estimated_value: number; }
-export interface SponsorshipByCondition { condition: string; count: number; }
-
-export interface SponsorshipSummaryResponse {
-  by_month: SponsorshipByMonth[];
-  by_product: SponsorshipByProduct[];
-  by_event_type: SponsorshipByEventType[];
-  by_condition: SponsorshipByCondition[];
-  total: { count: number; quantity: number; estimated_value: number };
-}
-
-export const sponsorshipApi = {
-  /** 협찬 이벤트 목록 조회 (event_type 필터 선택) */
-  listEvents: async (eventType?: string, limit = 300): Promise<SponsorshipEvent[]> => {
-    // 백엔드는 {events: [...], count} 래핑으로 응답
-    const { data } = await api.get<{ events: SponsorshipEvent[]; count: number }>('/sponsorship/events', {
-      params: { event_type: eventType || undefined, limit },
-    });
-    return Array.isArray(data) ? data : (data?.events ?? []);
-  },
-
-  /** 협찬 이벤트 등록 */
-  createEvent: async (payload: SponsorshipEventCreatePayload): Promise<SponsorshipEvent> => {
-    const { data } = await api.post<SponsorshipEvent>('/sponsorship/events', payload);
-    return data;
-  },
-
-  /** 협찬 이벤트 부분 수정 */
-  updateEvent: async (id: number, payload: SponsorshipEventUpdatePayload): Promise<SponsorshipEvent> => {
-    const { data } = await api.put<SponsorshipEvent>(`/sponsorship/events/${id}`, payload);
-    return data;
-  },
-
-  /** 협찬 이벤트 삭제 */
-  deleteEvent: async (id: number): Promise<void> => {
-    await api.delete(`/sponsorship/events/${id}`);
-  },
-
-  /** 월별/제품별/행사유형별/조건별 협찬 요약 */
-  getSummary: async (months = 12): Promise<SponsorshipSummaryResponse> => {
-    const { data } = await api.get<SponsorshipSummaryResponse>('/sponsorship/summary', { params: { months } });
-    return data;
-  },
-};
-
 // ─── 홈 브리핑 (업무 중심 개편 2026-09) ─────────────────────────────────────
 export const homeApi = {
   /** 전 채널 통합 브리핑 — DB 로컬 집계라 즉시 로딩 */
@@ -1978,6 +1896,72 @@ export const adspendApi = {
     const { data } = await api.get('/adspend/monthly-summary', { params: { month } });
     return data;
   },
+};
+
+// ─── 협찬 관리 (sponsorship) ─────────────────────────────────────────────────
+export interface SponsorshipItemRow {
+  id?: number; product: string; quantity: number;
+  estimated_value?: number | null; note?: string | null;
+}
+export interface SponsorshipOutcomeRow {
+  id: number; kind: string; link?: string | null; views?: number | null;
+  note?: string | null; occurred_at?: string | null;
+}
+export interface SponsorshipRow {
+  id: number; target_name: string; event_type: string; event_type_label?: string;
+  sponsored_at: string | null; product: string; quantity: number;
+  estimated_value?: number | null; reason?: string | null; expected_effect?: string | null;
+  conditions?: string | null; notes?: string | null;
+  items: SponsorshipItemRow[]; outcomes: SponsorshipOutcomeRow[];
+}
+
+export const sponsorshipApi = {
+  list: async (params?: { event_type?: string; since?: string; until?: string; q?: string }):
+    Promise<{ events: SponsorshipRow[]; count: number }> => {
+    const { data } = await api.get('/sponsorship/events', { params });
+    return data;
+  },
+  create: async (payload: any): Promise<SponsorshipRow> => {
+    const { data } = await api.post('/sponsorship/events', payload);
+    return data;
+  },
+  update: async (id: number, payload: any): Promise<SponsorshipRow> => {
+    const { data } = await api.put(`/sponsorship/events/${id}`, payload);
+    return data;
+  },
+  remove: async (id: number) => {
+    const { data } = await api.delete(`/sponsorship/events/${id}`);
+    return data;
+  },
+  addOutcome: async (eventId: number, payload: any): Promise<SponsorshipOutcomeRow> => {
+    const { data } = await api.post(`/sponsorship/events/${eventId}/outcomes`, payload);
+    return data;
+  },
+  updateOutcome: async (outcomeId: number, payload: any): Promise<SponsorshipOutcomeRow> => {
+    const { data } = await api.put(`/sponsorship/outcomes/${outcomeId}`, payload);
+    return data;
+  },
+  removeOutcome: async (outcomeId: number) => {
+    const { data } = await api.delete(`/sponsorship/outcomes/${outcomeId}`);
+    return data;
+  },
+  summary: async (months = 12): Promise<{
+    as_of: string;
+    by_month: { month: string; count: number; quantity: number; estimated_value: number; outcomes: number }[];
+    by_product: { product: string; count: number; quantity: number; estimated_value: number }[];
+    by_event_type: { event_type: string; count: number; quantity: number; estimated_value: number; outcomes: number }[];
+    by_condition: { condition: string; count: number }[];
+    by_outcome_kind: { kind: string; count: number; views: number }[];
+    total: { count: number; quantity: number; estimated_value: number; outcomes: number; views: number };
+  }> => {
+    const { data } = await api.get('/sponsorship/summary', { params: { months } });
+    return data;
+  },
+  meta: async (): Promise<{ event_types: string[]; products: string[]; outcome_kinds: string[] }> => {
+    const { data } = await api.get('/sponsorship/meta');
+    return data;
+  },
+  exportXlsx: () => downloadFile('/sponsorship/export'),
 };
 
 // Currency & number formatting utilities
