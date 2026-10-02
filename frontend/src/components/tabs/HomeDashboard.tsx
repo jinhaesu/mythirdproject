@@ -11,7 +11,7 @@ import {
   ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip,
 } from 'recharts';
 import {
-  LineChart, Megaphone, MessageCircle, ClipboardList, Receipt, Target,
+  LineChart, Megaphone, MessageCircle, ClipboardList, Receipt, Target, Gift,
   ArrowUpRight, ArrowDownRight, CheckCircle2, AlertCircle, ChevronRight,
 } from 'lucide-react';
 import { homeApi } from '@/lib/api';
@@ -265,6 +265,36 @@ export function HomeDashboard() {
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
+          )}
+        </SectionCard>
+
+        {/* 협찬 — 이달 요약 + 6개월 추이 */}
+        <SectionCard title={`협찬 · ${monthLabel}`} icon={Gift} menu="sponsorship" subTab={0}>
+          <div className="flex gap-6 flex-wrap">
+            <Metric label="협찬" value={`${fmtNum(b.sponsorship?.month_count)}건`} />
+            <Metric label="품목 수량" value={`${fmtNum(b.sponsorship?.month_quantity)}개`} />
+            <Metric label="환산 금액" value={fmtWon(b.sponsorship?.month_value)} />
+            <Metric label="결과물" value={`${fmtNum(b.sponsorship?.month_outcomes)}건`} />
+          </div>
+          {(b.sponsorship?.monthly || []).some((m: any) => m.count > 0) ? (
+            <div className="h-28">
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={b.sponsorship.monthly.map((m: any) => ({ ...m, label: m.month.slice(2) }))} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
+                  <XAxis dataKey="label" tick={{ fontSize: 9, fill: 'var(--color-text-quaternary)' }} tickLine={false} axisLine={false} />
+                  <YAxis hide />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)', borderRadius: 8, fontSize: 11 }}
+                    formatter={(v: any, name: any) => (name === '환산 금액' ? [fmtWon(v), name] : [fmtNum(v), name])}
+                  />
+                  <Bar dataKey="count" name="협찬 건수" fill="#17BEBB" opacity={0.6} radius={[3, 3, 0, 0]} />
+                  <Line dataKey="value" name="환산 금액" stroke="#F0BF00" strokeWidth={2} dot={false} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <p className="text-[11px] text-text-quaternary">
+              최근 6개월 협찬 기록이 없습니다 — <b className="text-text-tertiary">협찬 관리 › 협찬 등록</b>에서 기입하세요
+            </p>
           )}
         </SectionCard>
 

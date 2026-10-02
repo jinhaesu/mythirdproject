@@ -185,6 +185,33 @@ async def home_briefing(
     act_by_month = {m: {"views": int(v), "cost": float(c), "rows": int(n)}
                     for m, v, c, n in act_monthly_rows}
 
+    # ── 협찬 — 이번 달 + 최근 6개월 월별 건수/환산금액/결과물 ─────────────
+    from app.models import Sponsorship, SponsorshipOutcome
+
+    sp_start = date.fromisoformat(months6[0] + "-01")
+    sp_rows = (await db.execute(
+        select(Sponsorship.id, Sponsorship.sponsored_at, Sponsorship.quantity, Sponsorship.estimated_value)
+        .where(Sponsorship.sponsored_at >= sp_start)
+    )).all()
+    sp_ids = [r[0] for r in sp_rows]
+    sp_outcome_counts: dict[int, int] = {}
+    if sp_ids:
+        for sid, cnt in (await db.execute(
+            select(SponsorshipOutcome.sponsorship_id, func.count(SponsorshipOutcome.id))
+            .where(SponsorshipOutcome.sponsorship_id.in_(sp_ids))
+            .group_by(SponsorshipOutcome.sponsorship_id)
+        )).all():
+            sp_outcome_counts[sid] = int(cnt)
+    sp_by_month = {m: {"count": 0, "quantity": 0, "value": 0.0, "outcomes": 0} for m in months6}
+    for sid, sp_at, qty, val in sp_rows:
+        mk = sp_at.strftime("%Y-%m") if sp_at else None
+        if mk in sp_by_month:
+            sp_by_month[mk]["count"] += 1
+            sp_by_month[mk]["quantity"] += int(qty or 0)
+            sp_by_month[mk]["value"] += float(val or 0)
+            sp_by_month[mk]["outcomes"] += sp_outcome_counts.get(sid, 0)
+    sp_this = sp_by_month.get(month_str, {"count": 0, "quantity": 0, "value": 0.0, "outcomes": 0})
+
     # ── 이번 달 목표 (외부 매출 목표 포함) ───────────────────────────────
     from app.models import ExternalMarketingGoal
     ext_goal = (await db.execute(
@@ -234,6 +261,18 @@ async def home_briefing(
             {"month": m, **act_by_month.get(m, {"views": 0, "cost": 0, "rows": 0})}
             for m in months6
         ],
+        "sponsorship": {
+            "month_count": sp_this["count"],
+            "month_quantity": sp_this["quantity"],
+            "month_value": round(sp_this["value"], 0),
+            "month_outcomes": sp_this["outcomes"],
+            "monthly": [
+                {"month": m, "count": sp_by_month[m]["count"],
+                 "value": round(sp_by_month[m]["value"], 0),
+                 "outcomes": sp_by_month[m]["outcomes"]}
+                for m in months6
+            ],
+        },
         "meta": {
             "spend_7d": meta_spend7,
             "revenue_7d": meta_rev7,
