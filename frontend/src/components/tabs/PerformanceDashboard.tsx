@@ -20,8 +20,9 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
   Legend, ResponsiveContainer, PieChart, Pie, Cell,
   ComposedChart, Scatter, RadarChart, Radar, PolarGrid,
-  PolarAngleAxis, PolarRadiusAxis, Treemap,
+  PolarAngleAxis, PolarRadiusAxis, Treemap, ReferenceLine,
 } from 'recharts';
+import { roasClass, BREAKEVEN_ROAS, BREAKEVEN_ROAS_LABEL } from '@/components/tabs/kpi/format';
 
 type DatePreset = 'today' | 'yesterday' | 'last_3d' | 'last_7d' | 'last_14d' | 'last_30d' | 'this_month' | 'last_month' | 'custom';
 
@@ -660,6 +661,8 @@ export default function PerformanceDashboard() {
                       }}
                     />
                     <Legend wrapperStyle={{ fontSize: 11 }} />
+                    <ReferenceLine yAxisId="roas" y={BREAKEVEN_ROAS} stroke="#EA4335" strokeDasharray="5 4"
+                      label={{ value: BREAKEVEN_ROAS_LABEL, position: 'insideTopRight', fontSize: 9, fill: '#EA4335' }} />
                     <Bar yAxisId="spend" dataKey="spend" name="지출" fill="var(--color-blue)" radius={[3, 3, 0, 0]} maxBarSize={26} isAnimationActive={false} />
                     <Line yAxisId="roas" type="monotone" dataKey="roas" name="ROAS" stroke="#F2994A" strokeWidth={2} dot={trendDays.length <= 40} isAnimationActive={false} />
                   </ComposedChart>
@@ -1179,7 +1182,7 @@ export default function PerformanceDashboard() {
                           <div className="text-right w-[45px]"><p className="text-[10px] text-text-quaternary">CTR</p><p className="font-semibold text-[11px]">{parseFloat(ins.ctr || '0').toFixed(2)}%</p></div>
                           <div className="text-right w-[55px]"><p className="text-[10px] text-text-quaternary">CPC</p><p className="font-semibold text-[11px]">{formatCPC(ins.cpc)}</p></div>
                           <div className="text-right w-[55px]"><p className="text-[10px] text-text-quaternary">CPM</p><p className="font-semibold text-[11px]">{campCPM}</p></div>
-                          <div className="text-right w-[45px]"><p className="text-[10px] text-text-quaternary">ROAS</p><p className={`font-semibold text-[11px] ${ins.roas && ins.roas >= 1 ? 'text-green' : ins.roas ? 'text-red' : 'text-text-quaternary'}`}>{formatROAS(ins.roas)}</p></div>
+                          <div className="text-right w-[45px]"><p className="text-[10px] text-text-quaternary">ROAS</p><p className={`font-semibold text-[11px] ${ins.roas ? roasClass(Number(ins.roas)) : 'text-text-quaternary'}`}>{formatROAS(ins.roas)}</p></div>
                           <div className="text-right w-[70px]"><p className="text-[10px] text-text-quaternary">구매전환값</p><p className="font-semibold text-[11px]">{purchaseValue ? formatCurrency(parseFloat(purchaseValue)) : '-'}</p></div>
                           <div className="text-right w-[50px]"><p className="text-[10px] text-text-quaternary">조회수</p><p className="font-semibold text-[11px]">{contentViews ? formatNum(contentViews) : '-'}</p></div>
                           <div className="text-right w-[60px]"><p className="text-[10px] text-text-quaternary">결과당비용</p><p className="font-semibold text-[11px]">{costPerResult ? formatCurrency(parseFloat(costPerResult)) : '-'}</p></div>
@@ -1318,7 +1321,7 @@ export default function PerformanceDashboard() {
                                       <span>CTR: {parseFloat(adset.insights.ctr || '0').toFixed(2)}%</span>
                                       <span>CPC: {formatCPC(adset.insights.cpc)}</span>
                                       <span>CPM: {formatCurrency(parseFloat(adset.insights.cpm || '0'))}</span>
-                                      <span className={adset.insights.roas && adset.insights.roas >= 1 ? 'text-green font-medium' : adset.insights.roas ? 'text-red font-medium' : ''}>ROAS: {formatROAS(adset.insights.roas)}</span>
+                                      <span className={adset.insights.roas ? `${roasClass(Number(adset.insights.roas))} font-medium` : ''}>ROAS: {formatROAS(adset.insights.roas)}</span>
                                     </div>
                                   )}
                                   {adset.ads?.length > 0 && (
@@ -1335,7 +1338,7 @@ export default function PerformanceDashboard() {
                                               <span className={`text-[10px] px-1 py-0.5 rounded ${adStatus === 'ACTIVE' ? 'bg-green/10 text-green' : 'bg-bg-2 text-text-quaternary'}`}>{adStatusKo}</span>
                                             </div>
                                             <div className="flex items-center gap-3">
-                                              {ad.insights && <span className="text-xs text-text-tertiary">{formatSpend(ad.insights.spend)} | CPC {formatCPC(ad.insights.cpc)} | CTR {parseFloat(ad.insights.ctr || '0').toFixed(2)}% | <span className={ad.insights.roas && ad.insights.roas >= 1 ? 'text-green' : ad.insights.roas ? 'text-red' : ''}>ROAS {formatROAS(ad.insights.roas)}</span></span>}
+                                              {ad.insights && <span className="text-xs text-text-tertiary">{formatSpend(ad.insights.spend)} | CPC {formatCPC(ad.insights.cpc)} | CTR {parseFloat(ad.insights.ctr || '0').toFixed(2)}% | <span className={ad.insights.roas ? roasClass(Number(ad.insights.roas)) : ''}>ROAS {formatROAS(ad.insights.roas)}</span></span>}
                                               <button
                                                 onClick={() => toggleStatus(ad.id, 'ad', adStatus)}
                                                 disabled={togglingId === ad.id}

@@ -10,7 +10,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Download, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { insightsDailyApi } from '@/lib/api';
-import { fmtWon, fmtNum } from '@/components/tabs/kpi/format';
+import { fmtWon, fmtNum, roasClass } from '@/components/tabs/kpi/format';
 
 const PRESETS = [
   { label: '7일', days: 7 },
@@ -115,7 +115,7 @@ export function MetaDailyTable() {
                   <td className="px-3 py-2 text-text-tertiary tabular-nums text-right">{r.frequency}</td>
                   <td className="px-3 py-2 text-text-secondary tabular-nums text-right">{fmtNum(r.conversions)}</td>
                   <td className="px-3 py-2 text-text-primary tabular-nums text-right">{fmtWon(r.revenue)}</td>
-                  <td className={`px-3 py-2 font-medium tabular-nums text-right ${r.roas >= 1 ? 'text-green' : r.roas > 0 ? 'text-yellow' : 'text-text-quaternary'}`}>
+                  <td className={`px-3 py-2 font-medium tabular-nums text-right ${r.roas ? roasClass(r.roas) : 'text-text-quaternary'}`}>
                     {r.roas ? r.roas.toFixed(2) : '-'}
                   </td>
                 </tr>

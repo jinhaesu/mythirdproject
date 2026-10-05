@@ -14,12 +14,14 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ResponsiveContainer, ComposedChart, LineChart, Bar, Line, XAxis, YAxis,
-  Tooltip as RechartsTooltip, Legend, CartesianGrid,
+  Tooltip as RechartsTooltip, Legend, CartesianGrid, ReferenceLine,
 } from 'recharts';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { adspendApi, homeApi, activitiesApi } from '@/lib/api';
-import { fmtWon, fmtNum, LINE_PALETTE } from '@/components/tabs/kpi/format';
+import {
+  fmtWon, fmtNum, LINE_PALETTE, roasClass, BREAKEVEN_ROAS, BREAKEVEN_ROAS_LABEL,
+} from '@/components/tabs/kpi/format';
 
 const thisMonth = () => new Date().toISOString().slice(0, 7);
 
@@ -285,9 +287,10 @@ export function GoalOverview() {
             매출 <b className="text-text-primary tabular-nums">{fmtWon(periodTotals.revenue)}</b>
           </span>
           <span className="text-[11px] text-text-tertiary">
-            Blended ROAS <b className={periodTotals.roas != null && periodTotals.roas >= 1 ? 'text-green' : 'text-yellow'}>
+            Blended ROAS <b className={roasClass(periodTotals.roas)}>
               {periodTotals.roas != null ? `${periodTotals.roas}x` : '-'}
             </b>
+            <span className="text-text-quaternary"> ({BREAKEVEN_ROAS_LABEL})</span>
           </span>
         </div>
       </div>
@@ -307,7 +310,7 @@ export function GoalOverview() {
           <p className="text-[11px] text-text-tertiary">채널 매출 합계 (기입+자동)</p>
           <p className="text-lg font-bold text-text-primary tabular-nums mt-1">{fmtWon(totals.revenue)}</p>
           <p className="text-[11px] text-text-quaternary mt-1.5">
-            Blended ROAS <b className={totals.roas != null && totals.roas >= 1 ? 'text-green' : 'text-yellow'}>{totals.roas ?? '-'}</b>
+            Blended ROAS <b className={roasClass(totals.roas)}>{totals.roas ?? '-'}</b>
           </p>
         </div>
         {isThisMonth && (
@@ -351,6 +354,8 @@ export function GoalOverview() {
                 {trend.series.map((inf, i) => (
                   <Bar key={inf} yAxisId="left" dataKey={inf} stackId="spend" fill={PALETTE[i % PALETTE.length]} maxBarSize={44} />
                 ))}
+                <ReferenceLine yAxisId="right" y={BREAKEVEN_ROAS} stroke="#EA4335" strokeDasharray="5 4"
+                  label={{ value: BREAKEVEN_ROAS_LABEL, position: 'insideTopRight', fontSize: 9, fill: '#EA4335' }} />
                 <Line yAxisId="right" type="monotone" dataKey="roas" name="Blended ROAS" stroke="#F0BF00" strokeWidth={2} dot={{ r: 3 }} connectNulls />
               </ComposedChart>
             </ResponsiveContainer>
@@ -380,6 +385,8 @@ export function GoalOverview() {
                       formatter={(v: any, name: any) => [v != null ? `${v}x` : '-', name]}
                     />
                     <Legend wrapperStyle={{ fontSize: 10 }} />
+                    <ReferenceLine y={BREAKEVEN_ROAS} stroke="#EA4335" strokeDasharray="5 4"
+                      label={{ value: BREAKEVEN_ROAS_LABEL, position: 'insideTopRight', fontSize: 9, fill: '#EA4335' }} />
                     {roasCompare.series.map((inf, i) => (
                       <Line key={inf} type="monotone" dataKey={inf} stroke={PALETTE[i % PALETTE.length]} strokeWidth={2} dot={{ r: 2.5 }} connectNulls />
                     ))}
@@ -441,7 +448,7 @@ export function GoalOverview() {
                       return (
                         <td key={m} className="px-2 py-1.5 text-right tabular-nums whitespace-nowrap">
                           <span className="text-text-secondary">{c.spend ? Math.round(c.spend / 1000).toLocaleString('ko-KR') : '·'}</span>
-                          <span className={`block text-[10px] ${c.roas == null ? 'text-text-quaternary' : c.roas >= 1 ? 'text-green' : 'text-red'}`}>
+                          <span className={`block text-[10px] ${roasClass(c.roas)}`}>
                             {c.roas != null ? `${c.roas}x` : '-'}
                           </span>
                         </td>
@@ -449,7 +456,7 @@ export function GoalOverview() {
                     })}
                     <td className="px-3 py-1.5 text-right tabular-nums whitespace-nowrap">
                       <span className="font-semibold text-text-primary">{fmtWon(r.spend)}</span>
-                      <span className={`block text-[10px] font-medium ${r.roas == null ? 'text-text-quaternary' : r.roas >= 1 ? 'text-green' : 'text-red'}`}>
+                      <span className={`block text-[10px] font-medium ${roasClass(r.roas)}`}>
                         {r.roas != null ? `ROAS ${r.roas}x` : 'ROAS -'}
                       </span>
                     </td>
@@ -524,9 +531,8 @@ export function GoalOverview() {
                       </button>
                     )}
                   </td>
-                  <td className={`px-4 py-2 font-semibold tabular-nums text-right ${
-                    r.roas == null ? 'text-text-quaternary' : r.roas >= 1 ? 'text-green' : 'text-red'
-                  }`}>{r.roas != null ? `${r.roas}x` : '-'}</td>
+                  <td className={`px-4 py-2 font-semibold tabular-nums text-right ${roasClass(r.roas)}`}>
+                    {r.roas != null ? `${r.roas}x` : '-'}</td>
                 </tr>
               ))}
             </tbody>
@@ -539,7 +545,7 @@ export function GoalOverview() {
                   <td className="px-4 py-2.5 text-text-secondary tabular-nums text-right">{totals.usage_pct != null ? `${totals.usage_pct}%` : '-'}</td>
                   <td />
                   <td className="px-4 py-2.5 font-bold text-text-primary tabular-nums text-right">{fmtWon(totals.revenue)}</td>
-                  <td className={`px-4 py-2.5 font-bold tabular-nums text-right ${totals.roas != null && totals.roas >= 1 ? 'text-green' : 'text-yellow'}`}>
+                  <td className={`px-4 py-2.5 font-bold tabular-nums text-right ${roasClass(totals.roas)}`}>
                     {totals.roas != null ? `${totals.roas}x` : '-'}
                   </td>
                 </tr>
@@ -550,7 +556,7 @@ export function GoalOverview() {
       </div>
       {board && (
         <p className="text-[10px] text-text-quaternary text-right">
-          기준: {month} · 조회 기간 {periodLabel} · 광고비 = 일보 집계(VAT포함) · 매출 = SALES 시스템 공급가(VAT별도, 매칭 채널 자동) · ROAS = 매출 ÷ 광고비
+          기준: {month} · 조회 기간 {periodLabel} · 광고비 = 일보 집계(VAT포함) · 매출 = SALES 시스템 공급가(VAT별도, 매칭 채널 자동) · ROAS = 매출 ÷ 광고비 · 색상: <span className="text-green">≥3.1 지속가능</span> / <span className="text-yellow">2.0~3.1 적자</span> / <span className="text-red">&lt;2.0 심각</span>
         </p>
       )}
     </div>

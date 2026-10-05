@@ -26,6 +26,19 @@ export const CHANNEL_COLORS: Record<string, string> = {
 
 export const LINE_PALETTE = ['#4EA7FC', '#27A644', '#F0BF00', '#EA4335', '#7070FF'];
 
+// ─── 손익분기 ROAS (대표 기준 2026-10-05: 3.1~3.3 유지돼야 지속 가능) ───
+
+export const BREAKEVEN_ROAS = 3.2; // 기준선 (밴드 중앙값)
+export const BREAKEVEN_ROAS_LOW = 3.1;
+export const BREAKEVEN_ROAS_LABEL = '손익분기 3.1~3.3';
+
+/** ROAS 색상 판정 — ≥3.1 지속가능(녹색) / 2.0~3.1 적자·한계(노랑) / <2.0 심각(빨강) */
+export const roasClass = (v: number | null | undefined): string =>
+  v == null ? 'text-text-quaternary'
+    : v >= BREAKEVEN_ROAS_LOW ? 'text-green'
+    : v >= 2.0 ? 'text-yellow'
+    : 'text-red';
+
 // ─── Formatting helpers ───
 
 export const fmtWon = (v: number | null | undefined): string =>

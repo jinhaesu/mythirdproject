@@ -155,7 +155,7 @@ export function HomeDashboard() {
             <Metric
               label="ROAS"
               value={b.meta?.roas_7d != null ? b.meta.roas_7d.toFixed(2) : '-'}
-              sub={b.meta?.roas_prev7 != null ? `이전 7일 ${b.meta.roas_prev7.toFixed(2)}` : undefined}
+              sub={`${b.meta?.roas_prev7 != null ? `이전 7일 ${b.meta.roas_prev7.toFixed(2)} · ` : ''}손익분기 3.1~3.3`}
             />
             <Metric label="구매" value={fmtNum(b.meta?.purchases_7d)} />
           </div>
