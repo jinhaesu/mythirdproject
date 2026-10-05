@@ -11,12 +11,15 @@ import {
   ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip,
 } from 'recharts';
 import {
-  LineChart, Megaphone, MessageCircle, ClipboardList, Receipt, Target, Gift,
+  LineChart, Megaphone, MessageCircle, ClipboardList, Receipt, Target, Gift, Scale,
   ArrowUpRight, ArrowDownRight, CheckCircle2, AlertCircle, ChevronRight,
 } from 'lucide-react';
+import { ReferenceLine } from 'recharts';
 import { homeApi } from '@/lib/api';
 import { useAppStore, type MenuKey } from '@/store';
-import { fmtWon, fmtNum } from '@/components/tabs/kpi/format';
+import {
+  fmtWon, fmtNum, roasClass, BREAKEVEN_ROAS, BREAKEVEN_ROAS_LABEL,
+} from '@/components/tabs/kpi/format';
 
 function DeltaChip({ pct }: { pct: number | null | undefined }) {
   if (pct === null || pct === undefined) return null;
@@ -78,11 +81,13 @@ function MiniProgress({ pct }: { pct: number | null | undefined }) {
   );
 }
 
-function Metric({ label, value, sub }: { label: string; value: string; sub?: React.ReactNode }) {
+function Metric({ label, value, sub, valueClass }: {
+  label: string; value: string; sub?: React.ReactNode; valueClass?: string;
+}) {
   return (
     <div className="flex flex-col gap-0.5 min-w-0">
       <span className="text-[11px] text-text-tertiary whitespace-nowrap">{label}</span>
-      <span className="text-lg font-semibold text-text-primary tabular-nums whitespace-nowrap">{value}</span>
+      <span className={`text-lg font-semibold tabular-nums whitespace-nowrap ${valueClass || 'text-text-primary'}`}>{value}</span>
       {sub && <span className="text-[11px] text-text-quaternary">{sub}</span>}
     </div>
   );
@@ -113,6 +118,14 @@ export function HomeDashboard() {
     label: d.date?.slice(5),
     roas: d.spend ? d.revenue / d.spend : null,
   }));
+
+  // 메타 월간 손익 — 손익분기 ROAS(3.2) 역산 마진(≈31%)으로 공헌이익 추정
+  const mm = b.meta_month;
+  const beRevenue = mm?.spend ? mm.spend * BREAKEVEN_ROAS : 0; // 손익분기 필요 매출
+  const metaProfit = mm?.spend ? mm.revenue / BREAKEVEN_ROAS - mm.spend : 0;
+  const bePct = beRevenue ? Math.round(((mm?.revenue || 0) / beRevenue) * 100) : null;
+  const beShortfall = Math.max(0, beRevenue - (mm?.revenue || 0));
+  const mallMonth = b.sales?.month_amount || 0;
 
   return (
     <div className="space-y-4">
@@ -155,6 +168,7 @@ export function HomeDashboard() {
             <Metric
               label="ROAS"
               value={b.meta?.roas_7d != null ? b.meta.roas_7d.toFixed(2) : '-'}
+              valueClass={roasClass(b.meta?.roas_7d)}
               sub={`${b.meta?.roas_prev7 != null ? `이전 7일 ${b.meta.roas_prev7.toFixed(2)} · ` : ''}손익분기 3.1~3.3`}
             />
             <Metric label="구매" value={fmtNum(b.meta?.purchases_7d)} />
@@ -179,6 +193,64 @@ export function HomeDashboard() {
               </ResponsiveContainer>
             </div>
           )}
+        </SectionCard>
+
+        {/* 메타 광고 손익 — 광고비 ↔ 매출 연계 (손익분기 3.1~3.3 기준) */}
+        <SectionCard title={`메타 광고 손익 · ${monthLabel}`} icon={Scale} menu="live" subTab={0}>
+          <div className="flex gap-6 flex-wrap">
+            <Metric label="광고비 (이달)" value={fmtWon(mm?.spend)} />
+            <Metric label="전환 매출 (이달)" value={fmtWon(mm?.revenue)} />
+            <Metric
+              label="ROAS"
+              value={mm?.roas != null ? mm.roas.toFixed(2) : '-'}
+              valueClass={roasClass(mm?.roas)}
+              sub="손익분기 3.1~3.3"
+            />
+            <Metric
+              label="추정 손익 (실제)"
+              value={mm?.spend ? `${metaProfit < 0 ? '-' : '+'}${fmtWon(Math.abs(metaProfit)).slice(1)}` : '-'}
+              valueClass={metaProfit < 0 ? 'text-red' : 'text-green'}
+              sub="손익분기 ROAS 역산 마진 ≈31% 가정"
+            />
+          </div>
+          <div>
+            <div className="flex items-center justify-between text-[11px] mb-1">
+              <span className="text-text-tertiary">목표: 전환 매출 {fmtWon(beRevenue)} 이상 (광고비 × 3.2)</span>
+              <span className={`tabular-nums font-medium ${bePct != null && bePct >= 100 ? 'text-green' : bePct != null && bePct >= 63 ? 'text-yellow' : 'text-red'}`}>
+                {bePct != null ? `달성률 ${bePct}%` : '-'}
+                {beShortfall > 0 && ` · 부족 ${fmtWon(beShortfall)}`}
+              </span>
+            </div>
+            <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'rgb(var(--color-overlay-rgb) / 0.07)' }}>
+              <div className="h-full rounded-full" style={{
+                width: `${Math.min(100, bePct ?? 0)}%`,
+                backgroundColor: bePct != null && bePct >= 100 ? '#27A644' : bePct != null && bePct >= 63 ? '#F0BF00' : '#EA4335',
+              }} />
+            </div>
+          </div>
+          {(mm?.monthly || []).length > 0 && (
+            <div className="h-28">
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={mm.monthly.map((m: any) => ({ ...m, label: m.month.slice(2) }))} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
+                  <XAxis dataKey="label" tick={{ fontSize: 9, fill: 'var(--color-text-quaternary)' }} tickLine={false} axisLine={false} />
+                  <YAxis yAxisId="w" hide />
+                  <YAxis yAxisId="r" hide domain={[0, 'auto']} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)', borderRadius: 8, fontSize: 11 }}
+                    formatter={(v: any, name: any) => (name === 'ROAS' ? [v != null ? Number(v).toFixed(2) : '-', name] : [fmtWon(v), name])}
+                  />
+                  <ReferenceLine yAxisId="r" y={BREAKEVEN_ROAS} stroke="#EA4335" strokeDasharray="4 3"
+                    label={{ value: BREAKEVEN_ROAS_LABEL, position: 'insideTopRight', fontSize: 8, fill: '#EA4335' }} />
+                  <Bar yAxisId="w" dataKey="spend" name="광고비" fill="#4EA7FC" opacity={0.5} radius={[3, 3, 0, 0]} />
+                  <Line yAxisId="r" dataKey="roas" name="ROAS" stroke="#F0BF00" strokeWidth={2} dot={{ r: 2.5 }} connectNulls />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+          <p className="text-[11px] text-text-quaternary">
+            자사몰 {monthLabel} 매출 {fmtWon(mallMonth)} 기준 — 메타 광고비 비중 {mallMonth && mm?.spend ? `${Math.round((mm.spend / mallMonth) * 100)}%` : '-'} ·
+            메타 전환 매출 기여 {mallMonth && mm?.revenue ? `${Math.round((mm.revenue / mallMonth) * 100)}%` : '-'} (메타 어트리뷰션 기준, 자사몰 매출과 정의 상이)
+          </p>
         </SectionCard>
 
         {/* 어필리에이트 */}

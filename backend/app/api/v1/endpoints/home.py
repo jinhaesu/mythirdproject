@@ -185,6 +185,22 @@ async def home_briefing(
     act_by_month = {m: {"views": int(v), "cost": float(c), "rows": int(n)}
                     for m, v, c, n in act_monthly_rows}
 
+    # ── Meta 월간 손익용 — 이달(MTD) + 최근 6개월 월별 지출/전환매출 ──────
+    from sqlalchemy import text as sa_text
+
+    meta_m_rows = (await db.execute(
+        select(
+            func.to_char(MetaInsightDaily.date, "YYYY-MM"),
+            func.coalesce(func.sum(MetaInsightDaily.spend), 0),
+            func.coalesce(func.sum(MetaInsightDaily.revenue), 0),
+        ).where(
+            MetaInsightDaily.level == "campaign",
+            MetaInsightDaily.date >= date.fromisoformat(months6[0] + "-01"),
+        ).group_by(sa_text("1"))  # to_char 포맷 바인드 파라미터 GROUP BY 불일치 방지 — 위치 지정
+    )).all()
+    meta_by_month = {m: {"spend": float(s), "revenue": float(r)} for m, s, r in meta_m_rows}
+    meta_mtd = meta_by_month.get(month_str, {"spend": 0.0, "revenue": 0.0})
+
     # ── 협찬 — 이번 달 + 최근 6개월 월별 건수/환산금액/결과물 ─────────────
     from app.models import Sponsorship, SponsorshipOutcome
 
@@ -283,6 +299,21 @@ async def home_briefing(
             "daily": [
                 {"date": d.isoformat(), "spend": float(s), "revenue": float(r)}
                 for d, s, r in meta_daily
+            ],
+        },
+        "meta_month": {
+            "spend": round(meta_mtd["spend"], 0),
+            "revenue": round(meta_mtd["revenue"], 0),
+            "roas": round(meta_mtd["revenue"] / meta_mtd["spend"], 2) if meta_mtd["spend"] else None,
+            "monthly": [
+                {
+                    "month": m,
+                    "spend": round(meta_by_month.get(m, {}).get("spend", 0), 0),
+                    "revenue": round(meta_by_month.get(m, {}).get("revenue", 0), 0),
+                    "roas": round(meta_by_month[m]["revenue"] / meta_by_month[m]["spend"], 2)
+                    if meta_by_month.get(m, {}).get("spend") else None,
+                }
+                for m in months6
             ],
         },
         "affiliate": {
