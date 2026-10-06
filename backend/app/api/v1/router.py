@@ -34,6 +34,13 @@ api_router.include_router(
 )
 
 # 광고비 일보 (매체별 일별 광고비 기입/예산/자동연동)
+from app.api.v1.endpoints import social  # noqa: E402
+api_router.include_router(
+    social.router,
+    prefix="/social",
+    tags=["Social Organic"]
+)
+
 from app.api.v1.endpoints import adspend  # noqa: E402
 api_router.include_router(
     adspend.router,

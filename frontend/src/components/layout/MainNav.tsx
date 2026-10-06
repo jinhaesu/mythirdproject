@@ -51,6 +51,7 @@ export const MENUS: { key: MenuKey; name: string; icon: any; subTabs: SubTabDef[
     subTabs: [
       { id: 0, name: '네이버 인사이트' },
       { id: 1, name: '키워드 리서치·순위' },
+      { id: 2, name: '소셜 채널' },
     ],
   },
   {

@@ -1964,6 +1964,34 @@ export const sponsorshipApi = {
   exportXlsx: () => downloadFile('/sponsorship/export'),
 };
 
+// ─── 소셜 채널 오가닉 (유튜브 공개 데이터 · 인스타 자사 계정) ─────────────────
+export const socialApi = {
+  ytVideo: async (video: string): Promise<any> => {
+    const { data } = await api.get('/social/youtube/video', { params: { video } });
+    return data;
+  },
+  ytComments: async (video: string, limit = 20, order: 'relevance' | 'time' = 'relevance'): Promise<any> => {
+    const { data } = await api.get('/social/youtube/video/comments', { params: { video, limit, order } });
+    return data;
+  },
+  ytChannel: async (channel: string, videos = 10): Promise<any> => {
+    const { data } = await api.get('/social/youtube/channel', { params: { channel, videos } });
+    return data;
+  },
+  igMedia: async (limit = 24): Promise<any> => {
+    const { data } = await api.get('/social/instagram/media', { params: { limit } });
+    return data;
+  },
+  igComments: async (mediaId: string, limit = 30): Promise<any> => {
+    const { data } = await api.get(`/social/instagram/media/${mediaId}/comments`, { params: { limit } });
+    return data;
+  },
+  refreshActivityMetrics: async (monthsBack = 3): Promise<any> => {
+    const { data } = await api.post('/social/refresh-activity-metrics', null, { params: { months_back: monthsBack } });
+    return data;
+  },
+};
+
 // Currency & number formatting utilities
 export function formatCurrency(amount: number, currency: string = 'KRW'): string {
   if (currency === 'KRW') {

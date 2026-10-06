@@ -12,4 +12,5 @@ export { AdSpendBoard } from './AdSpendBoard';
 export { GoalOverview } from './GoalOverview';
 export { GoalEntry } from './GoalEntry';
 export { SponsorshipBoard } from './SponsorshipBoard';
+export { SocialChannels } from './SocialChannels';
 export { SponsorshipAnalytics } from './SponsorshipAnalytics';

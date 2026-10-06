@@ -11,10 +11,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend,
 } from 'recharts';
-import { ExternalLink, Plus, Pencil, Trash2, X } from 'lucide-react';
+import { ExternalLink, Plus, Pencil, Trash2, X, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
-  activitiesApi, type MarketingActivityRow, type MarketingActivityInput, formatNumber,
+  activitiesApi, socialApi, type MarketingActivityRow, type MarketingActivityInput, formatNumber,
 } from '@/lib/api';
 import { fmtWon, fmtNum, LINE_PALETTE } from '@/components/tabs/kpi/format';
 
@@ -28,6 +28,29 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 const today = () => new Date().toISOString().slice(0, 10);
+
+/** 유튜브 링크가 있는 활동 기록의 조회수·좋아요·댓글수를 현재 값으로 일괄 갱신 */
+function RefreshYtButton() {
+  const qc = useQueryClient();
+  const mut = useMutation({
+    mutationFn: () => socialApi.refreshActivityMetrics(6),
+    onSuccess: (d) => {
+      qc.invalidateQueries({ queryKey: ['activities'] });
+      toast.success(`유튜브 지표 갱신: ${d.updated}건 업데이트 (링크 매칭 ${d.matched}건)`);
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail || '갱신 실패'),
+  });
+  return (
+    <button
+      onClick={() => mut.mutate()}
+      disabled={mut.isPending}
+      title="최근 6개월 기록 중 유튜브 링크가 있는 행의 조회수·좋아요·댓글수를 현재 값으로 갱신합니다"
+      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-text-secondary border border-border-primary hover:text-text-primary disabled:opacity-50"
+    >
+      <RefreshCw size={13} className={mut.isPending ? 'animate-spin' : ''} /> 유튜브 조회수 갱신
+    </button>
+  );
+}
 
 const EMPTY_FORM: MarketingActivityInput = {
   activity_type: 'content',
@@ -156,6 +179,7 @@ export function ActivitiesBoard() {
           {(meta?.channels || []).map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
         <div className="flex-1" />
+        <RefreshYtButton />
         <button
           onClick={() => setEditing('new')}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white transition-opacity hover:opacity-90"

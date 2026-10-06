@@ -472,6 +472,9 @@ async def get_meta_login_url(
         "ads_management",
         "ads_read",
         "business_management",
+        # 인스타 오가닉(자사 계정 미디어·댓글·인사이트) — 2026-10-06 소셜 채널 탭용
+        "instagram_basic",
+        "instagram_manage_insights",
     ])
 
     login_url = (

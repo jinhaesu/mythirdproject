@@ -19,6 +19,7 @@ import {
   GoalEntry,
   SponsorshipBoard,
   SponsorshipAnalytics,
+  SocialChannels,
 } from '@/components/tabs';
 import {
   NaverSearchAdsDashboard,
@@ -173,6 +174,7 @@ export default function Home() {
           <>
             {sub('intel') === 0 && <NaverInsights />}
             {sub('intel') === 1 && <NaverKeywordResearch />}
+            {sub('intel') === 2 && <SocialChannels />}
           </>
         )}
         {activeMenu === 'affiliate' && (
