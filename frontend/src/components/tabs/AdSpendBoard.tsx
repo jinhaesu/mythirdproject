@@ -171,6 +171,16 @@ export function AdSpendBoard() {
         </button>
       </div>
 
+      {/* 입력 단위 안내 — 2026-10-06 천원→원 전환 공지 */}
+      <div className="flex items-start gap-2 rounded-lg px-3 py-2 text-[11px]"
+        style={{ backgroundColor: 'rgba(240,191,0,0.08)', border: '1px solid rgba(240,191,0,0.35)' }}>
+        <span className="text-yellow font-bold shrink-0">₩ 입력 단위 확인</span>
+        <span className="text-text-secondary">
+          모든 금액은 <b className="text-text-primary">원 단위</b>로 입력합니다 — 150만 원이면 <b className="text-text-primary">1500000</b>,
+          천원 단위(1500)로 적으면 1,000배 작게 저장됩니다. Limit·비고 옆 금액도 동일하게 원 단위입니다.
+        </span>
+      </div>
+
       {/* 월 요약 (필터 반영) */}
       {board && view && (
         <div className="flex flex-wrap gap-3">
