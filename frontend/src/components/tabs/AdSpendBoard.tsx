@@ -3,10 +3,11 @@
 /**
  * 광고비 일보 — 매체별 일별 광고비 기입 그리드 (구글시트 일보의 시스템화).
  *
- * 행 = 매체(유입채널 그룹핑), 열 = 1일~말일. 셀 클릭 → 기입(단위: 천원).
+ * 행 = 매체(유입채널 그룹핑), 열 = 1일~말일. 셀 클릭 → 기입(단위: 원).
  * 우측: 월 합계 / Limit(클릭 수정) / 사용율. 하단: 일별 합계.
  * meta/naver_sa 자동 연동 매체는 스냅샷에서 자동 채움(읽기 전용).
- * 저장 값은 원 단위(VAT 포함) — 시트 관행과 동일하게 화면 표기는 천원.
+ * 저장·표시·입력 전부 원 단위(VAT 포함) — 팀이 원 단위로 기입하는 관행에 맞춰
+ * 2026-10-06 천원 입력(×1000 저장)을 폐지. 천원 입력분은 ÷1000 복구 완료.
  */
 import { Fragment, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -24,9 +25,9 @@ function monthAdd(month: string, delta: number): string {
   return `${String(Math.floor(t / 12)).padStart(4, '0')}-${String((t % 12) + 1).padStart(2, '0')}`;
 }
 
-/** 원 → 천원 표시 */
+/** 원 단위 표시 (0·빈 값은 공백) */
 const k = (v: number | null | undefined) =>
-  v === null || v === undefined || v === 0 ? '' : Math.round(v / 1000).toLocaleString('ko-KR');
+  v === null || v === undefined || v === 0 ? '' : Math.round(v).toLocaleString('ko-KR');
 
 export function AdSpendBoard() {
   const qc = useQueryClient();
@@ -119,8 +120,8 @@ export function AdSpendBoard() {
     if (!editCell) return;
     const raw = cellValue.replace(/,/g, '').trim();
     const num = raw === '' ? 0 : Number(raw);
-    if (Number.isNaN(num) || num < 0) { toast.error('숫자를 입력해 주세요 (천원 단위)'); return; }
-    entryMut.mutate({ mediaId: editCell.mediaId, date: editCell.date, amount: num * 1000 });
+    if (Number.isNaN(num) || num < 0) { toast.error('숫자를 입력해 주세요 (원 단위)'); return; }
+    entryMut.mutate({ mediaId: editCell.mediaId, date: editCell.date, amount: num });
     setEditCell(null);
   };
 
@@ -130,7 +131,7 @@ export function AdSpendBoard() {
         <div>
           <h2 className="text-base font-semibold text-text-primary">광고비 일보</h2>
           <p className="text-xs text-text-tertiary mt-0.5">
-            셀 클릭으로 기입 · 단위 <b className="text-text-secondary">천원</b> (VAT 포함) · Limit 셀 클릭으로 월 한도 수정
+            셀 클릭으로 기입 · 단위 <b className="text-text-secondary">원</b> (VAT 포함) · Limit 셀 클릭으로 월 한도 수정
           </p>
         </div>
         <div className="flex-1" />
@@ -197,17 +198,17 @@ export function AdSpendBoard() {
       ) : (
         <div className="rounded-xl overflow-hidden" style={{ backgroundColor: 'var(--color-bg-level-1)', border: '1px solid var(--color-border-primary)' }}>
           <div className="overflow-x-auto max-h-[70vh] overflow-y-auto">
-            <table className="text-[11px] border-collapse" style={{ minWidth: `${480 + days * 52}px` }}>
+            <table className="text-[11px] border-collapse" style={{ minWidth: `${520 + days * 76}px` }}>
               <thead className="sticky top-0 z-20" style={{ backgroundColor: 'var(--color-bg-level-2)' }}>
                 <tr>
                   <th className="sticky left-0 z-30 px-2 py-2 text-left font-medium text-text-tertiary min-w-[190px]" style={{ backgroundColor: 'var(--color-bg-level-2)' }}>매체</th>
                   {dates.map((d) => (
-                    <th key={d} className={`px-1 py-2 text-right font-medium min-w-[50px] ${d === todayIso ? 'text-text-primary' : 'text-text-quaternary'}`}>
+                    <th key={d} className={`px-1 py-2 text-right font-medium min-w-[72px] ${d === todayIso ? 'text-text-primary' : 'text-text-quaternary'}`}>
                       {parseInt(d.slice(8), 10)}
                     </th>
                   ))}
-                  <th className="px-2 py-2 text-right font-medium text-text-secondary min-w-[70px]">합계</th>
-                  <th className="px-2 py-2 text-right font-medium text-text-quaternary min-w-[70px]">Limit</th>
+                  <th className="px-2 py-2 text-right font-medium text-text-secondary min-w-[96px]">합계</th>
+                  <th className="px-2 py-2 text-right font-medium text-text-quaternary min-w-[96px]">Limit</th>
                   <th className="px-2 py-2 text-right font-medium text-text-quaternary min-w-[52px]">사용율</th>
                   <th className="px-2 py-2 text-left font-medium text-text-quaternary min-w-[140px]">비고</th>
                 </tr>
@@ -236,19 +237,19 @@ export function AdSpendBoard() {
                               {isEditing ? (
                                 <input
                                   autoFocus
-                                  defaultValue={v ? String(Math.round(v / 1000)) : ''}
+                                  defaultValue={v ? String(Math.round(v)) : ''}
                                   onChange={(e) => setCellValue(e.target.value)}
                                   onBlur={commitCell}
                                   onKeyDown={(e) => {
                                     if (e.key === 'Enter') commitCell();
                                     if (e.key === 'Escape') setEditCell(null);
                                   }}
-                                  className="w-[50px] px-1 py-1 text-right text-[11px] tabular-nums bg-bg-2 border border-brand outline-none"
+                                  className="w-[72px] px-1 py-1 text-right text-[11px] tabular-nums bg-bg-2 border border-brand outline-none"
                                 />
                               ) : (
                                 <button
                                   disabled={r.auto}
-                                  onClick={() => { setCellValue(v ? String(Math.round(v / 1000)) : ''); setEditCell({ mediaId: r.media_id, date: d }); }}
+                                  onClick={() => { setCellValue(v ? String(Math.round(v)) : ''); setEditCell({ mediaId: r.media_id, date: d }); }}
                                   className={`w-full px-1 py-1 text-right tabular-nums ${
                                     r.auto ? 'text-text-tertiary cursor-default' : 'text-text-secondary hover:bg-[rgb(var(--color-overlay-rgb)/0.07)] cursor-pointer'
                                   } ${d === todayIso ? 'bg-brand/5' : ''}`}
@@ -264,19 +265,19 @@ export function AdSpendBoard() {
                           {editLimit === r.media_id ? (
                             <input
                               autoFocus
-                              defaultValue={r.limit_amount ? String(Math.round(r.limit_amount / 1000)) : ''}
+                              defaultValue={r.limit_amount ? String(Math.round(r.limit_amount)) : ''}
                               onChange={(e) => setCellValue(e.target.value)}
                               onBlur={() => {
                                 const num = Number(cellValue.replace(/,/g, '').trim() || '0');
-                                if (!Number.isNaN(num) && num >= 0) limitMut.mutate({ mediaId: r.media_id, limit: num * 1000 });
+                                if (!Number.isNaN(num) && num >= 0) limitMut.mutate({ mediaId: r.media_id, limit: num });
                                 setEditLimit(null);
                               }}
                               onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setEditLimit(null); }}
-                              className="w-[66px] px-1 py-1 text-right text-[11px] tabular-nums bg-bg-2 border border-brand outline-none"
+                              className="w-[90px] px-1 py-1 text-right text-[11px] tabular-nums bg-bg-2 border border-brand outline-none"
                             />
                           ) : (
                             <button
-                              onClick={() => { setCellValue(r.limit_amount ? String(Math.round(r.limit_amount / 1000)) : ''); setEditLimit(r.media_id); }}
+                              onClick={() => { setCellValue(r.limit_amount ? String(Math.round(r.limit_amount)) : ''); setEditLimit(r.media_id); }}
                               className="w-full px-2 py-1 text-right tabular-nums text-text-quaternary hover:text-text-primary hover:bg-[rgb(var(--color-overlay-rgb)/0.07)]"
                             >{k(r.limit_amount) || '설정'}</button>
                           )}
