@@ -465,17 +465,20 @@ async def get_meta_login_url(
         )
 
     redirect_uri = f"{settings.FRONTEND_URL}/auth/meta/callback"
-    scopes = ",".join([
+    # ⚠️ instagram_basic/instagram_manage_insights를 기본 포함하면 앱에 해당 권한이
+    # 없을 때 "Invalid Scopes"로 로그인 자체가 막힌다(2026-10-08 발생) —
+    # Meta 개발자 콘솔에서 Instagram 권한을 추가한 뒤 META_EXTRA_SCOPES env로 켠다.
+    scope_list = [
         "public_profile",
         "pages_show_list",
         "pages_read_engagement",
         "ads_management",
         "ads_read",
         "business_management",
-        # 인스타 오가닉(자사 계정 미디어·댓글·인사이트) — 2026-10-06 소셜 채널 탭용
-        "instagram_basic",
-        "instagram_manage_insights",
-    ])
+    ]
+    extra = getattr(settings, "META_EXTRA_SCOPES", "") or ""
+    scope_list += [s.strip() for s in extra.split(",") if s.strip()]
+    scopes = ",".join(scope_list)
 
     login_url = (
         f"https://www.facebook.com/{settings.META_API_VERSION}/dialog/oauth"

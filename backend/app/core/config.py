@@ -32,6 +32,13 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
     REPLICATE_API_TOKEN: str = ""
 
+    # Meta OAuth 추가 스코프 (예: "instagram_basic,instagram_manage_insights" —
+    # 앱에 권한이 실제로 있을 때만 켤 것, 없으면 Invalid Scopes로 로그인 차단됨)
+    META_EXTRA_SCOPES: str = ""
+
+    # 사내 MCP 노출용 키 (클로드 데스크톱 커넥터 — 읽기 전용 분석 도구)
+    MARKETING_MCP_KEY: str = ""
+
     # Market Intelligence APIs
     YOUTUBE_API_KEY: str = ""
     NAVER_CLIENT_ID: str = ""

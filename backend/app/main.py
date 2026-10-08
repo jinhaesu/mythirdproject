@@ -277,6 +277,10 @@ app.add_middleware(
 # Include API router
 app.include_router(api_router, prefix="/api/v1")
 
+# 사내 클로드용 MCP 엔드포인트 (루트 /mcp — ?key= 인증, 읽기 전용)
+from app.api.mcp_server import router as mcp_router  # noqa: E402
+app.include_router(mcp_router)
+
 # Mount uploads directory for static file serving
 uploads_dir = os.path.join(os.path.dirname(__file__), "..", "uploads")
 os.makedirs(uploads_dir, exist_ok=True)
