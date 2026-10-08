@@ -182,7 +182,9 @@ function YouTubeSection() {
 
 function InstagramSection() {
   const [openMedia, setOpenMedia] = useState<string | null>(null);
-  const { data: status } = useQuery({
+  const [tokenInput, setTokenInput] = useState('');
+  const [showTokenForm, setShowTokenForm] = useState(false);
+  const { data: status, refetch: refetchStatus } = useQuery({
     queryKey: ['social', 'ig-status'],
     queryFn: socialApi.igStatus,
     staleTime: 60 * 1000,
@@ -195,13 +197,16 @@ function InstagramSection() {
     retry: false,
   });
 
-  const connectIg = async () => {
+  const saveToken = async () => {
+    const t = tokenInput.trim();
+    if (t.length < 20) { toast.error('토큰을 붙여넣어 주세요'); return; }
     try {
-      const { auth_url } = await socialApi.igAuthStart();
-      window.open(auth_url, '_blank', 'width=560,height=720');
-      toast('인스타그램 비즈니스/크리에이터 계정으로 로그인해 주세요 — 완료 후 새로고침', { icon: '📷' });
+      const r = await socialApi.igSetToken(t);
+      toast.success(`연결 완료 — @${r.username}${r.followers != null ? ` (팔로워 ${r.followers.toLocaleString()})` : ''}`);
+      setTokenInput(''); setShowTokenForm(false);
+      refetchStatus(); refetch();
     } catch (e: any) {
-      toast.error(e?.response?.data?.detail || '연결 시작 실패 (INSTAGRAM_APP_ID 미설정일 수 있음)');
+      toast.error(e?.response?.data?.detail || '토큰 검증 실패');
     }
   };
   const cQuery = useQuery({
@@ -224,11 +229,16 @@ function InstagramSection() {
           </span>
         )}
         <div className="flex-1" />
-        {status && !status.connected && (
-          <button onClick={connectIg}
+        {status?.connected ? (
+          <button onClick={async () => { if (confirm('인스타그램 연결을 해제할까요?')) { await socialApi.igDisconnect(); refetchStatus(); refetch(); } }}
+            className="px-2 py-1 rounded-lg text-[11px] text-text-quaternary border border-border-primary hover:text-red">
+            연결 해제
+          </button>
+        ) : (
+          <button onClick={() => setShowTokenForm(!showTokenForm)}
             className="px-2.5 py-1 rounded-lg text-[11px] font-medium text-white"
             style={{ backgroundColor: 'var(--color-brand-bg)' }}>
-            인스타 계정 연결
+            토큰으로 연결
           </button>
         )}
         <button onClick={() => refetch()} disabled={isFetching}
@@ -236,14 +246,33 @@ function InstagramSection() {
           <RefreshCw size={11} className={isFetching ? 'animate-spin' : ''} /> 새로고침
         </button>
       </div>
+      {showTokenForm && !status?.connected && (
+        <div className="rounded-lg p-3 space-y-2" style={{ border: '1px solid var(--color-border-primary)' }}>
+          <p className="text-[11px] text-text-tertiary">
+            developers.facebook.com → 앱 → 좌측 <b className="text-text-secondary">Instagram → API 설정(Instagram 로그인 포함)</b> →
+            1단계에서 자사 인스타 계정 추가 → <b className="text-text-secondary">토큰 생성</b> 버튼으로 받은 장기 토큰(60일)을 붙여넣으세요.
+            이후 만료 전 자동 연장됩니다.
+          </p>
+          <div className="flex gap-1.5">
+            <input type="password" value={tokenInput} onChange={(e) => setTokenInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && saveToken()}
+              placeholder="IGAAR... 형식의 액세스 토큰 붙여넣기"
+              className="flex-1 px-2.5 py-1.5 rounded-lg text-xs bg-bg-2 border border-border-primary text-text-primary" />
+            <button onClick={saveToken}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium text-white" style={{ backgroundColor: 'var(--color-brand-bg)' }}>
+              연결
+            </button>
+          </div>
+        </div>
+      )}
       {isLoading && <p className="text-xs text-text-tertiary py-4">게시물 불러오는 중...</p>}
-      {isError && (
+      {isError && !status?.connected && (
         <p className="text-xs text-yellow py-3">
-          {(error as any)?.response?.data?.detail || '인스타그램 조회 실패'} —
-          {status?.app_configured
-            ? ' 위 "인스타 계정 연결" 버튼으로 자사 인스타 비즈니스 계정을 직접 연결하세요.'
-            : ' Meta 개발자 콘솔에서 Instagram 제품 추가 후 Railway에 INSTAGRAM_APP_ID/SECRET을 입력하면 연결 버튼이 활성화됩니다.'}
+          아직 연결 전입니다 — 위 &quot;토큰으로 연결&quot;을 눌러 콘솔에서 생성한 토큰을 붙여넣으면 바로 조회됩니다.
         </p>
+      )}
+      {isError && status?.connected && (
+        <p className="text-xs text-red py-3">{(error as any)?.response?.data?.detail || '인스타그램 조회 실패'}</p>
       )}
       {data && (
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2.5">

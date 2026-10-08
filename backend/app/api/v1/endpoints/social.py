@@ -18,6 +18,7 @@ from typing import Optional
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -262,6 +263,51 @@ async def instagram_auth_callback(
     except Exception as e:
         logger.error(f"[IG] callback 오류: {e}", exc_info=True)
         return RedirectResponse(f"{front}/?ig=error&reason=exception")
+
+
+class IgTokenIn(BaseModel):
+    access_token: str = Field(..., min_length=20)
+
+
+@router.post("/instagram/token")
+async def instagram_set_token(
+    payload: IgTokenIn,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """콘솔에서 생성한 Instagram 액세스 토큰 직접 등록 (OAuth·env 불필요).
+
+    developers.facebook.com 앱 › Instagram › API 설정에서 계정 추가 후
+    '토큰 생성'으로 받은 장기 토큰을 붙여넣는 방식 — /me 호출로 유효성 검증.
+    """
+    token = payload.access_token.strip()
+    async with httpx.AsyncClient(timeout=20) as client:
+        r = await client.get(f"{IG_API_BASE}/me", params={
+            "fields": "user_id,username,followers_count", "access_token": token,
+        })
+    if r.status_code != 200:
+        detail = r.json().get("error", {}).get("message", r.text[:200]) if r.text else str(r.status_code)
+        raise HTTPException(status_code=422, detail=f"토큰 검증 실패: {detail}")
+    me = r.json()
+    current_user.ig_user_id = str(me.get("user_id") or me.get("id") or "")
+    current_user.ig_access_token = token
+    # 콘솔 발급 장기 토큰은 60일 — 만료일을 모르므로 50일로 잡고 자동 연장에 맡긴다
+    current_user.ig_token_expires_at = datetime.utcnow() + timedelta(days=50)
+    await db.commit()
+    return {"connected": True, "username": me.get("username"),
+            "followers": me.get("followers_count")}
+
+
+@router.delete("/instagram/token")
+async def instagram_disconnect(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    current_user.ig_user_id = None
+    current_user.ig_access_token = None
+    current_user.ig_token_expires_at = None
+    await db.commit()
+    return {"connected": False}
 
 
 @router.get("/instagram/status")

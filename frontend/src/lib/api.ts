@@ -1986,6 +1986,14 @@ export const socialApi = {
     const { data } = await api.get('/social/instagram/status');
     return data;
   },
+  igSetToken: async (accessToken: string): Promise<{ connected: boolean; username?: string; followers?: number }> => {
+    const { data } = await api.post('/social/instagram/token', { access_token: accessToken });
+    return data;
+  },
+  igDisconnect: async () => {
+    const { data } = await api.delete('/social/instagram/token');
+    return data;
+  },
   igMedia: async (limit = 24): Promise<any> => {
     const { data } = await api.get('/social/instagram/media', { params: { limit } });
     return data;
