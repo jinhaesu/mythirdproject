@@ -13,4 +13,5 @@ export { GoalOverview } from './GoalOverview';
 export { GoalEntry } from './GoalEntry';
 export { SponsorshipBoard } from './SponsorshipBoard';
 export { SocialChannels } from './SocialChannels';
+export { CreatorPool } from './CreatorPool';
 export { SponsorshipAnalytics } from './SponsorshipAnalytics';

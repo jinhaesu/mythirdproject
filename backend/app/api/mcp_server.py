@@ -143,6 +143,15 @@ TOOLS: list[dict] = [
         }},
     },
     {
+        "name": "creator_pool",
+        "description": "인스타 크리에이터 풀 조회 — 잠재풀·유상구좌(팔로워·평균 반응·참여율·상태·단가). status: candidate|contacted|working|done|excluded.",
+        "inputSchema": {"type": "object", "properties": {
+            "status": {"type": "string"},
+            "is_paid": {"type": "boolean"},
+            "q": {"type": "string"},
+        }},
+    },
+    {
         "name": "sponsorship_events",
         "description": "협찬 개별 건 조회 — 협찬처·종류·일자·품목·수량·환산금액·결과물(링크·조회수) 목록.",
         "inputSchema": {"type": "object", "properties": {
@@ -204,6 +213,12 @@ async def _call_tool(name: str, args: dict) -> Any:
             "limit": args.get("limit", 100),
         }.items() if v is not None}
         return await _get("/activities", params)
+    if name == "creator_pool":
+        params = {k: v for k, v in {
+            "status": args.get("status"), "is_paid": args.get("is_paid"),
+            "q": args.get("q"),
+        }.items() if v is not None}
+        return await _get("/social/creators", params)
     if name == "sponsorship_events":
         params = {k: v for k, v in {
             "event_type": args.get("event_type"), "since": args.get("since"),

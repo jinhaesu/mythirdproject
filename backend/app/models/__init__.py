@@ -31,6 +31,7 @@ from app.models.kpi import (
     MallVisitorsDaily,
 )
 from app.models.influencer import InfluencerSeeding
+from app.models.creator_pool import CreatorPool
 from app.models.sponsorship import Sponsorship, SponsorshipItem, SponsorshipOutcome
 from app.models.naver_insight import NaverMentionDaily
 from app.models.marketing_activity import MarketingActivity
@@ -80,6 +81,7 @@ __all__ = [
     "ChannelSpendDaily",
     "MallVisitorsDaily",
     "InfluencerSeeding",
+    "CreatorPool",
     "Sponsorship",
     "SponsorshipItem",
     "SponsorshipOutcome",

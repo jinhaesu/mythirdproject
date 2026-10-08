@@ -487,6 +487,351 @@ async def instagram_media_comments(
             "as_of": datetime.utcnow().isoformat()}
 
 
+# ─── 인스타 스튜디오 — 계정 인사이트·해시태그·태그됨·댓글 답글 (FB-login 경로) ──
+#
+# 해시태그 검색(Instagram Public Content Access)·business_discovery·tags는
+# Graph API(FB 로그인 토큰 + meta_ig_account_id) 전용 기능 — 앱 권한 부여 완료(2026-10-08).
+
+async def _ig_graph(db: AsyncSession, current_user: User):
+    """FB-login 경로 토큰·IG ID·base URL."""
+    token, ig_id = await _ig_context(db, current_user)
+    base = f"{settings.META_GRAPH_API_BASE}/{settings.META_API_VERSION}"
+    return token, ig_id, base
+
+
+def _ig_err(r: httpx.Response) -> HTTPException:
+    try:
+        msg = r.json().get("error", {}).get("message", r.text[:200])
+    except Exception:
+        msg = r.text[:200] if r.text else str(r.status_code)
+    return HTTPException(status_code=502, detail=f"Instagram API 오류: {msg}")
+
+
+@router.get("/instagram/account-insights")
+async def instagram_account_insights(
+    days: int = Query(default=30, ge=7, le=90),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """계정 레벨 일별 인사이트 — 도달·팔로워 증감 추이 + 현재 프로필 요약."""
+    token, ig_id, base = await _ig_graph(db, current_user)
+    since = (date.today() - timedelta(days=days)).isoformat()
+    until = date.today().isoformat()
+    out: dict = {"as_of": datetime.utcnow().isoformat(), "series": {}, "account": {}}
+    async with httpx.AsyncClient(timeout=30) as client:
+        pr = await client.get(f"{base}/{ig_id}", params={
+            "fields": "username,followers_count,follows_count,media_count,profile_picture_url",
+            "access_token": token,
+        })
+        if pr.status_code == 200:
+            out["account"] = pr.json()
+        # 지표별로 개별 호출 — 하나가 거부돼도 나머지는 산다
+        for metric in ("reach", "follower_count"):
+            try:
+                r = await client.get(f"{base}/{ig_id}/insights", params={
+                    "metric": metric, "period": "day",
+                    "since": since, "until": until, "access_token": token,
+                })
+                if r.status_code == 200:
+                    for ins in r.json().get("data", []):
+                        out["series"][ins["name"]] = [
+                            {"date": v.get("end_time", "")[:10], "value": v.get("value", 0)}
+                            for v in ins.get("values", [])
+                        ]
+            except Exception:
+                pass
+    return out
+
+
+@router.get("/instagram/hashtag")
+async def instagram_hashtag(
+    tag: str = Query(..., min_length=1, max_length=60),
+    mode: str = Query(default="top"),  # top | recent
+    limit: int = Query(default=25, ge=1, le=50),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """해시태그 모니터링 — 관련 콘텐츠의 인기/최신 공개 게시물 (Public Content Access).
+
+    ⚠️ 제약: 7일 내 해시태그 30개까지 조회 가능(Meta 정책), 게시물 작성자
+    username은 비공개(permalink로 확인). 유사 브랜드·트렌드 콘텐츠 발굴용.
+    """
+    token, ig_id, base = await _ig_graph(db, current_user)
+    t = tag.strip().lstrip("#")
+    edge = "top_media" if mode != "recent" else "recent_media"
+    async with httpx.AsyncClient(timeout=30) as client:
+        sr = await client.get(f"{base}/ig_hashtag_search", params={
+            "q": t, "user_id": ig_id, "access_token": token,
+        })
+        if sr.status_code != 200:
+            raise _ig_err(sr)
+        tags = sr.json().get("data", [])
+        if not tags:
+            return {"tag": t, "media": [], "note": "해시태그를 찾을 수 없습니다."}
+        hid = tags[0]["id"]
+        mr = await client.get(f"{base}/{hid}/{edge}", params={
+            "user_id": ig_id, "limit": limit,
+            "fields": "id,media_type,caption,like_count,comments_count,permalink,timestamp",
+            "access_token": token,
+        })
+        if mr.status_code != 200:
+            raise _ig_err(mr)
+    media = mr.json().get("data", [])
+    return {"tag": t, "mode": edge, "hashtag_id": hid, "media": media,
+            "as_of": datetime.utcnow().isoformat()}
+
+
+@router.get("/instagram/tagged")
+async def instagram_tagged(
+    limit: int = Query(default=30, ge=1, le=50),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """자사 계정이 태그된 게시물 — 협찬·유상구좌 크리에이터 게시물 모니터링.
+
+    크리에이터가 @널담 태그만 하면 작성자·좋아요·댓글이 자동 수집된다.
+    """
+    token, ig_id, base = await _ig_graph(db, current_user)
+    async with httpx.AsyncClient(timeout=30) as client:
+        r = await client.get(f"{base}/{ig_id}/tags", params={
+            "fields": "id,username,caption,media_type,like_count,comments_count,permalink,timestamp",
+            "limit": limit, "access_token": token,
+        })
+    if r.status_code != 200:
+        raise _ig_err(r)
+    return {"media": r.json().get("data", []), "as_of": datetime.utcnow().isoformat()}
+
+
+class CommentReplyIn(BaseModel):
+    message: str = Field(..., min_length=1, max_length=1000)
+
+
+@router.post("/instagram/comments/{comment_id}/reply")
+async def instagram_comment_reply(
+    comment_id: str,
+    payload: CommentReplyIn,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """댓글에 답글 작성 (instagram_manage_comments)."""
+    token, _ig, base = await _ig_graph(db, current_user)
+    async with httpx.AsyncClient(timeout=20) as client:
+        r = await client.post(f"{base}/{comment_id}/replies", params={
+            "message": payload.message, "access_token": token,
+        })
+    if r.status_code != 200:
+        raise _ig_err(r)
+    return {"ok": True, "reply_id": r.json().get("id")}
+
+
+async def _business_discovery(token: str, ig_id: str, base: str, username: str) -> dict:
+    """공개 비즈니스/크리에이터 계정 프로필+최근 미디어 스냅샷."""
+    fields = (
+        f"business_discovery.username({username})"
+        "{username,name,followers_count,media_count,biography,profile_picture_url,website,"
+        "media.limit(12){like_count,comments_count,media_type,permalink,timestamp,caption}}"
+    )
+    async with httpx.AsyncClient(timeout=30) as client:
+        r = await client.get(f"{base}/{ig_id}", params={
+            "fields": fields, "access_token": token,
+        })
+    if r.status_code != 200:
+        raise _ig_err(r)
+    bd = r.json().get("business_discovery", {})
+    media = (bd.get("media") or {}).get("data", [])
+    likes = [m.get("like_count") for m in media if m.get("like_count") is not None]
+    comments = [m.get("comments_count") or 0 for m in media]
+    avg_likes = round(sum(likes) / len(likes), 1) if likes else None
+    avg_comments = round(sum(comments) / len(comments), 1) if comments else None
+    er = None
+    if avg_likes is not None and bd.get("followers_count"):
+        er = round((avg_likes + (avg_comments or 0)) / bd["followers_count"] * 100, 2)
+    return {
+        "username": bd.get("username"), "name": bd.get("name"),
+        "followers": bd.get("followers_count"), "media_count": bd.get("media_count"),
+        "biography": bd.get("biography"), "picture_url": bd.get("profile_picture_url"),
+        "website": bd.get("website"),
+        "avg_likes": avg_likes, "avg_comments": avg_comments, "engagement_rate": er,
+        "recent_media": media,
+    }
+
+
+@router.get("/instagram/discover")
+async def instagram_discover(
+    username: str = Query(..., min_length=1, max_length=100),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """크리에이터/계정 공개 지표 조회 (business_discovery) — 풀 등록 전 미리보기."""
+    token, ig_id, base = await _ig_graph(db, current_user)
+    data = await _business_discovery(token, ig_id, base, username.strip().lstrip("@"))
+    return {**data, "as_of": datetime.utcnow().isoformat()}
+
+
+# ─── 크리에이터 풀 (잠재풀 + 유상구좌 집행풀) ─────────────────────────────────
+
+from app.models import CreatorPool  # noqa: E402
+
+CREATOR_STATUSES = {"candidate", "contacted", "working", "done", "excluded"}
+
+
+def _creator_out(c: CreatorPool) -> dict:
+    return {
+        "id": c.id, "username": c.username, "name": c.name,
+        "followers": c.followers, "media_count": c.media_count,
+        "avg_likes": c.avg_likes, "avg_comments": c.avg_comments,
+        "engagement_rate": c.engagement_rate,
+        "biography": c.biography, "picture_url": c.picture_url,
+        "category": c.category, "status": c.status,
+        "is_paid": c.is_paid, "fee": c.fee, "source": c.source, "memo": c.memo,
+        "last_checked_at": c.last_checked_at.isoformat() if c.last_checked_at else None,
+        "profile_url": f"https://instagram.com/{c.username}",
+    }
+
+
+@router.get("/creators")
+async def list_creators(
+    status: Optional[str] = Query(default=None),
+    is_paid: Optional[bool] = Query(default=None),
+    q: Optional[str] = Query(default=None),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    query = select(CreatorPool)
+    if status:
+        query = query.where(CreatorPool.status == status)
+    if is_paid is not None:
+        query = query.where(CreatorPool.is_paid.is_(is_paid))
+    if q:
+        like = f"%{q.strip().lstrip('@')}%"
+        query = query.where(
+            CreatorPool.username.ilike(like) | CreatorPool.name.ilike(like)
+            | CreatorPool.category.ilike(like) | CreatorPool.memo.ilike(like)
+        )
+    rows = (await db.execute(
+        query.order_by(CreatorPool.followers.desc().nulls_last(), CreatorPool.id.desc())
+    )).scalars().all()
+    return {"creators": [_creator_out(c) for c in rows], "count": len(rows)}
+
+
+class CreatorIn(BaseModel):
+    username: str = Field(..., min_length=1, max_length=100)
+    category: Optional[str] = Field(None, max_length=100)
+    status: Optional[str] = None
+    is_paid: Optional[bool] = None
+    fee: Optional[float] = Field(None, ge=0)
+    source: Optional[str] = Field(None, max_length=100)
+    memo: Optional[str] = Field(None, max_length=500)
+
+
+async def _snapshot_creator(db: AsyncSession, c: CreatorPool, current_user: User) -> Optional[str]:
+    """business_discovery로 공개 지표 갱신 — 실패해도 행은 유지하고 사유 반환."""
+    try:
+        token, ig_id, base = await _ig_graph(db, current_user)
+        d = await _business_discovery(token, ig_id, base, c.username)
+        c.name = d.get("name") or c.name
+        c.followers = d.get("followers") or c.followers
+        c.media_count = d.get("media_count") or c.media_count
+        c.avg_likes = d.get("avg_likes") if d.get("avg_likes") is not None else c.avg_likes
+        c.avg_comments = d.get("avg_comments") if d.get("avg_comments") is not None else c.avg_comments
+        c.engagement_rate = d.get("engagement_rate") if d.get("engagement_rate") is not None else c.engagement_rate
+        c.biography = d.get("biography") or c.biography
+        c.picture_url = d.get("picture_url") or c.picture_url
+        c.last_checked_at = datetime.utcnow()
+        return None
+    except HTTPException as e:
+        return str(e.detail)
+    except Exception as e:
+        return str(e)
+
+
+@router.post("/creators")
+async def add_creator(
+    payload: CreatorIn,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    username = payload.username.strip().lstrip("@").lower()
+    exists = (await db.execute(
+        select(CreatorPool).where(CreatorPool.username == username)
+    )).scalar_one_or_none()
+    if exists:
+        raise HTTPException(status_code=409, detail=f"@{username}은 이미 풀에 있습니다.")
+    if payload.status and payload.status not in CREATOR_STATUSES:
+        raise HTTPException(status_code=422, detail=f"status는 {sorted(CREATOR_STATUSES)} 중 하나")
+    c = CreatorPool(
+        username=username, category=payload.category,
+        status=payload.status or "candidate",
+        is_paid=bool(payload.is_paid), fee=payload.fee,
+        source=payload.source, memo=payload.memo,
+    )
+    db.add(c)
+    snapshot_error = await _snapshot_creator(db, c, current_user)
+    await db.commit()
+    await db.refresh(c)
+    out = _creator_out(c)
+    if snapshot_error:
+        out["snapshot_error"] = snapshot_error
+    return out
+
+
+@router.patch("/creators/{creator_id}")
+async def update_creator(
+    creator_id: int,
+    payload: CreatorIn,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    c = (await db.execute(
+        select(CreatorPool).where(CreatorPool.id == creator_id)
+    )).scalar_one_or_none()
+    if not c:
+        raise HTTPException(status_code=404, detail="크리에이터를 찾을 수 없습니다.")
+    data = payload.model_dump(exclude_none=True, exclude={"username"})
+    if "status" in data and data["status"] not in CREATOR_STATUSES:
+        raise HTTPException(status_code=422, detail=f"status는 {sorted(CREATOR_STATUSES)} 중 하나")
+    for k, v in data.items():
+        setattr(c, k, v)
+    await db.commit()
+    await db.refresh(c)
+    return _creator_out(c)
+
+
+@router.post("/creators/{creator_id}/refresh")
+async def refresh_creator(
+    creator_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    c = (await db.execute(
+        select(CreatorPool).where(CreatorPool.id == creator_id)
+    )).scalar_one_or_none()
+    if not c:
+        raise HTTPException(status_code=404, detail="크리에이터를 찾을 수 없습니다.")
+    err = await _snapshot_creator(db, c, current_user)
+    if err:
+        raise HTTPException(status_code=502, detail=f"지표 갱신 실패: {err}")
+    await db.commit()
+    await db.refresh(c)
+    return _creator_out(c)
+
+
+@router.delete("/creators/{creator_id}")
+async def delete_creator(
+    creator_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    c = (await db.execute(
+        select(CreatorPool).where(CreatorPool.id == creator_id)
+    )).scalar_one_or_none()
+    if not c:
+        raise HTTPException(status_code=404, detail="크리에이터를 찾을 수 없습니다.")
+    await db.delete(c)
+    await db.commit()
+    return {"status": "deleted", "id": creator_id}
+
+
 # ─── 활동 기록 조회수 자동 갱신 (유튜브 링크) ─────────────────────────────────
 
 @router.post("/refresh-activity-metrics")

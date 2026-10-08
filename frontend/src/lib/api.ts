@@ -2006,6 +2006,62 @@ export const socialApi = {
     const { data } = await api.post('/social/refresh-activity-metrics', null, { params: { months_back: monthsBack } });
     return data;
   },
+  igAccountInsights: async (days = 30): Promise<any> => {
+    const { data } = await api.get('/social/instagram/account-insights', { params: { days } });
+    return data;
+  },
+  igHashtag: async (tag: string, mode: 'top' | 'recent' = 'top'): Promise<any> => {
+    const { data } = await api.get('/social/instagram/hashtag', { params: { tag, mode } });
+    return data;
+  },
+  igTagged: async (limit = 30): Promise<any> => {
+    const { data } = await api.get('/social/instagram/tagged', { params: { limit } });
+    return data;
+  },
+  igCommentReply: async (commentId: string, message: string): Promise<any> => {
+    const { data } = await api.post(`/social/instagram/comments/${commentId}/reply`, { message });
+    return data;
+  },
+  igDiscover: async (username: string): Promise<any> => {
+    const { data } = await api.get('/social/instagram/discover', { params: { username } });
+    return data;
+  },
+};
+
+// ─── 크리에이터 풀 (잠재풀·유상구좌) ─────────────────────────────────────────
+export interface CreatorRow {
+  id: number; username: string; name?: string | null;
+  followers?: number | null; media_count?: number | null;
+  avg_likes?: number | null; avg_comments?: number | null; engagement_rate?: number | null;
+  biography?: string | null; picture_url?: string | null;
+  category?: string | null; status: string; is_paid: boolean; fee?: number | null;
+  source?: string | null; memo?: string | null;
+  last_checked_at?: string | null; profile_url: string;
+  snapshot_error?: string;
+}
+
+export const creatorsApi = {
+  list: async (params?: { status?: string; is_paid?: boolean; q?: string }):
+    Promise<{ creators: CreatorRow[]; count: number }> => {
+    const { data } = await api.get('/social/creators', { params });
+    return data;
+  },
+  add: async (payload: any): Promise<CreatorRow> => {
+    const { data } = await api.post('/social/creators', payload);
+    return data;
+  },
+  update: async (id: number, payload: any): Promise<CreatorRow> => {
+    const { data } = await api.patch(`/social/creators/${id}`, payload);
+    return data;
+  },
+  refresh: async (id: number): Promise<CreatorRow> => {
+    const { data } = await api.post(`/social/creators/${id}/refresh`);
+    return data;
+  },
+  remove: async (id: number) => {
+    const { data } = await api.delete(`/social/creators/${id}`);
+    return data;
+  },
 };
 
 // Currency & number formatting utilities

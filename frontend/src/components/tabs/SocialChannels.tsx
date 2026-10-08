@@ -9,7 +9,11 @@
  */
 import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Search, Youtube, Instagram, MessageCircle, ExternalLink, RefreshCw } from 'lucide-react';
+import {
+  ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis,
+  Tooltip as RechartsTooltip, Legend, CartesianGrid,
+} from 'recharts';
+import { Search, Youtube, Instagram, MessageCircle, ExternalLink, RefreshCw, CornerDownRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { socialApi } from '@/lib/api';
 import { fmtNum } from '@/components/tabs/kpi/format';
@@ -180,7 +184,15 @@ function YouTubeSection() {
 
 // ─── 인스타그램 (자사 계정) ───────────────────────────────────────────────────
 
+const IG_VIEWS = [
+  { key: 'media', label: '게시물' },
+  { key: 'insights', label: '계정 인사이트' },
+  { key: 'hashtag', label: '해시태그 모니터링' },
+  { key: 'tagged', label: '태그된 게시물' },
+] as const;
+
 function InstagramSection() {
+  const [view, setView] = useState<(typeof IG_VIEWS)[number]['key']>('media');
   const [openMedia, setOpenMedia] = useState<string | null>(null);
   const [tokenInput, setTokenInput] = useState('');
   const [showTokenForm, setShowTokenForm] = useState(false);
@@ -265,16 +277,32 @@ function InstagramSection() {
           </div>
         </div>
       )}
-      {isLoading && <p className="text-xs text-text-tertiary py-4">게시물 불러오는 중...</p>}
-      {isError && !status?.connected && (
+      {/* 뷰 전환 */}
+      <div className="flex items-center gap-1 flex-wrap">
+        {IG_VIEWS.map((v) => (
+          <button key={v.key} onClick={() => setView(v.key)}
+            className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border ${
+              view === v.key ? 'text-white border-transparent' : 'text-text-tertiary border-border-primary hover:text-text-primary'
+            }`}
+            style={view === v.key ? { backgroundColor: 'var(--color-brand-bg)' } : undefined}
+          >{v.label}</button>
+        ))}
+      </div>
+
+      {view === 'insights' && <IgInsightsView />}
+      {view === 'hashtag' && <IgHashtagView />}
+      {view === 'tagged' && <IgTaggedView />}
+
+      {view === 'media' && isLoading && <p className="text-xs text-text-tertiary py-4">게시물 불러오는 중...</p>}
+      {view === 'media' && isError && !status?.connected && (
         <p className="text-xs text-yellow py-3">
-          아직 연결 전입니다 — 위 &quot;토큰으로 연결&quot;을 눌러 콘솔에서 생성한 토큰을 붙여넣으면 바로 조회됩니다.
+          아직 연결 전입니다 — Meta 재연동(인스타 권한 포함) 또는 위 &quot;토큰으로 연결&quot;을 사용하세요.
         </p>
       )}
-      {isError && status?.connected && (
+      {view === 'media' && isError && status?.connected && (
         <p className="text-xs text-red py-3">{(error as any)?.response?.data?.detail || '인스타그램 조회 실패'}</p>
       )}
-      {data && (
+      {view === 'media' && data && (
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2.5">
           {(data.media || []).map((m: any) => (
             <div key={m.id} className="rounded-lg overflow-hidden" style={{ border: '1px solid var(--color-border-primary)' }}>
@@ -294,13 +322,11 @@ function InstagramSection() {
                   {m.views != null && <span className="text-text-quaternary">조회 {fmtNum(m.views)}</span>}
                 </div>
                 {openMedia === m.id && (
-                  <div className="max-h-40 overflow-y-auto space-y-1 pt-1" style={{ borderTop: '1px solid rgb(var(--color-overlay-rgb) / 0.06)' }}>
+                  <div className="max-h-48 overflow-y-auto space-y-1 pt-1" style={{ borderTop: '1px solid rgb(var(--color-overlay-rgb) / 0.06)' }}>
                     {cQuery.isLoading && <p className="text-[10px] text-text-tertiary">댓글 불러오는 중...</p>}
                     {cQuery.isError && <p className="text-[10px] text-red">{(cQuery.error as any)?.response?.data?.detail || '댓글 조회 실패'}</p>}
                     {(cQuery.data?.comments || []).map((c: any) => (
-                      <p key={c.id || c.timestamp} className="text-[10px] text-text-tertiary">
-                        <b className="text-text-secondary">{c.username}</b> {c.text}
-                      </p>
+                      <CommentRow key={c.id || c.timestamp} comment={c} onReplied={() => cQuery.refetch()} />
                     ))}
                     {cQuery.data && !cQuery.data.comments?.length && <p className="text-[10px] text-text-quaternary">댓글 없음</p>}
                   </div>
@@ -310,7 +336,197 @@ function InstagramSection() {
           ))}
         </div>
       )}
-      {data && <p className="text-[10px] text-text-quaternary">기준: {data.as_of?.slice(0, 16).replace('T', ' ')} UTC · 도달·조회는 Meta 인사이트 권한이 있는 미디어만 표시</p>}
+      {view === 'media' && data && <p className="text-[10px] text-text-quaternary">기준: {data.as_of?.slice(0, 16).replace('T', ' ')} UTC · 도달·조회는 Meta 인사이트 권한이 있는 미디어만 표시</p>}
+    </div>
+  );
+}
+
+// ─── 댓글 행 (+답글 작성) ─────────────────────────────────────────────────────
+
+function CommentRow({ comment, onReplied }: { comment: any; onReplied: () => void }) {
+  const [showReply, setShowReply] = useState(false);
+  const [msg, setMsg] = useState('');
+  const send = async () => {
+    if (!msg.trim()) return;
+    try {
+      await socialApi.igCommentReply(comment.id, msg.trim());
+      toast.success('답글을 게시했습니다');
+      setMsg(''); setShowReply(false); onReplied();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.detail || '답글 실패');
+    }
+  };
+  return (
+    <div className="text-[10px]">
+      <p className="text-text-tertiary">
+        <b className="text-text-secondary">{comment.username}</b> {comment.text}
+        <button onClick={() => setShowReply(!showReply)} className="ml-1.5 text-brand hover:underline">답글</button>
+      </p>
+      {showReply && (
+        <div className="flex gap-1 mt-0.5">
+          <CornerDownRight size={10} className="text-text-quaternary mt-1 shrink-0" />
+          <input autoFocus value={msg} onChange={(e) => setMsg(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && send()}
+            placeholder="답글 입력 후 Enter (자사 계정으로 게시됨)"
+            className="flex-1 px-1.5 py-1 rounded text-[10px] bg-bg-2 border border-border-primary text-text-primary" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── 계정 인사이트 (도달·팔로워 추이) ─────────────────────────────────────────
+
+function IgInsightsView() {
+  const [days, setDays] = useState(30);
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: ['social', 'ig-insights', days],
+    queryFn: () => socialApi.igAccountInsights(days),
+    staleTime: 10 * 60 * 1000,
+    retry: false,
+  });
+  if (isLoading) return <p className="text-xs text-text-tertiary py-4">인사이트 불러오는 중...</p>;
+  if (isError) return <p className="text-xs text-yellow py-3">{(error as any)?.response?.data?.detail || '조회 실패 — 인스타 연결·권한을 확인하세요'}</p>;
+  const reach = data?.series?.reach || [];
+  const followers = data?.series?.follower_count || [];
+  const byDate: Record<string, any> = {};
+  reach.forEach((p: any) => { byDate[p.date] = { date: p.date.slice(5), reach: p.value }; });
+  followers.forEach((p: any) => { byDate[p.date] = { ...(byDate[p.date] || { date: p.date.slice(5) }), followers: p.value }; });
+  const rows = Object.values(byDate);
+  const acc = data?.account || {};
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-4 flex-wrap text-xs">
+        {acc.username && <span className="font-semibold text-text-primary">@{acc.username}</span>}
+        {acc.followers_count != null && <span className="text-text-tertiary">팔로워 <b className="text-text-primary">{fmtNum(acc.followers_count)}</b></span>}
+        {acc.follows_count != null && <span className="text-text-tertiary">팔로잉 {fmtNum(acc.follows_count)}</span>}
+        {acc.media_count != null && <span className="text-text-tertiary">게시물 {fmtNum(acc.media_count)}</span>}
+        <div className="flex-1" />
+        {[14, 30, 60, 90].map((d) => (
+          <button key={d} onClick={() => setDays(d)}
+            className={`px-2 py-0.5 rounded text-[10px] border ${days === d ? 'text-text-primary border-brand' : 'text-text-quaternary border-border-primary'}`}>{d}일</button>
+        ))}
+      </div>
+      {rows.length === 0 ? (
+        <p className="text-xs text-text-quaternary py-4">일별 인사이트 데이터가 없습니다 (계정 규모·권한에 따라 제한될 수 있음)</p>
+      ) : (
+        <div className="h-56">
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={rows} margin={{ top: 4, right: 8, left: 4, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-primary)" />
+              <XAxis dataKey="date" tick={{ fontSize: 9, fill: 'var(--color-text-quaternary)' }} tickLine={false} axisLine={false} />
+              <YAxis yAxisId="l" tick={{ fontSize: 9, fill: 'var(--color-text-quaternary)' }} tickLine={false} axisLine={false} width={44} />
+              <YAxis yAxisId="r" orientation="right" tick={{ fontSize: 9, fill: '#27A644' }} tickLine={false} axisLine={false} width={44} />
+              <RechartsTooltip contentStyle={{ backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)', borderRadius: 8, fontSize: 11 }}
+                formatter={(v: any, n: any) => [fmtNum(Number(v)), n]} />
+              <Legend wrapperStyle={{ fontSize: 10 }} />
+              <Bar yAxisId="l" dataKey="reach" name="일 도달" fill="#4EA7FC" opacity={0.6} radius={[2, 2, 0, 0]} />
+              <Line yAxisId="r" dataKey="followers" name="팔로워 증감" stroke="#27A644" strokeWidth={2} dot={false} connectNulls />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── 해시태그 모니터링 (관련 콘텐츠 발굴) ─────────────────────────────────────
+
+function IgHashtagView() {
+  const [tagQ, setTagQ] = useState('널담');
+  const [tag, setTag] = useState('');
+  const [mode, setMode] = useState<'top' | 'recent'>('top');
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: ['social', 'ig-hashtag', tag, mode],
+    queryFn: () => socialApi.igHashtag(tag, mode),
+    enabled: !!tag,
+    staleTime: 10 * 60 * 1000,
+    retry: false,
+  });
+  return (
+    <div className="space-y-2">
+      <div className="flex gap-1.5 items-center flex-wrap">
+        <input value={tagQ} onChange={(e) => setTagQ(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && tagQ.trim() && setTag(tagQ.trim())}
+          placeholder="#해시태그 (예: 널담, 비건디저트, 단백질간식)"
+          className="px-2.5 py-1.5 rounded-lg text-xs bg-bg-2 border border-border-primary text-text-primary w-64" />
+        <button onClick={() => tagQ.trim() && setTag(tagQ.trim())}
+          className="px-3 py-1.5 rounded-lg text-xs font-medium text-white" style={{ backgroundColor: 'var(--color-brand-bg)' }}>
+          <Search size={13} />
+        </button>
+        {(['top', 'recent'] as const).map((m) => (
+          <button key={m} onClick={() => setMode(m)}
+            className={`px-2 py-1 rounded-lg text-[11px] border ${mode === m ? 'text-text-primary border-brand' : 'text-text-quaternary border-border-primary'}`}>
+            {m === 'top' ? '인기' : '최신'}
+          </button>
+        ))}
+        <span className="text-[10px] text-text-quaternary">· 주당 해시태그 30개 조회 제한(Meta 정책) · 작성자명은 게시물 링크에서 확인</span>
+      </div>
+      {isLoading && <p className="text-xs text-text-tertiary py-4">조회 중...</p>}
+      {isError && <p className="text-xs text-yellow py-3">{(error as any)?.response?.data?.detail || '조회 실패'}</p>}
+      {data && (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
+          {(data.media || []).map((m: any) => (
+            <a key={m.id} href={m.permalink} target="_blank" rel="noreferrer"
+              className="rounded-lg p-2.5 space-y-1 hover:bg-[rgb(var(--color-overlay-rgb)/0.04)]"
+              style={{ border: '1px solid var(--color-border-primary)' }}>
+              <p className="text-[10px] text-text-quaternary">{m.timestamp?.slice(0, 10)} · {m.media_type}</p>
+              <p className="text-[11px] text-text-secondary line-clamp-3 min-h-[40px]">{m.caption || '(캡션 없음)'}</p>
+              <p className="text-[11px] tabular-nums text-text-tertiary">❤ {fmtNum(m.like_count)} · 💬 {fmtNum(m.comments_count)}</p>
+            </a>
+          ))}
+          {data.media?.length === 0 && <p className="text-xs text-text-quaternary py-3">게시물이 없습니다</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── 태그된 게시물 (협찬·유상구좌 모니터링) ───────────────────────────────────
+
+function IgTaggedView() {
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: ['social', 'ig-tagged'],
+    queryFn: () => socialApi.igTagged(40),
+    staleTime: 10 * 60 * 1000,
+    retry: false,
+  });
+  if (isLoading) return <p className="text-xs text-text-tertiary py-4">불러오는 중...</p>;
+  if (isError) return <p className="text-xs text-yellow py-3">{(error as any)?.response?.data?.detail || '조회 실패'}</p>;
+  const media = data?.media || [];
+  return (
+    <div className="space-y-2">
+      <p className="text-[11px] text-text-quaternary">
+        자사 계정이 태그된 게시물 — 협찬·유상 크리에이터가 @계정 태그만 하면 여기 자동 수집됩니다.
+        크리에이터 풀(브랜드 인텔리전스 › 크리에이터 풀)에 등록해 성과를 추적하세요.
+      </p>
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead><tr className="text-text-quaternary" style={{ borderBottom: '1px solid var(--color-border-primary)' }}>
+            <th className="text-left py-1.5 px-2 font-medium">작성자</th>
+            <th className="text-left py-1.5 px-2 font-medium">게시일</th>
+            <th className="text-left py-1.5 px-2 font-medium">내용</th>
+            <th className="text-right py-1.5 px-2 font-medium">좋아요</th>
+            <th className="text-right py-1.5 px-2 font-medium">댓글</th>
+            <th className="py-1.5 px-2" />
+          </tr></thead>
+          <tbody>
+            {media.map((m: any) => (
+              <tr key={m.id} style={{ borderBottom: '1px solid rgb(var(--color-overlay-rgb) / 0.04)' }}>
+                <td className="py-1.5 px-2 font-medium text-text-primary whitespace-nowrap">@{m.username || '?'}</td>
+                <td className="py-1.5 px-2 text-text-tertiary whitespace-nowrap tabular-nums">{m.timestamp?.slice(0, 10)}</td>
+                <td className="py-1.5 px-2 text-text-secondary max-w-[360px] truncate" title={m.caption || ''}>{m.caption || ''}</td>
+                <td className="py-1.5 px-2 text-right tabular-nums text-text-primary">{m.like_count != null ? fmtNum(m.like_count) : '-'}</td>
+                <td className="py-1.5 px-2 text-right tabular-nums text-text-tertiary">{fmtNum(m.comments_count)}</td>
+                <td className="py-1.5 px-2 text-right">
+                  <a href={m.permalink} target="_blank" rel="noreferrer" className="text-brand hover:underline text-[11px]">열기</a>
+                </td>
+              </tr>
+            ))}
+            {media.length === 0 && <tr><td colSpan={6} className="py-6 text-center text-text-quaternary text-xs">태그된 게시물이 없습니다</td></tr>}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

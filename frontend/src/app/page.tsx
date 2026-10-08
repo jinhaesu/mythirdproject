@@ -20,6 +20,7 @@ import {
   SponsorshipBoard,
   SponsorshipAnalytics,
   SocialChannels,
+  CreatorPool,
 } from '@/components/tabs';
 import {
   NaverSearchAdsDashboard,
@@ -175,6 +176,7 @@ export default function Home() {
             {sub('intel') === 0 && <NaverInsights />}
             {sub('intel') === 1 && <NaverKeywordResearch />}
             {sub('intel') === 2 && <SocialChannels />}
+            {sub('intel') === 3 && <CreatorPool />}
           </>
         )}
         {activeMenu === 'affiliate' && (
