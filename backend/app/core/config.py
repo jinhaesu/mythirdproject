@@ -39,6 +39,11 @@ class Settings(BaseSettings):
     # 사내 MCP 노출용 키 (클로드 데스크톱 커넥터 — 읽기 전용 분석 도구)
     MARKETING_MCP_KEY: str = ""
 
+    # Instagram API with Instagram Login (신체계, 2026-10-08) —
+    # developers.facebook.com 앱 › Instagram 제품의 "Instagram 앱 ID/시크릿"
+    INSTAGRAM_APP_ID: str = ""
+    INSTAGRAM_APP_SECRET: str = ""
+
     # Market Intelligence APIs
     YOUTUBE_API_KEY: str = ""
     NAVER_CLIENT_ID: str = ""

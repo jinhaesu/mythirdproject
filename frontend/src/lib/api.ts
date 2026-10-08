@@ -1978,6 +1978,14 @@ export const socialApi = {
     const { data } = await api.get('/social/youtube/channel', { params: { channel, videos } });
     return data;
   },
+  igAuthStart: async (): Promise<{ auth_url: string; redirect_uri: string }> => {
+    const { data } = await api.get('/social/instagram/auth/start');
+    return data;
+  },
+  igStatus: async (): Promise<{ connected: boolean; mode: string | null; expires_at: string | null; app_configured: boolean }> => {
+    const { data } = await api.get('/social/instagram/status');
+    return data;
+  },
   igMedia: async (limit = 24): Promise<any> => {
     const { data } = await api.get('/social/instagram/media', { params: { limit } });
     return data;

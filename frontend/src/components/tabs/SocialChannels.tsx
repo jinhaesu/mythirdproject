@@ -182,12 +182,28 @@ function YouTubeSection() {
 
 function InstagramSection() {
   const [openMedia, setOpenMedia] = useState<string | null>(null);
+  const { data: status } = useQuery({
+    queryKey: ['social', 'ig-status'],
+    queryFn: socialApi.igStatus,
+    staleTime: 60 * 1000,
+    retry: false,
+  });
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['social', 'ig-media'],
     queryFn: () => socialApi.igMedia(24),
     staleTime: 5 * 60 * 1000,
     retry: false,
   });
+
+  const connectIg = async () => {
+    try {
+      const { auth_url } = await socialApi.igAuthStart();
+      window.open(auth_url, '_blank', 'width=560,height=720');
+      toast('인스타그램 비즈니스/크리에이터 계정으로 로그인해 주세요 — 완료 후 새로고침', { icon: '📷' });
+    } catch (e: any) {
+      toast.error(e?.response?.data?.detail || '연결 시작 실패 (INSTAGRAM_APP_ID 미설정일 수 있음)');
+    }
+  };
   const cQuery = useQuery({
     queryKey: ['social', 'ig-comments', openMedia],
     queryFn: () => socialApi.igComments(openMedia!, 30),
@@ -208,6 +224,13 @@ function InstagramSection() {
           </span>
         )}
         <div className="flex-1" />
+        {status && !status.connected && (
+          <button onClick={connectIg}
+            className="px-2.5 py-1 rounded-lg text-[11px] font-medium text-white"
+            style={{ backgroundColor: 'var(--color-brand-bg)' }}>
+            인스타 계정 연결
+          </button>
+        )}
         <button onClick={() => refetch()} disabled={isFetching}
           className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] text-text-tertiary border border-border-primary hover:text-text-primary disabled:opacity-50">
           <RefreshCw size={11} className={isFetching ? 'animate-spin' : ''} /> 새로고침
@@ -216,8 +239,10 @@ function InstagramSection() {
       {isLoading && <p className="text-xs text-text-tertiary py-4">게시물 불러오는 중...</p>}
       {isError && (
         <p className="text-xs text-yellow py-3">
-          {(error as any)?.response?.data?.detail || '인스타그램 조회 실패'} — 우측 상단 Meta 연동을 한 번 재연결하면
-          인스타 권한(instagram_basic)이 추가됩니다.
+          {(error as any)?.response?.data?.detail || '인스타그램 조회 실패'} —
+          {status?.app_configured
+            ? ' 위 "인스타 계정 연결" 버튼으로 자사 인스타 비즈니스 계정을 직접 연결하세요.'
+            : ' Meta 개발자 콘솔에서 Instagram 제품 추가 후 Railway에 INSTAGRAM_APP_ID/SECRET을 입력하면 연결 버튼이 활성화됩니다.'}
         </p>
       )}
       {data && (

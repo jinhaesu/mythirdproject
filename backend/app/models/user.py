@@ -40,6 +40,12 @@ class User(Base):
     naver_gfa_connected: Mapped[bool] = mapped_column(Boolean, default=False)
     naver_ads_customer_id: Mapped[Optional[str]] = mapped_column(String(255))
 
+    # 인스타그램 신체계(Instagram API with Instagram Login, 2026-10-08) —
+    # 구형 FB Login의 instagram_basic이 Invalid Scopes로 막혀 인스타 직접 로그인으로 전환
+    ig_user_id: Mapped[Optional[str]] = mapped_column(String(64))
+    ig_access_token: Mapped[Optional[str]] = mapped_column(Text)  # long-lived 60일
+    ig_token_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+
     # 네이버 GFA(성과형 디스플레이) 오픈API — 네이버 로그인 OAuth 토큰 (2026-09-30)
     # openapi.naver.com/v1/ad-api, 발급 앱 = 개발자센터(NAVER_CLIENT_ID/SECRET)
     naver_gfa_access_token: Mapped[Optional[str]] = mapped_column(Text)

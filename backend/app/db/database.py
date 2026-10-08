@@ -153,6 +153,9 @@ async def init_db():
 
     # Add Naver GFA OAuth columns to users if missing (2026-09-30)
     for col_name, col_ddl in [
+        ("ig_user_id", "VARCHAR(64)"),
+        ("ig_access_token", "TEXT"),
+        ("ig_token_expires_at", "TIMESTAMP"),
         ("naver_gfa_access_token", "TEXT"),
         ("naver_gfa_refresh_token", "TEXT"),
         ("naver_gfa_token_expires_at", "TIMESTAMP"),

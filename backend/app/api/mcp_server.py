@@ -106,6 +106,52 @@ TOOLS: list[dict] = [
             "video": {"type": "string", "description": "영상 URL 또는 11자 ID"},
         }, "required": ["video"]},
     },
+    {
+        "name": "kpi_daily",
+        "description": "자사몰(카페24) 일별/주별 상세 — 기간 내 매출·주문·구매자·신규·방문·전환율의 일 단위 흐름. 월 요약보다 세밀한 분석용.",
+        "inputSchema": {"type": "object", "properties": {
+            "days": {"type": "integer", "minimum": 7, "maximum": 180, "default": 30},
+            "granularity": {"type": "string", "enum": ["day", "week"], "default": "day"},
+        }},
+    },
+    {
+        "name": "mall_demographics",
+        "description": "자사몰(카페24) 구매자 인구통계 — 연령대×성별 분포와 구매 패턴.",
+        "inputSchema": {"type": "object", "properties": {
+            "months": {"type": "integer", "minimum": 1, "maximum": 12, "default": 3},
+        }},
+    },
+    {
+        "name": "adspend_board_detail",
+        "description": "광고비 일보 전체 그리드 — 특정 월의 매체(90여 개)별 담당자·유입채널·월합계·Limit·사용율·비고. include_daily=true면 매체별 일별 금액까지(응답 큼).",
+        "inputSchema": {"type": "object", "properties": {
+            "month": {"type": "string", "description": "YYYY-MM"},
+            "include_daily": {"type": "boolean", "default": False},
+        }, "required": ["month"]},
+    },
+    {
+        "name": "activities_list",
+        "description": "마케팅 활동 기록 개별 행 조회 — 유형(content/influencer/experience/crew)·기간·채널·제품·검색어 필터. 조회수/좋아요/댓글/비용/링크 포함.",
+        "inputSchema": {"type": "object", "properties": {
+            "month_from": {"type": "string", "description": "YYYY-MM"},
+            "month_to": {"type": "string", "description": "YYYY-MM"},
+            "activity_type": {"type": "string"},
+            "channel": {"type": "string"},
+            "product": {"type": "string"},
+            "q": {"type": "string", "description": "검색어"},
+            "limit": {"type": "integer", "minimum": 1, "maximum": 500, "default": 100},
+        }},
+    },
+    {
+        "name": "sponsorship_events",
+        "description": "협찬 개별 건 조회 — 협찬처·종류·일자·품목·수량·환산금액·결과물(링크·조회수) 목록.",
+        "inputSchema": {"type": "object", "properties": {
+            "event_type": {"type": "string", "description": "종류 필터(전시, 마라톤 등)"},
+            "since": {"type": "string", "description": "YYYY-MM-DD"},
+            "until": {"type": "string", "description": "YYYY-MM-DD"},
+            "q": {"type": "string"},
+        }},
+    },
 ]
 
 
@@ -137,6 +183,33 @@ async def _call_tool(name: str, args: dict) -> Any:
         return await _get("/sponsorship/summary", {"months": args.get("months", 12)})
     if name == "youtube_video_stats":
         return await _get("/social/youtube/video", {"video": args["video"]})
+    if name == "kpi_daily":
+        return await _get("/kpi/summary", {
+            "days": args.get("days", 30),
+            "granularity": args.get("granularity", "day"),
+        })
+    if name == "mall_demographics":
+        return await _get("/kpi/demographics", {"months": args.get("months", 3)})
+    if name == "adspend_board_detail":
+        data = await _get("/adspend/board", {"month": args["month"]})
+        if not args.get("include_daily"):
+            for row in data.get("rows", []):
+                row.pop("daily", None)
+        return data
+    if name == "activities_list":
+        params = {k: v for k, v in {
+            "month_from": args.get("month_from"), "month_to": args.get("month_to"),
+            "activity_type": args.get("activity_type"), "channel": args.get("channel"),
+            "product": args.get("product"), "q": args.get("q"),
+            "limit": args.get("limit", 100),
+        }.items() if v is not None}
+        return await _get("/activities", params)
+    if name == "sponsorship_events":
+        params = {k: v for k, v in {
+            "event_type": args.get("event_type"), "since": args.get("since"),
+            "until": args.get("until"), "q": args.get("q"),
+        }.items() if v is not None}
+        return await _get("/sponsorship/events", params)
     raise RuntimeError(f"알 수 없는 도구: {name}")
 
 

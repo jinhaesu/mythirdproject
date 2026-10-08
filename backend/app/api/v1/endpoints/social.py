@@ -13,7 +13,7 @@
 """
 import logging
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Optional
 
 import httpx
@@ -186,9 +186,130 @@ async def youtube_channel(
 
 
 # ─── 인스타그램 (자사 계정) ───────────────────────────────────────────────────
+#
+# 경로 2개:
+#  A. (우선) Instagram API with Instagram Login — 인스타 계정으로 직접 OAuth.
+#     base graph.instagram.com, scope instagram_business_basic·manage_insights·manage_comments.
+#     구형 instagram_basic이 FB Login에서 Invalid Scopes로 막혀 이쪽이 정식 경로(2026-10-08).
+#  B. (폴백) 구형 FB Login 토큰 + meta_ig_account_id — 앱에 권한 있을 때만 동작.
+
+IG_OAUTH_BASE = "https://www.instagram.com/oauth/authorize"
+IG_API_BASE = "https://graph.instagram.com"
+IG_SCOPES = "instagram_business_basic,instagram_business_manage_insights,instagram_business_manage_comments"
+
+
+def _ig_redirect_uri() -> str:
+    return "https://web-production-d7b11.up.railway.app/api/v1/social/instagram/auth/callback"
+
+
+@router.get("/instagram/auth/start")
+async def instagram_auth_start(current_user: User = Depends(get_current_user)):
+    if not settings.INSTAGRAM_APP_ID:
+        raise HTTPException(status_code=503,
+                            detail="INSTAGRAM_APP_ID가 설정되지 않았습니다 — Railway Variables에 입력하세요.")
+    url = (f"{IG_OAUTH_BASE}?client_id={settings.INSTAGRAM_APP_ID}"
+           f"&redirect_uri={_ig_redirect_uri()}&response_type=code"
+           f"&scope={IG_SCOPES}&state={current_user.id}")
+    return {"auth_url": url, "redirect_uri": _ig_redirect_uri()}
+
+
+@router.get("/instagram/auth/callback")
+async def instagram_auth_callback(
+    code: Optional[str] = None,
+    state: Optional[str] = None,
+    error: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    from fastapi.responses import RedirectResponse
+    front = settings.FRONTEND_URL or "https://marketing.nuldam.com"
+    if error or not code or not state:
+        return RedirectResponse(f"{front}/?ig=error&reason={error or 'no_code'}")
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            # 단기 토큰 교환
+            tr = await client.post("https://api.instagram.com/oauth/access_token", data={
+                "client_id": settings.INSTAGRAM_APP_ID,
+                "client_secret": settings.INSTAGRAM_APP_SECRET,
+                "grant_type": "authorization_code",
+                "redirect_uri": _ig_redirect_uri(),
+                "code": code,
+            })
+            if tr.status_code != 200:
+                logger.warning(f"[IG] token exchange 실패: {tr.status_code} {tr.text[:200]}")
+                return RedirectResponse(f"{front}/?ig=error&reason=token_exchange")
+            td = tr.json()
+            short_token = td.get("access_token")
+            ig_user_id = str(td.get("user_id") or "")
+            # 장기 토큰(60일) 교환
+            lr = await client.get(f"{IG_API_BASE}/access_token", params={
+                "grant_type": "ig_exchange_token",
+                "client_secret": settings.INSTAGRAM_APP_SECRET,
+                "access_token": short_token,
+            })
+            token = short_token
+            expires_in = 3600
+            if lr.status_code == 200:
+                token = lr.json().get("access_token", short_token)
+                expires_in = lr.json().get("expires_in", 5184000)
+        user = (await db.execute(select(User).where(User.id == int(state)))).scalar_one_or_none()
+        if not user:
+            return RedirectResponse(f"{front}/?ig=error&reason=user_not_found")
+        user.ig_user_id = ig_user_id
+        user.ig_access_token = token
+        user.ig_token_expires_at = datetime.utcnow() + timedelta(seconds=int(expires_in))
+        await db.commit()
+        return RedirectResponse(f"{front}/?ig=connected")
+    except Exception as e:
+        logger.error(f"[IG] callback 오류: {e}", exc_info=True)
+        return RedirectResponse(f"{front}/?ig=error&reason=exception")
+
+
+@router.get("/instagram/status")
+async def instagram_status(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    user = await _ig_login_user(db, current_user)
+    legacy = bool(current_user.meta_access_token and current_user.meta_ig_account_id)
+    return {
+        "connected": bool(user),
+        "mode": "instagram_login" if user else ("facebook_login" if legacy else None),
+        "expires_at": user.ig_token_expires_at.isoformat() if user and user.ig_token_expires_at else None,
+        "app_configured": bool(settings.INSTAGRAM_APP_ID),
+    }
+
+
+async def _ig_login_user(db: AsyncSession, current_user: User) -> Optional[User]:
+    """인스타 로그인 토큰 보유 사용자 — 본인 우선, 없으면 아무 연결 사용자."""
+    if current_user.ig_access_token and current_user.ig_user_id:
+        return current_user
+    return (await db.execute(
+        select(User).where(
+            User.ig_access_token.isnot(None), User.ig_access_token != "",
+        ).limit(1)
+    )).scalar_one_or_none()
+
+
+async def _ig_login_token(db: AsyncSession, user: User) -> str:
+    """장기 토큰 반환 — 만료 10일 전이면 자동 연장(ig_refresh_token)."""
+    if user.ig_token_expires_at and user.ig_token_expires_at < datetime.utcnow() + timedelta(days=10):
+        try:
+            async with httpx.AsyncClient(timeout=20) as client:
+                r = await client.get(f"{IG_API_BASE}/refresh_access_token", params={
+                    "grant_type": "ig_refresh_token", "access_token": user.ig_access_token,
+                })
+            if r.status_code == 200:
+                user.ig_access_token = r.json().get("access_token", user.ig_access_token)
+                user.ig_token_expires_at = datetime.utcnow() + timedelta(
+                    seconds=int(r.json().get("expires_in", 5184000)))
+                await db.commit()
+        except Exception as e:
+            logger.warning(f"[IG] 토큰 연장 실패(기존 토큰 계속 사용): {e}")
+    return user.ig_access_token
+
 
 async def _ig_context(db: AsyncSession, current_user: User):
-    """IG 토큰·계정 ID — 본인 연결 우선, 없으면 연결된 아무 사용자 폴백."""
+    """(폴백 경로 B) 구형 FB 토큰·IG 계정 ID — 본인 우선, 없으면 아무 연결 사용자."""
     user = current_user
     if not (user.meta_access_token and user.meta_ig_account_id):
         user = (await db.execute(
@@ -200,7 +321,7 @@ async def _ig_context(db: AsyncSession, current_user: User):
     if not user:
         raise HTTPException(
             status_code=409,
-            detail="인스타그램 비즈니스 계정이 연결돼 있지 않습니다 — 우측 상단 Meta 연동에서 재연결하세요.",
+            detail="인스타그램 계정이 연결돼 있지 않습니다 — 소셜 채널 탭의 '인스타 계정 연결'을 사용하세요.",
         )
     return user.meta_access_token, user.meta_ig_account_id
 
@@ -212,6 +333,43 @@ async def instagram_media(
     db: AsyncSession = Depends(get_db),
 ):
     """자사 IG 계정 최근 미디어 + 좋아요/댓글수 + (가능하면) 도달·조회 인사이트."""
+    # 경로 A: 인스타 로그인 (신체계) 우선
+    ig_user = await _ig_login_user(db, current_user)
+    if ig_user:
+        token = await _ig_login_token(db, ig_user)
+        async with httpx.AsyncClient(timeout=30) as client:
+            r = await client.get(f"{IG_API_BASE}/me/media", params={
+                "fields": "id,caption,media_type,media_url,permalink,thumbnail_url,"
+                          "timestamp,like_count,comments_count",
+                "limit": limit, "access_token": token,
+            })
+            if r.status_code != 200:
+                detail = r.json().get("error", {}).get("message", r.text[:200]) if r.text else str(r.status_code)
+                raise HTTPException(status_code=502, detail=f"Instagram API 오류: {detail}")
+            media = r.json().get("data", [])
+            for m in media:
+                try:
+                    metric = "reach,views" if m.get("media_type") in ("VIDEO", "REELS") else "reach"
+                    ir = await client.get(f"{IG_API_BASE}/{m['id']}/insights", params={
+                        "metric": metric, "access_token": token,
+                    })
+                    if ir.status_code == 200:
+                        for ins in ir.json().get("data", []):
+                            vals = ins.get("values", [])
+                            if vals:
+                                m[ins["name"]] = vals[0].get("value")
+                except Exception:
+                    pass
+            account = {}
+            pr = await client.get(f"{IG_API_BASE}/me", params={
+                "fields": "username,followers_count,media_count", "access_token": token,
+            })
+            if pr.status_code == 200:
+                account = pr.json()
+        return {"as_of": datetime.utcnow().isoformat(), "mode": "instagram_login",
+                "account": account, "media": media}
+
+    # 경로 B: 구형 FB Login 폴백
     token, ig_id = await _ig_context(db, current_user)
     base = f"{settings.META_GRAPH_API_BASE}/{settings.META_API_VERSION}"
     async with httpx.AsyncClient(timeout=30) as client:
@@ -264,8 +422,13 @@ async def instagram_media_comments(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    token, _ = await _ig_context(db, current_user)
-    base = f"{settings.META_GRAPH_API_BASE}/{settings.META_API_VERSION}"
+    ig_user = await _ig_login_user(db, current_user)
+    if ig_user:
+        token = await _ig_login_token(db, ig_user)
+        base = IG_API_BASE
+    else:
+        token, _ = await _ig_context(db, current_user)
+        base = f"{settings.META_GRAPH_API_BASE}/{settings.META_API_VERSION}"
     async with httpx.AsyncClient(timeout=20) as client:
         r = await client.get(f"{base}/{media_id}/comments", params={
             "fields": "username,text,like_count,timestamp", "limit": limit,
