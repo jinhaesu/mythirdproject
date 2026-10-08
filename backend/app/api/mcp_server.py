@@ -245,11 +245,21 @@ def _check_key(key: str) -> bool:
 
 
 @router.get("/mcp")
-async def mcp_get(key: str = Query(default="")):
-    # SSE 스트림 미지원(무상태) — 스펙상 405 허용
+async def mcp_get(request: Request, key: str = Query(default="")):
     if not _check_key(key):
         return Response(status_code=401)
-    return Response(status_code=405)
+    # MCP 클라이언트의 SSE 스트림 요청은 미지원(무상태) — 405
+    if "text/event-stream" in (request.headers.get("accept") or ""):
+        return Response(status_code=405)
+    # 브라우저로 열어본 경우 — 상태 확인용 안내 (연결 자체는 클로드 커넥터에서)
+    return JSONResponse({
+        "ok": True,
+        "name": "nuldam-marketing-mcp",
+        "tools": len(TOOLS),
+        "안내": "이 주소는 웹페이지가 아니라 클로드(Claude) 전용 MCP 엔드포인트입니다. "
+               "Claude 데스크톱 → 설정 → 커넥터 → '커스텀 커넥터 추가'에 이 URL 전체(key 포함)를 "
+               "붙여넣으면 연결됩니다. 브라우저에서 이 메시지가 보이면 서버는 정상입니다.",
+    })
 
 
 @router.post("/mcp")
