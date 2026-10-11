@@ -32,6 +32,7 @@ from app.models.kpi import (
 )
 from app.models.influencer import InfluencerSeeding
 from app.models.creator_pool import CreatorPool
+from app.models.social_snapshot import IgAccountSnapshot
 from app.models.sponsorship import Sponsorship, SponsorshipItem, SponsorshipOutcome
 from app.models.naver_insight import NaverMentionDaily
 from app.models.marketing_activity import MarketingActivity, ContentMetricSnapshot
@@ -82,6 +83,7 @@ __all__ = [
     "MallVisitorsDaily",
     "InfluencerSeeding",
     "CreatorPool",
+    "IgAccountSnapshot",
     "Sponsorship",
     "SponsorshipItem",
     "SponsorshipOutcome",

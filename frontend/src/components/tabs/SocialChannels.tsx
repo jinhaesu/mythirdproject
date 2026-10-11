@@ -418,9 +418,14 @@ function IgInsightsView() {
             <p className="text-base font-bold tabular-nums text-text-primary">{fmtNum(totalReach)}</p>
           </div>
           <div className="rounded-xl px-4 py-2.5" style={{ backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)' }}>
-            <p className="text-[10px] text-text-quaternary">최근 {days}일 팔로워 증감</p>
-            <p className={`text-base font-bold tabular-nums ${followerDelta > 0 ? 'text-green' : followerDelta < 0 ? 'text-red' : 'text-text-primary'}`}>
-              {followerDelta > 0 ? '+' : ''}{fmtNum(followerDelta)}
+            <p className="text-[10px] text-text-quaternary">최근 {days}일 팔로워</p>
+            <p className="text-base font-bold tabular-nums text-text-primary">
+              {data?.followers_start != null ? fmtNum(data.followers_start) : '-'}
+              <span className="text-text-quaternary font-normal mx-1">→</span>
+              {data?.followers_end != null ? fmtNum(data.followers_end) : '-'}
+              <span className={`ml-1.5 text-xs font-semibold ${followerDelta > 0 ? 'text-green' : followerDelta < 0 ? 'text-red' : 'text-text-quaternary'}`}>
+                ({followerDelta > 0 ? '+' : ''}{fmtNum(followerDelta)})
+              </span>
             </p>
           </div>
           <div className="rounded-xl px-4 py-2.5" style={{ backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)' }}>
@@ -446,6 +451,59 @@ function IgInsightsView() {
               <Line yAxisId="r" dataKey="followers" name="팔로워 증감" stroke="#27A644" strokeWidth={2} dot={false} connectNulls />
             </ComposedChart>
           </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* 월별 변화 (자체 스냅샷 축적) */}
+      {(data?.monthly || []).length > 0 && (
+        <div className="pt-2 space-y-2" style={{ borderTop: '1px solid rgb(var(--color-overlay-rgb) / 0.06)' }}>
+          <p className="text-[11px] font-medium text-text-secondary">월별 변화</p>
+          {data.monthly.length >= 2 && (
+            <div className="h-44">
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={data.monthly.map((m: any) => ({ ...m, label: m.month.slice(2) }))} margin={{ top: 4, right: 8, left: 4, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-primary)" />
+                  <XAxis dataKey="label" tick={{ fontSize: 9, fill: 'var(--color-text-quaternary)' }} tickLine={false} axisLine={false} />
+                  <YAxis yAxisId="l" tick={{ fontSize: 9, fill: 'var(--color-text-quaternary)' }} tickLine={false} axisLine={false} width={48} />
+                  <YAxis yAxisId="r" orientation="right" tick={{ fontSize: 9, fill: '#27A644' }} tickLine={false} axisLine={false} width={52} />
+                  <RechartsTooltip
+                    contentStyle={{ backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)', borderRadius: 8, fontSize: 11 }}
+                    formatter={(v: any, name: any) => [fmtNum(Number(v)), name]}
+                  />
+                  <Legend wrapperStyle={{ fontSize: 10 }} />
+                  <Bar yAxisId="l" dataKey="reach_sum" name="월 도달 합" fill="#4EA7FC" opacity={0.6} radius={[2, 2, 0, 0]} maxBarSize={36} />
+                  <Line yAxisId="r" dataKey="followers_end" name="월말 팔로워" stroke="#27A644" strokeWidth={2} dot={{ r: 3 }} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+          <table className="w-full text-[11px]">
+            <thead><tr className="text-text-quaternary">
+              <th className="text-left py-1 font-medium">월</th>
+              <th className="text-right py-1 font-medium">월말 팔로워</th>
+              <th className="text-right py-1 font-medium">팔로워 증감</th>
+              <th className="text-right py-1 font-medium">도달 합계</th>
+              <th className="text-right py-1 font-medium">일평균 도달</th>
+              <th className="text-right py-1 font-medium">게시물 수</th>
+              <th className="text-right py-1 font-medium">집계일수</th>
+            </tr></thead>
+            <tbody>
+              {[...data.monthly].reverse().map((m: any) => (
+                <tr key={m.month} style={{ borderTop: '1px solid rgb(var(--color-overlay-rgb) / 0.05)' }}>
+                  <td className="py-1 text-text-secondary">{m.month}</td>
+                  <td className="py-1 text-right tabular-nums text-text-primary">{fmtNum(m.followers_end)}</td>
+                  <td className={`py-1 text-right tabular-nums font-medium ${m.followers_delta > 0 ? 'text-green' : m.followers_delta < 0 ? 'text-red' : 'text-text-quaternary'}`}>
+                    {m.followers_delta > 0 ? '+' : ''}{fmtNum(m.followers_delta)}
+                  </td>
+                  <td className="py-1 text-right tabular-nums text-text-secondary">{fmtNum(m.reach_sum)}</td>
+                  <td className="py-1 text-right tabular-nums text-text-tertiary">{fmtNum(m.days ? Math.round(m.reach_sum / m.days) : 0)}</td>
+                  <td className="py-1 text-right tabular-nums text-text-tertiary">{fmtNum(m.media_count)}</td>
+                  <td className="py-1 text-right tabular-nums text-text-quaternary">{m.days}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="text-[10px] text-text-quaternary">{data.monthly_note}</p>
         </div>
       )}
     </div>

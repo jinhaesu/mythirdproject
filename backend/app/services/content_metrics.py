@@ -190,6 +190,61 @@ async def refresh_content_metrics(db: AsyncSession, months_back: int = 24) -> di
         except Exception as e:
             logger.warning(f"[content-metrics] ig 수집 실패: {e}")
 
+    # ── 계정 일일 스냅샷 (팔로워·전일 도달·게시물 수 — 월별 변화 분석용) ──
+    if media_url and token:
+        try:
+            from app.models import IgAccountSnapshot
+
+            # media_url에서 계정 ID·조회 base 역산
+            if ig_user:
+                acct_base, acct_path = IG_API_BASE, "me"
+                ig_acct_id = ig_user.ig_user_id or "me"
+            else:
+                acct_base = f"{settings.META_GRAPH_API_BASE}/{settings.META_API_VERSION}"
+                ig_acct_id = fb_user.meta_ig_account_id
+                acct_path = ig_acct_id
+            async with httpx.AsyncClient(timeout=30) as client:
+                pr = await client.get(f"{acct_base}/{acct_path}", params={
+                    "fields": "username,followers_count,follows_count,media_count",
+                    "access_token": token,
+                })
+                if pr.status_code == 200:
+                    p = pr.json()
+                    reach_y = 0
+                    try:
+                        yesterday = today - timedelta(days=1)
+                        ir = await client.get(f"{acct_base}/{acct_path}/insights", params={
+                            "metric": "reach", "period": "day",
+                            "since": yesterday.isoformat(), "until": today.isoformat(),
+                            "access_token": token,
+                        })
+                        if ir.status_code == 200:
+                            for ins in ir.json().get("data", []):
+                                vals = ins.get("values", [])
+                                if vals:
+                                    reach_y = int(vals[0].get("value") or 0)
+                    except Exception:
+                        pass
+                    snap = (await db.execute(
+                        select(IgAccountSnapshot).where(
+                            IgAccountSnapshot.ig_account_id == str(ig_acct_id),
+                            IgAccountSnapshot.date == today,
+                        )
+                    )).scalar_one_or_none()
+                    if snap is None:
+                        snap = IgAccountSnapshot(ig_account_id=str(ig_acct_id), date=today)
+                        db.add(snap)
+                    snap.username = p.get("username")
+                    snap.followers = int(p.get("followers_count") or 0)
+                    snap.follows = int(p.get("follows_count") or 0)
+                    snap.media_count = int(p.get("media_count") or 0)
+                    snap.reach_day = reach_y
+                    result["account_snapshot"] = {"username": snap.username,
+                                                  "followers": snap.followers,
+                                                  "reach_day": reach_y}
+        except Exception as e:
+            logger.warning(f"[content-metrics] 계정 스냅샷 실패: {e}")
+
     # ── 오늘자 스냅샷 (링크 보유 전체 — 미갱신 행도 마지막 값으로 기록해 누적 연속성 유지) ──
     for a in rows:
         await _snapshot(db, a, today)

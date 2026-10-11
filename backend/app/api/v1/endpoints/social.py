@@ -540,6 +540,39 @@ async def instagram_account_insights(
                         ]
             except Exception:
                 pass
+
+    # 기간 팔로워: 시작 → 현재 (현재 - 일별 순증감 합으로 역산)
+    cur_followers = (out["account"] or {}).get("followers_count")
+    delta = sum(p["value"] or 0 for p in out["series"].get("follower_count", []))
+    out["followers_end"] = cur_followers
+    out["followers_start"] = (cur_followers - delta) if cur_followers is not None else None
+    out["followers_delta"] = delta
+
+    # 월별 변화 (자체 일일 스냅샷 축적 — 2026-10-11부터)
+    from app.models import IgAccountSnapshot
+    snaps = (await db.execute(
+        select(IgAccountSnapshot).where(IgAccountSnapshot.ig_account_id == str(ig_id))
+        .order_by(IgAccountSnapshot.date)
+    )).scalars().all()
+    monthly: dict[str, dict] = {}
+    for s in snaps:
+        mk = s.date.strftime("%Y-%m")
+        m = monthly.setdefault(mk, {"month": mk, "reach_sum": 0, "days": 0})
+        m["followers_end"] = s.followers       # 월 내 마지막 스냅샷 값으로 갱신
+        m["media_count"] = s.media_count
+        m["reach_sum"] += s.reach_day or 0
+        m["days"] += 1
+        if "followers_first" not in m:
+            m["followers_first"] = s.followers
+    months_sorted = [monthly[k] for k in sorted(monthly)]
+    prev_end = None
+    for m in months_sorted:
+        m["followers_delta"] = (m["followers_end"] - prev_end) if prev_end is not None \
+            else m["followers_end"] - m["followers_first"]
+        prev_end = m["followers_end"]
+        m.pop("followers_first", None)
+    out["monthly"] = months_sorted
+    out["monthly_note"] = "월별 지표는 2026-10-11부터 자체 일일 스냅샷으로 축적 — 쌓인 기간만 표시됩니다."
     return out
 
 
