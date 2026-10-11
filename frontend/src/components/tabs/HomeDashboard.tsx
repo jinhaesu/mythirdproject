@@ -11,7 +11,7 @@ import {
   ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip,
 } from 'recharts';
 import {
-  LineChart, Megaphone, MessageCircle, ClipboardList, Receipt, Target, Gift, Scale,
+  LineChart, Megaphone, MessageCircle, ClipboardList, Receipt, Target, Gift, Scale, Instagram,
   ArrowUpRight, ArrowDownRight, CheckCircle2, AlertCircle, ChevronRight,
 } from 'lucide-react';
 import { ReferenceLine } from 'recharts';
@@ -285,6 +285,53 @@ export function HomeDashboard() {
             </div>
           )}
         </SectionCard>
+
+        {/* 인스타 계정 — 자체 일일 스냅샷 (팔로워·도달) */}
+        {b.instagram && (
+          <SectionCard title={`인스타그램 @${b.instagram.username || ''}`} icon={Instagram} menu="content" subTab={1}>
+            <div className="flex gap-6 flex-wrap">
+              <Metric
+                label="팔로워"
+                value={fmtNum(b.instagram.followers)}
+                sub={
+                  b.instagram.followers_delta_7d != null
+                    ? `최근 7일 ${b.instagram.followers_delta_7d >= 0 ? '+' : ''}${fmtNum(b.instagram.followers_delta_7d)}`
+                    : b.instagram.followers_delta_30d != null
+                      ? `30일 ${b.instagram.followers_delta_30d >= 0 ? '+' : ''}${fmtNum(b.instagram.followers_delta_30d)}`
+                      : undefined
+                }
+              />
+              <Metric
+                label="전일 도달"
+                value={fmtNum(b.instagram.reach_day)}
+                sub={b.instagram.reach_sum_7d ? `7일 합 ${fmtNum(b.instagram.reach_sum_7d)}` : undefined}
+              />
+              <Metric label="게시물" value={fmtNum(b.instagram.media_count)} />
+            </div>
+            {(b.instagram.daily || []).length >= 2 ? (
+              <div className="h-28">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={b.instagram.daily.map((d: any) => ({ ...d, label: d.date?.slice(5) }))} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
+                    <XAxis dataKey="label" tick={{ fontSize: 9, fill: 'var(--color-text-quaternary)' }} tickLine={false} axisLine={false} />
+                    <YAxis yAxisId="r" hide />
+                    <YAxis yAxisId="f" hide domain={['auto', 'auto']} />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)', borderRadius: 8, fontSize: 11 }}
+                      formatter={(v: any, name: any) => [fmtNum(v), name]}
+                    />
+                    <Bar yAxisId="r" dataKey="reach" name="일 도달" fill="#E1559B" opacity={0.55} radius={[3, 3, 0, 0]} />
+                    <Line yAxisId="f" dataKey="followers" name="팔로워" stroke="#7070FF" strokeWidth={2} dot={false} />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <p className="text-[11px] text-text-quaternary">
+                일일 스냅샷 수집 {fmtNum(b.instagram.days_collected)}일차 (매일 03:10 자동) — 이틀째부터 추이 차트가 표시됩니다
+              </p>
+            )}
+            <p className="text-[10px] text-text-quaternary">기준 {b.instagram.as_of} · 자체 일일 스냅샷 기반</p>
+          </SectionCard>
+        )}
 
         {/* 활동 기록 — 월별 조회수 미니 차트 */}
         <SectionCard title={`활동 기록 · ${monthLabel}`} icon={ClipboardList} menu="input" subTab={1}>

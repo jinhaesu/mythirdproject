@@ -228,6 +228,37 @@ async def home_briefing(
             sp_by_month[mk]["outcomes"] += sp_outcome_counts.get(sid, 0)
     sp_this = sp_by_month.get(month_str, {"count": 0, "quantity": 0, "value": 0.0, "outcomes": 0})
 
+    # ── 인스타 계정 스냅샷 (자체 일일 수집 — 팔로워·전일 도달) ────────────
+    from app.models import IgAccountSnapshot
+
+    ig_snaps = (await db.execute(
+        select(IgAccountSnapshot)
+        .where(IgAccountSnapshot.date >= d30)
+        .order_by(IgAccountSnapshot.date)
+    )).scalars().all()
+    instagram = None
+    if ig_snaps:
+        # 복수 계정 대비: 최신 스냅샷의 계정만 사용
+        latest = ig_snaps[-1]
+        acct = [s for s in ig_snaps if s.ig_account_id == latest.ig_account_id]
+        first = acct[0]
+        week = [s for s in acct if s.date >= d7]
+        instagram = {
+            "username": latest.username,
+            "followers": latest.followers,
+            "followers_delta_7d": (latest.followers - week[0].followers) if len(week) >= 2 else None,
+            "followers_delta_30d": (latest.followers - first.followers) if len(acct) >= 2 else None,
+            "reach_day": latest.reach_day,
+            "reach_sum_7d": sum(s.reach_day or 0 for s in week) or None,
+            "media_count": latest.media_count,
+            "as_of": latest.date.isoformat(),
+            "days_collected": len(acct),
+            "daily": [
+                {"date": s.date.isoformat(), "followers": s.followers, "reach": s.reach_day}
+                for s in acct[-14:]
+            ],
+        }
+
     # ── 이번 달 목표 (외부 매출 목표 포함) ───────────────────────────────
     from app.models import ExternalMarketingGoal
     ext_goal = (await db.execute(
@@ -326,6 +357,7 @@ async def home_briefing(
             "tracking_healthy": binds7 > 0 or clicks7 < 50,
         },
         "naver_mentions": naver_mentions,
+        "instagram": instagram,
         "activities": {
             "month_rows": int(act[0]),
             "month_views": int(act[1]),
