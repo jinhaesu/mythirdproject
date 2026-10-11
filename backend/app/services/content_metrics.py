@@ -151,7 +151,7 @@ async def refresh_content_metrics(db: AsyncSession, months_back: int = 24) -> di
                 url = media_url
                 params = {"fields": "id,permalink,like_count,comments_count,media_type",
                           "limit": 50, "access_token": token}
-                for _page in range(12):  # 최대 600개
+                for _page in range(24):  # 최대 1,200개 (메인 계정 게시물 724개 커버)
                     r = await client.get(url, params=params)
                     if r.status_code != 200:
                         logger.warning(f"[content-metrics] ig media {r.status_code}: {r.text[:150]}")
