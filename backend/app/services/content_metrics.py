@@ -123,20 +123,38 @@ async def refresh_content_metrics(db: AsyncSession, months_back: int = 24) -> di
                 result["rows"].append({"id": a.id, "title": (a.product or a.channel or "")[:40],
                                        "old_views": old, "new_views": s["views"]})
 
-    # ── 인스타 자사 게시물 (연결 토큰 있을 때만) ──
+    # ── 인스타 자사 게시물 — IG 로그인 토큰 우선, 없으면 FB 로그인 폴백 ──
     ig_user = (await db.execute(
         select(User).where(User.ig_access_token.isnot(None), User.ig_access_token != "").limit(1)
     )).scalar_one_or_none()
-    if ig_user and ig_targets:
+    media_url, token = None, None
+    if ig_user:
+        media_url = f"{IG_API_BASE}/me/media"
+        token = ig_user.ig_access_token
+        insights_base = IG_API_BASE
+    else:
+        fb_user = (await db.execute(
+            select(User).where(
+                User.meta_access_token.isnot(None), User.meta_access_token != "",
+                User.meta_ig_account_id.isnot(None), User.meta_ig_account_id != "",
+            ).limit(1)
+        )).scalar_one_or_none()
+        if fb_user:
+            fb_base = f"{settings.META_GRAPH_API_BASE}/{settings.META_API_VERSION}"
+            media_url = f"{fb_base}/{fb_user.meta_ig_account_id}/media"
+            token = fb_user.meta_access_token
+            insights_base = fb_base
+    if media_url and ig_targets:
         code_map: dict = {}
         try:
             async with httpx.AsyncClient(timeout=60) as client:
-                url = f"{IG_API_BASE}/me/media"
+                url = media_url
                 params = {"fields": "id,permalink,like_count,comments_count,media_type",
-                          "limit": 50, "access_token": ig_user.ig_access_token}
-                for _page in range(6):  # 최대 300개
+                          "limit": 50, "access_token": token}
+                for _page in range(12):  # 최대 600개
                     r = await client.get(url, params=params)
                     if r.status_code != 200:
+                        logger.warning(f"[content-metrics] ig media {r.status_code}: {r.text[:150]}")
                         break
                     body = r.json()
                     for mitem in body.get("data", []):
@@ -156,8 +174,8 @@ async def refresh_content_metrics(db: AsyncSession, months_back: int = 24) -> di
                     a.comments = mitem.get("comments_count") or a.comments
                     if mitem.get("media_type") in ("VIDEO", "REELS"):
                         try:
-                            ir = await client.get(f"{IG_API_BASE}/{mitem['id']}/insights", params={
-                                "metric": "views", "access_token": ig_user.ig_access_token,
+                            ir = await client.get(f"{insights_base}/{mitem['id']}/insights", params={
+                                "metric": "views", "access_token": token,
                             })
                             if ir.status_code == 200:
                                 for ins in ir.json().get("data", []):
@@ -168,6 +186,7 @@ async def refresh_content_metrics(db: AsyncSession, months_back: int = 24) -> di
                             pass
                     a.metrics_as_of = today
                     result["ig_updated"] += 1
+                result["ig_account_media"] = len(code_map)
         except Exception as e:
             logger.warning(f"[content-metrics] ig 수집 실패: {e}")
 
