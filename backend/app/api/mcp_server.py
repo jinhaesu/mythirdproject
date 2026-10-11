@@ -143,6 +143,14 @@ TOOLS: list[dict] = [
         }},
     },
     {
+        "name": "content_analytics",
+        "description": "발행 콘텐츠 누적 분석 — 일별 스냅샷 기반 누적 조회수(기존/신규 콘텐츠 기여 분해)·좋아요·댓글 추이 + 네이버 언급량 + 최근 7일 조회 급상승 콘텐츠.",
+        "inputSchema": {"type": "object", "properties": {
+            "days": {"type": "integer", "minimum": 7, "maximum": 120, "default": 30},
+            "activity_type": {"type": "string", "description": "content|influencer|experience|crew|groupbuy (빈 값=전체)"},
+        }},
+    },
+    {
         "name": "creator_pool",
         "description": "인스타 크리에이터 풀 조회 — 잠재풀·유상구좌(팔로워·평균 반응·참여율·상태·단가). status: candidate|contacted|working|done|excluded.",
         "inputSchema": {"type": "object", "properties": {
@@ -213,6 +221,11 @@ async def _call_tool(name: str, args: dict) -> Any:
             "limit": args.get("limit", 100),
         }.items() if v is not None}
         return await _get("/activities", params)
+    if name == "content_analytics":
+        return await _get("/content/analytics", {
+            "days": args.get("days", 30),
+            "activity_type": args.get("activity_type", ""),
+        })
     if name == "creator_pool":
         params = {k: v for k, v in {
             "status": args.get("status"), "is_paid": args.get("is_paid"),

@@ -898,69 +898,18 @@ async def delete_creator(
 
 @router.post("/refresh-activity-metrics")
 async def refresh_activity_metrics(
-    months_back: int = Query(default=3, ge=1, le=24),
+    months_back: int = Query(default=24, ge=1, le=24),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """활동 기록 중 link가 유튜브인 행의 views를 현재 조회수로 갱신(metrics_as_of=오늘).
+    """활동 기록 지표 수동 갱신 — 유튜브(전체)+인스타(자사 게시물) + 오늘자 스냅샷.
 
-    50개씩 videos API 배치 조회 — 최근 months_back개월의 실적(actual) 행만 대상.
+    데일리 자동 수집(매일 03:10 KST)과 동일 로직(content_metrics 서비스).
     """
-    key = _require_yt_key()
-    today = date.today()
-    y, m = today.year, today.month - (months_back - 1)
-    while m <= 0:
-        m += 12
-        y -= 1
-    month_from = f"{y:04d}-{m:02d}"
+    from app.services.content_metrics import refresh_content_metrics
 
-    rows = (await db.execute(
-        select(MarketingActivity).where(
-            MarketingActivity.link.isnot(None), MarketingActivity.link != "",
-            MarketingActivity.period_month >= month_from,
-        )
-    )).scalars().all()
-
-    targets: list[tuple[MarketingActivity, str]] = []
-    for a in rows:
-        vid = _yt_video_id(a.link or "")
-        if vid:
-            targets.append((a, vid))
-    if not targets:
-        return {"updated": 0, "matched": 0, "note": "유튜브 링크가 있는 활동 기록이 없습니다."}
-
-    stats: dict[str, dict] = {}
-    async with httpx.AsyncClient(timeout=30) as client:
-        vids = list({v for _, v in targets})
-        for i in range(0, len(vids), 50):
-            r = await client.get(f"{YT_BASE}/videos", params={
-                "part": "statistics", "id": ",".join(vids[i:i + 50]), "key": key,
-            })
-            if r.status_code != 200:
-                continue
-            for item in r.json().get("items", []):
-                st = item.get("statistics", {})
-                stats[item["id"]] = {
-                    "views": int(st.get("viewCount", 0)),
-                    "likes": int(st["likeCount"]) if st.get("likeCount") is not None else None,
-                    "comments": int(st["commentCount"]) if st.get("commentCount") is not None else None,
-                }
-
-    updated = []
-    for a, vid in targets:
-        s = stats.get(vid)
-        if s and s["views"] > 0:
-            old = a.views or 0
-            a.views = s["views"]
-            if s["likes"] is not None:
-                a.likes = s["likes"]
-            if s["comments"] is not None:
-                a.comments = s["comments"]
-            a.metrics_as_of = today
-            updated.append({"id": a.id, "title": (a.product or a.channel or "")[:40],
-                            "old_views": old, "new_views": s["views"]})
-    await db.commit()
-    return {
-        "matched": len(targets), "fetched": len(stats), "updated": len(updated),
-        "as_of": today.isoformat(), "rows": updated[:50],
-    }
+    r = await refresh_content_metrics(db, months_back=months_back)
+    # 구 응답 형태 호환 (프론트 토스트)
+    r["matched"] = r["yt_matched"] + r["ig_matched"]
+    r["updated"] = r["yt_updated"] + r["ig_updated"]
+    return r

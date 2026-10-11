@@ -8,7 +8,7 @@
  * 기존 탭 컴포넌트는 그대로 재사용하고 배치만 바꾼다 (page.tsx 참조).
  */
 import {
-  Home, Megaphone, PenLine, Activity, Compass, Target, Wrench, Gift,
+  Home, Megaphone, PenLine, Activity, Target, Wrench, Clapperboard,
 } from 'lucide-react';
 import { useAppStore, type MenuKey } from '@/store';
 
@@ -17,8 +17,8 @@ export interface SubTabDef {
   name: string;
 }
 
-// 속성 기반 재편(2026-10): 홈(브리핑) → 입력(결과·계획 기입) →
-// 성과 분석(계획 대비 결과) → 실시간 채널(자동 수집) → 인텔리전스 → 운영 → 도구
+// 속성 기반 재편 v3(2026-10-11): 입력(모든 기입) → 성과 분석(계획 대비·협찬 포함) →
+// 광고 채널(자동 수집 유료 채널) → 콘텐츠·크리에이터(오가닉) → 공구·어필 → 도구
 export const MENUS: { key: MenuKey; name: string; icon: any; subTabs: SubTabDef[] }[] = [
   { key: 'home', name: '홈', icon: Home, subTabs: [] },
   {
@@ -26,7 +26,8 @@ export const MENUS: { key: MenuKey; name: string; icon: any; subTabs: SubTabDef[
     subTabs: [
       { id: 0, name: '광고비 일보' },
       { id: 1, name: '활동 기록' },
-      { id: 2, name: '월 목표 입력' },
+      { id: 2, name: '협찬 등록' },
+      { id: 3, name: '월 목표 입력' },
     ],
   },
   {
@@ -35,10 +36,11 @@ export const MENUS: { key: MenuKey; name: string; icon: any; subTabs: SubTabDef[
       { id: 0, name: 'KPI 대시보드' },
       { id: 1, name: '자사몰 KPI' },
       { id: 2, name: '외부 채널 KPI' },
+      { id: 3, name: '협찬 분석' },
     ],
   },
   {
-    key: 'live', name: '실시간 채널', icon: Activity,
+    key: 'live', name: '광고 채널', icon: Activity,
     subTabs: [
       { id: 0, name: 'Meta 성과' },
       { id: 1, name: 'Meta 일별 데이터' },
@@ -47,12 +49,13 @@ export const MENUS: { key: MenuKey; name: string; icon: any; subTabs: SubTabDef[
     ],
   },
   {
-    key: 'intel', name: '브랜드 인텔리전스', icon: Compass,
+    key: 'content', name: '콘텐츠·크리에이터', icon: Clapperboard,
     subTabs: [
-      { id: 0, name: '네이버 인사이트' },
-      { id: 1, name: '키워드 리서치·순위' },
-      { id: 2, name: '소셜 채널' },
-      { id: 3, name: '크리에이터 풀' },
+      { id: 0, name: '콘텐츠 분석' },
+      { id: 1, name: '소셜 채널' },
+      { id: 2, name: '크리에이터 풀' },
+      { id: 3, name: '네이버 인사이트' },
+      { id: 4, name: '키워드 리서치·순위' },
     ],
   },
   {
@@ -60,13 +63,6 @@ export const MENUS: { key: MenuKey; name: string; icon: any; subTabs: SubTabDef[
     subTabs: [
       { id: 0, name: '공구 보드' },
       { id: 1, name: '어필리에이트 운영' },
-    ],
-  },
-  {
-    key: 'sponsorship', name: '협찬 관리', icon: Gift,
-    subTabs: [
-      { id: 0, name: '협찬 등록·목록' },
-      { id: 1, name: '협찬 분석' },
     ],
   },
   {

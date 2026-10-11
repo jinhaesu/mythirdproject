@@ -210,11 +210,16 @@ async def lifespan(app: FastAPI):
     from app.services.kpi_collectors import run_kpi_collector_loop
     kpi_collector_task = asyncio.create_task(run_kpi_collector_loop())
     logger.info("KPI collector loop started")
+
+    from app.services.content_metrics import run_content_metrics_loop
+    content_metrics_task = asyncio.create_task(run_content_metrics_loop())
+    logger.info("Content metrics daily loop started")
     yield
     # Shutdown
     scheduler_task.cancel()
     insights_task.cancel()
     kpi_collector_task.cancel()
+    content_metrics_task.cancel()
 
 
 app = FastAPI(

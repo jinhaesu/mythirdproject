@@ -21,6 +21,7 @@ import {
   SponsorshipAnalytics,
   SocialChannels,
   CreatorPool,
+  ContentAnalytics,
 } from '@/components/tabs';
 import {
   NaverSearchAdsDashboard,
@@ -153,7 +154,8 @@ export default function Home() {
           <>
             {sub('input') === 0 && <AdSpendBoard />}
             {sub('input') === 1 && <ActivitiesBoard />}
-            {sub('input') === 2 && <GoalEntry />}
+            {sub('input') === 2 && <SponsorshipBoard />}
+            {sub('input') === 3 && <GoalEntry />}
           </>
         )}
         {activeMenu === 'analysis' && (
@@ -161,6 +163,7 @@ export default function Home() {
             {sub('analysis') === 0 && <GoalOverview />}
             {sub('analysis') === 1 && <MarketingKPI />}
             {sub('analysis') === 2 && <ExternalMarketingKPI />}
+            {sub('analysis') === 3 && <SponsorshipAnalytics />}
           </>
         )}
         {activeMenu === 'live' && (
@@ -171,24 +174,19 @@ export default function Home() {
             {sub('live') === 3 && <NaverGFADashboard />}
           </>
         )}
-        {activeMenu === 'intel' && (
+        {activeMenu === 'content' && (
           <>
-            {sub('intel') === 0 && <NaverInsights />}
-            {sub('intel') === 1 && <NaverKeywordResearch />}
-            {sub('intel') === 2 && <SocialChannels />}
-            {sub('intel') === 3 && <CreatorPool />}
+            {sub('content') === 0 && <ContentAnalytics />}
+            {sub('content') === 1 && <SocialChannels />}
+            {sub('content') === 2 && <CreatorPool />}
+            {sub('content') === 3 && <NaverInsights />}
+            {sub('content') === 4 && <NaverKeywordResearch />}
           </>
         )}
         {activeMenu === 'affiliate' && (
           <>
             {sub('affiliate') === 0 && <GroupBuyBoard />}
             {sub('affiliate') === 1 && <AffiliateManaging />}
-          </>
-        )}
-        {activeMenu === 'sponsorship' && (
-          <>
-            {sub('sponsorship') === 0 && <SponsorshipBoard />}
-            {sub('sponsorship') === 1 && <SponsorshipAnalytics />}
           </>
         )}
         {activeMenu === 'tools' && (

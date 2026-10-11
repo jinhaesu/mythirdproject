@@ -7,7 +7,7 @@
 from datetime import date, datetime
 from typing import Optional
 
-from sqlalchemy import Date, DateTime, Float, Index, Integer, String
+from sqlalchemy import Date, DateTime, Float, Index, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.database import Base
@@ -60,3 +60,22 @@ class MarketingActivity(Base):
     __table_args__ = (
         Index("ix_marketing_activities_type_month", "activity_type", "period_month"),
     )
+
+
+class ContentMetricSnapshot(Base):
+    """콘텐츠 지표 일일 스냅샷 — 활동 기록(링크 보유)의 조회수·좋아요·댓글을
+    매일 저장해 누적/증가 추이를 분석한다 (2026-10-11).
+
+    수집: 유튜브 링크=Data API(자동), 인스타 자사 게시물=Graph API(연동 시),
+    데일리 루프 + 수동 갱신 버튼 양쪽에서 upsert.
+    """
+    __tablename__ = "content_metric_snapshots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
+    activity_id: Mapped[int] = mapped_column(Integer, index=True)
+    date: Mapped[date] = mapped_column(Date, index=True)
+    views: Mapped[int] = mapped_column(Integer, default=0)
+    likes: Mapped[int] = mapped_column(Integer, default=0)
+    comments: Mapped[int] = mapped_column(Integer, default=0)
+
+    __table_args__ = (UniqueConstraint("activity_id", "date", name="uq_content_snapshot"),)

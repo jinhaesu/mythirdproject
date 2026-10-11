@@ -498,7 +498,7 @@ function IgTaggedView() {
     <div className="space-y-2">
       <p className="text-[11px] text-text-quaternary">
         자사 계정이 태그된 게시물 — 협찬·유상 크리에이터가 @계정 태그만 하면 여기 자동 수집됩니다.
-        크리에이터 풀(브랜드 인텔리전스 › 크리에이터 풀)에 등록해 성과를 추적하세요.
+        크리에이터 풀(콘텐츠·크리에이터 › 크리에이터 풀)에 등록해 성과를 추적하세요.
       </p>
       <div className="overflow-x-auto">
         <table className="w-full text-xs">

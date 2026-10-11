@@ -2028,6 +2028,14 @@ export const socialApi = {
   },
 };
 
+// ─── 콘텐츠 분석 (일별 스냅샷 누적/증가) ─────────────────────────────────────
+export const contentApi = {
+  analytics: async (days = 30, activityType = ''): Promise<any> => {
+    const { data } = await api.get('/content/analytics', { params: { days, activity_type: activityType } });
+    return data;
+  },
+};
+
 // ─── 크리에이터 풀 (잠재풀·유상구좌) ─────────────────────────────────────────
 export interface CreatorRow {
   id: number; username: string; name?: string | null;

@@ -28,7 +28,7 @@ const NAVER_GREETING = '안녕하세요! 네이버 커맨더 AI 어시스턴트�
 export function AICommandCenter() {
   // 개편(2026-09): 플랫폼 스위처 제거 — 네이버 관련 메뉴에서만 네이버 컨텍스트
   const { activeMenu } = useAppStore();
-  const isNaver = activeMenu === 'intel';
+  const isNaver = activeMenu === 'content';
 
   const [isOpen, setIsOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);

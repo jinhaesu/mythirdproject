@@ -267,7 +267,7 @@ export function HomeDashboard() {
         </SectionCard>
 
         {/* 네이버 브랜드 */}
-        <SectionCard title="네이버 브랜드 언급량" icon={MessageCircle} menu="intel" subTab={0}>
+        <SectionCard title="네이버 브랜드 언급량" icon={MessageCircle} menu="content" subTab={3}>
           {(b.naver_mentions || []).length === 0 ? (
             <p className="text-xs text-text-tertiary">수집된 언급량 스냅샷이 없습니다.</p>
           ) : (
@@ -341,7 +341,7 @@ export function HomeDashboard() {
         </SectionCard>
 
         {/* 협찬 — 이달 요약 + 6개월 추이 */}
-        <SectionCard title={`협찬 · ${monthLabel}`} icon={Gift} menu="sponsorship" subTab={0}>
+        <SectionCard title={`협찬 · ${monthLabel}`} icon={Gift} menu="input" subTab={2}>
           <div className="flex gap-6 flex-wrap">
             <Metric label="협찬" value={`${fmtNum(b.sponsorship?.month_count)}건`} />
             <Metric label="품목 수량" value={`${fmtNum(b.sponsorship?.month_quantity)}개`} />
