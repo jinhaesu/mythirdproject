@@ -6,9 +6,9 @@
  * @유저명만 등록하면 business_discovery로 팔로워·평균 좋아요/댓글·참여율을
  * 자동 스냅샷. 상태(후보→컨택→협업중→완료/제외)·유상 여부·단가·메모 관리.
  */
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, RefreshCw, Trash2, Pencil, X, ExternalLink } from 'lucide-react';
+import { Plus, RefreshCw, Trash2, Pencil, X, ExternalLink, ChevronDown, ChevronRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { creatorsApi, type CreatorRow } from '@/lib/api';
 import { fmtNum, fmtWon } from '@/components/tabs/kpi/format';
@@ -27,6 +27,7 @@ export function CreatorPool() {
   const [statusF, setStatusF] = useState('');
   const [paidF, setPaidF] = useState(''); // '' | 'paid' | 'organic'
   const [editing, setEditing] = useState<CreatorRow | 'new' | null>(null);
+  const [openId, setOpenId] = useState<number | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['creators'],
@@ -93,6 +94,7 @@ export function CreatorPool() {
           <option value="paid">유상구좌</option>
           <option value="organic">오가닉</option>
         </select>
+        <RefreshAllButton onDone={invalidate} />
         <button onClick={() => setEditing('new')}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white hover:opacity-90"
           style={{ backgroundColor: 'var(--color-brand-bg)' }}>
@@ -132,9 +134,14 @@ export function CreatorPool() {
                   등록된 크리에이터가 없습니다 — &quot;크리에이터 추가&quot;에 @유저명을 넣으면 지표가 자동 수집됩니다
                 </td></tr>
               ) : rows.map((c) => (
-                <tr key={c.id} style={{ borderBottom: '1px solid rgb(var(--color-overlay-rgb) / 0.04)' }}>
+                <Fragment key={c.id}>
+                <tr style={{ borderBottom: '1px solid rgb(var(--color-overlay-rgb) / 0.04)' }}>
                   <td className="px-3 py-2 whitespace-nowrap">
                     <div className="flex items-center gap-2">
+                      <button onClick={() => setOpenId(openId === c.id ? null : c.id)}
+                        className="p-0.5 text-text-quaternary hover:text-text-primary" title="협업 이력">
+                        {openId === c.id ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                      </button>
                       {c.picture_url && (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={c.picture_url} alt="" className="w-6 h-6 rounded-full object-cover"
@@ -182,6 +189,14 @@ export function CreatorPool() {
                       className="p-1 text-text-quaternary hover:text-red" title="삭제"><Trash2 size={12} /></button>
                   </td>
                 </tr>
+                {openId === c.id && (
+                  <tr style={{ borderBottom: '1px solid rgb(var(--color-overlay-rgb) / 0.04)' }}>
+                    <td colSpan={11} className="px-6 py-3" style={{ backgroundColor: 'rgb(var(--color-overlay-rgb) / 0.03)' }}>
+                      <CreatorHistory creatorId={c.id} />
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               ))}
             </tbody>
           </table>
@@ -295,6 +310,74 @@ function CreatorModal({ creator, onClose, onSaved }: {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── 전체 지표 일괄 갱신 ─────────────────────────────────────────────────────
+
+function RefreshAllButton({ onDone }: { onDone: () => void }) {
+  const mut = useMutation({
+    mutationFn: () => creatorsApi.refreshAll(100),
+    onSuccess: (d) => {
+      toast.success(`지표 갱신 완료 — 성공 ${d.refreshed}명 / 실패 ${d.failed}명`);
+      onDone();
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail || '일괄 갱신 실패 (인스타 연결 필요)'),
+  });
+  return (
+    <button onClick={() => mut.mutate()} disabled={mut.isPending}
+      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-text-secondary border border-border-primary hover:text-text-primary disabled:opacity-50"
+      title="풀 전체(제외 상태 뺀 최대 100명)의 팔로워·평균 반응을 인스타 API로 재수집합니다">
+      <RefreshCw size={13} className={mut.isPending ? 'animate-spin' : ''} /> 전체 지표 갱신
+    </button>
+  );
+}
+
+// ─── 협업 이력 (활동 기록 매칭) ──────────────────────────────────────────────
+
+function CreatorHistory({ creatorId }: { creatorId: number }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['creators', 'activities', creatorId],
+    queryFn: () => creatorsApi.activities(creatorId),
+    staleTime: 5 * 60 * 1000,
+  });
+  if (isLoading) return <p className="text-[11px] text-text-tertiary">협업 이력 불러오는 중...</p>;
+  if (!data || data.count === 0) {
+    return <p className="text-[11px] text-text-quaternary">활동 기록에서 매칭되는 협업 이력이 없습니다 (활동 기록의 크리에이터 필드와 핸들/이름으로 매칭)</p>;
+  }
+  return (
+    <div className="space-y-1.5 text-[11px]">
+      <p className="font-semibold text-text-secondary">
+        협업 이력 {data.count}건 — 누적 조회 {fmtNum(data.totals.views)} · 누적 비용 {fmtWon(data.totals.cost)}
+      </p>
+      <table className="w-full">
+        <thead><tr className="text-[10px] text-text-quaternary">
+          <th className="text-left py-1 pr-2 font-medium">월</th>
+          <th className="text-left py-1 px-2 font-medium">유형</th>
+          <th className="text-left py-1 px-2 font-medium">제품</th>
+          <th className="text-left py-1 px-2 font-medium">채널</th>
+          <th className="text-right py-1 px-2 font-medium">조회수</th>
+          <th className="text-right py-1 px-2 font-medium">비용</th>
+          <th className="py-1 pl-2" />
+        </tr></thead>
+        <tbody>
+          {data.activities.slice(0, 15).map((a: any) => (
+            <tr key={a.id} style={{ borderTop: '1px solid rgb(var(--color-overlay-rgb) / 0.05)' }}>
+              <td className="py-1 pr-2 text-text-tertiary whitespace-nowrap">{a.period_month}</td>
+              <td className="py-1 px-2 text-text-secondary whitespace-nowrap">{a.activity_type}</td>
+              <td className="py-1 px-2 text-text-secondary max-w-[200px] truncate">{a.product || '-'}</td>
+              <td className="py-1 px-2 text-text-tertiary whitespace-nowrap">{a.channel || '-'}</td>
+              <td className="py-1 px-2 text-right tabular-nums text-text-primary">{fmtNum(a.views)}</td>
+              <td className="py-1 px-2 text-right tabular-nums text-text-secondary">{a.cost ? fmtWon(a.cost) : '-'}</td>
+              <td className="py-1 pl-2 text-right">
+                {a.link && <a href={a.link.split(/[\r\n]/)[0]} target="_blank" rel="noreferrer" className="text-brand hover:underline">게시물</a>}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {data.count > 15 && <p className="text-[10px] text-text-quaternary">외 {data.count - 15}건 — 활동 기록에서 크리에이터명으로 검색</p>}
     </div>
   );
 }

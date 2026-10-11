@@ -816,6 +816,68 @@ async def refresh_creator(
     return _creator_out(c)
 
 
+@router.post("/creators/refresh-all")
+async def refresh_all_creators(
+    limit: int = Query(default=100, ge=1, le=300),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """풀 전체 지표 일괄 갱신 — 오래된 스냅샷부터 limit명 (business_discovery 호출량 보호)."""
+    rows = (await db.execute(
+        select(CreatorPool).where(CreatorPool.status != "excluded")
+        .order_by(CreatorPool.last_checked_at.asc().nulls_first()).limit(limit)
+    )).scalars().all()
+    ok, failed = 0, []
+    for c in rows:
+        err = await _snapshot_creator(db, c, current_user)
+        if err:
+            failed.append({"username": c.username, "error": str(err)[:120]})
+        else:
+            ok += 1
+    await db.commit()
+    return {"refreshed": ok, "failed": len(failed), "failures": failed[:20],
+            "as_of": datetime.utcnow().isoformat()}
+
+
+@router.get("/creators/{creator_id}/activities")
+async def creator_activities(
+    creator_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """크리에이터 협업 이력 — 활동 기록 creator 필드에서 핸들/이름 매칭 + 성과 합계."""
+    from app.models import MarketingActivity
+
+    c = (await db.execute(
+        select(CreatorPool).where(CreatorPool.id == creator_id)
+    )).scalar_one_or_none()
+    if not c:
+        raise HTTPException(status_code=404, detail="크리에이터를 찾을 수 없습니다.")
+    cond = MarketingActivity.creator.ilike(f"%{c.username}%")
+    if c.name:
+        cond = cond | MarketingActivity.creator.ilike(f"%{c.name}%")
+    rows = (await db.execute(
+        select(MarketingActivity).where(cond)
+        .order_by(MarketingActivity.period_month.desc(), MarketingActivity.id.desc())
+        .limit(100)
+    )).scalars().all()
+    items = [{
+        "id": a.id, "activity_type": a.activity_type, "period_month": a.period_month,
+        "product": a.product, "channel": a.channel, "views": a.views,
+        "likes": a.likes, "comments": a.comments, "cost": a.cost, "link": a.link,
+        "notes": a.notes,
+    } for a in rows]
+    return {
+        "creator": c.username, "count": len(items),
+        "totals": {
+            "views": sum(a.views or 0 for a in rows),
+            "cost": sum(a.cost or 0 for a in rows),
+            "likes": sum(a.likes or 0 for a in rows),
+        },
+        "activities": items,
+    }
+
+
 @router.delete("/creators/{creator_id}")
 async def delete_creator(
     creator_id: int,

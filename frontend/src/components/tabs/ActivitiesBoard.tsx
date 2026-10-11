@@ -24,6 +24,7 @@ const TYPE_LABELS: Record<string, string> = {
   experience: '체험단',
   crew: '크루',
   supporters: '서포터즈',
+  groupbuy: '공동구매',
   etc: '기타',
 };
 

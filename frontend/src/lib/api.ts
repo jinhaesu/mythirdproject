@@ -2058,6 +2058,18 @@ export const creatorsApi = {
     const { data } = await api.post(`/social/creators/${id}/refresh`);
     return data;
   },
+  refreshAll: async (limit = 100): Promise<{ refreshed: number; failed: number; failures: any[] }> => {
+    const { data } = await api.post('/social/creators/refresh-all', null, { params: { limit } });
+    return data;
+  },
+  activities: async (id: number): Promise<{
+    creator: string; count: number;
+    totals: { views: number; cost: number; likes: number };
+    activities: any[];
+  }> => {
+    const { data } = await api.get(`/social/creators/${id}/activities`);
+    return data;
+  },
   remove: async (id: number) => {
     const { data } = await api.delete(`/social/creators/${id}`);
     return data;

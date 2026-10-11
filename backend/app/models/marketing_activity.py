@@ -44,6 +44,8 @@ class MarketingActivity(Base):
     cost: Mapped[float] = mapped_column(Float, default=0)  # KRW
 
     link: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)  # 콘텐츠/게시물 URL
+    # 크리에이터 "이름/인스타핸들" — 크리에이터 풀과 핸들 매칭해 협업 이력 집계 (2026-10-11)
+    creator: Mapped[Optional[str]] = mapped_column(String(200), nullable=True, index=True)
     # 조회수 등 지표의 스냅샷 기준일 — 조회수는 계속 오르므로 "언제 시점 값인지" 기록
     metrics_as_of: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
 

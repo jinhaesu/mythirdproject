@@ -179,7 +179,8 @@ async def init_db():
 
     # Add link / metrics_as_of / entry_kind columns to marketing_activities if missing (2026-09-30)
     for col_ddl in ["link VARCHAR(500)", "metrics_as_of DATE",
-                    "entry_kind VARCHAR(10) DEFAULT 'actual'"]:
+                    "entry_kind VARCHAR(10) DEFAULT 'actual'",
+                    "creator VARCHAR(200)"]:
         try:
             async with engine.begin() as conn:
                 await conn.execute(

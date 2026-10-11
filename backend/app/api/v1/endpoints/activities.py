@@ -19,7 +19,7 @@ from app.models.user import User
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-ACTIVITY_TYPES = ["content", "influencer", "experience", "crew", "supporters", "etc"]
+ACTIVITY_TYPES = ["content", "influencer", "experience", "crew", "supporters", "groupbuy", "etc"]
 
 
 class ActivityIn(BaseModel):
@@ -42,6 +42,7 @@ class ActivityIn(BaseModel):
     follows: int = 0
     cost: float = 0
     link: Optional[str] = Field(None, max_length=500)  # 콘텐츠/게시물 URL
+    creator: Optional[str] = Field(None, max_length=200)  # 크리에이터 이름/핸들
     metrics_as_of: Optional[str] = None  # 지표(조회수 등) 기준일 "YYYY-MM-DD"
     notes: Optional[str] = Field(None, max_length=500)
     source: str = "manual"
@@ -52,7 +53,7 @@ def _apply(row: MarketingActivity, data: ActivityIn) -> None:
 
     for f in ("activity_type", "entry_kind", "product", "product_category", "channel", "purpose",
               "status", "period_month", "quantity", "views", "reach", "likes",
-              "comments", "saves", "shares", "follows", "cost", "link", "notes", "source"):
+              "comments", "saves", "shares", "follows", "cost", "link", "creator", "notes", "source"):
         setattr(row, f, getattr(data, f))
     row.activity_date = _date.fromisoformat(data.activity_date) if data.activity_date else None
     row.metrics_as_of = _date.fromisoformat(data.metrics_as_of) if data.metrics_as_of else None
@@ -81,6 +82,7 @@ def _row_out(a: MarketingActivity) -> dict:
         "cost": a.cost,
         "cost_per_view": round(a.cost / a.views, 2) if a.views else None,
         "link": a.link,
+        "creator": getattr(a, "creator", None),
         "metrics_as_of": a.metrics_as_of.isoformat() if a.metrics_as_of else None,
         "notes": a.notes,
         "source": a.source,
@@ -106,6 +108,7 @@ def _filters(query, activity_type, month_from, month_to, channel, product, q, en
             MarketingActivity.product.ilike(like)
             | MarketingActivity.notes.ilike(like)
             | MarketingActivity.purpose.ilike(like)
+            | MarketingActivity.creator.ilike(like)
         )
     return query
 
