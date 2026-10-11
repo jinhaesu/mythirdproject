@@ -394,6 +394,9 @@ function IgInsightsView() {
   followers.forEach((p: any) => { byDate[p.date] = { ...(byDate[p.date] || { date: p.date.slice(5) }), followers: p.value }; });
   const rows = Object.values(byDate);
   const acc = data?.account || {};
+  // 기간 합계 — reach는 일별 도달의 합, follower_count는 일별 순증감의 합
+  const totalReach = reach.reduce((s: number, p: any) => s + (p.value || 0), 0);
+  const followerDelta = followers.reduce((s: number, p: any) => s + (p.value || 0), 0);
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-4 flex-wrap text-xs">
@@ -407,6 +410,25 @@ function IgInsightsView() {
             className={`px-2 py-0.5 rounded text-[10px] border ${days === d ? 'text-text-primary border-brand' : 'text-text-quaternary border-border-primary'}`}>{d}일</button>
         ))}
       </div>
+      {/* 기간 합계 */}
+      {rows.length > 0 && (
+        <div className="flex flex-wrap gap-3">
+          <div className="rounded-xl px-4 py-2.5" style={{ backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)' }}>
+            <p className="text-[10px] text-text-quaternary">최근 {days}일 도달 합계</p>
+            <p className="text-base font-bold tabular-nums text-text-primary">{fmtNum(totalReach)}</p>
+          </div>
+          <div className="rounded-xl px-4 py-2.5" style={{ backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)' }}>
+            <p className="text-[10px] text-text-quaternary">최근 {days}일 팔로워 증감</p>
+            <p className={`text-base font-bold tabular-nums ${followerDelta > 0 ? 'text-green' : followerDelta < 0 ? 'text-red' : 'text-text-primary'}`}>
+              {followerDelta > 0 ? '+' : ''}{fmtNum(followerDelta)}
+            </p>
+          </div>
+          <div className="rounded-xl px-4 py-2.5" style={{ backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)' }}>
+            <p className="text-[10px] text-text-quaternary">일평균 도달</p>
+            <p className="text-base font-bold tabular-nums text-text-primary">{fmtNum(rows.length ? Math.round(totalReach / rows.length) : 0)}</p>
+          </div>
+        </div>
+      )}
       {rows.length === 0 ? (
         <p className="text-xs text-text-quaternary py-4">일별 인사이트 데이터가 없습니다 (계정 규모·권한에 따라 제한될 수 있음)</p>
       ) : (
