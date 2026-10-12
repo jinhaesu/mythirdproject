@@ -11,7 +11,7 @@
  */
 import { Fragment, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Download, Plus, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Download, Plus, X, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { adspendApi, type AdMediaRow } from '@/lib/api';
 import { fmtWon } from '@/components/tabs/kpi/format';
@@ -39,10 +39,11 @@ export function AdSpendBoard() {
   const [showAddMedia, setShowAddMedia] = useState(false);
   const [inflowF, setInflowF] = useState(''); // '' = 전체
   const [ownerF, setOwnerF] = useState(''); // '' = 전체
+  const [scope, setScope] = useState<'month' | 'all'>('month'); // month=이달 거래 매체만
 
   const { data: board, isLoading } = useQuery({
-    queryKey: ['adspend', 'board', month],
-    queryFn: () => adspendApi.board(month),
+    queryKey: ['adspend', 'board', month, scope],
+    queryFn: () => adspendApi.board(month, scope),
   });
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ['adspend'] });
@@ -64,6 +65,14 @@ export function AdSpendBoard() {
       adspendApi.upsertBudget(mediaId, month, { note }),
     onSuccess: invalidate,
     onError: () => toast.error('비고 저장 실패'),
+  });
+  const deleteMut = useMutation({
+    mutationFn: (mediaId: number) => adspendApi.deleteMedia(mediaId),
+    onSuccess: (d) => {
+      toast.success(d.deleted ? '매체를 삭제했습니다' : (d.detail || '이력이 있어 비활성화했습니다 (데이터 보존)'));
+      invalidate();
+    },
+    onError: () => toast.error('삭제 실패'),
   });
 
   const days = board?.days_in_month ?? 30;
@@ -141,6 +150,18 @@ export function AdSpendBoard() {
             className="px-2 py-1.5 rounded-lg text-xs bg-bg-2 border border-border-primary text-text-primary" />
           <button onClick={() => setMonth(monthAdd(month, 1))} className="p-1.5 rounded-lg border border-border-primary text-text-tertiary hover:text-text-primary"><ChevronRight size={13} /></button>
         </div>
+        <div className="flex items-center rounded-lg p-0.5" style={{ backgroundColor: 'rgb(var(--color-overlay-rgb) / 0.05)' }}>
+          {([['month', '이달 거래 매체'], ['all', '전체 매체']] as const).map(([kv, label]) => (
+            <button key={kv} onClick={() => setScope(kv)}
+              title={kv === 'month' ? '이 달에 기입·Limit·자동수집이 있는 매체 + 신규 매체만 표시' : '활성 매체 전부 표시 — 과거 거래처에 새로 기입할 때'}
+              className="px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors"
+              style={scope === kv
+                ? { backgroundColor: 'var(--color-brand-bg)', color: '#fff' }
+                : { color: 'var(--color-text-tertiary)' }}>
+              {label}
+            </button>
+          ))}
+        </div>
         <select value={inflowF} onChange={(e) => setInflowF(e.target.value)}
           className="px-2 py-1.5 rounded-lg text-xs bg-bg-2 border border-border-primary text-text-primary max-w-[150px]">
           <option value="">유입채널 전체</option>
@@ -193,7 +214,11 @@ export function AdSpendBoard() {
               cls: view.usage_pct != null && view.usage_pct > 100 ? 'text-red' :
                 view.usage_pct != null && view.usage_pct > 90 ? 'text-yellow' : 'text-green',
             },
-            { label: '매체 수', value: isFiltered ? `${filteredRows.length} / ${board.rows.length}` : String(board.rows.length) },
+            {
+              label: scope === 'month' ? '이달 거래 매체' : '매체 수',
+              value: (isFiltered ? `${filteredRows.length} / ${board.rows.length}` : String(board.rows.length))
+                + (scope === 'month' && board.total_active_media ? ` (전체 ${board.total_active_media})` : ''),
+            },
           ].map((c) => (
             <div key={c.label} className="rounded-xl px-4 py-2.5" style={{ backgroundColor: 'var(--color-bg-level-1)', border: '1px solid var(--color-border-primary)' }}>
               <p className="text-[10px] text-text-quaternary">{c.label}</p>
@@ -237,6 +262,19 @@ export function AdSpendBoard() {
                           <div className="flex items-center gap-1">
                             <span className="truncate" title={`${r.group_name || ''} · ${r.name}${r.memo ? ` · ${r.memo}` : ''}`}>{r.name}</span>
                             {r.auto && <span className="shrink-0 px-1 rounded text-[8px] font-bold bg-green/15 text-green">자동</span>}
+                            {!r.auto && (
+                              <button
+                                onClick={() => {
+                                  if (window.confirm(`'${r.name}' 매체를 제거할까요?\n기입 이력이 있으면 삭제 대신 비활성화되어 과거 데이터는 보존됩니다.`)) {
+                                    deleteMut.mutate(r.media_id);
+                                  }
+                                }}
+                                title="매체 제거 (이력 있으면 비활성화)"
+                                className="shrink-0 p-0.5 rounded text-text-quaternary opacity-0 group-hover:opacity-100 hover:text-red transition-opacity"
+                              >
+                                <Trash2 size={11} />
+                              </button>
+                            )}
                           </div>
                         </td>
                         {dates.map((d) => {

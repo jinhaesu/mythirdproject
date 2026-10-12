@@ -110,6 +110,35 @@ async def create_media(
     return {"id": m.id}
 
 
+@router.delete("/media/{media_id}")
+async def delete_media(
+    media_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """매체(거래처) 제거 — 기입/예산 이력이 없으면 완전 삭제, 있으면 비활성화(이력 보존).
+
+    비활성 매체는 보드·집계에서 빠지고, 과거 월 데이터는 DB에 남는다.
+    """
+    m = (await db.execute(select(AdMedia).where(AdMedia.id == media_id))).scalar_one_or_none()
+    if not m:
+        raise HTTPException(status_code=404, detail="매체를 찾을 수 없습니다")
+    has_entries = (await db.execute(
+        select(func.count(AdMediaSpendDaily.id)).where(AdMediaSpendDaily.media_id == media_id)
+    )).scalar() or 0
+    has_budgets = (await db.execute(
+        select(func.count(AdMediaBudget.id)).where(AdMediaBudget.media_id == media_id)
+    )).scalar() or 0
+    if has_entries or has_budgets:
+        m.active = False
+        await db.commit()
+        return {"id": media_id, "deleted": False, "deactivated": True,
+                "detail": f"기입 {has_entries}건·예산 {has_budgets}건 이력이 있어 비활성화했습니다 (데이터 보존)"}
+    await db.delete(m)
+    await db.commit()
+    return {"id": media_id, "deleted": True, "deactivated": False}
+
+
 @router.patch("/media/{media_id}")
 async def update_media(
     media_id: int,
@@ -134,10 +163,16 @@ async def update_media(
 @router.get("/board")
 async def spend_board(
     month: str = Query(..., min_length=7, max_length=7),
+    scope: str = Query("month", pattern="^(month|all)$"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """해당 월의 일보 그리드 — 매체별 일별 금액 + 월합계/Limit/사용율/사업계획."""
+    """해당 월의 일보 그리드 — 매체별 일별 금액 + 월합계/Limit/사용율/사업계획.
+
+    scope="month"(기본): 그 달에 거래한 매체만 — 일별 기입·예산(Limit/계획/비고)·
+    자동 수집 금액이 있는 매체 + 아직 아무 이력 없는 신규 매체(기입을 시작할 수 있게).
+    scope="all": 활성 매체 전부 (과거 거래처에 새로 기입할 때).
+    """
     d_from, d_to = _month_range(month)
     media = (await db.execute(
         select(AdMedia).where(AdMedia.active.is_(True))
@@ -156,6 +191,25 @@ async def spend_board(
         manual_by_media.setdefault(r.media_id, {})[r.date.isoformat()] = r.amount
 
     auto_cache = {s: await _auto_daily(db, s, d_from, d_to) for s in AUTO_SOURCES}
+
+    total_media = len(media)
+    if scope == "month":
+        ever_entry_ids = {mid for (mid,) in (await db.execute(
+            select(AdMediaSpendDaily.media_id).distinct()
+        )).all()}
+        ever_budget_ids = {mid for (mid,) in (await db.execute(
+            select(AdMediaBudget.media_id).distinct()
+        )).all()}
+
+        def _relevant(m: AdMedia) -> bool:
+            if m.auto_source:
+                return bool(auto_cache.get(m.auto_source))
+            if m.id in manual_by_media or m.id in budgets:
+                return True
+            # 아무 월에도 이력이 없는 신규 매체 — 숨기면 추가 직후 기입을 못 하므로 노출
+            return m.id not in ever_entry_ids and m.id not in ever_budget_ids
+
+        media = [m for m in media if _relevant(m)]
 
     out_rows = []
     for m in media:
@@ -186,6 +240,8 @@ async def spend_board(
     return {
         "as_of": datetime.utcnow().isoformat(),
         "month": month,
+        "scope": scope,
+        "total_active_media": total_media,
         "days_in_month": (d_to - timedelta(days=1)).day,
         "rows": out_rows,
         "day_totals": day_totals,

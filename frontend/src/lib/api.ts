@@ -1841,13 +1841,18 @@ export interface AdMediaRow {
 }
 
 export const adspendApi = {
-  board: async (month: string): Promise<{
+  board: async (month: string, scope: 'month' | 'all' = 'month'): Promise<{
     month: string; days_in_month: number; rows: AdMediaRow[];
+    scope?: string; total_active_media?: number;
     day_totals: Record<string, number>;
     totals: { spend: number; limit: number; plan: number; usage_pct: number | null };
     as_of: string;
   }> => {
-    const { data } = await api.get('/adspend/board', { params: { month } });
+    const { data } = await api.get('/adspend/board', { params: { month, scope } });
+    return data;
+  },
+  deleteMedia: async (id: number): Promise<{ deleted: boolean; deactivated: boolean; detail?: string }> => {
+    const { data } = await api.delete(`/adspend/media/${id}`);
     return data;
   },
   upsertEntry: async (media_id: number, date: string, amount: number) => {

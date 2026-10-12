@@ -150,7 +150,7 @@ export function ActivitiesBoard() {
           ))}
         </div>
         <div className="flex items-center rounded-lg p-0.5" style={{ backgroundColor: 'rgb(var(--color-overlay-rgb) / 0.05)' }}>
-          {['', 'content', 'influencer', 'experience', 'crew', 'supporters', 'etc'].map((t) => (
+          {['', 'content', 'influencer', 'experience', 'crew', 'supporters', 'groupbuy', 'etc'].map((t) => (
             <button
               key={t || 'all'}
               onClick={() => { setTypeFilter(t); setPage(0); }}
