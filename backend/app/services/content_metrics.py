@@ -148,6 +148,7 @@ async def refresh_content_metrics(db: AsyncSession, months_back: int = 24) -> di
             media_url = f"{fb_base}/{fb_user.meta_ig_account_id}/media"
             token = fb_user.meta_access_token
             insights_base = fb_base
+    ig_matched_rows: list = []  # 자사 미디어와 매칭된 활동 — 계정 username 확보 후 creator 채움
     if media_url and ig_targets:
         code_map: dict = {}
         try:
@@ -189,6 +190,7 @@ async def refresh_content_metrics(db: AsyncSession, months_back: int = 24) -> di
                         except Exception:
                             pass
                     a.metrics_as_of = today
+                    ig_matched_rows.append(a)
                     result["ig_updated"] += 1
                 result["ig_account_media"] = len(code_map)
         except Exception as e:
@@ -239,6 +241,11 @@ async def refresh_content_metrics(db: AsyncSession, months_back: int = 24) -> di
                         snap = IgAccountSnapshot(ig_account_id=str(ig_acct_id), date=today)
                         db.add(snap)
                     snap.username = p.get("username")
+                    # 자사 미디어와 매칭된 활동의 creator 미기입 → 자사 계정명으로 채움
+                    if snap.username:
+                        for a in ig_matched_rows:
+                            if not (a.creator or "").strip():
+                                a.creator = snap.username
                     snap.followers = int(p.get("followers_count") or 0)
                     snap.follows = int(p.get("follows_count") or 0)
                     snap.media_count = int(p.get("media_count") or 0)
