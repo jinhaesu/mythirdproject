@@ -208,17 +208,40 @@ async def refresh_content_metrics(db: AsyncSession, months_back: int = 24) -> di
     )).scalar_one_or_none()
     if bd_user and ig_targets:
         fb_base_bd = f"{settings.META_GRAPH_API_BASE}/{settings.META_API_VERSION}"
-        by_handle: dict = {}
-        for a, code in ig_targets:
-            if code in code_map:
-                continue  # 자사 게시물은 위에서 처리
-            handle = (a.creator or "").strip().lstrip("@").lower()
-            if handle and re.fullmatch(r"[a-z0-9._\-]{2,30}", handle):
-                by_handle.setdefault(handle, []).append((a, code))
+        unmatched = {code: a for a, code in ig_targets if code not in code_map}
+
+        def _norm_handle(v) -> str:
+            h = (v or "").strip().lstrip("@").lower()
+            return h if re.fullmatch(r"[a-z0-9._\-]{2,30}", h) else ""
+
+        # 후보 핸들: ①활동 행의 creator(영문 핸들) ②크리에이터 풀 전체 username —
+        # 풀 핸들로 숏코드를 역매칭하면 한글 표시명/빈 creator 행도 지표·핸들이 채워진다.
+        handles: list = []
+        seen = set()
+        for a in unmatched.values():
+            h = _norm_handle(a.creator)
+            if h and h not in seen:
+                seen.add(h)
+                handles.append(h)
+        try:
+            from app.models import CreatorPool
+            pool = (await db.execute(
+                select(CreatorPool.username).where(CreatorPool.status != "excluded")
+            )).scalars().all()
+            for u in pool:
+                h = _norm_handle(u)
+                if h and h not in seen:
+                    seen.add(h)
+                    handles.append(h)
+        except Exception:
+            pass
+
         bd_updated, bd_accounts = 0, 0
         try:
             async with httpx.AsyncClient(timeout=60) as client:
-                for handle, items in list(by_handle.items())[:150]:  # 시간당 호출 한도 보호
+                for handle in handles[:180]:  # 시간당 호출 한도 보호
+                    if not unmatched:
+                        break
                     try:
                         r = await client.get(f"{fb_base_bd}/{bd_user.meta_ig_account_id}", params={
                             "fields": (f"business_discovery.username({handle})"
@@ -229,20 +252,19 @@ async def refresh_content_metrics(db: AsyncSession, months_back: int = 24) -> di
                             continue  # 개인 계정·오타 핸들 등 — 조용히 스킵
                         bmedia = (((r.json().get("business_discovery") or {}).get("media") or {})
                                   .get("data", []))
-                        bmap = {}
+                        hit = False
                         for mi in bmedia:
                             cc = ig_shortcode(mi.get("permalink") or "")
-                            if cc:
-                                bmap[cc] = mi
-                        hit = False
-                        for a, code in items:
-                            mi = bmap.get(code)
-                            if mi:
-                                a.likes = mi.get("like_count") or a.likes
-                                a.comments = mi.get("comments_count") or a.comments
-                                a.metrics_as_of = today
-                                bd_updated += 1
-                                hit = True
+                            a = unmatched.pop(cc, None) if cc else None
+                            if a is None:
+                                continue
+                            a.likes = mi.get("like_count") or a.likes
+                            a.comments = mi.get("comments_count") or a.comments
+                            if not _norm_handle(a.creator):
+                                a.creator = a.creator or handle  # 빈 값만 핸들로 채움 (한글 표시명 유지)
+                            a.metrics_as_of = today
+                            bd_updated += 1
+                            hit = True
                         if hit:
                             bd_accounts += 1
                     except Exception:
