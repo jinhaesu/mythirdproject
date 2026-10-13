@@ -149,8 +149,8 @@ async def refresh_content_metrics(db: AsyncSession, months_back: int = 24) -> di
             token = fb_user.meta_access_token
             insights_base = fb_base
     ig_matched_rows: list = []  # 자사 미디어와 매칭된 활동 — 계정 username 확보 후 creator 채움
+    code_map: dict = {}
     if media_url and ig_targets:
-        code_map: dict = {}
         try:
             async with httpx.AsyncClient(timeout=60) as client:
                 url = media_url
@@ -195,6 +195,62 @@ async def refresh_content_metrics(db: AsyncSession, months_back: int = 24) -> di
                 result["ig_account_media"] = len(code_map)
         except Exception as e:
             logger.warning(f"[content-metrics] ig 수집 실패: {e}")
+
+    # ── 타인 인스타 게시물 — Business Discovery로 좋아요·댓글 갱신 ──────────
+    # 자사 미디어와 매칭 안 된 IG 링크 중 creator 핸들(영문 username)이 있는 행:
+    # 공식 business_discovery API로 해당 계정 최근 미디어를 받아 숏코드 매칭.
+    # (비즈니스/크리에이터 계정만 조회 가능, 조회수는 미제공 — 좋아요·댓글만)
+    bd_user = (await db.execute(
+        select(User).where(
+            User.meta_access_token.isnot(None), User.meta_access_token != "",
+            User.meta_ig_account_id.isnot(None), User.meta_ig_account_id != "",
+        ).limit(1)
+    )).scalar_one_or_none()
+    if bd_user and ig_targets:
+        fb_base_bd = f"{settings.META_GRAPH_API_BASE}/{settings.META_API_VERSION}"
+        by_handle: dict = {}
+        for a, code in ig_targets:
+            if code in code_map:
+                continue  # 자사 게시물은 위에서 처리
+            handle = (a.creator or "").strip().lstrip("@").lower()
+            if handle and re.fullmatch(r"[a-z0-9._\-]{2,30}", handle):
+                by_handle.setdefault(handle, []).append((a, code))
+        bd_updated, bd_accounts = 0, 0
+        try:
+            async with httpx.AsyncClient(timeout=60) as client:
+                for handle, items in list(by_handle.items())[:150]:  # 시간당 호출 한도 보호
+                    try:
+                        r = await client.get(f"{fb_base_bd}/{bd_user.meta_ig_account_id}", params={
+                            "fields": (f"business_discovery.username({handle})"
+                                       "{media.limit(100){permalink,like_count,comments_count}}"),
+                            "access_token": bd_user.meta_access_token,
+                        })
+                        if r.status_code != 200:
+                            continue  # 개인 계정·오타 핸들 등 — 조용히 스킵
+                        bmedia = (((r.json().get("business_discovery") or {}).get("media") or {})
+                                  .get("data", []))
+                        bmap = {}
+                        for mi in bmedia:
+                            cc = ig_shortcode(mi.get("permalink") or "")
+                            if cc:
+                                bmap[cc] = mi
+                        hit = False
+                        for a, code in items:
+                            mi = bmap.get(code)
+                            if mi:
+                                a.likes = mi.get("like_count") or a.likes
+                                a.comments = mi.get("comments_count") or a.comments
+                                a.metrics_as_of = today
+                                bd_updated += 1
+                                hit = True
+                        if hit:
+                            bd_accounts += 1
+                    except Exception:
+                        continue
+        except Exception as e:
+            logger.warning(f"[content-metrics] business discovery 실패: {e}")
+        result["ig_bd_updated"] = bd_updated
+        result["ig_bd_accounts"] = bd_accounts
 
     # ── 계정 일일 스냅샷 (팔로워·전일 도달·게시물 수 — 월별 변화 분석용) ──
     if media_url and token:
