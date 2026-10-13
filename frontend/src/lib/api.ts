@@ -1726,6 +1726,7 @@ export interface MarketingActivityRow {
   cost: number;
   cost_per_view?: number | null;
   link?: string | null;
+  creator?: string | null; // 크리에이터/인플루언서 이름·핸들
   metrics_as_of?: string | null; // 조회수 등 지표 기준일
   notes?: string | null;
   source: string;
@@ -1756,7 +1757,7 @@ export const activitiesApi = {
   },
   meta: async (): Promise<{
     activity_types: string[]; channels: string[]; products: string[];
-    product_categories: string[]; purposes: string[];
+    product_categories: string[]; purposes: string[]; creators?: string[];
   }> => {
     const { data } = await api.get('/activities/meta');
     return data;

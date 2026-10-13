@@ -56,7 +56,7 @@ function RefreshYtButton() {
 const EMPTY_FORM: MarketingActivityInput = {
   activity_type: 'content',
   entry_kind: 'actual',
-  product: '', product_category: '', channel: '', purpose: '', status: '',
+  product: '', product_category: '', channel: '', purpose: '', status: '', creator: '',
   period_month: new Date().toISOString().slice(0, 7),
   activity_date: null,
   quantity: 1, views: 0, reach: 0, likes: 0, comments: 0, saves: 0, shares: 0, follows: 0,
@@ -268,16 +268,16 @@ export function ActivitiesBoard() {
           <table className="w-full text-xs">
             <thead>
               <tr style={{ borderBottom: '1px solid var(--color-border-primary)' }}>
-                {['월', '유형', '제품', '채널', '목적', '수량', '조회수', '비용', '뷰당 비용', ''].map((h) => (
+                {['월', '유형', '크리에이터', '제품', '채널', '목적', '수량', '조회수', '비용', '뷰당 비용', ''].map((h) => (
                   <th key={h} className="px-3 py-2.5 text-left font-medium text-text-tertiary whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={10} className="px-3 py-8 text-center text-text-tertiary">불러오는 중...</td></tr>
+                <tr><td colSpan={11} className="px-3 py-8 text-center text-text-tertiary">불러오는 중...</td></tr>
               ) : (list?.items || []).length === 0 ? (
-                <tr><td colSpan={10} className="px-3 py-8 text-center text-text-tertiary">
+                <tr><td colSpan={11} className="px-3 py-8 text-center text-text-tertiary">
                   기록이 없습니다 — 우측 상단 &quot;기록 추가&quot;로 시작하세요
                 </td></tr>
               ) : (
@@ -288,6 +288,9 @@ export function ActivitiesBoard() {
                       <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-brand/15" style={{ color: 'var(--color-accent-hover)' }}>
                         {TYPE_LABELS[row.activity_type] || row.activity_type}
                       </span>
+                    </td>
+                    <td className="px-3 py-2 text-text-primary max-w-[150px]">
+                      <span className="block truncate font-medium" title={row.creator || ''}>{row.creator || '-'}</span>
                     </td>
                     <td className="px-3 py-2 text-text-primary max-w-[180px]">
                       <div className="flex items-center gap-1.5 min-w-0">
@@ -365,7 +368,7 @@ function ActivityFormModal({
   initial, meta, onClose, onSaved,
 }: {
   initial: MarketingActivityRow | null;
-  meta?: { channels: string[]; products: string[]; product_categories: string[]; purposes: string[] };
+  meta?: { channels: string[]; products: string[]; product_categories: string[]; purposes: string[]; creators?: string[] };
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -445,6 +448,13 @@ function ActivityFormModal({
             <input list="act-cats" value={form.product_category || ''} onChange={(e) => set('product_category', e.target.value)}
               className="px-2 py-1.5 rounded-lg text-xs bg-bg-2 border border-border-primary text-text-primary" />
             <datalist id="act-cats">{(meta?.product_categories || []).map((p) => <option key={p} value={p} />)}</datalist>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] text-text-tertiary">크리에이터</span>
+            <input list="act-creators" value={form.creator || ''} onChange={(e) => set('creator', e.target.value)}
+              placeholder="인플루언서 이름 또는 @핸들"
+              className="px-2 py-1.5 rounded-lg text-xs bg-bg-2 border border-border-primary text-text-primary" />
+            <datalist id="act-creators">{(meta?.creators || []).map((p) => <option key={p} value={p} />)}</datalist>
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-[11px] text-text-tertiary">채널</span>

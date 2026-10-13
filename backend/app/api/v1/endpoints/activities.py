@@ -226,6 +226,7 @@ async def activity_meta(
         ("products", MarketingActivity.product),
         ("product_categories", MarketingActivity.product_category),
         ("purposes", MarketingActivity.purpose),
+        ("creators", MarketingActivity.creator),
     ]:
         vals = (await db.execute(
             select(distinct(col)).where(col.isnot(None)).order_by(col).limit(300)
