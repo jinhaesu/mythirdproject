@@ -48,6 +48,33 @@ class ActivityIn(BaseModel):
     source: str = "manual"
 
 
+import re as _re
+
+_CREATOR_LINK_PATTERNS = [
+    _re.compile(r"tiktok\.com/@([\w.\-]+)"),                      # 틱톡 @핸들
+    _re.compile(r"blog\.naver\.com/([\w\-]+)"),                   # 네이버 블로그 ID
+    _re.compile(r"(?:m\.)?cafe\.naver\.com/[\w\-]+/members/([\w\-]+)"),
+    _re.compile(r"instagram\.com/([\w.\-]+)/(?:p|reel|reels|tv)/"),  # 프로필 경유 permalink
+]
+
+
+def derive_creator_from_link(link: Optional[str]) -> Optional[str]:
+    """링크에서 크리에이터 핸들 유도 — 틱톡·네이버블로그 등 URL에 계정이 드러나는 채널만.
+
+    (인스타 /p/·/reel/ 단독 permalink, 유튜브 video URL에는 계정이 없음 —
+    유튜브는 content_metrics 데일리 수집이 채널명으로 채운다.)
+    """
+    if not link:
+        return None
+    for p in _CREATOR_LINK_PATTERNS:
+        m = p.search(link)
+        if m:
+            handle = m.group(1).strip()
+            if handle and handle.lower() not in ("p", "reel", "reels", "tv", "watch", "shorts"):
+                return handle[:200]
+    return None
+
+
 def _apply(row: MarketingActivity, data: ActivityIn) -> None:
     from datetime import date as _date
 
@@ -55,6 +82,8 @@ def _apply(row: MarketingActivity, data: ActivityIn) -> None:
               "status", "period_month", "quantity", "views", "reach", "likes",
               "comments", "saves", "shares", "follows", "cost", "link", "creator", "notes", "source"):
         setattr(row, f, getattr(data, f))
+    if not (row.creator or "").strip():
+        row.creator = derive_creator_from_link(row.link)
     row.activity_date = _date.fromisoformat(data.activity_date) if data.activity_date else None
     row.metrics_as_of = _date.fromisoformat(data.metrics_as_of) if data.metrics_as_of else None
 

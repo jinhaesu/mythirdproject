@@ -95,7 +95,7 @@ async def refresh_content_metrics(db: AsyncSession, months_back: int = 24) -> di
             for i in range(0, len(vids), 50):
                 try:
                     r = await client.get(f"{YT_BASE}/videos", params={
-                        "part": "statistics", "id": ",".join(vids[i:i + 50]),
+                        "part": "statistics,snippet", "id": ",".join(vids[i:i + 50]),
                         "key": settings.YOUTUBE_API_KEY,
                     })
                     if r.status_code != 200:
@@ -106,6 +106,7 @@ async def refresh_content_metrics(db: AsyncSession, months_back: int = 24) -> di
                             "views": int(st.get("viewCount", 0)),
                             "likes": int(st["likeCount"]) if st.get("likeCount") is not None else None,
                             "comments": int(st["commentCount"]) if st.get("commentCount") is not None else None,
+                            "channel_title": (item.get("snippet") or {}).get("channelTitle"),
                         }
                 except Exception as e:
                     logger.warning(f"[content-metrics] yt batch 실패: {e}")
@@ -118,6 +119,9 @@ async def refresh_content_metrics(db: AsyncSession, months_back: int = 24) -> di
                     a.likes = s["likes"]
                 if s["comments"] is not None:
                     a.comments = s["comments"]
+                # 크리에이터 미기입 행은 유튜브 채널명으로 자동 채움
+                if not (a.creator or "").strip() and s.get("channel_title"):
+                    a.creator = s["channel_title"][:200]
                 a.metrics_as_of = today
                 result["yt_updated"] += 1
                 result["rows"].append({"id": a.id, "title": (a.product or a.channel or "")[:40],
