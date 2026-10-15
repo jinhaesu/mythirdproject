@@ -11,7 +11,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend,
 } from 'recharts';
-import { ExternalLink, Plus, Pencil, Trash2, X, RefreshCw } from 'lucide-react';
+import {
+  ExternalLink, Plus, Pencil, Trash2, X, RefreshCw,
+  ChevronLeft, ChevronRight, ArrowUp, ArrowDown, Search,
+} from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
   activitiesApi, socialApi, type MarketingActivityRow, type MarketingActivityInput, formatNumber,
@@ -28,7 +31,22 @@ const TYPE_LABELS: Record<string, string> = {
   etc: '기타',
 };
 
+// 캘린더에 노출하는 유형 (팀 요청: 인플루언서·크루·공동구매만)
+const CALENDAR_TYPES = ['influencer', 'crew', 'groupbuy'];
+const TYPE_COLORS: Record<string, string> = {
+  influencer: '#4EA7FC',
+  crew: '#8B5CF6',
+  groupbuy: '#F0883E',
+};
+
 const today = () => new Date().toISOString().slice(0, 10);
+
+function monthAdd(month: string, delta: number): string {
+  const y = parseInt(month.slice(0, 4), 10);
+  const m = parseInt(month.slice(5, 7), 10);
+  const t = y * 12 + (m - 1) + delta;
+  return `${String(Math.floor(t / 12)).padStart(4, '0')}-${String((t % 12) + 1).padStart(2, '0')}`;
+}
 
 /** 유튜브 링크가 있는 활동 기록의 조회수·좋아요·댓글수를 현재 값으로 일괄 갱신 */
 function RefreshYtButton() {
@@ -79,31 +97,62 @@ export function ActivitiesBoard() {
   });
   const [monthTo, setMonthTo] = useState<string>(new Date().toISOString().slice(0, 7));
   const [channelFilter, setChannelFilter] = useState('');
+  const [creatorFilter, setCreatorFilter] = useState('');
+  const [productFilter, setProductFilter] = useState('');
+  const [purposeFilter, setPurposeFilter] = useState('');
+  const [searchQ, setSearchQ] = useState('');
+  const [sortBy, setSortBy] = useState<string>('');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [pivotBy, setPivotBy] = useState('channel');
+  const [pivotMetric, setPivotMetric] = useState<'views' | 'cost' | 'rows' | 'cost_per_view'>('views');
   const [page, setPage] = useState(0);
   const [editing, setEditing] = useState<MarketingActivityRow | 'new' | null>(null);
   const PAGE = 50;
 
-  const listParams = {
+  const commonFilters = {
     activity_type: typeFilter || undefined,
-    entry_kind: kindFilter,
     month_from: monthFrom || undefined,
     month_to: monthTo || undefined,
     channel: channelFilter || undefined,
+    creator: creatorFilter || undefined,
+    product: productFilter || undefined,
+    purpose: purposeFilter || undefined,
+    q: searchQ.trim() || undefined,
+  };
+  const listParams = {
+    ...commonFilters,
+    entry_kind: kindFilter,
+    sort_by: sortBy || undefined,
+    sort_dir: sortBy ? sortDir : undefined,
     limit: PAGE, offset: page * PAGE,
   };
   const { data: list, isLoading } = useQuery({
     queryKey: ['activities', 'list', listParams],
     queryFn: () => activitiesApi.list(listParams),
   });
+  // 집계·차트도 실적/계획 토글과 필터를 그대로 따른다 (계획 탭이면 예상치 집계)
   const { data: summary } = useQuery({
-    queryKey: ['activities', 'summary', typeFilter, monthFrom, monthTo],
+    queryKey: ['activities', 'summary', typeFilter, monthFrom, monthTo, kindFilter],
     queryFn: () => activitiesApi.summary({
       activity_type: typeFilter || undefined,
       month_from: monthFrom || undefined,
       month_to: monthTo || undefined,
+      entry_kind: kindFilter,
     }),
   });
+  const pivotParams = { ...commonFilters, entry_kind: kindFilter, group_by: pivotBy };
+  const { data: pivot } = useQuery({
+    queryKey: ['activities', 'pivot', pivotParams],
+    queryFn: () => activitiesApi.pivot(pivotParams),
+  });
   const { data: meta } = useQuery({ queryKey: ['activities', 'meta'], queryFn: activitiesApi.meta });
+
+  const toggleSort = (key: string) => {
+    setPage(0);
+    if (sortBy !== key) { setSortBy(key); setSortDir('desc'); }
+    else if (sortDir === 'desc') setSortDir('asc');
+    else { setSortBy(''); setSortDir('desc'); } // 3번째 클릭 = 기본 정렬 복귀
+  };
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ['activities'] });
 
@@ -174,11 +223,46 @@ export function ActivitiesBoard() {
         />
         <select
           value={channelFilter} onChange={(e) => { setChannelFilter(e.target.value); setPage(0); }}
-          className="px-2 py-1.5 rounded-lg text-xs bg-bg-2 border border-border-primary text-text-primary"
+          className="px-2 py-1.5 rounded-lg text-xs bg-bg-2 border border-border-primary text-text-primary max-w-[130px]"
         >
           <option value="">채널 전체</option>
           {(meta?.channels || []).map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
+        <select
+          value={creatorFilter} onChange={(e) => { setCreatorFilter(e.target.value); setPage(0); }}
+          className="px-2 py-1.5 rounded-lg text-xs bg-bg-2 border border-border-primary text-text-primary max-w-[140px]"
+        >
+          <option value="">크리에이터 전체</option>
+          {(meta?.creators || []).map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <select
+          value={productFilter} onChange={(e) => { setProductFilter(e.target.value); setPage(0); }}
+          className="px-2 py-1.5 rounded-lg text-xs bg-bg-2 border border-border-primary text-text-primary max-w-[150px]"
+        >
+          <option value="">제품 전체</option>
+          {(meta?.products || []).map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <select
+          value={purposeFilter} onChange={(e) => { setPurposeFilter(e.target.value); setPage(0); }}
+          className="px-2 py-1.5 rounded-lg text-xs bg-bg-2 border border-border-primary text-text-primary max-w-[130px]"
+        >
+          <option value="">목적 전체</option>
+          {(meta?.purposes || []).map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <div className="relative">
+          <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-text-quaternary" />
+          <input
+            value={searchQ} onChange={(e) => { setSearchQ(e.target.value); setPage(0); }}
+            placeholder="검색 (제품·메모·크리에이터)"
+            className="pl-6 pr-2 py-1.5 rounded-lg text-xs bg-bg-2 border border-border-primary text-text-primary w-44"
+          />
+        </div>
+        {(channelFilter || creatorFilter || productFilter || purposeFilter || searchQ) && (
+          <button
+            onClick={() => { setChannelFilter(''); setCreatorFilter(''); setProductFilter(''); setPurposeFilter(''); setSearchQ(''); setPage(0); }}
+            className="px-2 py-1.5 rounded-lg text-xs text-red border border-red/40 hover:bg-red/10"
+          >필터 해제</button>
+        )}
         <div className="flex-1" />
         <RefreshYtButton />
         <button
@@ -189,6 +273,11 @@ export function ActivitiesBoard() {
           <Plus size={14} /> 기록 추가
         </button>
       </div>
+
+      {/* 계획 캘린더 — 인플루언서·크루·공동구매 일정을 달력으로 */}
+      {kindFilter === 'plan' && (
+        <PlanCalendar onEdit={(row) => setEditing(row)} />
+      )}
 
       {/* 유형별 합계 카드 */}
       {typeTotals.length > 0 && (
@@ -212,7 +301,7 @@ export function ActivitiesBoard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* 월별 채널별 조회수 */}
         <div className="rounded-xl p-4" style={{ backgroundColor: 'var(--color-bg-level-1)', border: '1px solid var(--color-border-primary)' }}>
-          <h3 className="text-sm font-semibold text-text-primary mb-3">월별 채널별 조회수</h3>
+          <h3 className="text-sm font-semibold text-text-primary mb-3">월별 채널별 조회수{kindFilter === 'plan' ? ' (계획)' : ''}</h3>
           {monthChart.data.length === 0 ? (
             <p className="text-xs text-text-tertiary py-8 text-center">데이터가 없습니다</p>
           ) : (
@@ -238,7 +327,7 @@ export function ActivitiesBoard() {
 
         {/* 제품별 Top */}
         <div className="rounded-xl p-4" style={{ backgroundColor: 'var(--color-bg-level-1)', border: '1px solid var(--color-border-primary)' }}>
-          <h3 className="text-sm font-semibold text-text-primary mb-3">제품별 조회수 Top 10</h3>
+          <h3 className="text-sm font-semibold text-text-primary mb-3">제품별 조회수 Top 10{kindFilter === 'plan' ? ' (계획)' : ''}</h3>
           {(summary?.by_product || []).length === 0 ? (
             <p className="text-xs text-text-tertiary py-8 text-center">데이터가 없습니다</p>
           ) : (
@@ -262,14 +351,98 @@ export function ActivitiesBoard() {
         </div>
       </div>
 
+      {/* 다각도 분석 — 축·지표를 골라 즉석 집계 (위 필터가 그대로 적용됨) */}
+      <div className="rounded-xl p-4" style={{ backgroundColor: 'var(--color-bg-level-1)', border: '1px solid var(--color-border-primary)' }}>
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          <h3 className="text-sm font-semibold text-text-primary">다각도 분석{kindFilter === 'plan' ? ' (계획)' : ''}</h3>
+          <span className="text-[10px] text-text-quaternary">상단 필터·기간이 그대로 적용됩니다</span>
+          <div className="flex-1" />
+          <div className="flex items-center rounded-lg p-0.5" style={{ backgroundColor: 'rgb(var(--color-overlay-rgb) / 0.05)' }}>
+            {([
+              ['month', '월별'], ['activity_type', '유형별'], ['channel', '채널별'], ['product', '제품별'],
+              ['product_category', '제품류별'], ['creator', '크리에이터별'], ['purpose', '목적별'],
+            ] as const).map(([kv, label]) => (
+              <button key={kv} onClick={() => setPivotBy(kv)}
+                className="px-2 py-1 rounded-md text-[11px] font-medium transition-colors"
+                style={pivotBy === kv
+                  ? { backgroundColor: 'var(--color-brand-bg)', color: '#fff' }
+                  : { color: 'var(--color-text-tertiary)' }}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center rounded-lg p-0.5" style={{ backgroundColor: 'rgb(var(--color-overlay-rgb) / 0.05)' }}>
+            {([
+              ['views', '조회수'], ['cost', '비용'], ['rows', '건수'], ['cost_per_view', '뷰당비용'],
+            ] as const).map(([kv, label]) => (
+              <button key={kv} onClick={() => setPivotMetric(kv)}
+                className="px-2 py-1 rounded-md text-[11px] font-medium transition-colors"
+                style={pivotMetric === kv
+                  ? { backgroundColor: '#b46900', color: '#fff' }
+                  : { color: 'var(--color-text-tertiary)' }}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+        {(pivot?.groups || []).length === 0 ? (
+          <p className="text-xs text-text-tertiary py-8 text-center">데이터가 없습니다</p>
+        ) : (
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={(pivot!.groups).map((g) => ({
+                  ...g,
+                  label: pivotBy === 'month' ? g.key.slice(2) : (g.key.length > 12 ? `${g.key.slice(0, 12)}…` : g.key),
+                  value: g[pivotMetric] ?? 0,
+                }))}
+                margin={{ top: 4, right: 4, bottom: pivotBy === 'month' ? 0 : 36, left: 4 }}
+              >
+                <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'var(--color-text-quaternary)' }}
+                  tickLine={false} axisLine={false} interval={0}
+                  angle={pivotBy === 'month' ? 0 : -35} textAnchor={pivotBy === 'month' ? 'middle' : 'end'} />
+                <YAxis tick={{ fontSize: 10, fill: 'var(--color-text-quaternary)' }} tickLine={false} axisLine={false} width={52}
+                  tickFormatter={(v: number) => (pivotMetric === 'cost'
+                    ? (v >= 10000000 ? `${Math.round(v / 10000000)}천만` : v >= 10000 ? `${Math.round(v / 10000)}만` : String(v))
+                    : v >= 10000 ? `${Math.round(v / 10000)}만` : String(v))} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)', borderRadius: 8, fontSize: 11 }}
+                  formatter={(v: any) => [
+                    pivotMetric === 'cost' ? fmtWon(v) : pivotMetric === 'cost_per_view' ? `₩${v}` : formatNumber(v),
+                    { views: '조회수', cost: '비용', rows: '건수', cost_per_view: '뷰당비용' }[pivotMetric],
+                  ]}
+                  labelFormatter={(_: any, payload: any) => payload?.[0]?.payload?.key ?? ''}
+                />
+                <Bar dataKey="value" fill="#4EA7FC" radius={[3, 3, 0, 0]} maxBarSize={48} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
+
       {/* 기록 테이블 */}
       <div className="rounded-xl overflow-hidden" style={{ backgroundColor: 'var(--color-bg-level-1)', border: '1px solid var(--color-border-primary)' }}>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
               <tr style={{ borderBottom: '1px solid var(--color-border-primary)' }}>
-                {['월', '유형', '크리에이터', '제품', '채널', '목적', '수량', '조회수', '비용', '뷰당 비용', ''].map((h) => (
-                  <th key={h} className="px-3 py-2.5 text-left font-medium text-text-tertiary whitespace-nowrap">{h}</th>
+                {([
+                  ['월', 'period_month'], ['유형', 'activity_type'], ['크리에이터', 'creator'],
+                  ['제품', 'product'], ['채널', 'channel'], ['목적', 'purpose'], ['수량', 'quantity'],
+                  ['조회수', 'views'], ['비용', 'cost'], ['뷰당 비용', 'cost_per_view'], ['', ''],
+                ] as const).map(([h, key]) => (
+                  <th key={h || '_act'} className="px-3 py-2.5 text-left font-medium text-text-tertiary whitespace-nowrap">
+                    {key ? (
+                      <button
+                        onClick={() => toggleSort(key)}
+                        title="클릭: 내림차순 → 오름차순 → 기본"
+                        className={`inline-flex items-center gap-0.5 hover:text-text-primary ${sortBy === key ? 'text-text-primary' : ''}`}
+                      >
+                        {h}
+                        {sortBy === key && (sortDir === 'desc' ? <ArrowDown size={11} /> : <ArrowUp size={11} />)}
+                      </button>
+                    ) : h}
+                  </th>
                 ))}
               </tr>
             </thead>
@@ -359,6 +532,147 @@ export function ActivitiesBoard() {
           onClose={() => setEditing(null)}
           onSaved={() => { setEditing(null); invalidate(); }}
         />
+      )}
+    </div>
+  );
+}
+
+/** 계획 캘린더 — 인플루언서·크루·공동구매 계획을 달력에 크리에이터 + 예상 조회수로 표시 */
+function PlanCalendar({ onEdit }: { onEdit: (row: MarketingActivityRow) => void }) {
+  const [calMonth, setCalMonth] = useState<string>(new Date().toISOString().slice(0, 7));
+  const todayIso = today();
+
+  const { data: planList } = useQuery({
+    queryKey: ['activities', 'calendar', 'plan', calMonth],
+    queryFn: () => activitiesApi.list({ entry_kind: 'plan', month_from: calMonth, month_to: calMonth, limit: 500 }),
+  });
+  const { data: actualList } = useQuery({
+    queryKey: ['activities', 'calendar', 'actual', calMonth],
+    queryFn: () => activitiesApi.list({ entry_kind: 'actual', month_from: calMonth, month_to: calMonth, limit: 500 }),
+  });
+
+  const rows = useMemo(
+    () => (planList?.items || []).filter((r) => CALENDAR_TYPES.includes(r.activity_type)),
+    [planList],
+  );
+  const byDate = useMemo(() => {
+    const m: Record<string, MarketingActivityRow[]> = {};
+    rows.forEach((r) => { if (r.activity_date) (m[r.activity_date] ??= []).push(r); });
+    return m;
+  }, [rows]);
+  const undated = useMemo(() => rows.filter((r) => !r.activity_date), [rows]);
+
+  // 계획 vs 같은 유형 실적 비교 (해당 월)
+  const planTotal = useMemo(() => rows.reduce(
+    (a, r) => ({ views: a.views + (r.views || 0), cost: a.cost + (r.cost || 0) }), { views: 0, cost: 0 }), [rows]);
+  const actualTotal = useMemo(() => (actualList?.items || [])
+    .filter((r) => CALENDAR_TYPES.includes(r.activity_type))
+    .reduce((a, r) => ({ n: a.n + 1, views: a.views + (r.views || 0), cost: a.cost + (r.cost || 0) }), { n: 0, views: 0, cost: 0 }),
+    [actualList]);
+
+  // 달력 격자 (일요일 시작)
+  const y = parseInt(calMonth.slice(0, 4), 10);
+  const mo = parseInt(calMonth.slice(5, 7), 10);
+  const firstDow = new Date(y, mo - 1, 1).getDay();
+  const daysInMonth = new Date(y, mo, 0).getDate();
+  const cells: (string | null)[] = [
+    ...Array.from({ length: firstDow }, () => null),
+    ...Array.from({ length: daysInMonth }, (_, i) => `${calMonth}-${String(i + 1).padStart(2, '0')}`),
+  ];
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  const chip = (r: MarketingActivityRow, compact = false) => {
+    const overdue = !!r.activity_date && r.activity_date < todayIso;
+    return (
+      <button
+        key={r.id}
+        onClick={() => onEdit(r)}
+        title={`${TYPE_LABELS[r.activity_type]} · ${r.creator || r.product || '-'}${r.product ? ` · ${r.product}` : ''}\n예상 조회수 ${fmtNum(r.views)} · ${fmtWon(r.cost)}${overdue ? '\n⚠ 날짜가 지났는데 아직 계획 상태 — 실적 전환 필요' : ''}\n클릭해서 수정`}
+        className={`w-full text-left px-1 py-0.5 rounded text-[10px] leading-tight truncate hover:opacity-80 ${overdue ? 'opacity-55' : ''}`}
+        style={{
+          backgroundColor: `${TYPE_COLORS[r.activity_type]}22`,
+          borderLeft: `2px solid ${TYPE_COLORS[r.activity_type]}`,
+          color: 'var(--color-text-secondary)',
+        }}
+      >
+        {overdue && <span title="실적 전환 필요">⚠ </span>}
+        <span className="font-medium" style={{ color: 'var(--color-text-primary)' }}>{r.creator || r.product || '미지정'}</span>
+        {!compact && r.views > 0 && <span className="text-text-quaternary"> · {fmtNum(r.views)}</span>}
+      </button>
+    );
+  };
+
+  return (
+    <div className="rounded-xl p-4" style={{ backgroundColor: 'var(--color-bg-level-1)', border: '1px solid var(--color-border-primary)' }}>
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        <h3 className="text-sm font-semibold text-text-primary">계획 캘린더</h3>
+        <span className="text-[10px] text-text-quaternary">인플루언서·크루·공동구매 일정 — 칩 클릭으로 수정</span>
+        <div className="flex-1" />
+        <div className="flex items-center gap-2 mr-2">
+          {CALENDAR_TYPES.map((t) => (
+            <span key={t} className="flex items-center gap-1 text-[10px] text-text-tertiary">
+              <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: TYPE_COLORS[t] }} />{TYPE_LABELS[t]}
+            </span>
+          ))}
+        </div>
+        <button onClick={() => setCalMonth(monthAdd(calMonth, -1))} className="p-1.5 rounded-lg border border-border-primary text-text-tertiary hover:text-text-primary"><ChevronLeft size={13} /></button>
+        <input type="month" value={calMonth} onChange={(e) => e.target.value && setCalMonth(e.target.value)}
+          className="px-2 py-1.5 rounded-lg text-xs bg-bg-2 border border-border-primary text-text-primary" />
+        <button onClick={() => setCalMonth(monthAdd(calMonth, 1))} className="p-1.5 rounded-lg border border-border-primary text-text-tertiary hover:text-text-primary"><ChevronRight size={13} /></button>
+      </div>
+
+      {/* 이달 계획 vs 실적 (같은 3개 유형 기준) */}
+      <div className="flex flex-wrap gap-2 mb-3 text-[11px]">
+        <span className="px-2 py-1 rounded-lg" style={{ backgroundColor: 'rgb(var(--color-overlay-rgb) / 0.05)' }}>
+          <b className="text-text-primary">계획 {rows.length}건</b>
+          <span className="text-text-tertiary"> · 예상 조회수 {fmtNum(planTotal.views)} · 예산 {fmtWon(planTotal.cost)}</span>
+        </span>
+        <span className="px-2 py-1 rounded-lg" style={{ backgroundColor: 'rgb(var(--color-overlay-rgb) / 0.05)' }}>
+          <b className="text-text-primary">실적 {actualTotal.n}건</b>
+          <span className="text-text-tertiary"> · 조회수 {fmtNum(actualTotal.views)} · 집행 {fmtWon(actualTotal.cost)}</span>
+        </span>
+        {planTotal.views > 0 && actualTotal.views > 0 && (
+          <span className="px-2 py-1 rounded-lg text-text-tertiary" style={{ backgroundColor: 'rgb(var(--color-overlay-rgb) / 0.05)' }}>
+            조회수 달성율 <b className={actualTotal.views >= planTotal.views ? 'text-green' : 'text-yellow'}>
+              {Math.round((actualTotal.views / planTotal.views) * 100)}%</b>
+          </span>
+        )}
+      </div>
+
+      <div className="grid grid-cols-7 gap-px rounded-lg overflow-hidden" style={{ backgroundColor: 'var(--color-border-primary)' }}>
+        {['일', '월', '화', '수', '목', '금', '토'].map((d, i) => (
+          <div key={d} className={`px-1.5 py-1 text-[10px] font-medium text-center ${i === 0 ? 'text-red' : i === 6 ? 'text-blue' : 'text-text-tertiary'}`}
+            style={{ backgroundColor: 'var(--color-bg-level-2)' }}>{d}</div>
+        ))}
+        {cells.map((date, i) => (
+          <div key={i} className="min-h-[72px] p-1" style={{ backgroundColor: 'var(--color-bg-level-1)' }}>
+            {date && (
+              <>
+                <div className={`text-[10px] mb-0.5 tabular-nums ${date === todayIso
+                  ? 'inline-flex items-center justify-center w-4 h-4 rounded-full text-white font-bold'
+                  : i % 7 === 0 ? 'text-red' : i % 7 === 6 ? 'text-blue' : 'text-text-quaternary'}`}
+                  style={date === todayIso ? { backgroundColor: 'var(--color-brand-bg)' } : undefined}>
+                  {parseInt(date.slice(8), 10)}
+                </div>
+                <div className="space-y-0.5">
+                  {(byDate[date] || []).slice(0, 3).map((r) => chip(r))}
+                  {(byDate[date] || []).length > 3 && (
+                    <div className="text-[9px] text-text-quaternary px-1">+{(byDate[date] || []).length - 3}건 더</div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {undated.length > 0 && (
+        <div className="mt-2">
+          <p className="text-[10px] text-text-quaternary mb-1">진행일 미정 ({undated.length}건) — 수정에서 진행일을 넣으면 달력에 표시됩니다</p>
+          <div className="flex flex-wrap gap-1">
+            {undated.map((r) => <span key={r.id} className="max-w-[160px]">{chip(r, true)}</span>)}
+          </div>
+        </div>
       )}
     </div>
   );

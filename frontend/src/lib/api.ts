@@ -1739,7 +1739,8 @@ export type MarketingActivityInput = Omit<MarketingActivityRow, 'id' | 'cost_per
 export const activitiesApi = {
   list: async (params: {
     activity_type?: string; entry_kind?: string; month_from?: string; month_to?: string;
-    channel?: string; product?: string; q?: string; limit?: number; offset?: number;
+    channel?: string; product?: string; creator?: string; purpose?: string; product_category?: string;
+    q?: string; sort_by?: string; sort_dir?: 'asc' | 'desc'; limit?: number; offset?: number;
   } = {}): Promise<{ total: number; items: MarketingActivityRow[] }> => {
     const { data } = await api.get('/activities', { params });
     return data;
@@ -1762,10 +1763,19 @@ export const activitiesApi = {
     const { data } = await api.get('/activities/meta');
     return data;
   },
-  summary: async (params: { month_from?: string; month_to?: string; activity_type?: string } = {}): Promise<{
+  summary: async (params: { month_from?: string; month_to?: string; activity_type?: string; entry_kind?: string } = {}): Promise<{
     by_month_channel: any[]; by_product: any[]; by_type: any[];
   }> => {
     const { data } = await api.get('/activities/summary', { params });
+    return data;
+  },
+  pivot: async (params: {
+    group_by: string; entry_kind?: string; activity_type?: string; month_from?: string; month_to?: string;
+    channel?: string; product?: string; creator?: string; purpose?: string; product_category?: string; q?: string;
+  }): Promise<{ group_by: string; entry_kind: string; groups: {
+    key: string; quantity: number; views: number; cost: number; rows: number; cost_per_view: number | null;
+  }[] }> => {
+    const { data } = await api.get('/activities/pivot', { params });
     return data;
   },
 };

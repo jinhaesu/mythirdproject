@@ -9,7 +9,7 @@
  * 저장·표시·입력 전부 원 단위(VAT 포함) — 팀이 원 단위로 기입하는 관행에 맞춰
  * 2026-10-06 천원 입력(×1000 저장)을 폐지. 천원 입력분은 ÷1000 복구 완료.
  */
-import { Fragment, useMemo, useState } from 'react';
+import { Fragment, useMemo, useState, type CSSProperties } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Download, Plus, X, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -28,6 +28,14 @@ function monthAdd(month: string, delta: number): string {
 /** 원 단위 표시 (0·빈 값은 공백) */
 const k = (v: number | null | undefined) =>
   v === null || v === undefined || v === 0 ? '' : Math.round(v).toLocaleString('ko-KR');
+
+// 우측 고정 열 (합계/Limit/사용율/비고) — 가로 스크롤해도 항상 보이도록 sticky right
+const COL_NOTE = 150; const COL_PCT = 56; const COL_LIMIT = 100; const COL_TOTAL = 104;
+const R_NOTE = 0; const R_PCT = COL_NOTE; const R_LIMIT = COL_NOTE + COL_PCT; const R_TOTAL = COL_NOTE + COL_PCT + COL_LIMIT;
+const stickyR = (right: number, w: number, bg: string, z = 10, divider = false): CSSProperties => ({
+  position: 'sticky', right, minWidth: w, width: w, maxWidth: w, zIndex: z, backgroundColor: bg,
+  ...(divider ? { borderLeft: '1px solid var(--color-border-primary)' } : {}),
+});
 
 export function AdSpendBoard() {
   const qc = useQueryClient();
@@ -242,10 +250,10 @@ export function AdSpendBoard() {
                       {parseInt(d.slice(8), 10)}
                     </th>
                   ))}
-                  <th className="px-2 py-2 text-right font-medium text-text-secondary min-w-[96px]">합계</th>
-                  <th className="px-2 py-2 text-right font-medium text-text-quaternary min-w-[96px]">Limit</th>
-                  <th className="px-2 py-2 text-right font-medium text-text-quaternary min-w-[52px]">사용율</th>
-                  <th className="px-2 py-2 text-left font-medium text-text-quaternary min-w-[140px]">비고</th>
+                  <th className="px-2 py-2 text-right font-medium text-text-secondary" style={stickyR(R_TOTAL, COL_TOTAL, 'var(--color-bg-level-2)', 30, true)}>합계</th>
+                  <th className="px-2 py-2 text-right font-medium text-text-quaternary" style={stickyR(R_LIMIT, COL_LIMIT, 'var(--color-bg-level-2)', 30)}>Limit</th>
+                  <th className="px-2 py-2 text-right font-medium text-text-quaternary" style={stickyR(R_PCT, COL_PCT, 'var(--color-bg-level-2)', 30)}>사용율</th>
+                  <th className="px-2 py-2 text-left font-medium text-text-quaternary" style={stickyR(R_NOTE, COL_NOTE, 'var(--color-bg-level-2)', 30)}>비고</th>
                 </tr>
               </thead>
               <tbody>
@@ -308,8 +316,8 @@ export function AdSpendBoard() {
                             </td>
                           );
                         })}
-                        <td className="px-2 py-1 text-right font-medium text-text-primary tabular-nums">{k(r.month_total) || '0'}</td>
-                        <td className="p-0 text-right">
+                        <td className="px-2 py-1 text-right font-medium text-text-primary tabular-nums" style={stickyR(R_TOTAL, COL_TOTAL, 'var(--color-bg-level-1)', 10, true)}>{k(r.month_total) || '0'}</td>
+                        <td className="p-0 text-right" style={stickyR(R_LIMIT, COL_LIMIT, 'var(--color-bg-level-1)')}>
                           {editLimit === r.media_id ? (
                             <input
                               autoFocus
@@ -333,8 +341,8 @@ export function AdSpendBoard() {
                         <td className={`px-2 py-1 text-right tabular-nums font-medium ${
                           r.usage_pct == null ? 'text-text-quaternary' :
                           r.usage_pct > 100 ? 'text-red' : r.usage_pct > 90 ? 'text-yellow' : 'text-green'
-                        }`}>{r.usage_pct != null ? `${Math.round(r.usage_pct)}%` : '-'}</td>
-                        <td className="p-0">
+                        }`} style={stickyR(R_PCT, COL_PCT, 'var(--color-bg-level-1)')}>{r.usage_pct != null ? `${Math.round(r.usage_pct)}%` : '-'}</td>
+                        <td className="p-0" style={stickyR(R_NOTE, COL_NOTE, 'var(--color-bg-level-1)')}>
                           {editNote === r.media_id ? (
                             <input
                               autoFocus
@@ -363,10 +371,10 @@ export function AdSpendBoard() {
                   {dates.map((d) => (
                     <td key={d} className="px-1 py-1.5 text-right font-medium text-text-secondary tabular-nums">{k(view?.dayTotals[d])}</td>
                   ))}
-                  <td className="px-2 py-1.5 text-right font-bold text-text-primary tabular-nums">{k(view?.spend)}</td>
-                  <td className="px-2 py-1.5 text-right text-text-quaternary tabular-nums">{k(view?.limit)}</td>
-                  <td className="px-2 py-1.5 text-right text-text-quaternary tabular-nums">{view?.usage_pct != null ? `${view.usage_pct}%` : ''}</td>
-                  <td />
+                  <td className="px-2 py-1.5 text-right font-bold text-text-primary tabular-nums" style={stickyR(R_TOTAL, COL_TOTAL, 'var(--color-bg-level-2)', 20, true)}>{k(view?.spend)}</td>
+                  <td className="px-2 py-1.5 text-right text-text-quaternary tabular-nums" style={stickyR(R_LIMIT, COL_LIMIT, 'var(--color-bg-level-2)', 20)}>{k(view?.limit)}</td>
+                  <td className="px-2 py-1.5 text-right text-text-quaternary tabular-nums" style={stickyR(R_PCT, COL_PCT, 'var(--color-bg-level-2)', 20)}>{view?.usage_pct != null ? `${view.usage_pct}%` : ''}</td>
+                  <td style={stickyR(R_NOTE, COL_NOTE, 'var(--color-bg-level-2)', 20)} />
                 </tr>
               </tfoot>
             </table>

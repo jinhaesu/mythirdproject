@@ -118,7 +118,8 @@ def _row_out(a: MarketingActivity) -> dict:
     }
 
 
-def _filters(query, activity_type, month_from, month_to, channel, product, q, entry_kind=None):
+def _filters(query, activity_type, month_from, month_to, channel, product, q, entry_kind=None,
+             creator=None, purpose=None, product_category=None):
     if activity_type:
         query = query.where(MarketingActivity.activity_type == activity_type)
     if entry_kind:
@@ -131,6 +132,12 @@ def _filters(query, activity_type, month_from, month_to, channel, product, q, en
         query = query.where(MarketingActivity.channel == channel)
     if product:
         query = query.where(MarketingActivity.product == product)
+    if creator:
+        query = query.where(MarketingActivity.creator == creator)
+    if purpose:
+        query = query.where(MarketingActivity.purpose == purpose)
+    if product_category:
+        query = query.where(MarketingActivity.product_category == product_category)
     if q:
         like = f"%{q}%"
         query = query.where(
@@ -142,6 +149,25 @@ def _filters(query, activity_type, month_from, month_to, channel, product, q, en
     return query
 
 
+# 정렬 가능한 열 화이트리스트 (cost_per_view는 파생식)
+def _sort_expr(sort_by: str):
+    A = MarketingActivity
+    cols = {
+        "period_month": A.period_month,
+        "activity_date": A.activity_date,
+        "activity_type": A.activity_type,
+        "creator": A.creator,
+        "product": A.product,
+        "channel": A.channel,
+        "purpose": A.purpose,
+        "quantity": A.quantity,
+        "views": A.views,
+        "cost": A.cost,
+        "cost_per_view": A.cost / func.nullif(A.views, 0),
+    }
+    return cols.get(sort_by)
+
+
 @router.get("")
 async def list_activities(
     activity_type: Optional[str] = None,
@@ -150,23 +176,35 @@ async def list_activities(
     month_to: Optional[str] = None,
     channel: Optional[str] = None,
     product: Optional[str] = None,
+    creator: Optional[str] = None,
+    purpose: Optional[str] = None,
+    product_category: Optional[str] = None,
     q: Optional[str] = None,
+    sort_by: Optional[str] = None,
+    sort_dir: str = Query("desc", pattern="^(asc|desc)$"),
     limit: int = Query(default=100, le=500),
     offset: int = 0,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    base = _filters(select(MarketingActivity), activity_type, month_from, month_to, channel, product, q, entry_kind)
+    base = _filters(select(MarketingActivity), activity_type, month_from, month_to, channel, product, q, entry_kind,
+                    creator, purpose, product_category)
     total = (await db.execute(
-        _filters(select(func.count(MarketingActivity.id)), activity_type, month_from, month_to, channel, product, q, entry_kind)
+        _filters(select(func.count(MarketingActivity.id)), activity_type, month_from, month_to, channel, product, q, entry_kind,
+                 creator, purpose, product_category)
     )).scalar() or 0
-    rows = (await db.execute(
-        base.order_by(
+
+    expr = _sort_expr(sort_by) if sort_by else None
+    if expr is not None:
+        primary = expr.desc().nulls_last() if sort_dir == "desc" else expr.asc().nulls_last()
+        order = [primary, MarketingActivity.id.desc()]
+    else:
+        order = [
             MarketingActivity.period_month.desc(),
             MarketingActivity.activity_date.desc().nulls_last(),
             MarketingActivity.id.desc(),
-        ).limit(limit).offset(offset)
-    )).scalars().all()
+        ]
+    rows = (await db.execute(base.order_by(*order).limit(limit).offset(offset))).scalars().all()
     return {"total": total, "items": [_row_out(a) for a in rows]}
 
 
@@ -334,3 +372,55 @@ async def activity_summary(
         "by_product": rows_out(by_product, ["product"]),
         "by_type": rows_out(by_type, ["activity_type"]),
     }
+
+
+@router.get("/pivot")
+async def activity_pivot(
+    group_by: str = Query("month", pattern="^(month|activity_type|channel|product|product_category|creator|purpose)$"),
+    entry_kind: str = "actual",
+    activity_type: Optional[str] = None,
+    month_from: Optional[str] = None,
+    month_to: Optional[str] = None,
+    channel: Optional[str] = None,
+    product: Optional[str] = None,
+    creator: Optional[str] = None,
+    purpose: Optional[str] = None,
+    product_category: Optional[str] = None,
+    q: Optional[str] = None,
+    limit: int = Query(default=30, le=100),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """다각도 분석 피벗 — 임의 축(월/유형/채널/제품/제품류/크리에이터/목적)으로
+    조회수·비용·건수·뷰당비용을 집계. 리스트와 동일한 필터를 적용한다."""
+    A = MarketingActivity
+    col = A.period_month if group_by == "month" else getattr(A, group_by)
+    agg = select(
+        col.label("key"),
+        func.sum(A.quantity).label("quantity"),
+        func.sum(A.views).label("views"),
+        func.sum(A.cost).label("cost"),
+        func.count(A.id).label("rows"),
+    )
+    agg = _filters(agg, activity_type, month_from, month_to, channel, product, q,
+                   entry_kind if entry_kind != "all" else None,
+                   creator, purpose, product_category)
+    agg = agg.group_by(col)
+    if group_by == "month":
+        agg = agg.order_by(col.asc())
+    else:
+        agg = agg.order_by(func.sum(A.views).desc()).limit(limit)
+    rows = (await db.execute(agg)).all()
+    out = []
+    for r in rows:
+        views = int(r.views or 0)
+        cost = float(r.cost or 0)
+        out.append({
+            "key": r.key if (r.key and str(r.key).strip()) else "미지정",
+            "quantity": int(r.quantity or 0),
+            "views": views,
+            "cost": cost,
+            "rows": int(r.rows or 0),
+            "cost_per_view": round(cost / views, 2) if views else None,
+        })
+    return {"group_by": group_by, "entry_kind": entry_kind, "groups": out}
