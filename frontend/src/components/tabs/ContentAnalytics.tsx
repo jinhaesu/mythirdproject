@@ -23,7 +23,7 @@ const TYPE_LABELS: Record<string, string> = {
   '': '전체', content: '자사 콘텐츠', influencer: '인플루언서', experience: '체험단',
   crew: '크루', groupbuy: '공동구매',
 };
-const RANGES = [14, 30, 60, 90];
+const RANGES = [14, 30, 60, 90, 180];
 const card: React.CSSProperties = { backgroundColor: 'var(--color-bg-level-1)', border: '1px solid var(--color-border-primary)' };
 
 const nTick = (v: number) =>

@@ -190,7 +190,7 @@ function StatusBanner() {
   if (!data || data.configured) return null;
   return (
     <div className="bg-red/10 border border-red/30 rounded-xl px-4 py-3">
-      <p className="text-xs text-red">NAVER API HUB 키가 서버에 설정되지 않았습니다. Railway 환경변수 NAVER_HUB_CLIENT_ID / SECRET을 확인하세요.</p>
+      <p className="text-xs text-red">NAVER API HUB 키가 서버에 설정되지 않았습니다. 서버(Cloud Run) 환경변수 NAVER_HUB_CLIENT_ID / SECRET을 확인하세요.</p>
     </div>
   );
 }

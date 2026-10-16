@@ -313,7 +313,7 @@ export function NaverSearchAdsDashboard() {
           )}
           {debugInfo && (
             <div className="bg-bg-1 rounded-lg p-3 text-xs font-mono space-y-1 border border-red/30">
-              <p className="font-semibold text-text-secondary mb-2">Railway 환경변수 상태:</p>
+              <p className="font-semibold text-text-secondary mb-2">서버 환경변수 상태:</p>
               {Object.entries(debugInfo).map(([k, v]) => (
                 <div key={k} className="flex gap-2">
                   <span className="text-text-tertiary">{k}:</span>

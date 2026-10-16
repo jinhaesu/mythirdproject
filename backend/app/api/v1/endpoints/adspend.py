@@ -599,7 +599,9 @@ async def _inflow_spend_by_month(db: AsyncSession, months: list) -> dict:
         .group_by(text("1, 2"))  # to_char 포맷이 바인드 파라미터로 렌더돼 표현식 GROUP BY가 불일치 → 위치 지정
     )).all()
     for mid, month, amt in rows:
-        key = (month, inflow_of.get(mid, "기타"))
+        if mid not in inflow_of:
+            continue  # 비활성(삭제) 매체 지출은 보드와 동일하게 제외 (홈 카드 ↔ 보드 정합)
+        key = (month, inflow_of[mid])
         out[key] = out.get(key, 0) + float(amt)
     for mid, source in auto_media:
         daily = await _auto_daily(db, source, d_from, d_to)
@@ -730,6 +732,53 @@ async def upsert_channel_revenue(
         db.add(ChannelRevenue(month=payload.month, inflow=payload.inflow, revenue=payload.revenue))
     await db.commit()
     return {"month": payload.month, "inflow": payload.inflow, "revenue": payload.revenue}
+
+
+@router.get("/trend")
+async def adspend_trend(
+    month_from: str | None = Query(default=None, min_length=7, max_length=7),
+    month_to: str | None = Query(default=None, min_length=7, max_length=7),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """비용 분석 그래프용 — 기간 내 월별 집행(유입채널 스택)/Limit/사업계획 시계열.
+
+    기본 기간: 이번 달 포함 최근 6개월. 최대 24개월.
+    """
+    today = date.today()
+    end = month_to or f"{today.year:04d}-{today.month:02d}"
+    start = month_from or _month_add(end, -5)
+    if start > end:
+        start, end = end, start
+    months = [start]
+    while months[-1] < end and len(months) < 24:
+        months.append(_month_add(months[-1], 1))
+
+    spend_by = await _inflow_spend_by_month(db, months)
+    budget_rows = (await db.execute(
+        select(
+            AdMediaBudget.month,
+            func.coalesce(func.sum(AdMediaBudget.limit_amount), 0),
+            func.coalesce(func.sum(AdMediaBudget.plan_amount), 0),
+        ).where(AdMediaBudget.month.in_(months)).group_by(AdMediaBudget.month)
+    )).all()
+    budget_of = {m: {"limit": float(l), "plan": float(p)} for m, l, p in budget_rows}
+
+    inflows = sorted({inf for (_m, inf) in spend_by.keys()})
+    series = []
+    for m in months:
+        by_inflow = {inf: round(spend_by.get((m, inf), 0), 0) for inf in inflows}
+        b = budget_of.get(m, {"limit": 0, "plan": 0})
+        total = round(sum(by_inflow.values()), 0)
+        series.append({
+            "month": m,
+            "total": total,
+            "limit": round(b["limit"], 0),
+            "plan": round(b["plan"], 0),
+            "usage_pct": round(total / b["limit"] * 100, 1) if b["limit"] else None,
+            "by_inflow": by_inflow,
+        })
+    return {"months": months, "inflows": inflows, "series": series}
 
 
 @router.get("/monthly-summary")

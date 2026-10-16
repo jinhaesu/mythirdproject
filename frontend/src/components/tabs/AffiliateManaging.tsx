@@ -751,10 +751,10 @@ function Cafe24Banner() {
             </p>
             <p className="text-text-tertiary leading-relaxed">
               ✗ 표시된 권한이 1개라도 있으면 재연결 필요.
-              아무것도 표시되지 않으면 백엔드 배포(Railway)가 아직 끝나지 않았거나
+              아무것도 표시되지 않으면 백엔드 배포(Cloud Run)가 아직 끝나지 않았거나
               <code className="text-yellow mx-1">CAFE24_SCOPES</code>
               환경변수가 옛날 값으로 설정돼 있어 코드의 기본값을 덮어쓰는 중입니다.
-              Railway → Variables에서 해당 env를 삭제하거나 최신 값으로 갱신하세요.
+              Cloud Run → 변수 및 보안 비밀에서 해당 env를 삭제하거나 최신 값으로 갱신하세요.
             </p>
           </div>
         )}

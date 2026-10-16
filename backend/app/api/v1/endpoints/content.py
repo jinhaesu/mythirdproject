@@ -24,7 +24,7 @@ router = APIRouter()
 
 @router.get("/analytics")
 async def content_analytics(
-    days: int = Query(default=30, ge=7, le=120),
+    days: int = Query(default=30, ge=7, le=365),
     activity_type: str = Query(default=""),  # 빈 값 = 전체
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

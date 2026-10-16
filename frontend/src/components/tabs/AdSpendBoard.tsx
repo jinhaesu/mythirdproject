@@ -11,7 +11,11 @@
  */
 import { Fragment, useMemo, useState, type CSSProperties } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Download, Plus, X, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
+import { Download, Plus, X, ChevronLeft, ChevronRight, Trash2, BarChart3, ChevronDown, ChevronUp } from 'lucide-react';
+import {
+  ResponsiveContainer, ComposedChart, BarChart, Bar, Line, XAxis, YAxis,
+  Tooltip as ReTooltip, Legend, CartesianGrid, Cell,
+} from 'recharts';
 import toast from 'react-hot-toast';
 import { adspendApi, type AdMediaRow } from '@/lib/api';
 import { fmtWon } from '@/components/tabs/kpi/format';
@@ -37,6 +41,11 @@ const stickyR = (right: number, w: number, bg: string, z = 10, divider = false):
   ...(divider ? { borderLeft: '1px solid var(--color-border-primary)' } : {}),
 });
 
+// 비용 분석 차트 팔레트 (유입채널별)
+const INFLOW_COLORS = ['#4EA7FC', '#8B5CF6', '#F0883E', '#3FB950', '#F85149', '#D29922', '#DB61A2', '#58A6FF', '#56D364', '#E3B341', '#79C0FF', '#FFA657'];
+const fmtAxis = (v: number) =>
+  Math.abs(v) >= 1e8 ? `${(v / 1e8).toFixed(1)}억` : Math.abs(v) >= 1e4 ? `${Math.round(v / 1e4).toLocaleString()}만` : String(v);
+
 export function AdSpendBoard() {
   const qc = useQueryClient();
   const [month, setMonth] = useState(thisMonth());
@@ -53,6 +62,23 @@ export function AdSpendBoard() {
     queryKey: ['adspend', 'board', month, scope],
     queryFn: () => adspendApi.board(month, scope),
   });
+
+  // ── 비용 분석 (상단 그래프) — 기간은 보드 월과 독립적으로 선택 ──
+  const [showAnalysis, setShowAnalysis] = useState(true);
+  const [trendFrom, setTrendFrom] = useState(() => monthAdd(thisMonth(), -5));
+  const [trendTo, setTrendTo] = useState(thisMonth());
+  const { data: trend } = useQuery({
+    queryKey: ['adspend', 'trend', trendFrom, trendTo],
+    queryFn: () => adspendApi.trend(trendFrom, trendTo),
+    enabled: showAnalysis,
+  });
+  const trendRows = useMemo(
+    () => (trend?.series || []).map((s) => ({
+      month: s.month.slice(2), total: s.total, limit: s.limit, plan: s.plan,
+      usage_pct: s.usage_pct, ...s.by_inflow,
+    })),
+    [trend],
+  );
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ['adspend'] });
 
@@ -132,6 +158,28 @@ export function AdSpendBoard() {
     });
     return { dayTotals, spend, limit, plan: 0, usage_pct: limit ? Math.round((spend / limit) * 1000) / 10 : null };
   }, [board, filteredRows, isFiltered]);
+
+  // 일별 집행 추이 (필터 반영, 빈 날 0 채움)
+  const dailyRows = useMemo(() => {
+    if (!board || !view) return [];
+    const n = board.days_in_month || 31;
+    const byDay: Record<number, number> = {};
+    Object.entries(view.dayTotals || {}).forEach(([d, v]) => {
+      byDay[parseInt(d.slice(8, 10), 10)] = (byDay[parseInt(d.slice(8, 10), 10)] || 0) + (v as number);
+    });
+    return Array.from({ length: n }, (_, i) => ({ d: i + 1, v: byDay[i + 1] || 0 }));
+  }, [board, view]);
+
+  // 이 달 유입채널별 구성 (필터 반영)
+  const inflowComposition = useMemo(() => {
+    const map = new Map<string, number>();
+    filteredRows.forEach((r) => {
+      const key = r.inflow || '기타';
+      map.set(key, (map.get(key) || 0) + (r.month_total || 0));
+    });
+    return Array.from(map.entries()).map(([name, v]) => ({ name, v }))
+      .filter((x) => x.v > 0).sort((a, b) => b.v - a.v);
+  }, [filteredRows]);
 
   const commitCell = () => {
     if (!editCell) return;
@@ -235,6 +283,107 @@ export function AdSpendBoard() {
           ))}
         </div>
       )}
+
+      {/* ── 비용 분석 그래프 — 기간 선택 가능, 유입채널 스택 + Limit 라인 ── */}
+      <div className="rounded-xl" style={{ backgroundColor: 'var(--color-bg-level-1)', border: '1px solid var(--color-border-primary)' }}>
+        <div className="flex flex-wrap items-center gap-2 px-4 py-2.5">
+          <button onClick={() => setShowAnalysis((s) => !s)}
+            className="flex items-center gap-1.5 text-sm font-semibold text-text-primary">
+            <BarChart3 size={14} className="text-brand" /> 비용 분석
+            {showAnalysis ? <ChevronUp size={13} className="text-text-tertiary" /> : <ChevronDown size={13} className="text-text-tertiary" />}
+          </button>
+          {showAnalysis && (
+            <>
+              <div className="flex-1" />
+              <span className="text-[11px] text-text-tertiary">기간</span>
+              <input type="month" value={trendFrom} max={trendTo}
+                onChange={(e) => e.target.value && setTrendFrom(e.target.value)}
+                className="px-2 py-1 rounded-lg text-xs bg-bg-2 border border-border-primary text-text-primary" />
+              <span className="text-xs text-text-tertiary">~</span>
+              <input type="month" value={trendTo} min={trendFrom}
+                onChange={(e) => e.target.value && setTrendTo(e.target.value)}
+                className="px-2 py-1 rounded-lg text-xs bg-bg-2 border border-border-primary text-text-primary" />
+              {[3, 6, 12].map((n) => (
+                <button key={n}
+                  onClick={() => { setTrendTo(thisMonth()); setTrendFrom(monthAdd(thisMonth(), -(n - 1))); }}
+                  className="px-2 py-1 rounded-lg text-[11px] text-text-tertiary border border-border-primary hover:text-text-primary">
+                  {n}개월
+                </button>
+              ))}
+            </>
+          )}
+        </div>
+        {showAnalysis && trend && (
+          <div className="px-3 pb-3 space-y-3">
+            {/* 월별 추이: 유입채널 스택 바 + Limit/사업계획 라인 */}
+            <div style={{ width: '100%', height: 260 }}>
+              <ResponsiveContainer>
+                <ComposedChart data={trendRows} margin={{ top: 8, right: 12, left: 8, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-primary)" />
+                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'var(--color-text-tertiary)' }} />
+                  <YAxis tickFormatter={fmtAxis} tick={{ fontSize: 10, fill: 'var(--color-text-tertiary)' }} width={52} />
+                  <ReTooltip
+                    formatter={(val: number, name: string) => [fmtWon(Number(val) || 0), name]}
+                    contentStyle={{ backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)', borderRadius: 8, fontSize: 12 }}
+                    labelStyle={{ color: 'var(--color-text-secondary)' }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  {(trend.inflows || []).map((inf, i) => (
+                    <Bar key={inf} dataKey={inf} stackId="spend" fill={INFLOW_COLORS[i % INFLOW_COLORS.length]} maxBarSize={48} />
+                  ))}
+                  <Line type="monotone" dataKey="limit" name="Limit" stroke="#F85149" strokeWidth={2} strokeDasharray="6 3" dot={{ r: 2.5 }} />
+                  <Line type="monotone" dataKey="plan" name="사업계획" stroke="#3FB950" strokeWidth={1.5} strokeDasharray="2 3" dot={false} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+              {/* 이 달 일별 집행 (보드 필터 반영) */}
+              <div className="rounded-lg p-3" style={{ backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)' }}>
+                <p className="text-xs font-medium text-text-secondary mb-2">
+                  {parseInt(month.slice(5), 10)}월 일별 집행{isFiltered ? ' (필터 반영)' : ''}
+                </p>
+                <div style={{ width: '100%', height: 170 }}>
+                  <ResponsiveContainer>
+                    <BarChart data={dailyRows} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                      <XAxis dataKey="d" tick={{ fontSize: 10, fill: 'var(--color-text-tertiary)' }} interval={4} />
+                      <YAxis tickFormatter={fmtAxis} tick={{ fontSize: 10, fill: 'var(--color-text-tertiary)' }} width={48} />
+                      <ReTooltip
+                        formatter={(val: number) => [fmtWon(Number(val) || 0), '집행']}
+                        labelFormatter={(d) => `${parseInt(month.slice(5), 10)}/${d}`}
+                        contentStyle={{ backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)', borderRadius: 8, fontSize: 12 }}
+                      />
+                      <Bar dataKey="v" fill="#4EA7FC" radius={[2, 2, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+              {/* 이 달 유입채널별 구성 (보드 필터 반영) */}
+              <div className="rounded-lg p-3" style={{ backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)' }}>
+                <p className="text-xs font-medium text-text-secondary mb-2">
+                  {parseInt(month.slice(5), 10)}월 유입채널별 구성{isFiltered ? ' (필터 반영)' : ''}
+                </p>
+                <div style={{ width: '100%', height: 170 }}>
+                  <ResponsiveContainer>
+                    <BarChart data={inflowComposition} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 0 }}>
+                      <XAxis type="number" tickFormatter={fmtAxis} tick={{ fontSize: 10, fill: 'var(--color-text-tertiary)' }} />
+                      <YAxis type="category" dataKey="name" width={96} tick={{ fontSize: 10, fill: 'var(--color-text-secondary)' }} />
+                      <ReTooltip
+                        formatter={(val: number) => [fmtWon(Number(val) || 0), '집행']}
+                        contentStyle={{ backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)', borderRadius: 8, fontSize: 12 }}
+                      />
+                      <Bar dataKey="v" radius={[0, 2, 2, 0]} maxBarSize={18}>
+                        {inflowComposition.map((x, i) => (
+                          <Cell key={x.name} fill={INFLOW_COLORS[i % INFLOW_COLORS.length]} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
       {isLoading ? (
         <div className="flex justify-center py-16"><div className="w-7 h-7 border-2 border-brand border-t-transparent rounded-full animate-spin" /></div>

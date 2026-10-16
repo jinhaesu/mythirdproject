@@ -1885,6 +1885,18 @@ export const adspendApi = {
     const { data } = await api.patch(`/adspend/media/${id}`, payload, { params: { active } });
     return data;
   },
+  trend: async (monthFrom?: string, monthTo?: string): Promise<{
+    months: string[]; inflows: string[];
+    series: {
+      month: string; total: number; limit: number; plan: number;
+      usage_pct: number | null; by_inflow: Record<string, number>;
+    }[];
+  }> => {
+    const { data } = await api.get('/adspend/trend', {
+      params: { month_from: monthFrom || undefined, month_to: monthTo || undefined },
+    });
+    return data;
+  },
   roasBoard: async (opts: number | { monthsBack?: number; monthFrom?: string; monthTo?: string } = 6): Promise<{
     months: string[]; this_month: string; inflows: string[]; as_of: string;
     cells: {
