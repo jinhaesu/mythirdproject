@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = "sqlite+aiosqlite:///./meta_commander.db"
 
+    # 백그라운드 수집 루프 전체 on/off — 마이그레이션 중 신·구 인스턴스가
+    # Cafe24/Meta 토큰 갱신(단일사용 refresh token)을 경합하지 않도록 끌 수 있게
+    SCHEDULER_ENABLED: bool = True
+
     # Supabase Storage
     SUPABASE_URL: str = ""          # https://xxx.supabase.co
     SUPABASE_SERVICE_KEY: str = ""  # service_role key

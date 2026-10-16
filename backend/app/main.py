@@ -199,27 +199,31 @@ async def lifespan(app: FastAPI):
         f"[Cafe24] Loaded CAFE24_SCOPES = {settings.CAFE24_SCOPES} "
         f"(env override applied if differs from code default)"
     )
-    # Start background scheduler
-    scheduler_task = asyncio.create_task(_run_scheduled_reports())
-    logger.info("Scheduled report background runner started")
-    # Start Meta 인사이트 수집 루프 (1시간 주기, 시작 즉시 1회 실행)
-    from app.services.meta_insights_collector import run_collector_loop
-    insights_task = asyncio.create_task(run_collector_loop())
-    logger.info("Meta insights collector loop started")
-    # Start 마케팅 KPI 자동 수집 루프 (6시간 주기 — 네이버 검색광고 일별 광고비 + 카페24 방문자수)
-    from app.services.kpi_collectors import run_kpi_collector_loop
-    kpi_collector_task = asyncio.create_task(run_kpi_collector_loop())
-    logger.info("KPI collector loop started")
+    # Background loops — SCHEDULER_ENABLED=false 환경에서는 전부 비활성
+    # (마이그레이션/스탠바이 인스턴스가 Cafe24·Meta 토큰 갱신 경합을 일으키지 않도록)
+    bg_tasks: list[asyncio.Task] = []
+    if settings.SCHEDULER_ENABLED:
+        # Start background scheduler
+        bg_tasks.append(asyncio.create_task(_run_scheduled_reports()))
+        logger.info("Scheduled report background runner started")
+        # Start Meta 인사이트 수집 루프 (1시간 주기, 시작 즉시 1회 실행)
+        from app.services.meta_insights_collector import run_collector_loop
+        bg_tasks.append(asyncio.create_task(run_collector_loop()))
+        logger.info("Meta insights collector loop started")
+        # Start 마케팅 KPI 자동 수집 루프 (6시간 주기 — 네이버 검색광고 일별 광고비 + 카페24 방문자수)
+        from app.services.kpi_collectors import run_kpi_collector_loop
+        bg_tasks.append(asyncio.create_task(run_kpi_collector_loop()))
+        logger.info("KPI collector loop started")
 
-    from app.services.content_metrics import run_content_metrics_loop
-    content_metrics_task = asyncio.create_task(run_content_metrics_loop())
-    logger.info("Content metrics daily loop started")
+        from app.services.content_metrics import run_content_metrics_loop
+        bg_tasks.append(asyncio.create_task(run_content_metrics_loop()))
+        logger.info("Content metrics daily loop started")
+    else:
+        logger.warning("SCHEDULER_ENABLED=false — all background loops disabled")
     yield
     # Shutdown
-    scheduler_task.cancel()
-    insights_task.cancel()
-    kpi_collector_task.cancel()
-    content_metrics_task.cancel()
+    for t in bg_tasks:
+        t.cancel()
 
 
 app = FastAPI(
