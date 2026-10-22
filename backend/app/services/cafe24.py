@@ -186,7 +186,45 @@ async def _persist_refresh_result(user, db, data: dict) -> None:
             ).replace(tzinfo=None)
         except Exception:
             pass
+    # refresh 응답의 실제 scope로 갱신 — 앱 재인가/권한 변경으로 scope가 줄어든 경우
+    # /cafe24/status 의 missing_scopes·needs_reauth 가 실제 상태를 반영하도록.
+    # (2026-10-22: 저장값은 write_category 보유로 남았지만 실제 토큰은 insufficient_scope)
+    scopes_raw = data.get("scopes") or data.get("scope")
+    if scopes_raw:
+        if isinstance(scopes_raw, list):
+            scopes_raw = ",".join(str(s) for s in scopes_raw)
+        user.cafe24_scopes = str(scopes_raw)
     await db.commit()
+
+
+# 403 insufficient_scope 발생 시 경로별로 빠진 scope 추정 (쓰기 계열만)
+_WRITE_SCOPE_BY_PATH = (
+    ("/admin/categories", "mall.write_category"),
+    ("/admin/coupons", "mall.write_promotion"),
+    ("/admin/products", "mall.write_product"),
+    ("/admin/scripttags", "mall.write_application"),
+)
+
+
+async def _mark_scope_missing(user, db, method: str, path: str) -> None:
+    """insufficient_scope 403이면 해당 쓰기 scope를 저장된 scope 목록에서 제거.
+
+    → /cafe24/status 가 missing_scopes / needs_reauth 로 재연결 배너를 띄움.
+    """
+    if method.upper() == "GET":
+        return
+    scope = next((s for p, s in _WRITE_SCOPE_BY_PATH if p in path), None)
+    if not scope:
+        return
+    current = [s.strip() for s in (user.cafe24_scopes or "").split(",") if s.strip()]
+    if scope not in current:
+        return
+    user.cafe24_scopes = ",".join(s for s in current if s != scope)
+    try:
+        await db.commit()
+        logger.warning(f"[Cafe24] insufficient_scope → {scope} 미보유로 표시 (재연결 필요)")
+    except Exception as e:
+        logger.warning(f"[Cafe24] scope 표시 실패: {e}")
 
 
 async def _do_refresh_locked(user, db, force: bool = False) -> str:
@@ -288,6 +326,15 @@ async def api_request(
         if resp.status_code >= 400:
             body = resp.text[:500]
             logger.error(f"[Cafe24] {method} {path} -> {resp.status_code}: {body}")
+            if resp.status_code == 403 and "insufficient_scope" in body:
+                await _mark_scope_missing(user, db, method, path)
+                raise httpx.HTTPStatusError(
+                    "Cafe24 권한 부족(insufficient_scope): 현재 Cafe24 연결 토큰에 이 작업 권한이 없습니다. "
+                    "Cafe24 관리자 계정으로 캠페인 관리 화면 상단 [Cafe24 연결됨] 카드의 '연결 해제' 후 "
+                    "다시 연결(재인가)해야 합니다.",
+                    request=resp.request,
+                    response=resp,
+                )
             raise httpx.HTTPStatusError(
                 f"Cafe24 API {resp.status_code}: {body}",
                 request=resp.request,

@@ -2484,6 +2484,26 @@ function CampaignDebugPanel({
 
 type CampaignStatusTab = 'all' | 'pending' | 'active' | 'ended';
 
+/** 서버 응답의 detail(문자열 또는 FastAPI 검증 오류 배열)을 사람이 읽을 수 있는 메시지로 변환 */
+function campaignErrorMessage(e: unknown, fallback: string): string {
+  const err = e as { response?: { status?: number; data?: { detail?: unknown } }; message?: string };
+  const detail = err?.response?.data?.detail;
+  if (typeof detail === 'string' && detail.trim()) return `${fallback}: ${detail}`;
+  if (Array.isArray(detail) && detail.length > 0) {
+    const msgs = detail
+      .map((d: { loc?: unknown[]; msg?: string }) => {
+        const field = Array.isArray(d?.loc) ? d.loc.filter(x => x !== 'body').join('.') : '';
+        return field ? `${field}: ${d?.msg ?? ''}` : (d?.msg ?? '');
+      })
+      .filter(Boolean);
+    if (msgs.length > 0) return `${fallback}: ${msgs.join(' / ')}`;
+  }
+  const status = err?.response?.status;
+  if (status) return `${fallback} (HTTP ${status})`;
+  if (err?.message) return `${fallback}: ${err.message}`;
+  return fallback;
+}
+
 function CampaignsSection() {
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
@@ -2520,7 +2540,7 @@ function CampaignsSection() {
 
   const createMutation = useMutation({
     mutationFn: affiliateApi.createCampaign,
-    onSuccess: (result: AffiliateCampaign) => {
+    onSuccess: (result: AffiliateCampaign & { warning?: string; category_warning?: string }) => {
       qc.invalidateQueries({ queryKey: ['affiliate', 'campaigns'] });
       qc.invalidateQueries({ queryKey: ['affiliate', 'dashboard'] });
       if (result?.cafe24_coupon_code) {
@@ -2528,10 +2548,14 @@ function CampaignsSection() {
       } else {
         toast.success('캠페인이 생성되었습니다');
       }
+      const warnings = [result?.warning, result?.category_warning].filter(Boolean);
+      if (warnings.length > 0) {
+        toast.error(`주의: ${warnings.join(' / ')}`, { duration: 10000 });
+      }
       setShowForm(false);
       setForm({ name: '', product: '', commission_type: 'percentage', commission_rate: 10, start_date: '', end_date: '', cafe24_product_no: undefined, cafe24_product_name: undefined, discount_type: 'percentage', discount_value: 0, cafe24_product_nos: undefined, cafe24_product_meta: undefined, auto_create_category: false, cafe24_category_name: undefined });
     },
-    onError: () => toast.error('캠페인 생성에 실패했습니다'),
+    onError: (e: unknown) => toast.error(campaignErrorMessage(e, '캠페인 생성에 실패했습니다'), { duration: 10000 }),
   });
 
   const deleteMutation = useMutation({
@@ -2569,7 +2593,7 @@ function CampaignsSection() {
       qc.invalidateQueries({ queryKey: ['affiliate', 'dashboard'] });
       toast.success('캠페인이 업데이트되었습니다');
     },
-    onError: () => toast.error('캠페인 업데이트에 실패했습니다'),
+    onError: (e: unknown) => toast.error(campaignErrorMessage(e, '캠페인 업데이트에 실패했습니다'), { duration: 10000 }),
   });
 
   const editSaveMutation = useMutation({
@@ -2582,7 +2606,7 @@ function CampaignsSection() {
       setShowForm(false);
       setForm({ name: '', product: '', commission_type: 'percentage', commission_rate: 10, start_date: '', end_date: '', cafe24_product_no: undefined, cafe24_product_name: undefined, discount_type: 'percentage', discount_value: 0, cafe24_product_nos: undefined, cafe24_product_meta: undefined, auto_create_category: false, cafe24_category_name: undefined });
     },
-    onError: () => toast.error('캠페인 수정에 실패했습니다'),
+    onError: (e: unknown) => toast.error(campaignErrorMessage(e, '캠페인 수정에 실패했습니다'), { duration: 10000 }),
   });
 
   const republishMutation = useMutation({

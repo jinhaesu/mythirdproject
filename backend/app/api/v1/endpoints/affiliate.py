@@ -230,7 +230,9 @@ async def create_campaign(
             raise HTTPException(
                 status_code=502,
                 detail=(
-                    f"Cafe24 카테고리 생성 실패: {str(e)[:200]}. "
+                    f"Cafe24 카테고리 생성 실패: {str(e)[:300]}"
+                    if "insufficient_scope" in str(e)
+                    else f"Cafe24 카테고리 생성 실패: {str(e)[:200]}. "
                     "OAuth scope에 mall.write_category 가 포함됐는지 확인 후 재연결하세요."
                 ),
             )
@@ -268,7 +270,8 @@ async def create_campaign(
             data["landing_url"] = category_url
 
         # 5) 카테고리 단위 쿠폰 발급 (할인이 설정된 경우만)
-        if discount_type and discount_value is not None:
+        # 0% / 0원 할인은 쿠폰 미발급 (배송비 쿠폰은 값 무관)
+        if discount_type and (discount_type == "shipping" or (discount_value or 0) > 0):
             try:
                 benefit_type_map = {"percentage": "A", "fixed": "B", "shipping": "D"}
                 benefit_type = benefit_type_map.get(discount_type, "A")
@@ -321,24 +324,26 @@ async def create_campaign(
         if not data.get("landing_url"):
             data["landing_url"] = base_url
 
-        try:
-            benefit_type_map = {"percentage": "A", "fixed": "B", "shipping": "D"}
-            benefit_type = benefit_type_map.get(discount_type or "percentage", "A")
-            coupon_result = await cafe24_svc.create_coupon(
-                cafe24_user, db,
-                coupon_name=f"[{payload.name}] 할인쿠폰",
-                benefit_type=benefit_type,
-                benefit_percentage=discount_value if discount_type == "percentage" else None,
-                benefit_price=discount_value if discount_type == "fixed" else None,
-                product_no=cafe24_product_no,
-            )
-            data["cafe24_coupon_code"] = coupon_result.get("coupon_code")
-            data["cafe24_coupon_no"] = coupon_result.get("coupon_no")
-        except Exception as e:
-            logger.warning(f"[Campaign] 쿠폰 발급 실패: {e}")
-            data["cafe24_coupon_code"] = None
-            data["cafe24_coupon_no"] = None
-            coupon_warning = f"쿠폰 발급 실패: {str(e)}"
+        # 0% / 0원 할인은 쿠폰 미발급 (배송비 쿠폰은 값 무관)
+        if discount_type == "shipping" or (discount_value or 0) > 0:
+            try:
+                benefit_type_map = {"percentage": "A", "fixed": "B", "shipping": "D"}
+                benefit_type = benefit_type_map.get(discount_type or "percentage", "A")
+                coupon_result = await cafe24_svc.create_coupon(
+                    cafe24_user, db,
+                    coupon_name=f"[{payload.name}] 할인쿠폰",
+                    benefit_type=benefit_type,
+                    benefit_percentage=discount_value if discount_type == "percentage" else None,
+                    benefit_price=discount_value if discount_type == "fixed" else None,
+                    product_no=cafe24_product_no,
+                )
+                data["cafe24_coupon_code"] = coupon_result.get("coupon_code")
+                data["cafe24_coupon_no"] = coupon_result.get("coupon_no")
+            except Exception as e:
+                logger.warning(f"[Campaign] 쿠폰 발급 실패: {e}")
+                data["cafe24_coupon_code"] = None
+                data["cafe24_coupon_no"] = None
+                coupon_warning = f"쿠폰 발급 실패: {str(e)}"
 
     # 캠페인 자체 레퍼럴 코드 발급 (파트너 없이도 공유 가능)
     data["referral_code"] = await _unique_campaign_code(db)
