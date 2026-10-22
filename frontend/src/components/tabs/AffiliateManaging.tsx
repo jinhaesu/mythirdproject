@@ -119,6 +119,8 @@ interface NewCampaignForm {
   cafe24_product_meta?: Array<{ no: number; name: string; image?: string }>;
   auto_create_category?: boolean;
   cafe24_category_name?: string;
+  /** 카페24 관리자에서 직접 만든 분류 번호 연결 (API 쓰기 권한 없이 캠페인 생성) */
+  cafe24_existing_category_no?: number;
 }
 
 interface NewPartnerForm {
@@ -2905,7 +2907,7 @@ function CampaignsSection() {
                 <div className="flex p-1 bg-bg-2 border border-border-primary rounded-lg gap-1">
                   <button
                     type="button"
-                    onClick={() => setForm({ ...form, auto_create_category: false, cafe24_product_nos: undefined, cafe24_product_meta: undefined, cafe24_category_name: undefined })}
+                    onClick={() => setForm({ ...form, auto_create_category: false, cafe24_product_nos: undefined, cafe24_product_meta: undefined, cafe24_category_name: undefined, cafe24_existing_category_no: undefined })}
                     className={`flex-1 py-1.5 text-[11px] rounded-md font-medium transition-all ${
                       !form.auto_create_category
                         ? 'bg-green text-white shadow-[0_2px_8px_rgba(16,185,129,0.3)]'
@@ -2948,6 +2950,23 @@ function CampaignsSection() {
                       />
                       <p className="text-[10px] text-text-tertiary mt-1">
                         카페24에 진열되지 않는 비공개 카테고리가 자동 생성됩니다. 인플루언서는 링크로만 접근 가능.
+                      </p>
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-text-tertiary">기존 분류 번호 연결 (선택)</label>
+                      <input
+                        type="number"
+                        value={form.cafe24_existing_category_no ?? ''}
+                        onChange={e => setForm({
+                          ...form,
+                          cafe24_existing_category_no: e.target.value === '' ? undefined : Number(e.target.value),
+                        })}
+                        placeholder="예: 1234 (카페24 관리자 > 상품 > 분류 관리의 분류 번호)"
+                        className="w-full mt-1 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-brand/50"
+                      />
+                      <p className="text-[10px] text-text-tertiary mt-1">
+                        자동 생성이 실패할 때 사용하는 우회 방법: 카페24 관리자에서 분류를 직접 만들어 상품을 진열한 뒤,
+                        그 분류 번호를 입력하면 새 카테고리를 만들지 않고 해당 분류로 캠페인을 생성합니다.
                       </p>
                     </div>
                     <Cafe24MultiProductSelector

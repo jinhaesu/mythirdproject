@@ -17,7 +17,7 @@ import {
   Tooltip as ReTooltip, Legend, CartesianGrid, Cell,
 } from 'recharts';
 import toast from 'react-hot-toast';
-import { adspendApi, type AdMediaRow } from '@/lib/api';
+import { adspendApi, type AdMediaGroup, type AdMediaRow } from '@/lib/api';
 import { fmtWon } from '@/components/tabs/kpi/format';
 
 const thisMonth = () => new Date().toISOString().slice(0, 7);
@@ -53,7 +53,8 @@ export function AdSpendBoard() {
   const [editLimit, setEditLimit] = useState<number | null>(null); // media_id
   const [editNote, setEditNote] = useState<number | null>(null); // media_id
   const [cellValue, setCellValue] = useState('');
-  const [showAddMedia, setShowAddMedia] = useState(false);
+  // 매체 추가 모달 — null=닫힘, ''=그룹 미선택으로 열기, '그룹명'=그 그룹 선택된 채로 열기
+  const [addMediaGroup, setAddMediaGroup] = useState<string | null>(null);
   const [inflowF, setInflowF] = useState(''); // '' = 전체
   const [ownerF, setOwnerF] = useState(''); // '' = 전체
   const [scope, setScope] = useState<'month' | 'all'>('month'); // month=이달 거래 매체만
@@ -134,7 +135,18 @@ export function AdSpendBoard() {
   );
   const isFiltered = !!(inflowF || ownerF);
 
-  // 유입채널별 그룹핑
+  // 그룹(판매채널) 메타 — 시트 순서·색·담당자
+  const groupMeta = useMemo(() => {
+    const m = new Map<string, AdMediaGroup>();
+    (board?.groups || []).forEach((g) => m.set(g.name, g));
+    return m;
+  }, [board]);
+  const groupStyle = (name: string) => {
+    const c = groupMeta.get(name)?.color;
+    return c ? ({ '--gc': c } as CSSProperties) : undefined;
+  };
+
+  // 유입채널별 그룹핑 (서버가 시트 순서로 정렬해 보냄 → 등장 순서 유지)
   const groups = useMemo(() => {
     const map = new Map<string, AdMediaRow[]>();
     filteredRows.forEach((r) => {
@@ -241,7 +253,7 @@ export function AdSpendBoard() {
         >
           <Download size={13} /> 엑셀
         </button>
-        <button onClick={() => setShowAddMedia(true)}
+        <button onClick={() => setAddMediaGroup('')}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white hover:opacity-90"
           style={{ backgroundColor: 'var(--color-brand-bg)' }}>
           <Plus size={13} /> 매체 추가
@@ -406,16 +418,33 @@ export function AdSpendBoard() {
                 </tr>
               </thead>
               <tbody>
-                {groups.map(([inflow, rows]) => (
+                {groups.map(([inflow, rows]) => {
+                  const gs = groupStyle(inflow);
+                  const owner = groupMeta.get(inflow)?.owner;
+                  return (
                   <Fragment key={inflow}>
-                    <tr>
-                      <td colSpan={days + 5} className="sticky left-0 px-2 py-1.5 text-[10px] font-bold" style={{ backgroundColor: 'rgb(var(--color-overlay-rgb) / 0.06)', color: 'var(--color-accent-hover)' }}>
-                        {inflow}
+                    <tr className="group/gh">
+                      <td colSpan={days + 5}
+                        className={`p-0 text-[10px] font-bold ${gs ? 'adg-head' : ''}`}
+                        style={gs || { backgroundColor: 'rgb(var(--color-overlay-rgb) / 0.06)', color: 'var(--color-accent-hover)' }}>
+                        {/* 그룹 헤더 클릭 → 이 그룹에 매체 추가 */}
+                        <button
+                          onClick={() => setAddMediaGroup(inflow === '기타' ? '' : inflow)}
+                          title={`'${inflow}' 그룹에 매체 추가`}
+                          className="sticky left-0 flex items-center gap-1.5 px-2 py-1.5 text-left hover:underline"
+                        >
+                          <span>{inflow}</span>
+                          {owner && <span className="font-medium opacity-70">· {owner}</span>}
+                          <span className="flex items-center gap-0.5 font-medium opacity-0 group-hover/gh:opacity-80 transition-opacity">
+                            <Plus size={10} /> 매체 추가
+                          </span>
+                        </button>
                       </td>
                     </tr>
                     {rows.map((r) => (
                       <tr key={r.media_id} className="group" style={{ borderTop: '1px solid rgb(var(--color-overlay-rgb) / 0.04)' }}>
-                        <td className="sticky left-0 z-10 px-2 py-1 text-text-secondary max-w-[190px]" style={{ backgroundColor: 'var(--color-bg-level-1)' }}>
+                        <td className={`sticky left-0 z-10 px-2 py-1 text-text-secondary max-w-[190px] ${gs ? 'adg-name' : ''}`}
+                          style={{ backgroundColor: 'var(--color-bg-level-1)', ...(gs || {}) }}>
                           <div className="flex items-center gap-1">
                             <span className="truncate" title={`${r.group_name || ''} · ${r.name}${r.memo ? ` · ${r.memo}` : ''}`}>{r.name}</span>
                             {r.auto && <span className="shrink-0 px-1 rounded text-[8px] font-bold bg-green/15 text-green">자동</span>}
@@ -512,7 +541,8 @@ export function AdSpendBoard() {
                       </tr>
                     ))}
                   </Fragment>
-                ))}
+                  );
+                })}
               </tbody>
               <tfoot className="sticky bottom-0" style={{ backgroundColor: 'var(--color-bg-level-2)' }}>
                 <tr style={{ borderTop: '2px solid var(--color-border-primary)' }}>
@@ -531,57 +561,124 @@ export function AdSpendBoard() {
         </div>
       )}
 
-      {showAddMedia && (
+      {addMediaGroup !== null && (
         <AddMediaModal
-          existingInflows={inflowOptions}
-          onClose={() => setShowAddMedia(false)}
-          onSaved={() => { setShowAddMedia(false); invalidate(); }}
+          groups={board?.groups?.length ? board.groups : inflowOptions.filter((o) => o !== '기타').map((name) => ({ name, sort_order: null, color: null, owner: null }))}
+          rows={board?.rows || []}
+          initialInflow={addMediaGroup}
+          onClose={() => setAddMediaGroup(null)}
+          onSaved={() => { setAddMediaGroup(null); invalidate(); }}
         />
       )}
     </div>
   );
 }
 
-function AddMediaModal({ existingInflows, onClose, onSaved }: {
-  existingInflows: string[]; onClose: () => void; onSaved: () => void;
+const inputCls = 'px-2 py-1.5 rounded-lg text-xs bg-bg-2 border border-border-primary text-text-primary';
+
+/** 칩 하나 — 선택 시 그룹 색(시트 색) 하이라이트 */
+function Chip({ label, color, on, onClick }: { label: string; color?: string | null; on: boolean; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick}
+      className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] border transition-colors ${
+        on ? (color ? 'adg-chip-on font-semibold' : 'font-semibold text-white') : 'text-text-secondary border-border-primary hover:text-text-primary'
+      }`}
+      style={{
+        ...(color ? ({ '--gc': color } as CSSProperties) : {}),
+        ...(on && !color ? { backgroundColor: 'var(--color-brand-bg)', borderColor: 'var(--color-brand-bg)' } : {}),
+      }}>
+      {color && <span className="w-2 h-2 rounded-sm shrink-0" style={{ backgroundColor: color }} />}
+      {label}
+    </button>
+  );
+}
+
+function AddMediaModal({ groups, rows, initialInflow, onClose, onSaved }: {
+  groups: AdMediaGroup[]; rows: AdMediaRow[]; initialInflow: string;
+  onClose: () => void; onSaved: () => void;
 }) {
-  const [form, setForm] = useState({ name: '', inflow: '', group_name: '', memo: '' });
+  const [form, setForm] = useState({ name: '', inflow: initialInflow, group_name: '', memo: '' });
+  const [newInflow, setNewInflow] = useState(false); // 새 그룹 직접 입력 모드
+  const isExisting = groups.some((g) => g.name === form.inflow);
+  // 선택한 판매채널에서 쓰는 광고분류 (칩 제안)
+  const cats = useMemo(
+    () => Array.from(new Set(rows.filter((r) => (r.inflow || '') === form.inflow).map((r) => r.group_name).filter(Boolean))) as string[],
+    [rows, form.inflow],
+  );
   const mut = useMutation({
-    mutationFn: () => adspendApi.createMedia(form),
-    onSuccess: () => { toast.success('매체를 추가했습니다'); onSaved(); },
+    mutationFn: () => adspendApi.createMedia({
+      name: form.name.trim(), inflow: form.inflow.trim() || undefined,
+      group_name: form.group_name.trim() || undefined, memo: form.memo.trim() || undefined,
+    }),
+    onSuccess: () => {
+      toast.success(form.inflow.trim() ? `'${form.inflow.trim()}' 그룹 맨 아래에 추가했습니다` : '매체를 추가했습니다');
+      onSaved();
+    },
     onError: () => toast.error('추가 실패'),
   });
+  const submit = () => {
+    if (!form.name.trim()) { toast.error('매체명을 입력해 주세요'); return; }
+    if (!form.inflow.trim()) { toast.error('그룹(판매채널)을 선택하거나 입력해 주세요'); return; }
+    mut.mutate();
+  };
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.55)' }} onClick={onClose}>
-      <div className="w-full max-w-sm rounded-xl p-5" style={{ backgroundColor: 'var(--color-bg-level-1)', border: '1px solid var(--color-border-primary)' }} onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-lg rounded-xl p-5 max-h-[90vh] overflow-y-auto" style={{ backgroundColor: 'var(--color-bg-level-1)', border: '1px solid var(--color-border-primary)' }} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-semibold text-text-primary">매체 추가</h3>
           <button onClick={onClose} className="p-1 text-text-tertiary hover:text-text-primary"><X size={16} /></button>
         </div>
         <div className="space-y-3">
-          {[
-            { k: 'name', label: '매체명 *', ph: '예: 자사몰 토스 쿠폰광고' },
-            { k: 'inflow', label: '유입 채널', ph: '예: 자사몰, 네이버스토어, 쿠팡 WING', list: true },
-            { k: 'group_name', label: '매체 그룹', ph: '예: 메타, 네이버, CRM, 바이럴' },
-            { k: 'memo', label: '메모', ph: '' },
-          ].map((f) => (
-            <label key={f.k} className="flex flex-col gap-1">
-              <span className="text-[11px] text-text-tertiary">{f.label}</span>
-              <input
-                list={f.list ? 'inflow-list' : undefined}
-                value={(form as any)[f.k]}
-                onChange={(e) => setForm((v) => ({ ...v, [f.k]: e.target.value }))}
-                placeholder={f.ph}
-                className="px-2 py-1.5 rounded-lg text-xs bg-bg-2 border border-border-primary text-text-primary"
-              />
-            </label>
-          ))}
-          <datalist id="inflow-list">{existingInflows.map((g) => <option key={g} value={g} />)}</datalist>
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[11px] text-text-tertiary">
+              그룹 (판매채널) * <span className="text-text-quaternary">— 클릭하면 그 그룹 맨 아래에 추가됩니다</span>
+            </span>
+            <div className="flex flex-wrap gap-1.5">
+              {groups.map((g) => (
+                <Chip key={g.name} label={g.name} color={g.color}
+                  on={!newInflow && form.inflow === g.name}
+                  onClick={() => { setNewInflow(false); setForm((v) => ({ ...v, inflow: g.name, group_name: '' })); }} />
+              ))}
+              <Chip label="+ 새 그룹" on={newInflow || (!!form.inflow && !isExisting)}
+                onClick={() => { setNewInflow(true); setForm((v) => ({ ...v, inflow: isExisting ? '' : v.inflow, group_name: '' })); }} />
+            </div>
+            {(newInflow || (!!form.inflow && !isExisting)) && (
+              <input autoFocus value={form.inflow}
+                onChange={(e) => setForm((v) => ({ ...v, inflow: e.target.value }))}
+                placeholder="새 그룹명 (예: 신규 채널명) — 보드 맨 아래에 새 그룹으로 생깁니다"
+                className={inputCls} />
+            )}
+          </div>
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] text-text-tertiary">매체명 *</span>
+            <input autoFocus={!!initialInflow} value={form.name}
+              onChange={(e) => setForm((v) => ({ ...v, name: e.target.value }))}
+              onKeyDown={(e) => { if (e.key === 'Enter') submit(); }}
+              placeholder="예: 자사몰 토스 쿠폰광고" className={inputCls} />
+          </label>
+          <div className="flex flex-col gap-1">
+            <span className="text-[11px] text-text-tertiary">광고분류 (선택)</span>
+            {cats.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {cats.map((c) => (
+                  <Chip key={c} label={c} on={form.group_name === c}
+                    onClick={() => setForm((v) => ({ ...v, group_name: v.group_name === c ? '' : c }))} />
+                ))}
+              </div>
+            )}
+            <input value={form.group_name}
+              onChange={(e) => setForm((v) => ({ ...v, group_name: e.target.value }))}
+              placeholder="예: 메타, 네이버, CRM, 바이럴" className={inputCls} />
+          </div>
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] text-text-tertiary">메모</span>
+            <input value={form.memo} onChange={(e) => setForm((v) => ({ ...v, memo: e.target.value }))} className={inputCls} />
+          </label>
         </div>
         <div className="flex justify-end gap-2 mt-5">
           <button onClick={onClose} className="px-3 py-1.5 rounded-lg text-xs text-text-tertiary border border-border-primary">취소</button>
           <button
-            onClick={() => { if (!form.name.trim()) { toast.error('매체명을 입력해 주세요'); return; } mut.mutate(); }}
+            onClick={submit}
             disabled={mut.isPending}
             className="px-4 py-1.5 rounded-lg text-xs font-medium text-white disabled:opacity-50"
             style={{ backgroundColor: 'var(--color-brand-bg)' }}

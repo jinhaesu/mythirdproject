@@ -19,6 +19,7 @@ from app.db.database import get_db
 from app.models import (
     AdMedia,
     AdMediaBudget,
+    AdMediaGroup,
     AdMediaSpendDaily,
     ChannelSpendDaily,
     MetaInsightDaily,
@@ -65,6 +66,104 @@ async def _auto_daily(db: AsyncSession, source: str, d_from: date, d_to: date) -
     return {d.isoformat(): float(s) for d, s in rows if float(s)}
 
 
+# ─── 그룹(판매채널) 순서·색 ──────────────────────────────────────────────────
+# 보드 그룹 = ad_media.inflow. 순서/색은 ad_media_groups(시트 포맷 그대로)에서,
+# 그룹 내 매체 순서는 ad_media.sort_order. 설정 없는 inflow는 맨 뒤(이름순).
+
+async def _group_meta(db: AsyncSession) -> dict:
+    """{inflow: AdMediaGroup}"""
+    return {g.name: g for g in (await db.execute(select(AdMediaGroup))).scalars().all()}
+
+
+def _media_sort_key(groups: dict):
+    def key(m):
+        g = groups.get(m.inflow) if m.inflow else None
+        if g is not None:
+            gk = (0, g.sort_order, "")
+        elif m.inflow:
+            gk = (1, 0, m.inflow)
+        else:
+            gk = (2, 0, "")  # 유입 미지정(기타)은 맨 끝
+        return (*gk, m.sort_order or 0, m.id)
+    return key
+
+
+def _groups_payload(groups: dict, media: list) -> list:
+    """보드/매체추가용 그룹 목록 — 설정된 그룹(시트 순서) + 설정 없는 활성 inflow(이름순)."""
+    out = [{"name": g.name, "sort_order": g.sort_order, "color": g.color, "owner": g.owner}
+           for g in sorted(groups.values(), key=lambda g: (g.sort_order, g.name))]
+    extra = sorted({m.inflow for m in media if m.inflow and m.inflow not in groups})
+    out += [{"name": n, "sort_order": None, "color": None, "owner": None} for n in extra]
+    return out
+
+
+class GroupIn(BaseModel):
+    name: str = Field(..., max_length=100)
+    sort_order: int = 0
+    color: Optional[str] = Field(None, max_length=9)
+    owner: Optional[str] = Field(None, max_length=50)
+
+
+@router.get("/groups")
+async def list_groups(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    groups = await _group_meta(db)
+    media = (await db.execute(select(AdMedia).where(AdMedia.active.is_(True)))).scalars().all()
+    return _groups_payload(groups, media)
+
+
+@router.put("/groups")
+async def upsert_groups(
+    payload: list[GroupIn],
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """그룹 순서·색 일괄 설정 (이름 기준 upsert). 목록에 없는 기존 그룹은 그대로 둔다."""
+    import re as _re
+    groups = await _group_meta(db)
+    for g in payload:
+        name = _norm_name(g.name)
+        if not name:
+            continue
+        if g.color and not _re.fullmatch(r"#[0-9A-Fa-f]{6}", g.color):
+            raise HTTPException(status_code=422, detail=f"color는 #RRGGBB 형식: {g.color}")
+        row = groups.get(name)
+        if not row:
+            row = AdMediaGroup(name=name)
+            db.add(row)
+            groups[name] = row
+        row.sort_order = g.sort_order
+        row.color = g.color.upper() if g.color else None
+        row.owner = g.owner
+    await db.commit()
+    return {"count": len(payload)}
+
+
+class MediaOrderItem(BaseModel):
+    id: int
+    sort_order: int
+
+
+@router.put("/media-order")
+async def set_media_order(
+    payload: list[MediaOrderItem],
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """매체 sort_order(그룹 내 순서)만 일괄 변경 — 다른 필드는 건드리지 않는다."""
+    ids = [p.id for p in payload]
+    media = {m.id: m for m in (await db.execute(select(AdMedia).where(AdMedia.id.in_(ids)))).scalars().all()}
+    missing = [i for i in ids if i not in media]
+    if missing:
+        raise HTTPException(status_code=404, detail=f"없는 매체 id: {missing[:10]}")
+    for p in payload:
+        media[p.id].sort_order = p.sort_order
+    await db.commit()
+    return {"updated": len(payload)}
+
+
 # ─── 매체 마스터 ─────────────────────────────────────────────────────────────
 
 class MediaIn(BaseModel):
@@ -85,9 +184,8 @@ async def list_media(
     q = select(AdMedia)
     if not include_inactive:
         q = q.where(AdMedia.active.is_(True))
-    rows = (await db.execute(
-        q.order_by(AdMedia.inflow, AdMedia.group_name, AdMedia.sort_order, AdMedia.id)
-    )).scalars().all()
+    rows = (await db.execute(q)).scalars().all()
+    rows = sorted(rows, key=_media_sort_key(await _group_meta(db)))
     return [{
         "id": m.id, "name": m.name, "group_name": m.group_name, "inflow": m.inflow,
         "auto_source": m.auto_source, "sort_order": m.sort_order,
@@ -103,7 +201,26 @@ async def create_media(
 ):
     if data.auto_source and data.auto_source not in AUTO_SOURCES:
         raise HTTPException(status_code=422, detail=f"auto_source는 {sorted(AUTO_SOURCES)} 중 하나")
-    m = AdMedia(**data.model_dump())
+    fields = data.model_dump()
+    fields["name"] = _norm_name(fields["name"])
+    fields["inflow"] = _norm_name(fields.get("inflow") or "") or None
+    fields["group_name"] = _norm_name(fields.get("group_name") or "") or None
+    if not fields["name"]:
+        raise HTTPException(status_code=422, detail="매체명을 입력해 주세요")
+    if not fields.get("sort_order"):
+        # 그룹(inflow) 맨 끝에 붙인다
+        q = select(func.max(AdMedia.sort_order)).where(AdMedia.active.is_(True))
+        q = q.where(AdMedia.inflow == fields["inflow"]) if fields["inflow"] else q.where(AdMedia.inflow.is_(None))
+        fields["sort_order"] = int((await db.execute(q)).scalar() or 0) + 10
+    if fields["inflow"]:
+        # 새 그룹이면 그룹 목록 맨 끝에 등록 (이후에도 그 자리 유지)
+        exists = (await db.execute(
+            select(AdMediaGroup.id).where(AdMediaGroup.name == fields["inflow"])
+        )).scalar_one_or_none()
+        if exists is None:
+            gmax = (await db.execute(select(func.max(AdMediaGroup.sort_order)))).scalar() or 0
+            db.add(AdMediaGroup(name=fields["inflow"], sort_order=int(gmax) + 10))
+    m = AdMedia(**fields)
     db.add(m)
     await db.commit()
     await db.refresh(m)
@@ -174,10 +291,11 @@ async def spend_board(
     scope="all": 활성 매체 전부 (과거 거래처에 새로 기입할 때).
     """
     d_from, d_to = _month_range(month)
-    media = (await db.execute(
+    group_meta = await _group_meta(db)
+    media = sorted((await db.execute(
         select(AdMedia).where(AdMedia.active.is_(True))
-        .order_by(AdMedia.inflow, AdMedia.group_name, AdMedia.sort_order, AdMedia.id)
-    )).scalars().all()
+    )).scalars().all(), key=_media_sort_key(group_meta))
+    all_groups = _groups_payload(group_meta, media)
     budgets = {b.media_id: b for b in (await db.execute(
         select(AdMediaBudget).where(AdMediaBudget.month == month)
     )).scalars().all()}
@@ -244,6 +362,7 @@ async def spend_board(
         "total_active_media": total_media,
         "days_in_month": (d_to - timedelta(days=1)).day,
         "rows": out_rows,
+        "groups": all_groups,  # 판매채널 그룹 — 시트 순서·색 (rows는 이미 이 순서로 정렬됨)
         "day_totals": day_totals,
         "totals": {
             "spend": grand_total, "limit": grand_limit, "plan": grand_plan,
@@ -461,11 +580,15 @@ async def export_month_xlsx(
         cell.fill = header_fill
         cell.alignment = center
 
+    group_color = {g["name"]: g["color"] for g in board.get("groups", []) if g.get("color")}
     ri = 2
     for r in board["rows"]:
         meta = media_meta.get(r["media_id"])
         ws.cell(ri, 1, (meta.owner if meta else None) or "")
-        ws.cell(ri, 2, r["inflow"] or "")
+        ch = ws.cell(ri, 2, r["inflow"] or "")
+        gc = group_color.get(r["inflow"])
+        if gc:
+            ch.fill = PatternFill(start_color=gc[1:], end_color=gc[1:], fill_type="solid")
         ws.cell(ri, 3, r["group_name"] or "")
         ws.cell(ri, 4, r["name"] + (" (자동)" if r["auto"] else ""))
         for d in range(1, days + 1):

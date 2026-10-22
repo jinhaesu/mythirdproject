@@ -296,3 +296,28 @@ body {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* ---------------------------------------------------------------
+   광고비 일보 — 판매채널 그룹 색 (시트 포맷 색 = 라이트 모드 원색,
+   다크 모드는 배경에 틴트). 각 요소에 inline style로 --gc 지정.
+   --------------------------------------------------------------- */
+.adg-head {
+  background-color: color-mix(in srgb, var(--gc) 16%, var(--color-bg-level-1));
+  color: var(--gc);
+}
+:root[data-theme="light"] .adg-head {
+  background-color: var(--gc);
+  color: #1F2328;
+}
+.adg-name {
+  box-shadow: inset 4px 0 0 var(--gc);
+}
+.adg-chip-on {
+  background-color: color-mix(in srgb, var(--gc) 22%, transparent);
+  border-color: var(--gc) !important;
+  color: var(--color-text-primary);
+}
+:root[data-theme="light"] .adg-chip-on {
+  background-color: var(--gc);
+  color: #1F2328;
+}

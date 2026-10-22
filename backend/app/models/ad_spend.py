@@ -30,6 +30,21 @@ class AdMedia(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+class AdMediaGroup(Base):
+    """일보 보드의 그룹(=판매채널/유입 inflow) 표시 순서·색 — 시트 포맷 그대로 재현용.
+
+    name은 ad_media.inflow와 같은 축. 여기 없는 inflow는 보드 맨 뒤(이름순).
+    color는 시트의 판매채널 셀 배경색(#RRGGBB, 라이트 모드 기준) — 다크 모드는 프론트에서 틴트.
+    """
+    __tablename__ = "ad_media_groups"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(100), unique=True, index=True)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    color: Mapped[Optional[str]] = mapped_column(String(9), nullable=True)
+    owner: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)  # 판매 담당자 (시트 A열)
+
+
 class AdMediaBudget(Base):
     """매체×월 예산 — Limit(한도)·사업계획 금액."""
     __tablename__ = "ad_media_budgets"

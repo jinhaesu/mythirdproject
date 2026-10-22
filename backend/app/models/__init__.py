@@ -37,7 +37,7 @@ from app.models.sponsorship import Sponsorship, SponsorshipItem, SponsorshipOutc
 from app.models.naver_insight import NaverMentionDaily
 from app.models.marketing_activity import MarketingActivity, ContentMetricSnapshot
 from app.models.group_buy import GroupBuy, GroupBuyCampaign
-from app.models.ad_spend import AdMedia, AdMediaBudget, AdMediaSpendDaily, ChannelRevenue
+from app.models.ad_spend import AdMedia, AdMediaGroup, AdMediaBudget, AdMediaSpendDaily, ChannelRevenue
 
 __all__ = [
     "User",
@@ -93,6 +93,7 @@ __all__ = [
     "GroupBuy",
     "GroupBuyCampaign",
     "AdMedia",
+    "AdMediaGroup",
     "AdMediaBudget",
     "AdMediaSpendDaily",
     "ChannelRevenue",

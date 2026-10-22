@@ -71,6 +71,8 @@ class CampaignCreate(BaseModel):
     auto_create_category: bool = False
     cafe24_category_name: Optional[str] = None
     cafe24_category_parent_no: Optional[int] = 1
+    # 수동 모드 — 카페24 관리자에서 직접 만든 분류 번호를 연결 (write scope 없이 생성 가능)
+    cafe24_existing_category_no: Optional[int] = None
 
 
 class CampaignUpdate(BaseModel):
@@ -184,6 +186,7 @@ async def create_campaign(
     auto_create_category = data.pop("auto_create_category", False)
     cafe24_category_name = data.pop("cafe24_category_name", None)
     cafe24_category_parent_no = data.pop("cafe24_category_parent_no", 1) or 1
+    cafe24_existing_category_no = data.pop("cafe24_existing_category_no", None)
     discount_type = data.pop("discount_type", None)
     discount_value = data.pop("discount_value", None)
 
@@ -195,8 +198,9 @@ async def create_campaign(
     coupon_warning: Optional[str] = None
     category_warning: Optional[str] = None
 
-    # 다중 상품 모드 판정: product_nos가 1개여도 auto_create_category=True면 카테고리 모드
-    use_category_mode = bool(auto_create_category and cafe24_product_nos)
+    # 다중 상품 모드 판정: product_nos가 1개여도 auto_create_category=True면 카테고리 모드.
+    # 기존 분류 번호(cafe24_existing_category_no)가 오면 생성 없이 그 분류를 연결(수동 모드).
+    use_category_mode = bool((auto_create_category or cafe24_existing_category_no) and cafe24_product_nos)
 
     if use_category_mode:
         # ─── B) 비공개 카테고리 캠페인 ────────────────────────────────────────
@@ -211,33 +215,56 @@ async def create_campaign(
             logger.warning(f"[Campaign] 첫 상품 조회 실패: {e}")
             first_product = {}
 
-        # 2) 비공개 카테고리 생성 — display=True여야 URL이 동작 (display=F면 카페24가 홈으로 302)
-        #    use_main=False로 메인 메뉴엔 안 보이게 처리
-        cat_name = cafe24_category_name or f"[비공개] {payload.name}"
-        try:
-            cat = await cafe24_svc.create_category(
-                cafe24_user, db,
-                category_name=cat_name,
-                parent_category_no=cafe24_category_parent_no,
-                display=True,
-                use_main=False,
-            )
-            category_no = cat.get("category_no")
-            if not category_no:
-                raise RuntimeError("category_no 없음")
-        except Exception as e:
-            logger.error(f"[Campaign] 카테고리 생성 실패: {e}")
-            raise HTTPException(
-                status_code=502,
-                detail=(
-                    f"Cafe24 카테고리 생성 실패: {str(e)[:300]}"
+        if cafe24_existing_category_no:
+            # 2-a) 수동 모드: 카페24 관리자에서 직접 만든 분류를 그대로 사용 (write scope 불필요)
+            category_no = int(cafe24_existing_category_no)
+            cat_info = await cafe24_svc.get_category(cafe24_user, db, category_no=category_no)
+            if not cat_info.get("exists"):
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"분류 번호 {category_no}을(를) 카페24에서 찾을 수 없습니다. "
+                        "카페24 관리자 > 상품 > 분류 관리에서 분류 번호를 다시 확인해주세요."
+                    ),
+                )
+            cat_name = cafe24_category_name or cat_info.get("category_name") or f"[비공개] {payload.name}"
+            if cat_info.get("use_display") == "F":
+                category_warning = (
+                    "이 분류는 '진열안함' 상태라 링크 접근 시 홈으로 이동될 수 있습니다. "
+                    "카페24 관리자에서 진열함(메인 노출은 끔)으로 변경해주세요."
+                )
+        else:
+            # 2-b) 비공개 카테고리 생성 — display=True여야 URL이 동작 (display=F면 카페24가 홈으로 302)
+            #      use_main=False로 메인 메뉴엔 안 보이게 처리
+            cat_name = cafe24_category_name or f"[비공개] {payload.name}"
+            try:
+                cat = await cafe24_svc.create_category(
+                    cafe24_user, db,
+                    category_name=cat_name,
+                    parent_category_no=cafe24_category_parent_no,
+                    display=True,
+                    use_main=False,
+                )
+                category_no = cat.get("category_no")
+                if not category_no:
+                    raise RuntimeError("category_no 없음")
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.error(f"[Campaign] 카테고리 생성 실패: {e}")
+                hint = (
+                    "Cafe24 연동 토큰에 분류 생성 권한(mall.write_category)이 없습니다 — "
+                    "관리자가 Cafe24 재연동을 하면 해결됩니다. 급한 경우 카페24 관리자에서 분류를 직접 만들어 "
+                    "상품을 진열한 뒤, 이 폼의 '기존 분류 번호 연결'에 그 번호를 입력하면 바로 생성됩니다."
                     if "insufficient_scope" in str(e)
-                    else f"Cafe24 카테고리 생성 실패: {str(e)[:200]}. "
-                    "OAuth scope에 mall.write_category 가 포함됐는지 확인 후 재연결하세요."
-                ),
-            )
+                    else "OAuth scope에 mall.write_category 가 포함됐는지 확인 후 재연결하세요."
+                )
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"Cafe24 카테고리 생성 실패: {str(e)[:200]}. {hint}",
+                )
 
-        # 3) 상품들 카테고리에 attach
+        # 3) 상품들 카테고리에 attach (수동 모드에서도 시도 — 실패 시 경고만)
         try:
             attach_result = await cafe24_svc.attach_products_to_category(
                 cafe24_user, db,
@@ -250,7 +277,13 @@ async def create_campaign(
             )
         except Exception as e:
             logger.warning(f"[Campaign] 상품 attach 실패: {e}")
-            category_warning = f"상품 일부 attach 실패: {str(e)[:200]}"
+            if cafe24_existing_category_no:
+                category_warning = (
+                    (category_warning + " / " if category_warning else "")
+                    + "상품 자동 진열에 실패했습니다 — 카페24 관리자에서 이 분류에 상품을 직접 진열해주세요."
+                )
+            else:
+                category_warning = f"상품 일부 attach 실패: {str(e)[:200]}"
 
         # 4) 카테고리 URL 빌드
         category_url = cafe24_svc.category_storefront_url(domain, int(category_no))

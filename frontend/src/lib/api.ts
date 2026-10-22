@@ -1851,10 +1851,16 @@ export interface AdMediaRow {
   usage_pct?: number | null;
 }
 
+/** 일보 그룹(판매채널) — 시트 포맷 순서·색 */
+export interface AdMediaGroup {
+  name: string; sort_order: number | null; color: string | null; owner: string | null;
+}
+
 export const adspendApi = {
   board: async (month: string, scope: 'month' | 'all' = 'month'): Promise<{
     month: string; days_in_month: number; rows: AdMediaRow[];
     scope?: string; total_active_media?: number;
+    groups?: AdMediaGroup[];
     day_totals: Record<string, number>;
     totals: { spend: number; limit: number; plan: number; usage_pct: number | null };
     as_of: string;
