@@ -5,6 +5,7 @@ auto_source가 있는 매체(meta/naver_sa)는 일별 금액을 수집 스냅샷
 자동으로 채우고 수동 기입을 막는다.
 """
 import logging
+import os
 from datetime import date, datetime, timedelta
 from typing import Optional
 
@@ -682,8 +683,11 @@ async def _csa_month_revenues(month: str) -> Optional[dict]:
         return cached["data"]
     d_from, d_to = _month_range(month)
     try:
+        # SCM API는 2026-10-24부터 인증 필수 — 서비스 키(SCM JARVIS_API_KEY와 같은 값)를 env SCM_API_KEY로 주입
+        _scm_key = os.getenv("SCM_API_KEY", "")
+        _headers = {"Authorization": f"Bearer {_scm_key}"} if _scm_key else {}
         async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.get(f"{CSA_BASE}/api/csa/dashboard", params={
+            resp = await client.get(f"{CSA_BASE}/api/csa/dashboard", headers=_headers, params={
                 "period_start": d_from.isoformat(),
                 "period_end": (d_to - timedelta(days=1)).isoformat(),
                 "granularity": "month",
