@@ -149,12 +149,26 @@ async def get_current_user(
     return user
 
 
+def _sso_only():
+    """사내 직원 이메일 매직링크 로그인 차단 (2026-10-24, 회계·HR·근태·SCM과 동일 조치).
+
+    ALLOWED_EMAILS 목록만 확인하고 허브(auth.nuldam.com) 신원을 보지 않는 우회 경로였다.
+    사내 로그인은 허브 SSO(/sso)로만 한다. 외부 파트너 포털(/partner/auth/*,
+    partner_auth.py)은 SSO 대상이 아니므로 그대로 둔다.
+    """
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="이 로그인 방식은 사용할 수 없습니다. 회사 계정(SSO)으로 로그인하세요: https://auth.nuldam.com",
+    )
+
+
 @router.post("/send-magic-link")
 async def send_magic_link(
     request: MagicLinkRequest,
     db: AsyncSession = Depends(get_db)
 ):
-    """Send magic link email for login/signup."""
+    """Send magic link email for login/signup — 비활성화(SSO 전용)."""
+    _sso_only()
     email = request.email.lower().strip()
 
     # Check email whitelist
@@ -218,7 +232,8 @@ async def verify_magic_link(
     request: MagicLinkVerifyRequest,
     db: AsyncSession = Depends(get_db)
 ):
-    """Verify magic link token and return access token."""
+    """Verify magic link token and return access token — 비활성화(SSO 전용)."""
+    _sso_only()
     payload = decode_token(request.token)
 
     if payload is None or payload.get("type") != "magic_link":
