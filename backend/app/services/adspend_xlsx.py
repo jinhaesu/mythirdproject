@@ -198,7 +198,11 @@ def _pick_sheet(wbv, month: str, sheet: Optional[str]):
                       "usable": h is not None})
     if sheet:
         if sheet not in headers:
-            raise XlsxImportError(f"'{sheet}' 시트가 파일에 없습니다", infos)
+            # 공백만 다르면 같은 탭 — 구글시트 탭 이름 끝에 공백이 붙은 파일이 많다('광고비 일보 10월 ')
+            same = [t for t in headers if norm(t) == norm(sheet)]
+            if len(same) != 1:
+                raise XlsxImportError(f"'{norm(sheet)}' 시트가 파일에 없습니다", infos)
+            sheet = same[0]
         if not headers[sheet]:
             raise XlsxImportError(f"'{sheet}' 시트에서 날짜 머리글(1일~말일이 가로로 이어진 행)을 찾지 못했습니다", infos)
         return sheet, headers[sheet], infos

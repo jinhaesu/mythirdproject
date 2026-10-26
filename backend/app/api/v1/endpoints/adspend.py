@@ -570,8 +570,10 @@ async def _parse_upload(file: UploadFile, month: str, sheet: Optional[str]) -> x
         raise HTTPException(status_code=413, detail="파일이 너무 큽니다 (8MB까지)")
     if data[:2] != b"PK":
         raise HTTPException(status_code=422, detail="엑셀(.xlsx) 파일만 올릴 수 있습니다 — 구글시트에서 파일 > 다운로드 > Microsoft Excel(.xlsx)로 받아 주세요")
+    # 탭 이름은 끝 공백까지 그대로 넘긴다 — 미리보기가 돌려준 '광고비 일보 10월 '을 깎으면 반영 때 못 찾았다
+    sheet = sheet if sheet and sheet.strip() else None
     try:  # openpyxl 파싱은 CPU 작업 — 이벤트 루프(수집 스케줄러 등)를 막지 않게 스레드로
-        return await asyncio.to_thread(xl.parse_workbook, data, month, (sheet or "").strip() or None)
+        return await asyncio.to_thread(xl.parse_workbook, data, month, sheet)
     except xl.XlsxImportError as e:  # 시트를 못 고르면 탭 목록도 줘서 화면이 고르게 한다
         raise HTTPException(status_code=422, detail={"message": str(e), "sheets": e.sheets} if e.sheets else str(e))
 
