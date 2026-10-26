@@ -1730,11 +1730,30 @@ export interface MarketingActivityRow {
   metrics_as_of?: string | null; // 조회수 등 지표 기준일
   notes?: string | null;
   source: string;
+  // 공동구매 분석 항목 (다른 유형은 비어 있음)
+  revenue?: number | null; // 매출액(원)
+  order_count?: number | null; // 주문건수
+  aov?: number | null; // 건별 AOV = 매출액 ÷ 주문건수 (서버 계산)
+  sales_platform?: string | null; // 자사몰 | 네이버 | ZVZO …
+  deal_type?: string | null; // 공동구매 | 할인링크
+  is_first?: boolean | null; // 첫 진행 여부
+  vendor?: string | null; // 개인/벤더사
+  creator_gender?: string | null;
+  creator_category?: string | null;
+  follower_age?: string | null; // "25-34세"
+  follower_gender?: string | null;
 }
 
-export type MarketingActivityInput = Omit<MarketingActivityRow, 'id' | 'cost_per_view' | 'source'> & {
+export type MarketingActivityInput = Omit<MarketingActivityRow, 'id' | 'cost_per_view' | 'source' | 'aov'> & {
   source?: string;
 };
+
+// 매출액·주문건수·AOV 집계 (요약·다각도 분석 공통)
+export interface ActivitySales {
+  revenue?: number | null;
+  order_count?: number | null;
+  aov?: number | null;
+}
 
 export const activitiesApi = {
   list: async (params: {
@@ -1759,6 +1778,7 @@ export const activitiesApi = {
   meta: async (): Promise<{
     activity_types: string[]; channels: string[]; products: string[];
     product_categories: string[]; purposes: string[]; creators?: string[];
+    sales_platforms?: string[]; vendors?: string[]; creator_categories?: string[];
   }> => {
     const { data } = await api.get('/activities/meta');
     return data;
@@ -1770,11 +1790,11 @@ export const activitiesApi = {
     return data;
   },
   pivot: async (params: {
-    group_by: string; entry_kind?: string; activity_type?: string; month_from?: string; month_to?: string;
+    group_by: string; metric?: string; entry_kind?: string; activity_type?: string; month_from?: string; month_to?: string;
     channel?: string; product?: string; creator?: string; purpose?: string; product_category?: string; q?: string;
-  }): Promise<{ group_by: string; entry_kind: string; groups: {
+  }): Promise<{ group_by: string; entry_kind: string; groups: ({
     key: string; quantity: number; views: number; cost: number; rows: number; cost_per_view: number | null;
-  }[] }> => {
+  } & ActivitySales)[] }> => {
     const { data } = await api.get('/activities/pivot', { params });
     return data;
   },

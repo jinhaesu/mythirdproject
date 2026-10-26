@@ -191,6 +191,37 @@ async def init_db():
         except Exception:
             pass  # Column already exists
 
+    # 공동구매 분석 항목 (2026-10-26) — 카탈로그로 없는 칸만 골라 ALTER 한 번에 추가.
+    # 모델이 이 칸들을 SELECT 하므로 빠지면 활동 기록 API 전체가 깨진다 → 락 대기 실패 시 재시도.
+    _ma_new_cols = [
+        ("revenue", "DOUBLE PRECISION"), ("order_count", "INTEGER"),
+        ("sales_platform", "VARCHAR(30)"), ("deal_type", "VARCHAR(20)"), ("is_first", "BOOLEAN"),
+        ("vendor", "VARCHAR(100)"), ("creator_gender", "VARCHAR(10)"), ("creator_category", "VARCHAR(50)"),
+        ("follower_age", "VARCHAR(20)"), ("follower_gender", "VARCHAR(10)"),
+    ]
+    for attempt in range(3):
+        try:
+            async with engine.begin() as conn:
+                res = await conn.execute(
+                    __import__('sqlalchemy').text(
+                        "SELECT column_name FROM information_schema.columns "
+                        "WHERE table_name = 'marketing_activities'"
+                    )
+                )
+                have = {r[0] for r in res}
+                missing = [(c, t) for c, t in _ma_new_cols if c not in have]
+                if missing:
+                    await conn.execute(
+                        __import__('sqlalchemy').text(
+                            "ALTER TABLE marketing_activities "
+                            + ", ".join(f"ADD COLUMN IF NOT EXISTS {c} {t}" for c, t in missing)
+                        )
+                    )
+                    logger.info(f"[init_db] marketing_activities +{[c for c, _ in missing]}")
+            break
+        except Exception as e:
+            logger.warning(f"[init_db] marketing_activities 공동구매 칸 추가 실패({attempt + 1}/3): {e}")
+
     # Add targeting_segments column to campaigns if missing
     try:
         async with engine.begin() as conn:
