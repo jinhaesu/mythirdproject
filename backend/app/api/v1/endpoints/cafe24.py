@@ -185,6 +185,22 @@ async def cafe24_list_products(
     return {"products": products}
 
 
+@router.get("/products/{product_no}")
+async def cafe24_get_product(
+    product_no: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Cafe24 상품 단건 상세 (읽기 전용). 상세페이지 HTML(description/mobile_description, script 제거) 포함."""
+    shared_user = await _resolve_cafe24_user(current_user, db)
+    try:
+        product = await cafe24_svc.get_product_detail(shared_user, db, product_no)
+    except Exception as e:
+        logger.error(f"[Cafe24] get_product_detail failed: {e}")
+        raise HTTPException(status_code=502, detail=f"Cafe24 API 오류: {str(e)}")
+    return {"product": product}
+
+
 @router.get("/categories")
 async def cafe24_list_categories(
     parent_category_no: int | None = Query(None, description="부모 카테고리 번호 (없으면 전체)"),
