@@ -76,6 +76,23 @@ class ChannelRevenue(Base):
     __table_args__ = (UniqueConstraint("month", "inflow", name="uq_channel_revenue_month_inflow"),)
 
 
+class AdMediaAlias(Base):
+    """엑셀 업로드 때 고른 연결 기억 — (시트 판매채널, 시트 매체명) → 매체.
+
+    시트와 시스템의 매체명·판매채널 표기가 달라도 다음 달 업로드부터 바로 같은 매체로
+    잇는다. key = 공백·기호를 뺀 소문자 '판매채널|매체명' (services/adspend_xlsx.alias_key).
+    매체 테이블에 열을 더하지 않고 따로 두어, 이 테이블이 없어도 보드는 그대로 돈다.
+    """
+    __tablename__ = "ad_media_aliases"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
+    key: Mapped[str] = mapped_column(String(320), unique=True, index=True)
+    media_id: Mapped[int] = mapped_column(Integer, index=True)
+    inflow: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)  # 시트 표기 그대로 (확인용)
+    name: Mapped[str] = mapped_column(String(200))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class AdMediaSpendDaily(Base):
     """매체×일 광고비 (수동 기입; auto_source 매체는 조회 시 자동 계산)."""
     __tablename__ = "ad_media_spend_daily"

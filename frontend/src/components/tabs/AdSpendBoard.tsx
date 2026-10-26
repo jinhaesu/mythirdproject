@@ -11,7 +11,7 @@
  */
 import { Fragment, useMemo, useState, type CSSProperties } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Download, Plus, X, ChevronLeft, ChevronRight, Trash2, BarChart3, ChevronDown, ChevronUp } from 'lucide-react';
+import { Download, Upload, Plus, X, ChevronLeft, ChevronRight, Trash2, BarChart3, ChevronDown, ChevronUp } from 'lucide-react';
 import {
   ResponsiveContainer, ComposedChart, BarChart, Bar, Line, XAxis, YAxis,
   Tooltip as ReTooltip, Legend, CartesianGrid, Cell,
@@ -19,6 +19,7 @@ import {
 import toast from 'react-hot-toast';
 import { adspendApi, type AdMediaGroup, type AdMediaRow } from '@/lib/api';
 import { fmtWon } from '@/components/tabs/kpi/format';
+import { AdSpendImportModal } from '@/components/tabs/AdSpendImportModal';
 
 const thisMonth = () => new Date().toISOString().slice(0, 7);
 
@@ -55,6 +56,7 @@ export function AdSpendBoard() {
   const [cellValue, setCellValue] = useState('');
   // 매체 추가 모달 — null=닫힘, ''=그룹 미선택으로 열기, '그룹명'=그 그룹 선택된 채로 열기
   const [addMediaGroup, setAddMediaGroup] = useState<string | null>(null);
+  const [showImport, setShowImport] = useState(false); // 엑셀 업로드 모달
   const [inflowF, setInflowF] = useState(''); // '' = 전체
   const [ownerF, setOwnerF] = useState(''); // '' = 전체
   const [scope, setScope] = useState<'month' | 'all'>('month'); // month=이달 거래 매체만
@@ -252,6 +254,12 @@ export function AdSpendBoard() {
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-text-secondary border border-border-primary hover:text-text-primary"
         >
           <Download size={13} /> 엑셀
+        </button>
+        <button onClick={() => setShowImport(true)}
+          title="구글시트 일보를 xlsx로 받아 올리면 이 달 일보가 시트와 같은 숫자로 맞춰집니다 (미리보기 후 반영)"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-text-secondary border border-border-primary hover:text-text-primary"
+        >
+          <Upload size={13} /> 엑셀 업로드
         </button>
         <button onClick={() => setAddMediaGroup('')}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white hover:opacity-90"
@@ -568,6 +576,14 @@ export function AdSpendBoard() {
           initialInflow={addMediaGroup}
           onClose={() => setAddMediaGroup(null)}
           onSaved={() => { setAddMediaGroup(null); invalidate(); }}
+        />
+      )}
+
+      {showImport && (
+        <AdSpendImportModal
+          initialMonth={month}
+          onClose={() => setShowImport(false)}
+          onApplied={(m) => { setShowImport(false); setMonth(m); invalidate(); }}
         />
       )}
     </div>

@@ -4,21 +4,25 @@
 auto_source가 있는 매체(meta/naver_sa)는 일별 금액을 수집 스냅샷에서
 자동으로 채우고 수동 기입을 막는다.
 """
+import asyncio
+import json
 import logging
 import os
+import re
 from datetime import date, datetime, timedelta
 from typing import Optional
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select, text
+from sqlalchemy import delete, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.endpoints.auth import get_current_user
 from app.db.database import get_db
 from app.models import (
     AdMedia,
+    AdMediaAlias,
     AdMediaBudget,
     AdMediaGroup,
     AdMediaSpendDaily,
@@ -26,6 +30,7 @@ from app.models import (
     MetaInsightDaily,
 )
 from app.models.user import User
+from app.services import adspend_xlsx as xl
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -543,6 +548,282 @@ async def import_month(
     await db.commit()
     return {"month": payload.month, "media_created": created, "media_updated": updated,
             "entries": entries, "budgets": budgets}
+
+
+# ─── 엑셀 업로드 (시트 xlsx 그대로 → 미리보기 → 반영) ─────────────────────────
+# 팀 구글시트를 xlsx로 받아 올리면 그 달 일보가 시트와 같은 숫자가 되게 한다.
+# 파싱·자동 연결은 services/adspend_xlsx(순수 함수). 미리보기는 DB를 바꾸지 않고,
+# 반영은 같은 파일을 다시 읽어 사람이 고른 연결대로 한 트랜잭션에 쓴다(파일은 남기지 않음).
+
+XLSX_MAX_BYTES = 8 * 1024 * 1024
+
+
+def _check_month(month: str) -> str:
+    if not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", month or ""):
+        raise HTTPException(status_code=422, detail="month는 YYYY-MM 형식")
+    return month
+
+
+async def _parse_upload(file: UploadFile, month: str, sheet: Optional[str]) -> xl.ParsedSheet:
+    data = await file.read(XLSX_MAX_BYTES + 1)
+    if len(data) > XLSX_MAX_BYTES:
+        raise HTTPException(status_code=413, detail="파일이 너무 큽니다 (8MB까지)")
+    if data[:2] != b"PK":
+        raise HTTPException(status_code=422, detail="엑셀(.xlsx) 파일만 올릴 수 있습니다 — 구글시트에서 파일 > 다운로드 > Microsoft Excel(.xlsx)로 받아 주세요")
+    try:  # openpyxl 파싱은 CPU 작업 — 이벤트 루프(수집 스케줄러 등)를 막지 않게 스레드로
+        return await asyncio.to_thread(xl.parse_workbook, data, month, (sheet or "").strip() or None)
+    except xl.XlsxImportError as e:  # 시트를 못 고르면 탭 목록도 줘서 화면이 고르게 한다
+        raise HTTPException(status_code=422, detail={"message": str(e), "sheets": e.sheets} if e.sheets else str(e))
+
+
+async def _load_aliases(db: AsyncSession) -> list:
+    """기억된 연결 — 테이블 문제로 업로드 전체가 막히지 않게 실패하면 빈 목록."""
+    try:
+        return list((await db.execute(select(AdMediaAlias))).scalars().all())
+    except Exception as e:
+        logger.warning("ad_media_aliases 읽기 실패 — 기억된 연결 없이 진행: %s", e)
+        await db.rollback()
+        return []
+
+
+async def _xlsx_media(db: AsyncSession, month: str, current_user: User):
+    """자동 연결 재료 — (MediaInfo 목록(비활성 포함), 이 달 보드(활성 매체 전부), {id: AdMedia}, 별칭 목록)."""
+    aliases = await _load_aliases(db)
+    board = await spend_board(month=month, scope="all", current_user=current_user, db=db)
+    brow = {r["media_id"]: r for r in board["rows"]}
+    by_media: dict = {}
+    for a in aliases:
+        by_media.setdefault(a.media_id, set()).add(a.key)
+    rows = (await db.execute(select(AdMedia))).scalars().all()
+    infos = [xl.MediaInfo(
+        id=m.id, name=m.name, inflow=m.inflow, group=m.group_name, active=bool(m.active),
+        auto=bool(m.auto_source), month_spend=float((brow.get(m.id) or {}).get("month_total") or 0),
+        month_limit=(brow.get(m.id) or {}).get("limit_amount"), aliases=by_media.get(m.id, set()),
+    ) for m in rows]
+    return infos, board, {m.id: m for m in rows}, aliases
+
+
+@router.post("/import-xlsx/preview")
+async def import_xlsx_preview(
+    file: UploadFile = File(...),
+    month: str = Form(...),
+    sheet: Optional[str] = Form(None),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """시트 xlsx 미리보기 — DB는 바꾸지 않는다.
+
+    행별 자동 연결(+후보)과, 화면이 반영 후 합계를 계산할 재료(매체별 이 달 금액·현재 보드 합계)를 준다.
+    """
+    month = _check_month(month)
+    parsed = await _parse_upload(file, month, sheet)
+    media, board, _, _ = await _xlsx_media(db, month, current_user)
+    sug = xl.suggest(parsed.rows, media)
+    order = {r["media_id"]: i for i, r in enumerate(board["rows"])}  # 보드(시트) 순서, 숨긴 매체는 뒤
+    media_sorted = sorted(media, key=lambda m: (order.get(m.id, 10 ** 6), m.inflow or "", m.name))
+    return {
+        "month": month,
+        "file": {
+            "name": file.filename, "sheet": parsed.sheet, "sheets": parsed.sheets,
+            "detected_month": parsed.detected_month, "header_row": parsed.header_row,
+            "total_row": parsed.total_row, "has_note_col": parsed.has_note_col,
+        },
+        "official": {"spend": parsed.official_total, "limit": parsed.official_limit},
+        "computed": {"spend": round(sum(r.total for r in parsed.rows), 2),
+                     "limit": round(sum(r.limit or 0 for r in parsed.rows), 2)},
+        "warnings": parsed.warnings,
+        "excluded": parsed.excluded,
+        "rows": [{
+            "key": r.key, "row": r.row, "inflow": r.inflow, "group": r.group, "name": r.name,
+            "owner": r.owner, "total": round(r.total, 2), "limit": r.limit, "note": r.note,
+            "days": len(r.amounts), "flags": r.flags, "nonnum": r.nonnum,
+            "suggestion": sug[r.key].as_dict(), "candidates": xl.candidates(r, media),
+        } for r in parsed.rows],
+        "media": [{
+            "id": m.id, "name": m.name, "inflow": m.inflow, "group_name": m.group, "active": m.active,
+            "auto": m.auto, "month_spend": m.month_spend, "month_limit": m.month_limit,
+        } for m in media_sorted],
+        "board": board["totals"],
+    }
+
+
+@router.post("/import-xlsx/apply")
+async def import_xlsx_apply(
+    file: UploadFile = File(...),
+    month: str = Form(...),
+    sheet: Optional[str] = Form(None),
+    mapping: str = Form("{}"),  # {"r57": 114 | "new" | "skip"} — 빠진 행은 자동 연결대로
+    clear_missing: bool = Form(True),  # 파일에 없는 매체의 이 달 금액·Limit 비움
+    remember: bool = Form(True),  # 이름이 다른 연결을 기억해 다음 달부터 자동으로
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """시트 xlsx 반영 — 연결된 매체의 그 달 일별 금액·Limit를 파일 값으로 교체한다.
+
+    새 매체는 판매채널 그룹 맨 아래에 만들고, 숨긴 매체로 연결하면 다시 켠다.
+    자동 수집 매체(메타·네이버 검색광고)에는 넣지 않는다. 사업계획 금액은 건드리지 않는다.
+    """
+    month = _check_month(month)
+    parsed = await _parse_upload(file, month, sheet)
+    media, _, by_id, aliases = await _xlsx_media(db, month, current_user)
+    sug = xl.suggest(parsed.rows, media)
+    try:
+        chosen = json.loads(mapping or "{}")
+    except ValueError:
+        chosen = None
+    if not isinstance(chosen, dict):
+        raise HTTPException(status_code=422, detail="mapping은 {행키: 매체id|'new'|'skip'} JSON")
+    unknown = [k for k in chosen if k not in {r.key for r in parsed.rows}]
+    if unknown:
+        raise HTTPException(status_code=422, detail=f"파일에 없는 행 {unknown[:5]} — 미리보기 뒤 파일이 바뀌었으면 다시 올려 주세요")
+
+    plan: dict = {}  # row.key → 매체 id | "new" | "skip"
+    for r in parsed.rows:
+        v = chosen.get(r.key)
+        if v is None:
+            s = sug[r.key]
+            v = s.media_id if s.action == "map" else s.action
+        if v in ("new", "skip"):
+            plan[r.key] = v
+            continue
+        try:
+            m = by_id.get(int(v))
+        except (TypeError, ValueError):
+            m = None
+        if m is None:
+            raise HTTPException(status_code=422, detail=f"'{r.name}' 행: 없는 매체입니다 ({v})")
+        if m.auto_source:
+            raise HTTPException(status_code=422, detail=f"'{m.name}'은 자동 수집 매체라 엑셀 금액을 넣을 수 없습니다 — 다른 매체를 고르거나 건너뛰기로 두세요")
+        plan[r.key] = m.id
+
+    d_from, d_to = _month_range(month)
+    y, mo = int(month[:4]), int(month[5:7])
+
+    # 새 매체 — 같은 (판매채널, 매체명) 행은 한 매체로. 그룹 맨 아래, 새 그룹은 그룹 목록 맨 끝
+    group_meta = await _group_meta(db)
+    gmax = max([g.sort_order or 0 for g in group_meta.values()] or [0])
+    next_sort: dict = {}
+    new_media: dict = {}  # alias_key → AdMedia
+    for r in parsed.rows:
+        k = xl.alias_key(r.inflow, r.name)
+        if plan[r.key] != "new" or k in new_media:
+            continue
+        inflow = _norm_name(r.inflow)[:100] or None
+        if inflow not in next_sort:
+            q = select(func.max(AdMedia.sort_order)).where(AdMedia.active.is_(True))
+            q = q.where(AdMedia.inflow == inflow) if inflow else q.where(AdMedia.inflow.is_(None))
+            next_sort[inflow] = int((await db.execute(q)).scalar() or 0) + 10
+        if inflow and inflow not in group_meta:
+            gmax += 10
+            group_meta[inflow] = AdMediaGroup(name=inflow, sort_order=gmax)
+            db.add(group_meta[inflow])
+        new_media[k] = AdMedia(
+            name=_norm_name(r.name)[:200], inflow=inflow, group_name=_norm_name(r.group)[:100] or None,
+            owner=_norm_name(r.owner)[:50] or None, sort_order=next_sort[inflow], active=True,
+        )
+        next_sort[inflow] += 10
+        db.add(new_media[k])
+    if new_media:
+        await db.flush()
+
+    targets: dict = {}  # 매체 id → [행]
+    for r in parsed.rows:
+        v = plan[r.key]
+        if v != "skip":
+            mid = new_media[xl.alias_key(r.inflow, r.name)].id if v == "new" else v
+            targets.setdefault(mid, []).append(r)
+
+    reactivated = 0
+    for mid in targets:
+        m = by_id.get(mid)
+        if m is not None and not m.active:
+            m.active = True
+            reactivated += 1
+
+    cleared = [m.id for m in media if m.active and not m.auto and m.has_month
+               and m.id not in targets] if clear_missing else []
+    touched = list(targets) + cleared
+    if touched:
+        await db.execute(delete(AdMediaSpendDaily).where(
+            AdMediaSpendDaily.media_id.in_(touched),
+            AdMediaSpendDaily.date >= d_from, AdMediaSpendDaily.date < d_to,
+        ))
+
+    entries = 0
+    for mid, rs in targets.items():
+        daily: dict = {}
+        for r in rs:
+            for d, v in r.amounts.items():
+                daily[d] = daily.get(d, 0.0) + v
+        for d, v in sorted(daily.items()):
+            if round(v, 2):
+                db.add(AdMediaSpendDaily(media_id=mid, date=date(y, mo, d), amount=round(v, 2)))
+                entries += 1
+
+    # Limit = 연결된 행 Limit 합 (없으면 비움). 비고는 파일에 비고 칸이 있을 때만 교체
+    budgets = {b.media_id: b for b in (await db.execute(
+        select(AdMediaBudget).where(AdMediaBudget.month == month, AdMediaBudget.media_id.in_(touched or [-1]))
+    )).scalars().all()}
+    for mid in touched:
+        rs = targets.get(mid, [])
+        lims = [r.limit for r in rs if r.limit is not None]
+        limit = round(sum(lims), 2) if lims else None
+        note = "; ".join(dict.fromkeys(r.note for r in rs if r.note))[:300] or None
+        b = budgets.get(mid)
+        if b is None:
+            if limit is None and not (parsed.has_note_col and note):
+                continue
+            b = AdMediaBudget(media_id=mid, month=month)
+            db.add(b)
+        b.limit_amount = limit
+        if parsed.has_note_col and mid in targets:
+            b.note = note
+        if b.id is not None and b.limit_amount is None and b.plan_amount is None and not b.note:
+            await db.delete(b)
+    await db.commit()
+
+    # 연결 기억 — 금액 반영과 따로 커밋 (실패해도 반영은 유지)
+    remembered = 0
+    remember_error = None
+    if remember:
+        try:
+            existing = {a.key: a for a in aliases}
+            for r in parsed.rows:
+                v = plan[r.key]
+                if v == "skip":
+                    continue
+                k = xl.alias_key(r.inflow, r.name)
+                m = new_media[k] if v == "new" else by_id[v]
+                a = existing.get(k)
+                if a is None:
+                    if xl.plain_match(r, m.name, m.inflow):
+                        continue  # 이름·판매채널이 같으면 기억할 필요 없음
+                    a = AdMediaAlias(key=k, media_id=m.id, inflow=r.inflow[:100] or None, name=r.name[:200])
+                    db.add(a)
+                    existing[k] = a
+                elif a.media_id != m.id:
+                    a.media_id = m.id
+                else:
+                    continue
+                remembered += 1
+            await db.commit()
+        except Exception as e:
+            logger.warning("ad_media_aliases 저장 실패: %s", e)
+            await db.rollback()
+            remembered, remember_error = 0, "연결 기억 저장에 실패했습니다 (금액 반영은 완료)"
+
+    db.expire_all()
+    board = await spend_board(month=month, scope="all", current_user=current_user, db=db)
+    return {
+        "month": month, "sheet": parsed.sheet,
+        "rows": len(parsed.rows),
+        "mapped": sum(1 for v in plan.values() if v != "skip"),
+        "skipped": sum(1 for v in plan.values() if v == "skip"),
+        "media_created": len(new_media), "media_reactivated": reactivated, "media_cleared": len(cleared),
+        "entries": entries, "remembered": remembered, "remember_error": remember_error,
+        "official": {"spend": parsed.official_total, "limit": parsed.official_limit},
+        "board": board["totals"],
+    }
 
 
 @router.get("/export")

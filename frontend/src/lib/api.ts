@@ -1856,6 +1856,52 @@ export interface AdMediaGroup {
   name: string; sort_order: number | null; color: string | null; owner: string | null;
 }
 
+/** 엑셀 업로드 — 시트 한 행 + 자동 연결 */
+export interface AdspendImportRow {
+  key: string; row: number; inflow: string; group: string; name: string; owner: string;
+  total: number; limit: number | null; note: string | null; days: number;
+  flags: string[]; nonnum: string[];
+  suggestion: { action: 'map' | 'new' | 'skip'; media_id: number | null; reason: string; score: number };
+  candidates: { media_id: number; score: number }[];
+}
+export interface AdspendImportMedia {
+  id: number; name: string; inflow: string | null; group_name: string | null;
+  active: boolean; auto: boolean; month_spend: number; month_limit: number | null;
+}
+export interface AdspendImportSheet { name: string; month: string | null; usable: boolean }
+export type AdspendBoardTotals = { spend: number; limit: number; plan: number; usage_pct: number | null };
+export interface AdspendImportPreview {
+  month: string;
+  file: {
+    name: string; sheet: string; sheets: AdspendImportSheet[]; detected_month: string | null;
+    header_row: number; total_row: number | null; has_note_col: boolean;
+  };
+  official: { spend: number | null; limit: number | null };
+  computed: { spend: number; limit: number };
+  warnings: string[];
+  excluded: { row: number; name: string; amount: number; reason: string }[];
+  rows: AdspendImportRow[];
+  media: AdspendImportMedia[];
+  board: AdspendBoardTotals;
+}
+/** 행별 연결 — 매체 id | 새 매체 | 반영 안 함 */
+export type AdspendImportTarget = number | 'new' | 'skip';
+export interface AdspendImportResult {
+  month: string; sheet: string; rows: number; mapped: number; skipped: number;
+  media_created: number; media_reactivated: number; media_cleared: number; entries: number;
+  remembered: number; remember_error: string | null;
+  official: { spend: number | null; limit: number | null };
+  board: AdspendBoardTotals;
+}
+
+const importForm = (file: File, month: string, sheet?: string) => {
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('month', month);
+  if (sheet) fd.append('sheet', sheet);
+  return fd;
+};
+
 export const adspendApi = {
   board: async (month: string, scope: 'month' | 'all' = 'month'): Promise<{
     month: string; days_in_month: number; rows: AdMediaRow[];
@@ -1923,6 +1969,26 @@ export const adspendApi = {
     return data;
   },
   exportXlsx: (month: string) => downloadFile('/adspend/export', { month }),
+  /** 시트 xlsx 미리보기 — DB 변경 없음 */
+  importPreview: async (file: File, month: string, sheet?: string): Promise<AdspendImportPreview> => {
+    const { data } = await api.post('/adspend/import-xlsx/preview', importForm(file, month, sheet), {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return data;
+  },
+  /** 시트 xlsx 반영 — 같은 파일을 다시 보내 고른 연결대로 그 달 일보를 교체 */
+  importApply: async (file: File, month: string, opts: {
+    sheet?: string; mapping: Record<string, AdspendImportTarget>; clearMissing: boolean; remember: boolean;
+  }): Promise<AdspendImportResult> => {
+    const fd = importForm(file, month, opts.sheet);
+    fd.append('mapping', JSON.stringify(opts.mapping));
+    fd.append('clear_missing', String(opts.clearMissing));
+    fd.append('remember', String(opts.remember));
+    const { data } = await api.post('/adspend/import-xlsx/apply', fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return data;
+  },
   monthlySummary: async (month: string): Promise<{
     month: string; by_inflow: { inflow: string; spend: number; limit: number; plan: number }[];
     totals: { spend: number; limit: number; plan: number; usage_pct: number | null };
