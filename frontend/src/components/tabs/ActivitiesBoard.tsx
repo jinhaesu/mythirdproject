@@ -39,6 +39,31 @@ const TYPE_COLORS: Record<string, string> = {
   groupbuy: '#F0883E',
 };
 
+// 공동구매 분석 항목 — 구 시트 '공동구매' 탭 분류 기준 선택지 (기존 값은 자동완성으로 함께 제안)
+const GB_FIELDS = [
+  'revenue', 'order_count', 'sales_platform', 'deal_type', 'is_first', 'vendor',
+  'creator_gender', 'creator_category', 'follower_age', 'follower_gender',
+] as const;
+const GB_PLATFORMS = ['자사몰', '네이버', 'ZVZO'];
+const GB_CATEGORIES = ['요리', '운동', '관리', '일상', '먹방', '살림', '뷰티', '육아', '인스타툰', '식단'];
+const AGE_BANDS = ['13-17세', '18-24세', '25-34세', '35-44세', '45-54세', '55세 이상'];
+// 다각도 분석 축 — 공동구매만 볼 때 GB_AXES·GB_METRICS가 추가된다
+const BASE_AXES: [string, string][] = [
+  ['month', '월별'], ['activity_type', '유형별'], ['channel', '채널별'], ['product', '제품별'],
+  ['product_category', '제품류별'], ['creator', '크리에이터별'], ['purpose', '목적별'],
+];
+const GB_AXES: [string, string][] = [
+  ['sales_platform', '플랫폼별'], ['deal_type', '구분별'], ['vendor', '개인/벤더사별'],
+  ['creator_category', '카테고리별'], ['follower_age', '팔로워 연령대별'], ['follower_gender', '팔로워 성별'],
+  ['creator_gender', '크리에이터 성별'], ['is_first', '첫 진행 여부'],
+];
+type PivotMetric = 'views' | 'cost' | 'rows' | 'cost_per_view' | 'revenue' | 'order_count' | 'aov';
+const GB_METRICS: PivotMetric[] = ['revenue', 'order_count', 'aov'];
+const METRIC_LABELS: Record<PivotMetric, string> = {
+  views: '조회수', cost: '비용', rows: '건수', cost_per_view: '뷰당비용',
+  revenue: '매출액', order_count: '주문건수', aov: 'AOV',
+};
+
 const today = () => new Date().toISOString().slice(0, 10);
 
 function monthAdd(month: string, delta: number): string {
@@ -103,11 +128,16 @@ export function ActivitiesBoard() {
   const [searchQ, setSearchQ] = useState('');
   const [sortBy, setSortBy] = useState<string>('');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
-  const [pivotBy, setPivotBy] = useState('channel');
-  const [pivotMetric, setPivotMetric] = useState<'views' | 'cost' | 'rows' | 'cost_per_view'>('views');
+  const [pivotByPick, setPivotBy] = useState('channel');
+  const [pivotMetricPick, setPivotMetric] = useState<PivotMetric>('views');
   const [page, setPage] = useState(0);
   const [editing, setEditing] = useState<MarketingActivityRow | 'new' | null>(null);
   const PAGE = 50;
+
+  // 공동구매만 볼 때: 목록에 매출액·주문·AOV, 다각도 분석에 공동구매 축·지표
+  const gbMode = typeFilter === 'groupbuy';
+  const pivotBy = !gbMode && GB_AXES.some(([k]) => k === pivotByPick) ? 'channel' : pivotByPick;
+  const pivotMetric: PivotMetric = !gbMode && GB_METRICS.includes(pivotMetricPick) ? 'views' : pivotMetricPick;
 
   const commonFilters = {
     activity_type: typeFilter || undefined,
@@ -140,7 +170,11 @@ export function ActivitiesBoard() {
       entry_kind: kindFilter,
     }),
   });
-  const pivotParams = { ...commonFilters, entry_kind: kindFilter, group_by: pivotBy };
+  const pivotParams = {
+    ...commonFilters, entry_kind: kindFilter, group_by: pivotBy,
+    // 상위 N개 선정 기준 — 뷰당비용은 조회수, AOV는 매출액 기준
+    metric: pivotMetric === 'cost_per_view' ? 'views' : pivotMetric === 'aov' ? 'revenue' : pivotMetric,
+  };
   const { data: pivot } = useQuery({
     queryKey: ['activities', 'pivot', pivotParams],
     queryFn: () => activitiesApi.pivot(pivotParams),
@@ -179,6 +213,31 @@ export function ActivitiesBoard() {
     });
     return { data: Object.values(byMonth), channels };
   }, [summary]);
+
+  // 다각도 분석 차트 데이터 — 월별·팔로워 연령대는 축 순서, 나머지는 고른 지표 큰 순
+  const pivotData = useMemo(() => {
+    const rows = (pivot?.groups || []).map((g) => ({
+      ...g,
+      label: pivotBy === 'month' ? g.key.slice(2) : (g.key.length > 12 ? `${g.key.slice(0, 12)}…` : g.key),
+      value: (g[pivotMetric] ?? 0) as number,
+    }));
+    if (pivotBy === 'follower_age') rows.sort((a, b) => a.key.localeCompare(b.key));
+    else if (pivotBy !== 'month') rows.sort((a, b) => b.value - a.value);
+    return rows;
+  }, [pivot, pivotBy, pivotMetric]);
+  const wonMetric = pivotMetric === 'cost' || pivotMetric === 'revenue' || pivotMetric === 'aov';
+
+  // 기록 표 열 — 공동구매만 볼 때는 비용·뷰당 비용 대신 매출액·주문·AOV,
+  // 전체 보기에서도 이 페이지에 매출이 적힌 기록이 있으면 매출 열을 함께 보여 준다
+  const showSales = gbMode || (!typeFilter && (list?.items || []).some((r) => r.revenue != null || r.order_count != null));
+  const tableCols: [string, string][] = [
+    ['월', 'period_month'], ['유형', 'activity_type'], ['크리에이터', 'creator'],
+    ['제품', 'product'], ['채널', 'channel'], gbMode ? ['구분·플랫폼', 'deal_type'] : ['목적', 'purpose'],
+    [gbMode ? '콘텐츠 수' : '수량', 'quantity'], ['조회수', 'views'],
+    ...(gbMode ? [] : [['비용', 'cost'], ['뷰당 비용', 'cost_per_view']] as [string, string][]),
+    ...(showSales ? [['매출액', 'revenue'], ['주문', 'order_count'], ['AOV', 'aov']] as [string, string][] : []),
+    ['', ''],
+  ];
 
   const typeTotals = summary?.by_type || [];
 
@@ -293,6 +352,11 @@ export function ActivitiesBoard() {
               <p className="text-[11px] text-text-quaternary tabular-nums">
                 {fmtWon(t.cost)}{t.cost_per_view != null && ` · 뷰당 ₩${t.cost_per_view}`}
               </p>
+              {t.revenue != null && (
+                <p className="text-[11px] text-text-secondary tabular-nums" title="AOV = 주문건수를 적은 기록의 매출액 ÷ 주문건수">
+                  매출 {fmtWon(t.revenue)} · 주문 {fmtNum(t.order_count)} · AOV {fmtWon(t.aov)}
+                </p>
+              )}
             </div>
           ))}
         </div>
@@ -358,10 +422,7 @@ export function ActivitiesBoard() {
           <span className="text-[10px] text-text-quaternary">상단 필터·기간이 그대로 적용됩니다</span>
           <div className="flex-1" />
           <div className="flex items-center rounded-lg p-0.5" style={{ backgroundColor: 'rgb(var(--color-overlay-rgb) / 0.05)' }}>
-            {([
-              ['month', '월별'], ['activity_type', '유형별'], ['channel', '채널별'], ['product', '제품별'],
-              ['product_category', '제품류별'], ['creator', '크리에이터별'], ['purpose', '목적별'],
-            ] as const).map(([kv, label]) => (
+            {[...BASE_AXES, ...(gbMode ? GB_AXES : [])].map(([kv, label]) => (
               <button key={kv} onClick={() => setPivotBy(kv)}
                 className="px-2 py-1 rounded-md text-[11px] font-medium transition-colors"
                 style={pivotBy === kv
@@ -373,49 +434,76 @@ export function ActivitiesBoard() {
           </div>
           <div className="flex items-center rounded-lg p-0.5" style={{ backgroundColor: 'rgb(var(--color-overlay-rgb) / 0.05)' }}>
             {([
-              ['views', '조회수'], ['cost', '비용'], ['rows', '건수'], ['cost_per_view', '뷰당비용'],
-            ] as const).map(([kv, label]) => (
+              ...(gbMode ? GB_METRICS : []), 'views', 'cost', 'rows', 'cost_per_view',
+            ] as PivotMetric[]).map((kv) => (
               <button key={kv} onClick={() => setPivotMetric(kv)}
                 className="px-2 py-1 rounded-md text-[11px] font-medium transition-colors"
                 style={pivotMetric === kv
                   ? { backgroundColor: '#b46900', color: '#fff' }
                   : { color: 'var(--color-text-tertiary)' }}>
-                {label}
+                {METRIC_LABELS[kv]}
               </button>
             ))}
           </div>
         </div>
-        {(pivot?.groups || []).length === 0 ? (
+        {pivotData.length === 0 ? (
           <p className="text-xs text-text-tertiary py-8 text-center">데이터가 없습니다</p>
         ) : (
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
-                data={(pivot!.groups).map((g) => ({
-                  ...g,
-                  label: pivotBy === 'month' ? g.key.slice(2) : (g.key.length > 12 ? `${g.key.slice(0, 12)}…` : g.key),
-                  value: g[pivotMetric] ?? 0,
-                }))}
+                data={pivotData}
                 margin={{ top: 4, right: 4, bottom: pivotBy === 'month' ? 0 : 36, left: 4 }}
               >
                 <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'var(--color-text-quaternary)' }}
                   tickLine={false} axisLine={false} interval={0}
                   angle={pivotBy === 'month' ? 0 : -35} textAnchor={pivotBy === 'month' ? 'middle' : 'end'} />
                 <YAxis tick={{ fontSize: 10, fill: 'var(--color-text-quaternary)' }} tickLine={false} axisLine={false} width={52}
-                  tickFormatter={(v: number) => (pivotMetric === 'cost'
+                  tickFormatter={(v: number) => (wonMetric
                     ? (v >= 10000000 ? `${Math.round(v / 10000000)}천만` : v >= 10000 ? `${Math.round(v / 10000)}만` : String(v))
                     : v >= 10000 ? `${Math.round(v / 10000)}만` : String(v))} />
                 <Tooltip
                   contentStyle={{ backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)', borderRadius: 8, fontSize: 11 }}
                   formatter={(v: any) => [
-                    pivotMetric === 'cost' ? fmtWon(v) : pivotMetric === 'cost_per_view' ? `₩${v}` : formatNumber(v),
-                    { views: '조회수', cost: '비용', rows: '건수', cost_per_view: '뷰당비용' }[pivotMetric],
+                    wonMetric ? fmtWon(v) : pivotMetric === 'cost_per_view' ? `₩${v}` : formatNumber(v),
+                    METRIC_LABELS[pivotMetric],
                   ]}
                   labelFormatter={(_: any, payload: any) => payload?.[0]?.payload?.key ?? ''}
                 />
-                <Bar dataKey="value" fill="#4EA7FC" radius={[3, 3, 0, 0]} maxBarSize={48} />
+                <Bar dataKey="value" fill="#4EA7FC" radius={[3, 3, 0, 0]} maxBarSize={48} isAnimationActive={false} />
               </BarChart>
             </ResponsiveContainer>
+          </div>
+        )}
+        {/* 공동구매: 축별 매출·주문·AOV를 한 표로 (그래프는 지표 하나만 보여서) */}
+        {gbMode && pivotData.length > 0 && (
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full text-[11px] tabular-nums">
+              <thead>
+                <tr className="text-text-tertiary" style={{ borderBottom: '1px solid var(--color-border-primary)' }}>
+                  {[
+                    // '플랫폼별' → '플랫폼' (단 '팔로워 성별'의 별은 남김)
+                    ([...BASE_AXES, ...GB_AXES].find(([k]) => k === pivotBy)?.[1] || '').replace(/(?<!성)별$/, ''),
+                    '건수', '매출액', '주문', 'AOV', '조회수',
+                  ].map((h, i) => (
+                    <th key={h} className={`px-2 py-1.5 font-medium whitespace-nowrap ${i ? 'text-right' : 'text-left'}`}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {pivotData.map((g) => (
+                  <tr key={g.key} style={{ borderBottom: '1px solid rgb(var(--color-overlay-rgb) / 0.04)' }}>
+                    <td className="px-2 py-1 text-text-primary">{g.key}</td>
+                    <td className="px-2 py-1 text-right text-text-secondary">{fmtNum(g.rows)}</td>
+                    <td className="px-2 py-1 text-right text-text-primary">{fmtWon(g.revenue)}</td>
+                    <td className="px-2 py-1 text-right text-text-secondary">{fmtNum(g.order_count)}</td>
+                    <td className="px-2 py-1 text-right text-text-secondary">{fmtWon(g.aov)}</td>
+                    <td className="px-2 py-1 text-right text-text-tertiary">{fmtNum(g.views)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="mt-1 text-[10px] text-text-quaternary">AOV = 주문건수를 적은 기록의 매출액 ÷ 주문건수 (주문건수 없이 매출만 적은 기록은 AOV에서 빠짐)</p>
           </div>
         )}
       </div>
@@ -426,11 +514,7 @@ export function ActivitiesBoard() {
           <table className="w-full text-xs">
             <thead>
               <tr style={{ borderBottom: '1px solid var(--color-border-primary)' }}>
-                {([
-                  ['월', 'period_month'], ['유형', 'activity_type'], ['크리에이터', 'creator'],
-                  ['제품', 'product'], ['채널', 'channel'], ['목적', 'purpose'], ['수량', 'quantity'],
-                  ['조회수', 'views'], ['비용', 'cost'], ['뷰당 비용', 'cost_per_view'], ['', ''],
-                ] as const).map(([h, key]) => (
+                {tableCols.map(([h, key]) => (
                   <th key={h || '_act'} className="px-3 py-2.5 text-left font-medium text-text-tertiary whitespace-nowrap">
                     {key ? (
                       <button
@@ -448,9 +532,9 @@ export function ActivitiesBoard() {
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={11} className="px-3 py-8 text-center text-text-tertiary">불러오는 중...</td></tr>
+                <tr><td colSpan={tableCols.length} className="px-3 py-8 text-center text-text-tertiary">불러오는 중...</td></tr>
               ) : (list?.items || []).length === 0 ? (
-                <tr><td colSpan={11} className="px-3 py-8 text-center text-text-tertiary">
+                <tr><td colSpan={tableCols.length} className="px-3 py-8 text-center text-text-tertiary">
                   기록이 없습니다 — 우측 상단 &quot;기록 추가&quot;로 시작하세요
                 </td></tr>
               ) : (
@@ -478,7 +562,16 @@ export function ActivitiesBoard() {
                       </div>
                     </td>
                     <td className="px-3 py-2 text-text-secondary whitespace-nowrap">{row.channel || '-'}</td>
-                    <td className="px-3 py-2 text-text-tertiary whitespace-nowrap">{row.purpose || '-'}</td>
+                    {gbMode ? (
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        <span className="text-text-secondary">{[row.deal_type, row.sales_platform].filter(Boolean).join(' · ') || '-'}</span>
+                        {row.is_first != null && (
+                          <span className="block text-[9px] text-text-quaternary leading-tight">{row.is_first ? '첫 진행' : '재진행'}</span>
+                        )}
+                      </td>
+                    ) : (
+                      <td className="px-3 py-2 text-text-tertiary whitespace-nowrap">{row.purpose || '-'}</td>
+                    )}
                     <td className="px-3 py-2 text-text-secondary tabular-nums text-right">{fmtNum(row.quantity)}</td>
                     <td className="px-3 py-2 text-right">
                       <span className="text-text-primary tabular-nums">{fmtNum(row.views)}</span>
@@ -488,8 +581,19 @@ export function ActivitiesBoard() {
                         </span>
                       )}
                     </td>
-                    <td className="px-3 py-2 text-text-secondary tabular-nums text-right">{fmtWon(row.cost)}</td>
-                    <td className="px-3 py-2 text-text-tertiary tabular-nums text-right">{row.cost_per_view != null ? `₩${row.cost_per_view}` : '-'}</td>
+                    {!gbMode && (
+                      <>
+                        <td className="px-3 py-2 text-text-secondary tabular-nums text-right">{fmtWon(row.cost)}</td>
+                        <td className="px-3 py-2 text-text-tertiary tabular-nums text-right">{row.cost_per_view != null ? `₩${row.cost_per_view}` : '-'}</td>
+                      </>
+                    )}
+                    {showSales && (
+                      <>
+                        <td className="px-3 py-2 text-text-primary tabular-nums text-right whitespace-nowrap">{fmtWon(row.revenue)}</td>
+                        <td className="px-3 py-2 text-text-secondary tabular-nums text-right">{fmtNum(row.order_count)}</td>
+                        <td className="px-3 py-2 text-text-tertiary tabular-nums text-right whitespace-nowrap">{fmtWon(row.aov)}</td>
+                      </>
+                    )}
                     <td className="px-3 py-2 whitespace-nowrap">
                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         {row.entry_kind === 'plan' && (
@@ -682,12 +786,17 @@ function ActivityFormModal({
   initial, meta, onClose, onSaved,
 }: {
   initial: MarketingActivityRow | null;
-  meta?: { channels: string[]; products: string[]; product_categories: string[]; purposes: string[]; creators?: string[] };
+  meta?: {
+    channels: string[]; products: string[]; product_categories: string[]; purposes: string[]; creators?: string[];
+    sales_platforms?: string[]; vendors?: string[]; creator_categories?: string[];
+  };
   onClose: () => void;
   onSaved: () => void;
 }) {
   const [form, setForm] = useState<MarketingActivityInput>(() =>
     initial ? { ...initial } : { ...EMPTY_FORM });
+  const isGb = form.activity_type === 'groupbuy';
+  const aovPreview = form.revenue != null && form.order_count ? Math.round(form.revenue / form.order_count) : null;
 
   const saveMut = useMutation({
     mutationFn: (payload: MarketingActivityInput) =>
@@ -713,11 +822,53 @@ function ActivityFormModal({
       />
     </label>
   );
+  // 공동구매 칸 — 비우면 '미기재'(null)로 저장
+  type GbKey = typeof GB_FIELDS[number];
+  const optNum = (k: 'revenue' | 'order_count', label: string) => (
+    <label className="flex flex-col gap-1">
+      <span className="text-[11px] text-text-tertiary">{label}</span>
+      <input
+        type="number" min={0} value={form[k] ?? ''} placeholder="미기재"
+        onChange={(e) => set(k, e.target.value === '' ? null : Math.max(0, Math.round(Number(e.target.value) || 0)))}
+        className="px-2 py-1.5 rounded-lg text-xs bg-bg-2 border border-border-primary text-text-primary tabular-nums"
+      />
+    </label>
+  );
+  const selField = (k: GbKey, label: string, options: [string, string][]) => {
+    const raw = form[k];
+    const value = raw === true ? 'true' : raw === false ? 'false' : String(raw ?? '');
+    // 선택지에 없는 기존 값(예전 기록)도 그대로 보이게
+    const opts: [string, string][] = value && !options.some(([v]) => v === value) ? [...options, [value, value]] : options;
+    return (
+      <label className="flex flex-col gap-1">
+        <span className="text-[11px] text-text-tertiary">{label}</span>
+        <select
+          value={value}
+          onChange={(e) => {
+            const v = e.target.value;
+            set(k, k === 'is_first' ? (v === '' ? null : v === 'true') : v || null);
+          }}
+          className="px-2 py-1.5 rounded-lg text-xs bg-bg-2 border border-border-primary text-text-primary"
+        >
+          <option value="">미기재</option>
+          {opts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+        </select>
+      </label>
+    );
+  };
+  const listField = (k: GbKey, label: string, id: string, options: string[], placeholder: string) => (
+    <label className="flex flex-col gap-1">
+      <span className="text-[11px] text-text-tertiary">{label}</span>
+      <input list={id} value={String(form[k] ?? '')} onChange={(e) => set(k, e.target.value)} placeholder={placeholder}
+        className="px-2 py-1.5 rounded-lg text-xs bg-bg-2 border border-border-primary text-text-primary" />
+      <datalist id={id}>{Array.from(new Set(options)).map((p) => <option key={p} value={p} />)}</datalist>
+    </label>
+  );
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.55)' }} onClick={onClose}>
       <div
-        className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-xl p-5"
+        className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-xl p-5"
         style={{ backgroundColor: 'var(--color-bg-level-1)', border: '1px solid var(--color-border-primary)' }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -784,7 +935,34 @@ function ActivityFormModal({
               className="px-2 py-1.5 rounded-lg text-xs bg-bg-2 border border-border-primary text-text-primary" />
             <datalist id="act-purposes">{(meta?.purposes || []).map((p) => <option key={p} value={p} />)}</datalist>
           </label>
-          {numField('quantity', '수량')}
+          {isGb && (
+            <div
+              className="col-span-2 sm:col-span-3 grid grid-cols-2 sm:grid-cols-3 gap-3 rounded-lg p-3"
+              style={{ backgroundColor: 'rgb(var(--color-overlay-rgb) / 0.04)', border: '1px solid var(--color-border-primary)' }}
+            >
+              <p className="col-span-2 sm:col-span-3 text-[11px] font-semibold text-text-secondary">
+                공동구매 분석 항목
+                <span className="font-normal text-text-quaternary"> — 공구 한 건의 매출·주문은 한 기록에만 적어 주세요 (콘텐츠를 여러 기록으로 나눴다면 첫 기록에만)</span>
+              </p>
+              {selField('deal_type', '공구 구분', [['공동구매', '공동구매'], ['할인링크', '할인링크']])}
+              {listField('sales_platform', '플랫폼', 'gb-platforms', [...GB_PLATFORMS, ...(meta?.sales_platforms || [])], '자사몰·네이버·ZVZO')}
+              {listField('vendor', '개인/벤더사', 'gb-vendors', ['개인', ...(meta?.vendors || [])], '개인 또는 벤더사명')}
+              {optNum('revenue', '매출액 (₩)')}
+              {optNum('order_count', '주문건수')}
+              <label className="flex flex-col gap-1">
+                <span className="text-[11px] text-text-tertiary">건별 AOV (자동)</span>
+                <span className="px-2 py-1.5 rounded-lg text-xs border border-border-primary text-text-secondary tabular-nums">
+                  {aovPreview != null ? fmtWon(aovPreview) : '매출액 ÷ 주문건수'}
+                </span>
+              </label>
+              {selField('is_first', '첫 진행 여부', [['true', '첫 진행'], ['false', '재진행']])}
+              {selField('creator_gender', '크리에이터 성별', [['여성', '여성'], ['남성', '남성'], ['해당 없음', '해당 없음 (단체·채널)']])}
+              {listField('creator_category', '카테고리', 'gb-cats', [...GB_CATEGORIES, ...(meta?.creator_categories || [])], '요리·운동·관리…')}
+              {selField('follower_age', '주요 팔로워 연령대', AGE_BANDS.map((a) => [a, a] as [string, string]))}
+              {selField('follower_gender', '주요 팔로워 성별', [['여성', '여성'], ['남성', '남성']])}
+            </div>
+          )}
+          {numField('quantity', isGb ? '콘텐츠 수' : '수량')}
           {numField('cost', '비용 (₩)')}
           {numField('views', '조회수')}
           {numField('reach', '도달')}
@@ -806,7 +984,7 @@ function ActivityFormModal({
               className="px-2 py-1.5 rounded-lg text-xs bg-bg-2 border border-border-primary text-text-primary" />
           </label>
           <label className="flex flex-col gap-1 col-span-2 sm:col-span-3">
-            <span className="text-[11px] text-text-tertiary">메모</span>
+            <span className="text-[11px] text-text-tertiary">{isGb ? '특이사항·메모' : '메모'}</span>
             <input value={form.notes || ''} onChange={(e) => set('notes', e.target.value)}
               className="px-2 py-1.5 rounded-lg text-xs bg-bg-2 border border-border-primary text-text-primary" />
           </label>
@@ -816,7 +994,8 @@ function ActivityFormModal({
           <button
             onClick={() => {
               if (!form.period_month || form.period_month.length !== 7) { toast.error('진행월을 선택해 주세요'); return; }
-              saveMut.mutate(form);
+              // 유형을 공동구매에서 다른 것으로 바꿨다면 화면에 안 보이는 공동구매 칸은 비운다
+              saveMut.mutate(isGb ? form : { ...form, ...Object.fromEntries(GB_FIELDS.map((k) => [k, null])) });
             }}
             disabled={saveMut.isPending}
             className="px-4 py-1.5 rounded-lg text-xs font-medium text-white disabled:opacity-50"

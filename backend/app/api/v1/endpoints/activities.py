@@ -8,7 +8,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import delete, distinct, func, select
+from sqlalchemy import case, delete, distinct, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.endpoints.auth import get_current_user
@@ -46,6 +46,23 @@ class ActivityIn(BaseModel):
     metrics_as_of: Optional[str] = None  # 지표(조회수 등) 기준일 "YYYY-MM-DD"
     notes: Optional[str] = Field(None, max_length=500)
     source: str = "manual"
+    # 공동구매 분석 항목 — 요청에 실린 것만 반영(GROUPBUY_FIELDS), 빠진 칸은 기존 값 유지
+    revenue: Optional[float] = Field(None, ge=0)  # 매출액(원)
+    order_count: Optional[int] = Field(None, ge=0)  # 주문건수
+    sales_platform: Optional[str] = Field(None, max_length=30)  # 자사몰|네이버|ZVZO…
+    deal_type: Optional[str] = Field(None, max_length=20)  # 공동구매|할인링크
+    is_first: Optional[bool] = None  # 첫 진행 여부
+    vendor: Optional[str] = Field(None, max_length=100)  # 개인/벤더사
+    creator_gender: Optional[str] = Field(None, max_length=10)
+    creator_category: Optional[str] = Field(None, max_length=50)
+    follower_age: Optional[str] = Field(None, max_length=20)  # "25-34세"
+    follower_gender: Optional[str] = Field(None, max_length=10)
+
+
+# 공동구매 분석 항목 — PATCH가 전체 교체라도 이 칸을 모르는 호출자(구 화면·MCP 등)가
+# 값을 지우지 않도록, 요청 본문에 들어 있을 때만 반영한다.
+GROUPBUY_FIELDS = ("revenue", "order_count", "sales_platform", "deal_type", "is_first", "vendor",
+                   "creator_gender", "creator_category", "follower_age", "follower_gender")
 
 
 import re as _re
@@ -86,6 +103,15 @@ def _apply(row: MarketingActivity, data: ActivityIn) -> None:
         row.creator = derive_creator_from_link(row.link)
     row.activity_date = _date.fromisoformat(data.activity_date) if data.activity_date else None
     row.metrics_as_of = _date.fromisoformat(data.metrics_as_of) if data.metrics_as_of else None
+    for f in GROUPBUY_FIELDS:
+        if f in data.model_fields_set:
+            v = getattr(data, f)
+            setattr(row, f, (v.strip() or None) if isinstance(v, str) else v)
+
+
+def _aov(revenue, orders):
+    """건별 AOV = 매출액 ÷ 주문건수 (주문 0·미기재면 없음)."""
+    return round(revenue / orders) if revenue is not None and orders else None
 
 
 def _row_out(a: MarketingActivity) -> dict:
@@ -115,6 +141,8 @@ def _row_out(a: MarketingActivity) -> dict:
         "metrics_as_of": a.metrics_as_of.isoformat() if a.metrics_as_of else None,
         "notes": a.notes,
         "source": a.source,
+        **{f: getattr(a, f, None) for f in GROUPBUY_FIELDS},
+        "aov": _aov(getattr(a, "revenue", None), getattr(a, "order_count", None)),
     }
 
 
@@ -164,6 +192,10 @@ def _sort_expr(sort_by: str):
         "views": A.views,
         "cost": A.cost,
         "cost_per_view": A.cost / func.nullif(A.views, 0),
+        "revenue": A.revenue,
+        "order_count": A.order_count,
+        "aov": A.revenue / func.nullif(A.order_count, 0),
+        "deal_type": A.deal_type,
     }
     return cols.get(sort_by)
 
@@ -294,12 +326,35 @@ async def activity_meta(
         ("product_categories", MarketingActivity.product_category),
         ("purposes", MarketingActivity.purpose),
         ("creators", MarketingActivity.creator),
+        ("sales_platforms", MarketingActivity.sales_platform),
+        ("vendors", MarketingActivity.vendor),
+        ("creator_categories", MarketingActivity.creator_category),
     ]:
         vals = (await db.execute(
             select(distinct(col)).where(col.isnot(None)).order_by(col).limit(300)
         )).scalars().all()
         out[name] = [v for v in vals if v and v.strip()]
     return out
+
+
+def _sales_agg():
+    """매출액·주문건수 합계 + AOV용 '주문건수가 있는 행의 매출액' 합계
+    (7월 이후 시트처럼 주문건수 없이 매출만 적힌 행이 AOV를 부풀리지 않게)."""
+    A = MarketingActivity
+    return [
+        func.sum(A.revenue).label("revenue"),
+        func.sum(A.order_count).label("order_count"),
+        func.sum(case((A.order_count > 0, A.revenue))).label("revenue_w_orders"),
+    ]
+
+
+def _sales_out(r) -> dict:
+    orders = int(r.order_count) if r.order_count is not None else None
+    return {
+        "revenue": float(r.revenue) if r.revenue is not None else None,
+        "order_count": orders,
+        "aov": _aov(float(r.revenue_w_orders) if r.revenue_w_orders is not None else None, orders),
+    }
 
 
 @router.get("/summary")
@@ -334,6 +389,7 @@ async def activity_summary(
         func.sum(A.views).label("views"),
         func.sum(A.cost).label("cost"),
         func.count(A.id).label("rows"),
+        *_sales_agg(),
     ]
 
     by_month_channel = (await db.execute(
@@ -357,10 +413,11 @@ async def activity_summary(
         for r in rows:
             d = dict(zip(keys, r[: len(keys)]))
             d.update({
-                "quantity": int(r[-4] or 0),
-                "views": int(r[-3] or 0),
-                "cost": float(r[-2] or 0),
-                "rows": int(r[-1] or 0),
+                "quantity": int(r.quantity or 0),
+                "views": int(r.views or 0),
+                "cost": float(r.cost or 0),
+                "rows": int(r.rows or 0),
+                **_sales_out(r),
             })
             views = d["views"]
             d["cost_per_view"] = round(d["cost"] / views, 2) if views else None
@@ -376,7 +433,11 @@ async def activity_summary(
 
 @router.get("/pivot")
 async def activity_pivot(
-    group_by: str = Query("month", pattern="^(month|activity_type|channel|product|product_category|creator|purpose)$"),
+    group_by: str = Query("month", pattern="^(month|activity_type|channel|product|product_category|creator|purpose"
+                          "|sales_platform|deal_type|vendor|creator_gender|creator_category|follower_age"
+                          "|follower_gender|is_first)$"),
+    # 상위 N개를 고르는 기준 (화면에서 고른 지표 — 매출액을 보면서 조회수 상위만 잘리지 않게)
+    metric: str = Query("views", pattern="^(views|cost|rows|quantity|revenue|order_count)$"),
     entry_kind: str = "actual",
     activity_type: Optional[str] = None,
     month_from: Optional[str] = None,
@@ -391,8 +452,9 @@ async def activity_pivot(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """다각도 분석 피벗 — 임의 축(월/유형/채널/제품/제품류/크리에이터/목적)으로
-    조회수·비용·건수·뷰당비용을 집계. 리스트와 동일한 필터를 적용한다."""
+    """다각도 분석 피벗 — 임의 축(월/유형/채널/제품/제품류/크리에이터/목적, 공동구매는
+    플랫폼/구분/개인·벤더사/성별/카테고리/팔로워 연령대·성별/첫 진행 여부)으로
+    조회수·비용·건수·뷰당비용·매출액·주문건수·AOV를 집계. 리스트와 동일한 필터를 적용한다."""
     A = MarketingActivity
     col = A.period_month if group_by == "month" else getattr(A, group_by)
     agg = select(
@@ -401,6 +463,7 @@ async def activity_pivot(
         func.sum(A.views).label("views"),
         func.sum(A.cost).label("cost"),
         func.count(A.id).label("rows"),
+        *_sales_agg(),
     )
     agg = _filters(agg, activity_type, month_from, month_to, channel, product, q,
                    entry_kind if entry_kind != "all" else None,
@@ -409,18 +472,24 @@ async def activity_pivot(
     if group_by == "month":
         agg = agg.order_by(col.asc())
     else:
-        agg = agg.order_by(func.sum(A.views).desc()).limit(limit)
+        order = func.count(A.id) if metric == "rows" else func.sum(getattr(A, metric))
+        agg = agg.order_by(order.desc().nulls_last()).limit(limit)
     rows = (await db.execute(agg)).all()
     out = []
     for r in rows:
         views = int(r.views or 0)
         cost = float(r.cost or 0)
+        if group_by == "is_first":
+            key = {True: "첫 진행", False: "재진행"}.get(r.key, "미지정")
+        else:
+            key = r.key if (r.key and str(r.key).strip()) else "미지정"
         out.append({
-            "key": r.key if (r.key and str(r.key).strip()) else "미지정",
+            "key": key,
             "quantity": int(r.quantity or 0),
             "views": views,
             "cost": cost,
             "rows": int(r.rows or 0),
             "cost_per_view": round(cost / views, 2) if views else None,
+            **_sales_out(r),
         })
     return {"group_by": group_by, "entry_kind": entry_kind, "groups": out}

@@ -7,7 +7,7 @@
 from datetime import date, datetime
 from typing import Optional
 
-from sqlalchemy import Date, DateTime, Float, Index, Integer, String, UniqueConstraint
+from sqlalchemy import Boolean, Date, DateTime, Float, Index, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.database import Base
@@ -48,6 +48,20 @@ class MarketingActivity(Base):
     creator: Mapped[Optional[str]] = mapped_column(String(200), nullable=True, index=True)
     # 조회수 등 지표의 스냅샷 기준일 — 조회수는 계속 오르므로 "언제 시점 값인지" 기록
     metrics_as_of: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+
+    # 공동구매 분석 항목 (2026-10-26 개선 건의 — 구 시트 '공동구매' 탭 분류 그대로).
+    # 콘텐츠 수=quantity, 콘텐츠 링크=link, 특이사항=notes, 진행 일정=period_month/activity_date 재사용.
+    # 건별 AOV는 저장하지 않고 revenue ÷ order_count 로 계산한다.
+    revenue: Mapped[Optional[float]] = mapped_column(Float, nullable=True)  # 매출액(원)
+    order_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # 주문건수
+    sales_platform: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)  # 플랫폼: 자사몰|네이버|ZVZO…
+    deal_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # 구분: 공동구매|할인링크
+    is_first: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)  # 첫 진행 여부 (None=미기재)
+    vendor: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)  # 개인/벤더사 ("개인" 또는 벤더사명)
+    creator_gender: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)  # 크리에이터 성별
+    creator_category: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)  # 크리에이터 카테고리(요리·운동…)
+    follower_age: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # 주요 팔로워 연령대 "25-34세"
+    follower_gender: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)  # 주요 팔로워 성별
 
     notes: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     source: Mapped[str] = mapped_column(String(20), default="manual")  # manual | sheet_import
