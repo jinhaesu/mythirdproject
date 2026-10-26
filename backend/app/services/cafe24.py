@@ -404,6 +404,47 @@ async def list_products(
     ]
 
 
+def _strip_scripts(html):
+    """HTML 문자열에서 <script> 태그 제거 (안전용). 그 외 내용은 그대로."""
+    import re
+    if not isinstance(html, str):
+        return html
+    return re.sub(r"<script\b[^>]*>.*?</script\s*>", "", html, flags=re.I | re.S)
+
+
+async def get_product_detail(user, db, product_no: int) -> dict:
+    """Cafe24 상품 단건 상세 조회 (읽기 전용, 상세페이지 HTML 포함)."""
+    data = await api_request(user, db, "GET", f"/api/v2/admin/products/{product_no}")
+    p = data.get("product")
+    if p is None and isinstance(data.get("products"), list) and data["products"]:
+        p = data["products"][0]
+    if not p:
+        raise ValueError(f"상품을 찾을 수 없습니다: {product_no}")
+    return {
+        "product_no": p.get("product_no"),
+        "product_code": p.get("product_code"),
+        "product_name": p.get("product_name"),
+        "eng_product_name": p.get("eng_product_name"),
+        "price": p.get("price"),
+        "retail_price": p.get("retail_price"),
+        "supply_price": p.get("supply_price"),
+        "display": p.get("display"),
+        "selling": p.get("selling"),
+        "summary_description": p.get("summary_description"),
+        "simple_description": p.get("simple_description"),
+        "description": _strip_scripts(p.get("description")),
+        "mobile_description": _strip_scripts(p.get("mobile_description")),
+        "detail_image": p.get("detail_image"),
+        "list_image": p.get("list_image"),
+        "tiny_image": p.get("tiny_image"),
+        "small_image": p.get("small_image"),
+        "additional_image": p.get("additional_image"),
+        "category": p.get("category"),
+        "created_date": p.get("created_date"),
+        "updated_date": p.get("updated_date"),
+    }
+
+
 async def list_orders(
     user,
     db,
