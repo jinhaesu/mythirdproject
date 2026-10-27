@@ -103,6 +103,14 @@ api_router.include_router(
     tags=["Naver GFA"]
 )
 
+# Naver GFA 성과 파일 업로드 (API 미연결이어도 광고 관리자 보고서 파일로 대시보드)
+from app.api.v1.endpoints import naver_gfa_upload  # noqa: E402
+api_router.include_router(
+    naver_gfa_upload.router,
+    prefix="/naver",
+    tags=["Naver GFA Upload"]
+)
+
 # Naver Advertising Analytics (검색광고 + GFA)
 api_router.include_router(
     naver_analytics.router,

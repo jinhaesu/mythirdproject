@@ -115,8 +115,23 @@ async def _meta_daily(db: AsyncSession, d1: date, d2: date) -> tuple[list, Optio
     return out, account
 
 
+async def _gfa_upload_daily(db: AsyncSession, d1: date, d2: date) -> Optional[dict]:
+    """GFA 성과 파일로 올린 값(광고 채널 › GFA 「파일 올리기」). 올린 값이 없거나 못 읽으면 None."""
+    from app.api.v1.endpoints.naver_gfa_upload import upload_daily
+
+    try:
+        return await upload_daily(db, d1, d2)
+    except Exception as e:  # 테이블이 아직 없을 때 등 — 나머지 값은 그대로 준다
+        logger.warning(f"[service] GFA 업로드 값 조회 실패: {e}")
+        await db.rollback()
+        return None
+
+
 async def _gfa_daily(db: AsyncSession, d1: date, d2: date) -> dict:
-    """네이버 GFA 오픈API 일별(연결돼 있을 때만). 연결 전이면 connected=false."""
+    """네이버 GFA 일별 — 오픈API가 연결돼 있으면 API 값(source=api), 아니면 올린 파일 값(source=upload).
+
+    둘 다 없으면 connected=false. API 조회가 실패하면 올린 파일 값이 있을 때 그것으로 대신한다(api_error).
+    """
     from app.api.v1.endpoints import naver_gfa as g
 
     u = (await db.execute(
@@ -124,12 +139,16 @@ async def _gfa_daily(db: AsyncSession, d1: date, d2: date) -> dict:
         .order_by(User.id)
     )).scalars().first()
     if not u or not u.naver_gfa_ad_account_no:
-        return {"connected": False, "daily": []}
+        return await _gfa_upload_daily(db, d1, d2) or {"connected": False, "daily": []}
     try:
         rows = await g._past_perf(u, db, d1, d2)
     except Exception as e:  # GFA 쪽 오류는 나머지 값을 막지 않는다
         logger.warning(f"[service] GFA 조회 실패: {e}")
-        return {"connected": True, "error": str(getattr(e, "detail", e))[:200], "daily": []}
+        err = str(getattr(e, "detail", e))[:200]
+        up = await _gfa_upload_daily(db, d1, d2)
+        if up:
+            return {**up, "api_error": err}
+        return {"connected": True, "source": "api", "error": err, "daily": []}
     by: Dict[str, Dict[str, float]] = {}
     for r in rows:
         d = str(r.get("statDt") or r.get("date") or r.get("statDate") or "")[:10]
@@ -143,6 +162,7 @@ async def _gfa_daily(db: AsyncSession, d1: date, d2: date) -> dict:
         cur["clicks"] += g._n(r, "clickCount", "clickCnt", "clicks")
     return {
         "connected": True,
+        "source": "api",
         "ad_account_no": u.naver_gfa_ad_account_no,
         "daily": [{"date": d, **{k: round(v, 2) for k, v in m.items()}} for d, m in sorted(by.items())],
     }
@@ -159,7 +179,7 @@ async def plan_ads_daily(
     adspend      광고비 일보 일별 합(원, VAT 포함, 일보 보드 합계와 같은 기준)
     adspend_gfa  그중 이름에 GFA가 든 매체
     meta         Meta 광고 일별 지출·구매 전환값·구매 수·노출·클릭(공유 Meta 계정, 캠페인 합)
-    gfa          네이버 GFA 오픈API 일별(연결돼 있을 때만)
+    gfa          네이버 GFA 일별 — source=api(오픈API 연결) | upload(GFA 성과 파일 올린 값, 모든 계정 합)
     """
     d1, d2 = _day(since, "since"), _day(until, "until")
     if d1 > d2:
