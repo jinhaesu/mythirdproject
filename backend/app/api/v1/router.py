@@ -186,3 +186,11 @@ api_router.include_router(
     prefix="/naver-insights",
     tags=["Naver Insights"]
 )
+
+# 사내 시스템 간 조회 전용 API (서비스 키 — 보고·계획 마케팅 주간보고 연동)
+from app.api.v1.endpoints import service  # noqa: E402
+api_router.include_router(
+    service.router,
+    prefix="/service",
+    tags=["Service (server-to-server)"]
+)
