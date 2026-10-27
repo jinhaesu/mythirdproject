@@ -40,6 +40,7 @@ from app.models.group_buy import GroupBuy, GroupBuyCampaign
 from app.models.ad_spend import (
     AdMedia, AdMediaAlias, AdMediaGroup, AdMediaBudget, AdMediaSpendDaily, ChannelRevenue,
 )
+from app.models.gfa_upload import GfaUploadBatch, GfaUploadDaily
 
 __all__ = [
     "User",
@@ -100,4 +101,6 @@ __all__ = [
     "AdMediaBudget",
     "AdMediaSpendDaily",
     "ChannelRevenue",
+    "GfaUploadBatch",
+    "GfaUploadDaily",
 ]

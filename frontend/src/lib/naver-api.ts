@@ -232,7 +232,183 @@ export const naverGFAApi = {
     const { data } = await api.put(`/naver/gfa/campaign/${campaignId}`, { status: 'ACTIVE' });
     return data;
   },
+
+  // ─── 성과 파일 업로드 (API 미연결이어도 광고 관리자 보고서 파일로 대시보드) ───
+  /** 파일 미리보기 — DB는 바뀌지 않는다 */
+  uploadPreview: async (file: File, opts: GfaUploadOptions = {}): Promise<GfaUploadPreview> => {
+    const { data } = await api.post('/naver/gfa/upload/preview', gfaUploadForm(file, opts), {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return data;
+  },
+  /** 반영 — 같은 (계정 이름, 날짜)의 예전 값은 파일 값으로 바뀐다 */
+  uploadApply: async (file: File, opts: GfaUploadOptions = {}): Promise<GfaUploadApplyResult> => {
+    const { data } = await api.post('/naver/gfa/upload/apply', gfaUploadForm(file, opts), {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return data;
+  },
+  uploadBatches: async (): Promise<{ batches: GfaUploadBatch[] }> => {
+    const { data } = await api.get('/naver/gfa/upload/batches');
+    return data;
+  },
+  deleteUploadBatch: async (id: number): Promise<{ deleted: number; rows: number }> => {
+    const { data } = await api.delete(`/naver/gfa/upload/batches/${id}`);
+    return data;
+  },
+  uploadStatus: async (): Promise<GfaUploadStatus> => {
+    const { data } = await api.get('/naver/gfa/upload/status');
+    return data;
+  },
+  uploadDashboard: async (dateRange: string, startDate?: string, endDate?: string, account?: string): Promise<GfaUploadDashboard> => {
+    const params: any = { date_range: dateRange };
+    if (dateRange === 'custom' && startDate && endDate) {
+      params.start_date = startDate;
+      params.end_date = endDate;
+    }
+    if (account !== undefined) params.account = account;
+    const { data } = await api.get('/naver/gfa/upload/dashboard', { params });
+    return data;
+  },
 };
+
+// ─── GFA 성과 파일 업로드 타입 ───
+export type GfaUploadOptions = {
+  accountLabel?: string;
+  sheet?: string;
+  headerRow?: number;
+  /** 사람이 고친 칸 연결만 — {항목: 칸 번호(0부터) | null(안 씀)} */
+  mapping?: Record<string, number | null>;
+};
+
+const gfaUploadForm = (file: File, opts: GfaUploadOptions) => {
+  const fd = new FormData();
+  fd.append('file', file);
+  if (opts.accountLabel && opts.accountLabel.trim()) fd.append('account_label', opts.accountLabel.trim());
+  if (opts.sheet) fd.append('sheet', opts.sheet);
+  if (opts.headerRow) fd.append('header_row', String(opts.headerRow));
+  if (opts.mapping && Object.keys(opts.mapping).length > 0) fd.append('mapping', JSON.stringify(opts.mapping));
+  return fd;
+};
+
+export type GfaGranularity = 'creative' | 'adgroup' | 'campaign' | 'account';
+
+export type GfaUploadColumn = {
+  index: number; letter: string; header: string;
+  field: string | null; field_label: string | null; known: boolean;
+  status: 'used' | 'ignored' | 'empty' | 'unknown';
+};
+
+export type GfaUploadSampleRow = {
+  account: string; date: string;
+  campaign_id: string | null; campaign_name: string | null; adgroup_id: string | null; adgroup_name: string | null;
+  creative_id: string | null; creative_name: string | null; creative_type: string | null;
+  product: string | null; promotion: string | null;
+  impressions: number | null; clicks: number | null; spend: number;
+  conversions: number | null; conv_sales: number | null; budget: number | null;
+};
+
+export type GfaUploadTotals = {
+  spend: number; impressions: number | null; clicks: number | null;
+  conversions: number | null; conv_sales: number | null; roas: number | null;
+};
+
+export type GfaUploadPreview = {
+  file: {
+    name: string | null; kind: 'xlsx' | 'csv' | 'html'; sheet: string | null;
+    sheets: { name: string; usable: boolean }[]; encoding: string | null; delimiter: string | null; header_row: number;
+  };
+  columns: GfaUploadColumn[];
+  fields: { key: string; label: string; required: boolean; columns: number[]; manual: boolean }[];
+  missing: string[];
+  spend_vat: 'incl' | 'excl' | null;
+  budget_kind: 'daily' | 'total' | null;
+  granularity: GfaGranularity;
+  data_rows: number;
+  record_count: number;
+  skipped: Record<string, number>;
+  date_from: string | null;
+  date_to: string | null;
+  days: number;
+  totals: GfaUploadTotals;
+  accounts: { account: string; days: number; rows: number; date_from: string; date_to: string; spend: number }[];
+  warnings: string[];
+  errors: string[];
+  can_apply: boolean;
+  sample: GfaUploadSampleRow[];
+  replace: {
+    rows: number; batches: number[];
+    other_accounts: { account: string; rows: number; date_from: string; date_to: string }[];
+  };
+};
+
+export type GfaUploadApplyResult = {
+  batch_id: number; inserted: number; replaced: number;
+  date_from: string | null; date_to: string | null; accounts: string[];
+  totals: GfaUploadTotals; granularity: GfaGranularity; spend_vat: string | null;
+};
+
+export type GfaUploadBatch = {
+  id: number; filename: string | null; sheet: string | null; account_label: string;
+  granularity: GfaGranularity; spend_vat: string | null;
+  date_from: string | null; date_to: string | null; row_count: number; replaced_rows: number;
+  spend_total: number; conv_sales_total: number | null;
+  live_rows: number; live_spend: number; live_date_from: string | null; live_date_to: string | null;
+  uploaded_by: string | null; created_at: string | null;
+};
+
+export type GfaUploadStatus = {
+  has_data: boolean; rows: number; date_min?: string; date_max?: string;
+  accounts: { account: string; rows: number; date_min: string; date_max: string }[];
+  last_upload?: { id: number; filename: string | null; uploaded_by: string | null; created_at: string | null; spend_vat: string | null } | null;
+};
+
+export type GfaPerf = {
+  spend: number; impressions: number | null; clicks: number | null;
+  conversions: number | null; conv_sales: number | null;
+  roas: number | null; cpa: number | null; ctr: number | null; cpc: number | null; cvr: number | null; cpm: number | null;
+  days: number;
+};
+
+export type GfaChangeKey = 'spend' | 'conv_sales' | 'roas' | 'conversions' | 'cpa' | 'ctr' | 'cpc' | 'cvr' | 'clicks' | 'impressions';
+
+export type GfaSeriesPoint = GfaPerf & {
+  key: string; label: string; start: string; end: string; partial: boolean;
+  change: Partial<Record<GfaChangeKey, number | null>> | null;
+};
+
+export type GfaUploadDashboardData = {
+  has_data: true;
+  source: 'upload';
+  period: { start: string; end: string; days: number; prev_start: string; prev_end: string };
+  data_span: { min: string; max: string; rows: number };
+  missing_days: number;
+  account: string | null;
+  accounts: string[];
+  availability: Record<'impressions' | 'clicks' | 'conversions' | 'conv_sales' | 'campaign' | 'adgroup' | 'creative'
+    | 'creative_type' | 'product' | 'promotion' | 'budget', boolean>;
+  kpi: GfaPerf;
+  kpi_prev: GfaPerf | null;
+  kpi_change: Partial<Record<GfaChangeKey, number | null>> | null;
+  series: { daily: GfaSeriesPoint[]; weekly: GfaSeriesPoint[]; monthly: GfaSeriesPoint[] };
+  campaigns: (GfaPerf & {
+    account: string; id: string | null; name: string;
+    spend_share: number | null; sales_share: number | null;
+    budget: number | null; budget_basis: 'daily' | 'total' | null; budget_util: number | null;
+  })[];
+  creatives: (GfaPerf & {
+    account: string; campaign: string | null; adgroup: string | null; name: string | null; id: string | null;
+    type: string | null; type_group: string | null;
+  })[];
+  creative_count: number;
+  types: { groups: (GfaPerf & { group: string })[]; raw: (GfaPerf & { type: string })[] } | null;
+  products: (GfaPerf & { name: string })[] | null;
+  promotions: (GfaPerf & { name: string })[] | null;
+  spend_vat: (string | null)[];
+  last_upload: { filename: string | null; created_at: string | null; uploaded_by: string | null } | null;
+};
+
+export type GfaUploadDashboard = GfaUploadDashboardData | { has_data: false };
 
 // ═══ Naver Report API ═══
 export const naverReportApi = {

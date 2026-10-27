@@ -1,26 +1,33 @@
 'use client';
 
 import { useState } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Monitor, DollarSign, Eye, MousePointer, Target, TrendingUp,
   Loader2, RefreshCw, ChevronDown, ChevronRight, Sparkles,
-  Image, Activity, Play, Pause, Award, Calendar,
+  Image, Activity, Play, Pause, Award, Calendar, Upload,
 } from 'lucide-react';
 import { naverGFAApi, formatNaverCurrency, formatNaverNumber, formatNaverPercent } from '@/lib/naver-api';
 import toast from 'react-hot-toast';
+import { GfaUploadModal } from './GfaUploadModal';
+import { GfaUploadDashboard } from './GfaUploadDashboard';
 
-type DatePreset = 'today' | 'yesterday' | 'last_7_days' | 'last_14_days' | 'last_30_days' | 'this_month' | 'custom';
+type DatePreset = 'today' | 'yesterday' | 'last_7_days' | 'last_14_days' | 'last_30_days' | 'this_month'
+  | 'last_month' | 'last_90_days' | 'all' | 'custom';
 
-const DATE_PRESETS: { value: DatePreset; label: string }[] = [
+const DATE_PRESETS: { value: DatePreset; label: string; uploadOnly?: boolean }[] = [
   { value: 'today', label: '오늘' },
   { value: 'yesterday', label: '어제' },
   { value: 'last_7_days', label: '최근 7일' },
   { value: 'last_14_days', label: '최근 14일' },
   { value: 'last_30_days', label: '최근 30일' },
   { value: 'this_month', label: '이번달' },
+  { value: 'last_month', label: '지난달', uploadOnly: true },
+  { value: 'last_90_days', label: '최근 90일', uploadOnly: true },
+  { value: 'all', label: '올린 전체 기간', uploadOnly: true },
   { value: 'custom', label: '기간 직접설정' },
 ];
+const UPLOAD_ONLY = new Set(DATE_PRESETS.filter((p) => p.uploadOnly).map((p) => p.value));
 
 const STATUS_KO: Record<string, { label: string; color: string }> = {
   ACTIVE: { label: '활성', color: 'bg-green/15 text-green' },
@@ -75,9 +82,12 @@ function MiniLineChart({ data, color = '#2DB400', height = 40, width = 120 }: {
 }
 
 export function NaverGFADashboard() {
-  const [datePreset, setDatePreset] = useState<DatePreset>('last_7_days');
+  const qc = useQueryClient();
+  const [pickedPreset, setDatePreset] = useState<DatePreset | null>(null);
   const [expandedCampaign, setExpandedCampaign] = useState<string | null>(null);
   const [aiTriggered, setAiTriggered] = useState(false);
+  const [showUpload, setShowUpload] = useState(false);
+  const [source, setSource] = useState<'api' | 'upload'>('api');
 
   // Custom date range state
   const today = new Date().toISOString().split('T')[0];
@@ -85,18 +95,33 @@ export function NaverGFADashboard() {
   const [customStartDate, setCustomStartDate] = useState<string>(sevenDaysAgo);
   const [customEndDate, setCustomEndDate] = useState<string>(today);
 
-  // Effective date range for API calls
-  const effectiveDateRange = datePreset;
-  const effectiveStartDate = datePreset === 'custom' ? customStartDate : undefined;
-  const effectiveEndDate = datePreset === 'custom' ? customEndDate : undefined;
-
   // 연결 상태 (네이버 로그인 OAuth — 오픈API 재구현 2026-09-30)
-  const { data: gfaStatus } = useQuery({
+  const { data: gfaStatus, isError: gfaStatusError } = useQuery({
     queryKey: ['naver-gfa-status'],
     queryFn: () => naverGFAApi.getStatus(),
     retry: 1,
   });
-  const gfaConnected = gfaStatus?.connected !== false;
+  // 올린 성과 파일 (API 미연결이어도 대시보드 — 2026-10-27)
+  const { data: uploadStatus } = useQuery({
+    queryKey: ['gfa-upload', 'status'],
+    queryFn: () => naverGFAApi.uploadStatus(),
+    retry: 1,
+  });
+  const statusKnown = gfaStatus !== undefined || gfaStatusError;
+  const apiConnected = gfaStatus?.connected === true;
+  // API가 연결돼 있으면 API(올린 파일이 있으면 바꿔 볼 수 있음), 아니면 올린 파일로 그린다
+  const uploadMode = statusKnown && (!apiConnected || source === 'upload');
+  const apiMode = apiConnected && !uploadMode;
+  const gfaConnected = apiMode;
+
+  const datePreset: DatePreset = pickedPreset && (uploadMode || !UPLOAD_ONLY.has(pickedPreset))
+    ? pickedPreset : uploadMode ? 'last_30_days' : 'last_7_days';
+  const uploadAccounts = (uploadStatus?.accounts || []).map((a) => a.account);
+
+  // Effective date range for API calls
+  const effectiveDateRange = datePreset;
+  const effectiveStartDate = datePreset === 'custom' ? customStartDate : undefined;
+  const effectiveEndDate = datePreset === 'custom' ? customEndDate : undefined;
 
   const connectGFA = async () => {
     try {
@@ -120,6 +145,7 @@ export function NaverGFADashboard() {
     queryKey: ['naver-gfa-campaigns', effectiveDateRange, effectiveStartDate, effectiveEndDate],
     queryFn: () => naverGFAApi.getCampaigns(effectiveDateRange, effectiveStartDate, effectiveEndDate),
     retry: 1,
+    enabled: apiMode,
   });
 
   // Fetch trend
@@ -127,6 +153,7 @@ export function NaverGFADashboard() {
     queryKey: ['naver-gfa-trend', effectiveDateRange, effectiveStartDate, effectiveEndDate],
     queryFn: () => naverGFAApi.getTrend(effectiveDateRange, 'daily', effectiveStartDate, effectiveEndDate),
     retry: 1,
+    enabled: apiMode,
   });
 
   // Fetch ad groups for expanded campaign
@@ -204,13 +231,14 @@ export function NaverGFADashboard() {
 
   return (
     <div className="space-y-6">
-      {/* 미연결 배너 — 네이버 로그인으로 GFA 오픈API 연결 */}
+      {/* 미연결 배너 — 네이버 로그인으로 GFA 오픈API 연결 (연결 전에는 파일 올리기로) */}
       {gfaStatus && !gfaStatus.connected && (
         <div className="px-4 py-4 rounded-xl border border-yellow/30 bg-yellow/10 flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-sm font-medium text-yellow">네이버 GFA가 아직 연결되지 않았습니다</p>
             <p className="text-xs text-text-tertiary mt-0.5">
               GFA 광고계정 권한이 있는 네이버 계정으로 로그인 동의 한 번이면 성과 데이터가 자동 수집됩니다.
+              연결 전에는 광고 관리자 보고서에서 내려받은 일별 성과 파일을 「파일 올리기」로 올리면 아래 대시보드가 그 값으로 그려집니다.
             </p>
           </div>
           <button
@@ -229,15 +257,30 @@ export function NaverGFADashboard() {
             <Monitor className="text-green" size={28} />
             GFA 성과 대시보드
           </h1>
-          <p className="text-sm text-text-tertiary mt-1">네이버 성과형 디스플레이 광고 분석</p>
+          <p className="text-sm text-text-tertiary mt-1">
+            네이버 성과형 디스플레이 광고 분석
+            {statusKnown && <> · 데이터: {uploadMode ? '올린 성과 파일' : 'GFA 오픈API'}</>}
+          </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {apiConnected && uploadStatus?.has_data && (
+            <div className="flex items-center rounded-lg p-0.5 border border-border-primary">
+              {([['api', 'API 실시간'], ['upload', '올린 파일']] as const).map(([v, label]) => (
+                <button key={v}
+                  onClick={() => { setSource(v); if (v === 'api' && pickedPreset && UPLOAD_ONLY.has(pickedPreset)) setDatePreset(null); }}
+                  className="px-2.5 py-1 rounded-md text-xs font-medium transition-colors"
+                  style={source === v ? { backgroundColor: 'var(--color-brand-bg)', color: '#fff' } : { color: 'var(--color-text-tertiary)' }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
           <select
             value={datePreset}
             onChange={(e) => setDatePreset(e.target.value as DatePreset)}
             className="rounded-lg border border-border-primary px-3 py-2 text-sm bg-bg-1 focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
           >
-            {DATE_PRESETS.map((p) => (
+            {DATE_PRESETS.filter((p) => uploadMode || !p.uploadOnly).map((p) => (
               <option key={p.value} value={p.value}>{p.label}</option>
             ))}
           </select>
@@ -262,7 +305,15 @@ export function NaverGFADashboard() {
             </div>
           )}
           <button
-            onClick={() => refetchOverview()}
+            onClick={() => setShowUpload(true)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-white hover:opacity-90 transition-opacity"
+            style={{ backgroundColor: 'var(--color-brand-bg)' }}
+            title="GFA 광고 관리자 보고서에서 내려받은 일별 성과 파일(CSV·엑셀) 올리기"
+          >
+            <Upload size={15} /> 파일 올리기
+          </button>
+          <button
+            onClick={() => (uploadMode ? qc.invalidateQueries({ queryKey: ['gfa-upload'] }) : refetchOverview())}
             className="p-2 rounded-lg border border-border-primary hover:bg-bg-2/5 transition-colors"
             title="새로고침"
           >
@@ -271,6 +322,38 @@ export function NaverGFADashboard() {
         </div>
       </div>
 
+      {showUpload && (
+        <GfaUploadModal
+          accounts={uploadAccounts}
+          onClose={() => setShowUpload(false)}
+          onApplied={(res) => {
+            setShowUpload(false);
+            if (apiConnected) setSource('upload');
+            if (res.date_from && res.date_to) {  // 방금 올린 기간을 바로 보여 준다
+              setCustomStartDate(res.date_from);
+              setCustomEndDate(res.date_to);
+              setDatePreset('custom');
+            }
+          }}
+        />
+      )}
+
+      {uploadMode ? (
+        <GfaUploadDashboard
+          dateRange={effectiveDateRange}
+          startDate={effectiveStartDate}
+          endDate={effectiveEndDate}
+          accounts={uploadAccounts}
+          onUpload={() => setShowUpload(true)}
+          onShowAll={() => setDatePreset('all')}
+        />
+      ) : !statusKnown ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="animate-spin text-green" size={32} />
+          <span className="ml-3 text-text-tertiary">연결 상태 확인 중...</span>
+        </div>
+      ) : (
+      <>
       {/* KPI Cards */}
       {loadingOverview ? (
         <div className="flex items-center justify-center py-12">
@@ -494,6 +577,8 @@ export function NaverGFADashboard() {
           </div>
         ) : null}
       </div>
+      </>
+      )}
     </div>
   );
 }
