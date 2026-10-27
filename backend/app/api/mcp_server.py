@@ -3,7 +3,8 @@
 MCP Streamable HTTP(무상태, JSON 응답)를 최소 구현으로 제공한다.
   POST /mcp?key=<MARKETING_MCP_KEY>   — initialize / tools/list / tools/call
 클로드 데스크톱 연동:
-  ① 커스텀 커넥터 URL: https://web-production-d7b11.up.railway.app/mcp?key=...
+  ① 커스텀 커넥터 URL: https://mythirdproject-api-vbtijnoxfa-du.a.run.app/mcp?key=...
+     (구 Railway 주소 web-production-d7b11.up.railway.app 는 2026-10-16 폐기 — 그 주소로 등록된 커넥터는 바꿔야 함)
   ② 또는 claude_desktop_config.json → npx -y mcp-remote <같은 URL>
 
 도구는 모두 읽기 전용 — 내부적으로 localhost 자기 API를 10분짜리 자체 JWT로 호출

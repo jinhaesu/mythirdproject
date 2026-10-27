@@ -1226,7 +1226,7 @@ async def generate_report(
         if "credit" in err_msg.lower() or "balance" in err_msg.lower():
             hint = "Anthropic API 크레딧이 부족합니다. Anthropic 콘솔에서 크레딧을 충전해주세요."
         elif "credentials" in err_msg.lower() or "api_key" in err_msg.lower() or "authentication" in err_msg.lower():
-            hint = "ANTHROPIC_API_KEY가 유효하지 않습니다. Railway 환경변수를 확인해주세요."
+            hint = "ANTHROPIC_API_KEY가 유효하지 않습니다. Cloud Run 환경변수를 확인해주세요."
         elif "model" in err_msg.lower():
             hint = f"모델 '{claude.model}'에 접근할 수 없습니다. API 키 권한을 확인해주세요."
         else:

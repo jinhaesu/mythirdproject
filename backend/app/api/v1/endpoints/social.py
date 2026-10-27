@@ -200,14 +200,16 @@ IG_SCOPES = "instagram_business_basic,instagram_business_manage_insights,instagr
 
 
 def _ig_redirect_uri() -> str:
-    return "https://web-production-d7b11.up.railway.app/api/v1/social/instagram/auth/callback"
+    # 구 Railway 주소(web-production-d7b11)는 2026-10-16 폐기 — 지금 백엔드 주소(BACKEND_URL) 기준
+    base = (settings.BACKEND_URL or "https://mythirdproject-api-vbtijnoxfa-du.a.run.app").rstrip("/")
+    return f"{base}/api/v1/social/instagram/auth/callback"
 
 
 @router.get("/instagram/auth/start")
 async def instagram_auth_start(current_user: User = Depends(get_current_user)):
     if not settings.INSTAGRAM_APP_ID:
         raise HTTPException(status_code=503,
-                            detail="INSTAGRAM_APP_ID가 설정되지 않았습니다 — Railway Variables에 입력하세요.")
+                            detail="INSTAGRAM_APP_ID가 설정되지 않았습니다 — Cloud Run 환경변수에 입력하세요.")
     url = (f"{IG_OAUTH_BASE}?client_id={settings.INSTAGRAM_APP_ID}"
            f"&redirect_uri={_ig_redirect_uri()}&response_type=code"
            f"&scope={IG_SCOPES}&state={current_user.id}")
