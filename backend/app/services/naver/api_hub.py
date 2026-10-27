@@ -7,7 +7,7 @@
   X-NCP-APIGW-API-KEY-ID: <client_id>
   X-NCP-APIGW-API-KEY:    <client_secret>
 
-키는 Railway 환경변수 NAVER_HUB_CLIENT_ID / NAVER_HUB_CLIENT_SECRET로만
+키는 Cloud Run 환경변수 NAVER_HUB_CLIENT_ID / NAVER_HUB_CLIENT_SECRET로만
 주입한다 — 코드·로그에 절대 노출 금지.
 """
 import logging
