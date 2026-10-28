@@ -33,11 +33,12 @@ def affiliate_benefit_type(discount_type: Optional[str]) -> str:
 def apply_benefit(body: dict, benefit_type: str,
                   benefit_percentage: Optional[float], benefit_price: Optional[float]) -> dict:
     """benefit_type에 맞는 금액/비율 필드만 넣는다 (A=benefit_price, B=benefit_percentage)."""
+    # 생성 요청은 금액을 객체로 감싸야 함(2026-10-29 실측 422 "discount_amount is a required field")
     body["benefit_type"] = benefit_type
     if benefit_type == "A" and benefit_price is not None:
-        body["benefit_price"] = benefit_price
+        body["discount_amount"] = {"benefit_price": benefit_price}
     elif benefit_type == "B" and benefit_percentage is not None:
-        body["benefit_percentage"] = benefit_percentage
+        body["discount_rate"] = {"benefit_percentage": benefit_percentage}
     return body
 
 
@@ -79,7 +80,7 @@ def build_bestprice_coupon_request(*, amount: int, month: str, issue_max_count: 
     body = {
         "coupon_name": bestprice_coupon_name(amount, month),
         "benefit_type": "A",
-        "benefit_price": int(amount),
+        "discount_amount": {"benefit_price": int(amount)},
         "issue_type": "M",                      # 대상자 지정 발급
         "available_site": ["W", "M"],
         "available_scope": "O",                 # 주문서 쿠폰

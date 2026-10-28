@@ -35,9 +35,9 @@ class CouponSpecTest(unittest.TestCase):
 
     def test_apply_benefit_puts_right_field(self):
         b = spec.apply_benefit({}, "A", 10, 3000)
-        self.assertEqual(b, {"benefit_type": "A", "benefit_price": 3000})
+        self.assertEqual(b, {"benefit_type": "A", "discount_amount": {"benefit_price": 3000}})
         b = spec.apply_benefit({}, "B", 10, 3000)
-        self.assertEqual(b, {"benefit_type": "B", "benefit_percentage": 10})
+        self.assertEqual(b, {"benefit_type": "B", "discount_rate": {"benefit_percentage": 10}})
 
     def test_scope_values(self):
         self.assertEqual(spec.apply_scope({}), {"available_product": "U", "available_category": "U"})
@@ -50,7 +50,8 @@ class CouponSpecTest(unittest.TestCase):
         r = spec.build_bestprice_coupon_request(amount=1500, month="2026-11", issue_max_count=20000)["request"]
         self.assertEqual(r["coupon_name"], "널담 회원 최저가 1,500원 (11월)")
         self.assertTrue(r["coupon_name"].startswith(spec.BESTPRICE_NAME_PREFIX))
-        expect = {"benefit_type": "A", "benefit_price": 1500, "issue_type": "M", "available_scope": "O",
+        self.assertEqual(r["discount_amount"], {"benefit_price": 1500})
+        expect = {"benefit_type": "A", "issue_type": "M", "available_scope": "O",
                   "available_period_type": "R", "available_day_from_issued": 14, "available_min_price": 15000,
                   "available_price_type": "O", "available_coupon_count_by_order": 1, "issue_limit": "F",
                   "send_sms_for_issue": "F", "send_email_for_issue": "F",
