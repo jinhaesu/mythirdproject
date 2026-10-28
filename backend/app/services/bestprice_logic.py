@@ -54,6 +54,32 @@ def classify(*, days_since_join: int | None, n_orders: int, days_since_last: int
     return "active"
 
 
+def min_order_for(tier: str, median_order: float | None, *, low_tiers: set[str] | frozenset,
+                  low_aov: float, high_min: int, low_min: int) -> int:
+    """회원별 최소 주문금액(대표 결정 2026-10-29: 회원마다 1만원 또는 1.5만원).
+    - 첫 구매·복귀 전환 구간(low_tiers: 신규·가입후무구매·휴면·이탈)은 1만원
+    - 그 밖에는 그 회원 주문금액 중앙값이 low_aov(1.5만원) 미만이면 1만원, 아니면 1.5만원
+    """
+    if tier in low_tiers:
+        return int(low_min)
+    if median_order is not None and float(median_order) < float(low_aov):
+        return int(low_min)
+    return int(high_min)
+
+
+def coupon_slot(tier: str, min_order: int, high_min: int) -> str:
+    """카페24 쿠폰 1개 = (구간 금액 × 최소 주문금액). 기본 기준은 구간 이름 그대로(기존 8개와 호환)."""
+    return tier if int(min_order) == int(high_min) else f"{tier}:{int(min_order)}"
+
+
+def slot_tier(slot: str) -> str:
+    return slot.split(":", 1)[0]
+
+
+def slot_min(slot: str, high_min: int) -> int:
+    return int(slot.split(":", 1)[1]) if ":" in slot else int(high_min)
+
+
 def blended_rates(observed: dict[str, tuple[int, int]]) -> dict[str, float]:
     """observed[tier] = (구간 인원, 30일 내 구매 회원 수). 표본이 작으면 기본값."""
     out = {}

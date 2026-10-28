@@ -65,20 +65,26 @@ def apply_scope(body: dict, *, category_no: Optional[int] = None,
 BESTPRICE_NAME_PREFIX = "널담 회원 최저가"
 
 
-def bestprice_coupon_name(amount: int, month: str) -> str:
-    """고객에게 보이는 이름. 스킨 ndBestPrice가 접두어로 찾는다. month='YYYY-MM'."""
-    return f"{BESTPRICE_NAME_PREFIX} {int(amount):,}원 ({int(month[5:7])}월)"
+def bestprice_coupon_name(amount: int, month: str, min_order: int | None = None, default_min: int = 15000) -> str:
+    """고객에게 보이는 이름. 스킨 ndBestPrice가 접두어로 찾는다. month='YYYY-MM'.
+    기본(1.5만원)과 다른 최소 주문금액 쿠폰은 이름에 기준을 붙여 구분(예: '… 1,500원 (11월·1만원 이상)')."""
+    tail = f"{int(month[5:7])}월"
+    if min_order and int(min_order) != int(default_min):
+        m = int(min_order)
+        tail += f"·{m // 10000}만원 이상" if m % 10000 == 0 else f"·{m:,}원 이상"
+    return f"{BESTPRICE_NAME_PREFIX} {int(amount):,}원 ({tail})"
 
 
 def build_bestprice_coupon_request(*, amount: int, month: str, issue_max_count: int,
-                                   min_order_price: int = 15000, valid_days: int = 14) -> dict:
+                                   min_order_price: int = 15000, valid_days: int = 14,
+                                   default_min: int = 15000) -> dict:
     """정액·주문서 쿠폰, 최소 주문금액, 발급일 기준 N일, 알림 전부 끔. issue_max_count는 기록용(카페24엔 안 보냄)."""
     if amount <= 0:
         raise ValueError("amount must be positive")
     if issue_max_count <= 0:
         raise ValueError("issue_max_count must be positive")
     body = {
-        "coupon_name": bestprice_coupon_name(amount, month),
+        "coupon_name": bestprice_coupon_name(amount, month, min_order_price, default_min),
         "benefit_type": "A",
         "discount_amount": {"benefit_price": int(amount)},
         "issue_type": "M",                      # 대상자 지정 발급
