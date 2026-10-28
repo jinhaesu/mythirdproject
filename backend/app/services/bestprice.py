@@ -607,6 +607,23 @@ async def live_pilot(db, *, limit: int = 500, extra_member_ids: list[str] | None
     allrows.sort(key=lambda x: (x[0][3], x[0][1]))
     picked = [r[0] for r, _ in allrows[:max(0, int(limit))]]
     for m in extra_member_ids or []:
+        if m in have:
+            continue
+        if m not in tier_of:
+            # 오늘 가입해 아직 회원 동기화(mall_members) 전인 회원: 카페24에서 존재·가입일 확인 후 신규 구간
+            try:
+                cp = await promo_request(db, "GET", "/api/v2/admin/customersprivacy",
+                                         params={"member_id": m, "fields": "member_id,created_date"})
+            except Exception:
+                cp = {}
+            hit = next((x for x in (cp.get("customersprivacy") or []) if x.get("member_id") == m), None)
+            created = str((hit or {}).get("created_date") or "")[:10]
+            if hit and created and (today - date.fromisoformat(created)).days <= 30:
+                rule = _min_rule()
+                tier_of[m] = "new"
+                slot_of[m] = L.coupon_slot("new", L.min_order_for("new", None, **rule), rule["high_min"])
+                if slot_of[m] not in coupons:
+                    continue
         if m in tier_of and m not in picked:
             picked.append(m)
     run = BestpriceRun(month=month, mode="live")
