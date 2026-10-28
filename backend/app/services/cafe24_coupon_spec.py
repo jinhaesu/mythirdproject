@@ -71,7 +71,7 @@ def bestprice_coupon_name(amount: int, month: str) -> str:
 
 def build_bestprice_coupon_request(*, amount: int, month: str, issue_max_count: int,
                                    min_order_price: int = 15000, valid_days: int = 14) -> dict:
-    """정액·주문서 쿠폰, 최소 주문금액, 발급일 기준 N일, 발급 수 상한, 알림 전부 끔."""
+    """정액·주문서 쿠폰, 최소 주문금액, 발급일 기준 N일, 알림 전부 끔. issue_max_count는 기록용(카페24엔 안 보냄)."""
     if amount <= 0:
         raise ValueError("amount must be positive")
     if issue_max_count <= 0:
@@ -92,9 +92,9 @@ def build_bestprice_coupon_request(*, amount: int, month: str, issue_max_count: 
         "available_order_price_type": "U",
         "available_min_price": int(min_order_price),
         "available_coupon_count_by_order": 1,
-        "issue_limit": "T",
-        "issue_max_count": int(issue_max_count),
-        "same_user_reissue": "F",
+        # 카페24는 지정발급 쿠폰 issue_max_count < 999만 허용(2026-10-28 실측 422) → 상한 끔.
+        # 비용 통제는 우리 쪽 3중 장치(회원당 1장·기대비용 계획·실사용 조기종료)로.
+        "issue_limit": "F",
         "show_product_detail": "F",
         "use_notification_when_login": "F",
         "send_sms_for_issue": "F",
