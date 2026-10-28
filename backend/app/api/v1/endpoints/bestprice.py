@@ -25,8 +25,11 @@ router = APIRouter()
 
 
 def _require_super(user: User) -> None:
-    if not getattr(user, "is_superuser", False):
-        raise HTTPException(status_code=403, detail="관리자 권한이 필요합니다.")
+    """슈퍼유저 또는 BESTPRICE_ADMIN_EMAILS(기본: 대표 회사 계정)만."""
+    allowed = {e.strip().lower() for e in (get_settings().BESTPRICE_ADMIN_EMAILS or "").split(",") if e.strip()}
+    if getattr(user, "is_superuser", False) or (user.email or "").lower() in allowed:
+        return
+    raise HTTPException(status_code=403, detail="관리자 권한이 필요합니다.")
 
 
 @router.get("/summary")

@@ -107,6 +107,7 @@ class Settings(BaseSettings):
     # ── 회원 최저가 쿠폰(bestprice) — services/bestprice.py ──
     # false(기본)면 계산·로그·dry-run 행만 쓰고 카페24 쓰기(쿠폰 생성·발급·중지)는 절대 안 함.
     BESTPRICE_LIVE: bool = False
+    BESTPRICE_ADMIN_EMAILS: str = "lion9080@joinandjoin.com"  # 관리자 API 허용 계정(쉼표 구분)
     BESTPRICE_SCHEDULER: bool = True          # 매일 03:30 KST 자동 실행(LIVE=false면 dry-run)
     BESTPRICE_MONTHLY_CAP_KRW: int = 3000000  # 월 실사용 상한(원)
     BESTPRICE_SAFETY_FACTOR: float = 1.3      # 예상 사용률 안전계수
