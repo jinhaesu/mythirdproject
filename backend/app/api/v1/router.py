@@ -55,6 +55,14 @@ api_router.include_router(
     tags=["Ad Spend Daily"]
 )
 
+# 회원 최저가 쿠폰(bestprice) — 관리자 전용 요약/dry-run
+from app.api.v1.endpoints import bestprice  # noqa: E402
+api_router.include_router(
+    bestprice.router,
+    prefix="/bestprice",
+    tags=["Bestprice Coupons"]
+)
+
 # Authentication
 api_router.include_router(
     auth.router,

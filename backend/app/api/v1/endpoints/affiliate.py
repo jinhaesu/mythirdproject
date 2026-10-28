@@ -306,8 +306,8 @@ async def create_campaign(
         # 0% / 0원 할인은 쿠폰 미발급 (배송비 쿠폰은 값 무관)
         if discount_type and (discount_type == "shipping" or (discount_value or 0) > 0):
             try:
-                benefit_type_map = {"percentage": "A", "fixed": "B", "shipping": "D"}
-                benefit_type = benefit_type_map.get(discount_type, "A")
+                from app.services.cafe24_coupon_spec import affiliate_benefit_type
+                benefit_type = affiliate_benefit_type(discount_type)
                 coupon_result = await cafe24_svc.create_coupon(
                     cafe24_user, db,
                     coupon_name=f"[{payload.name}] 할인쿠폰",
@@ -360,8 +360,8 @@ async def create_campaign(
         # 0% / 0원 할인은 쿠폰 미발급 (배송비 쿠폰은 값 무관)
         if discount_type == "shipping" or (discount_value or 0) > 0:
             try:
-                benefit_type_map = {"percentage": "A", "fixed": "B", "shipping": "D"}
-                benefit_type = benefit_type_map.get(discount_type or "percentage", "A")
+                from app.services.cafe24_coupon_spec import affiliate_benefit_type
+                benefit_type = affiliate_benefit_type(discount_type)
                 coupon_result = await cafe24_svc.create_coupon(
                     cafe24_user, db,
                     coupon_name=f"[{payload.name}] 할인쿠폰",

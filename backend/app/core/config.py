@@ -98,11 +98,24 @@ class Settings(BaseSettings):
     CAFE24_WEBHOOK_SECRET: str = ""
     # 콤마 구분 scope 목록. 개발자센터에 등록된 권한과 일치해야 함.
     # mall.write_category — Phase 6 비공개 카테고리 자동 생성 필요 (B안)
-    CAFE24_SCOPES: str = "mall.read_product,mall.write_product,mall.read_category,mall.write_category,mall.write_promotion,mall.read_order,mall.read_customer,mall.read_analytics"
+    CAFE24_SCOPES: str = "mall.read_product,mall.write_product,mall.read_category,mall.write_category,mall.read_promotion,mall.write_promotion,mall.read_order,mall.read_customer,mall.read_analytics,mall.read_store,mall.read_shipping"
     # 외부 노출 도메인 (nuldam.com 등 실제 스토어프론트 도메인). 없으면 mall_id.cafe24.com 사용.
     CAFE24_PUBLIC_DOMAIN: str = ""
     # Analytics API(ca-api.cafe24data.com) 호출 시 사용할 mall_id 기본값. 없으면 user.cafe24_mall_id 사용.
     CAFE24_MALL_ID: str = ""
+
+    # ── 회원 최저가 쿠폰(bestprice) — services/bestprice.py ──
+    # false(기본)면 계산·로그·dry-run 행만 쓰고 카페24 쓰기(쿠폰 생성·발급·중지)는 절대 안 함.
+    BESTPRICE_LIVE: bool = False
+    BESTPRICE_SCHEDULER: bool = True          # 매일 03:30 KST 자동 실행(LIVE=false면 dry-run)
+    BESTPRICE_MONTHLY_CAP_KRW: int = 3000000  # 월 실사용 상한(원)
+    BESTPRICE_SAFETY_FACTOR: float = 1.3      # 예상 사용률 안전계수
+    BESTPRICE_WARN_RATIO: float = 0.7         # 월 누적 실사용 경고 비율
+    BESTPRICE_MIN_ORDER_KRW: int = 15000
+    BESTPRICE_VALID_DAYS: int = 14
+    BESTPRICE_MAX_ISSUE_PER_NIGHT: int = 50000  # 하룻밤 발급 회원 수 상한(나머지는 다음 밤)
+    BESTPRICE_ISSUE_BATCH: int = 1            # 발급 요청 1건당 회원 수(문서상 대량 한도 미표기 → 1부터)
+    BESTPRICE_REQ_INTERVAL_SEC: float = 0.25  # 카페24 쓰기 호출 간격
 
     # 어필리에이트 귀속 strict 모드 — True면 라스트클릭 추정 귀속(쿠폰→최근클릭,
     # 상품→2h내 클릭)을 중단하고 확정 신호(세션 바인딩·ref코드·회원 연결)만 인정.
