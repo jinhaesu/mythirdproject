@@ -218,6 +218,10 @@ async def lifespan(app: FastAPI):
         from app.services.content_metrics import run_content_metrics_loop
         bg_tasks.append(asyncio.create_task(run_content_metrics_loop()))
         logger.info("Content metrics daily loop started")
+
+        from app.services.bestprice import run_bestprice_loop
+        bg_tasks.append(asyncio.create_task(run_bestprice_loop()))
+        logger.info(f"Bestprice coupon loop started (LIVE={settings.BESTPRICE_LIVE})")
     else:
         logger.warning("SCHEDULER_ENABLED=false — all background loops disabled")
     yield

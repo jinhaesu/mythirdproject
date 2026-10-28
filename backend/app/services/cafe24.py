@@ -974,8 +974,8 @@ async def create_coupon(
     Cafe24 쿠폰 발급. coupon_no, coupon_code 반환.
 
     범위 우선순위:
-      - category_no 주어지면 → 카테고리 단위 쿠폰 (available_category=U)
-      - product_nos / product_no 주어지면 → 상품 단위 (available_product=U)
+      - category_no 주어지면 → 카테고리 단위 쿠폰 (available_category=I)
+      - product_nos / product_no 주어지면 → 상품 단위 (available_product=I)
       - 둘 다 없으면 전체 적용
     """
     from datetime import timezone as tz
@@ -986,41 +986,25 @@ async def create_coupon(
     end_dt = now + timedelta(days=period_days)
     end = end_dt.strftime("%Y-%m-%dT%H:%M:%S+09:00")
 
+    from app.services.cafe24_coupon_spec import apply_benefit, apply_scope
+
     request_body: dict = {
         "coupon_name": coupon_name,
         "coupon_type": "O",
-        "benefit_type": benefit_type,
         "issue_type": "M",
-        "issued_member_scope": "A",
         "available_site": ["W", "M"],  # 배열 필수. W=웹, M=모바일 둘 다
         "available_period_type": "F",
         "available_begin_datetime": begin,
         "available_end_datetime": end,
         "available_coupon_count_by_order": "N",
     }
-    if benefit_type == "A" and benefit_percentage is not None:
-        request_body["benefit_percentage"] = benefit_percentage
-    elif benefit_type == "B" and benefit_price is not None:
-        request_body["benefit_price"] = benefit_price
-
-    # 적용 범위 결정
-    if category_no is not None:
-        request_body["available_category"] = "U"
-        request_body["available_category_list"] = [int(category_no)]
-        request_body["available_product"] = "A"
-    else:
-        nos: list[int] = []
-        if product_nos:
-            nos.extend(int(p) for p in product_nos if p)
-        if product_no and product_no not in nos:
-            nos.append(int(product_no))
-        if nos:
-            request_body["available_product"] = "U"
-            request_body["available_product_list"] = nos
-            request_body["available_category"] = "A"
-        else:
-            request_body["available_product"] = "A"
-            request_body["available_category"] = "A"
+    # 2026-10-28 수정: 문서(2026-09-01) 기준 A=정액(benefit_price)·B=정률(benefit_percentage),
+    # 적용 범위 U=제한 없음·I=선택 적용 (이전엔 선택 상품에 U, 전체에 A를 보냈음)
+    apply_benefit(request_body, benefit_type, benefit_percentage, benefit_price)
+    nos: list[int] = list(product_nos or [])
+    if product_no and product_no not in nos:
+        nos.append(int(product_no))
+    apply_scope(request_body, category_no=category_no, product_nos=nos)
 
     data = await api_request(
         user, db, "POST", "/api/v2/admin/coupons",
