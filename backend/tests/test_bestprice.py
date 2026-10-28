@@ -52,11 +52,12 @@ class CouponSpecTest(unittest.TestCase):
         self.assertTrue(r["coupon_name"].startswith(spec.BESTPRICE_NAME_PREFIX))
         expect = {"benefit_type": "A", "benefit_price": 1500, "issue_type": "M", "available_scope": "O",
                   "available_period_type": "R", "available_day_from_issued": 14, "available_min_price": 15000,
-                  "available_price_type": "O", "available_coupon_count_by_order": 1, "issue_limit": "T",
-                  "issue_max_count": 20000, "send_sms_for_issue": "F", "send_email_for_issue": "F",
-                  "use_notification_when_login": "F", "show_product_detail": "F", "same_user_reissue": "F"}
+                  "available_price_type": "O", "available_coupon_count_by_order": 1, "issue_limit": "F",
+                  "send_sms_for_issue": "F", "send_email_for_issue": "F",
+                  "use_notification_when_login": "F", "show_product_detail": "F"}
         for k, v in expect.items():
             self.assertEqual(r[k], v, k)
+        self.assertNotIn("issue_max_count", r)  # 카페24 999 제한 → 보내지 않음
         with self.assertRaises(ValueError):
             spec.build_bestprice_coupon_request(amount=0, month="2026-11", issue_max_count=1)
 

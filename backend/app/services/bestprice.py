@@ -460,7 +460,7 @@ async def coupon_catalog(db) -> dict:
 _COUPON_CHECK = {
     "benefit_type": "A", "available_scope": "O", "available_period_type": "R",
     "send_sms_for_issue": "F", "send_email_for_issue": "F", "use_notification_when_login": "F",
-    "issue_type": "M", "issue_limit": "T",
+    "issue_type": "M", "issue_limit": "F",
 }
 
 
@@ -477,7 +477,7 @@ def verify_coupon_fields(c: dict, amount: int, min_price: int, days: int, max_co
         except (TypeError, ValueError):
             return False
     for k, v in (("benefit_price", amount), ("available_min_price", min_price),
-                 ("available_day_from_issued", days), ("issue_max_count", max_count)):
+                 ("available_day_from_issued", days)):
         if not eqnum(k, v):
             bad.append(f"{k}={c.get(k)}(기대 {v})")
     if not str(c.get("coupon_name") or "").startswith("널담 회원 최저가"):
