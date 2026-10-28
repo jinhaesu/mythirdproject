@@ -41,14 +41,16 @@ with o as (
   where status = 'paid' and member_id is not null and order_date < CAST(:asof AS date)
 ), h as (
   select member_id, count(*) n, max(order_date) last_order,
-         coalesce(sum(amount) filter (where order_date >= CAST(:asof AS date) - 365), 0) amt365
+         coalesce(sum(amount) filter (where order_date >= CAST(:asof AS date) - 365), 0) amt365,
+         percentile_cont(0.5) within group (order by amount) med
   from o group by 1
 )
 select m.member_id,
        (CAST(:asof AS date) - CAST(m.joined_at AS date)) as dj,
        coalesce(h.n, 0) as n,
        (CAST(:asof AS date) - h.last_order) as dl,
-       coalesce(h.amt365, 0) as amt
+       coalesce(h.amt365, 0) as amt,
+       h.med as med
 from mall_members m left join h using (member_id)
 where m.joined_at is null or m.joined_at < CAST(:asof AS date)
 """)
@@ -60,13 +62,39 @@ where status = 'paid' and member_id is not null
 """)
 
 
-async def _classify_all(db, asof: date) -> dict[str, list[tuple[str, int, int, int, float]]]:
+async def _classify_all(db, asof: date) -> dict[str, list[tuple]]:
+    """구간별 (member_id, 가입경과일, 주문수, 마지막구매경과일, 1년금액, 주문금액중앙값|None)."""
     rows = (await db.execute(_FEATURE_SQL, {"asof": asof})).all()
     out: dict[str, list] = {t: [] for t in L.TIER_ORDER}
-    for mid, dj, n, dl, amt in rows:
+    for mid, dj, n, dl, amt, med in rows:
         t = L.classify(days_since_join=dj, n_orders=int(n or 0), days_since_last=dl, amount_365=float(amt or 0))
-        out[t].append((mid, dj if dj is not None else 10 ** 6, int(n or 0), dl if dl is not None else 10 ** 6, float(amt or 0)))
+        out[t].append((mid, dj if dj is not None else 10 ** 6, int(n or 0), dl if dl is not None else 10 ** 6,
+                       float(amt or 0), None if med is None else float(med)))
     return out
+
+
+def _min_rule():
+    s = get_settings()
+    low_tiers = frozenset(x.strip() for x in (s.BESTPRICE_LOW_MIN_TIERS or "").split(",") if x.strip())
+    return dict(low_tiers=low_tiers, low_aov=float(s.BESTPRICE_LOW_AOV_KRW),
+                high_min=int(s.BESTPRICE_MIN_ORDER_KRW), low_min=int(s.BESTPRICE_MIN_ORDER_LOW_KRW))
+
+
+def _slot_map(tiers: dict) -> dict[str, str]:
+    """member_id -> 쿠폰 슬롯(구간 또는 '구간:최소주문금액')."""
+    rule = _min_rule()
+    out = {}
+    for t, rows in tiers.items():
+        for r in rows:
+            out[r[0]] = L.coupon_slot(t, L.min_order_for(t, r[5], **rule), rule["high_min"])
+    return out
+
+
+def _slot_sizes(slots: dict[str, str]) -> dict[str, int]:
+    n: dict[str, int] = {}
+    for v in slots.values():
+        n[v] = n.get(v, 0) + 1
+    return n
 
 
 def _priority_sort(tier: str, rows: list) -> list[str]:
@@ -176,17 +204,20 @@ async def end_month_early(db, month: str) -> dict:
     return {"paused": paused, "revoked": revoked}
 
 
-async def _ensure_live_coupon(db, month: str, tier: str, max_count: int):
+async def _ensure_live_coupon(db, month: str, slot: str, max_count: int):
+    """slot = 구간 또는 '구간:최소주문금액'(bestprice_coupons.tier 칸에 그대로 기록)."""
     from app.models.bestprice import BestpriceCoupon
     from app.services.cafe24_promo import promo_request
     s = get_settings()
+    tier = slot
     row = (await db.execute(select(BestpriceCoupon).where(
         BestpriceCoupon.month == month, BestpriceCoupon.tier == tier, BestpriceCoupon.mode == "live"))).scalar_one_or_none()
     if row and row.coupon_no:
         return row
-    amount = L.TIER_AMOUNT[tier]
+    amount = L.TIER_AMOUNT[L.slot_tier(slot)]
     body = build_bestprice_coupon_request(amount=amount, month=month, issue_max_count=max_count,
-                                          min_order_price=s.BESTPRICE_MIN_ORDER_KRW, valid_days=s.BESTPRICE_VALID_DAYS)
+                                          min_order_price=L.slot_min(slot, s.BESTPRICE_MIN_ORDER_KRW),
+                                          valid_days=s.BESTPRICE_VALID_DAYS, default_min=s.BESTPRICE_MIN_ORDER_KRW)
     data = await promo_request(db, "POST", "/api/v2/admin/coupons", json=body)
     cno = str((data.get("coupon") or {}).get("coupon_no") or "")
     if not cno:
@@ -262,17 +293,21 @@ async def _run_inner(db, run_id: int, mode: str, today: date, month: str) -> dic
                            cap=cap if status != "reached" else 0.0,
                            committed_expected=committed, max_issue=s.BESTPRICE_MAX_ISSUE_PER_NIGHT)
 
-    # 4) 기록 / 발급
+    # 4) 기록 / 발급 — 회원별 최소 주문금액(1만/1.5만)에 맞는 쿠폰 슬롯
     tier_sizes = {t: len(rows) for t, rows in tiers.items()}
+    slot_of = _slot_map(tiers)
+    slot_sizes = _slot_sizes(slot_of)
+    high_min = int(s.BESTPRICE_MIN_ORDER_KRW)
     issued = failed = 0
     if mode == "dry":
         await db.execute(delete(BestpriceAssignment).where(BestpriceAssignment.month == month,
                                                            BestpriceAssignment.mode == "dry"))
         await db.execute(delete(BestpriceCoupon).where(BestpriceCoupon.month == month, BestpriceCoupon.mode == "dry"))
-        for t in L.TIER_ORDER:
-            db.add(BestpriceCoupon(month=month, tier=t, mode="dry", amount=L.TIER_AMOUNT[t],
-                                   coupon_name=bestprice_coupon_name(L.TIER_AMOUNT[t], month),
-                                   issue_max_count=int(tier_sizes[t] * 1.2) + 100, status="planned"))
+        for sl in sorted(slot_sizes):
+            a = L.TIER_AMOUNT[L.slot_tier(sl)]
+            db.add(BestpriceCoupon(month=month, tier=sl, mode="dry", amount=a,
+                                   coupon_name=bestprice_coupon_name(a, month, L.slot_min(sl, high_min), high_min),
+                                   issue_max_count=int(slot_sizes[sl] * 1.2) + 100, status="planned"))
         now = datetime.utcnow()
         rows = [{"month": month, "member_id": m, "mode": "dry", "tier": t, "amount": L.TIER_AMOUNT[t],
                  "expected_cost": L.expected_cost(t, rates, safety), "status": "planned",
@@ -281,16 +316,17 @@ async def _run_inner(db, run_id: int, mode: str, today: date, month: str) -> dic
             await db.execute(insert(BestpriceAssignment), rows[i:i + 5000])
         await db.commit()
     else:
-        by_tier: dict[str, list[str]] = {}
+        by_slot: dict[str, list[str]] = {}
         for m, t in plan.issue:
-            by_tier.setdefault(t, []).append(m)
+            by_slot.setdefault(slot_of.get(m, t), []).append(m)
         batch = max(1, int(s.BESTPRICE_ISSUE_BATCH))
         from app.services.cafe24_promo import promo_request
-        for t in L.TIER_ORDER:
-            members = by_tier.get(t) or []
+        for sl in sorted(by_slot, key=lambda x: (L.TIER_ORDER.index(L.slot_tier(x)), x)):
+            t = L.slot_tier(sl)
+            members = by_slot.get(sl) or []
             if not members:
                 continue
-            coupon = await _ensure_live_coupon(db, month, t, int(tier_sizes[t] * 1.2) + 100)
+            coupon = await _ensure_live_coupon(db, month, sl, int(slot_sizes.get(sl, len(members)) * 1.2) + 100)
             for i in range(0, len(members), batch):
                 chunk = members[i:i + batch]
                 err = None
@@ -315,6 +351,19 @@ async def _run_inner(db, run_id: int, mode: str, today: date, month: str) -> dic
             await db.commit()
 
     eligible_total = sum(tier_sizes.values())
+    planned_by_min: dict[str, int] = {}
+    planned_by_slot: dict[str, int] = {}
+    worst_by_min: dict[str, int] = {}
+    for m, t in plan.issue:
+        sl = slot_of.get(m, t)
+        planned_by_slot[sl] = planned_by_slot.get(sl, 0) + 1
+        k = str(L.slot_min(sl, high_min))
+        planned_by_min[k] = planned_by_min.get(k, 0) + 1
+        worst_by_min[k] = worst_by_min.get(k, 0) + L.TIER_AMOUNT[t]
+    members_by_min: dict[str, int] = {}
+    for sl, n in slot_sizes.items():
+        k = str(L.slot_min(sl, high_min))
+        members_by_min[k] = members_by_min.get(k, 0) + n
     summary = {
         "month": month, "as_of_kst": today.isoformat(), "mode": mode,
         "cap": cap, "safety_factor": safety, "warn_ratio": s.BESTPRICE_WARN_RATIO,
@@ -327,6 +376,10 @@ async def _run_inner(db, run_id: int, mode: str, today: date, month: str) -> dic
         "deferred_budget": plan.deferred_budget, "deferred_batch": plan.deferred_batch,
         "members_total": eligible_total, "already_have_coupon": len(have),
         "issued": issued, "failed": failed,
+        "min_order_rule": {k: (sorted(v) if isinstance(v, frozenset) else v) for k, v in _min_rule().items()},
+        "members_by_min_order": members_by_min, "planned_by_min_order": planned_by_min,
+        "planned_worst_case_by_min_order": worst_by_min,
+        "members_by_slot": slot_sizes, "planned_by_slot": planned_by_slot,
         "tiers": {t: {**plan.per_tier[t], "members": tier_sizes[t],
                       "backtest_members": observed.get(t, (0, 0))[0],
                       "backtest_buyers": observed.get(t, (0, 0))[1]} for t in L.TIER_ORDER},
@@ -500,13 +553,16 @@ async def live_create_and_verify(db) -> dict:
     if not s.BESTPRICE_LIVE:
         raise RuntimeError("BESTPRICE_LIVE=false")
     month = period_key(kst_today())
-    sizes = {t: len(rows) for t, rows in (await _classify_all(db, kst_today())).items()}
+    sizes = _slot_sizes(_slot_map(await _classify_all(db, kst_today())))
+    # 기존 8개(1.5만원 기준)는 회원이 없어도 유지·검증, 그 밖의 슬롯은 해당 회원이 있을 때만 생성
+    slots = sorted(set(L.TIER_ORDER) | set(sizes), key=lambda x: (L.TIER_ORDER.index(L.slot_tier(x)), x))
     out = {}
-    for t in L.TIER_ORDER:
-        row = await _ensure_live_coupon(db, month, t, int(sizes[t] * 1.2) + 100)
+    for t in slots:
+        row = await _ensure_live_coupon(db, month, t, int(sizes.get(t, 0) * 1.2) + 100)
         c = await _get_coupon(db, row.coupon_no)
         bad = ["GET 결과 없음"] if c is None else verify_coupon_fields(
-            c, L.TIER_AMOUNT[t], s.BESTPRICE_MIN_ORDER_KRW, s.BESTPRICE_VALID_DAYS, row.issue_max_count)
+            c, L.TIER_AMOUNT[L.slot_tier(t)], L.slot_min(t, s.BESTPRICE_MIN_ORDER_KRW),
+            s.BESTPRICE_VALID_DAYS, row.issue_max_count)
         if bad and row.status == "active":
             try:
                 await promo_request(db, "PUT", f"/api/v2/admin/coupons/{row.coupon_no}", json=build_pause_request())
@@ -538,9 +594,11 @@ async def live_pilot(db, *, limit: int = 500, extra_member_ids: list[str] | None
     coupons = {c.tier: c for c in (await db.execute(select(BestpriceCoupon).where(
         BestpriceCoupon.month == month, BestpriceCoupon.mode == "live",
         BestpriceCoupon.status == "active"))).scalars().all()}
-    if len(coupons) != len(L.TIER_ORDER):
-        raise RuntimeError(f"활성 쿠폰 {len(coupons)}/{len(L.TIER_ORDER)} — 생성·검증 먼저")
     tiers = await _classify_all(db, today)
+    slot_of = _slot_map(tiers)
+    missing = set(slot_of.values()) - set(coupons)
+    if missing:
+        raise RuntimeError(f"활성 쿠폰 없는 슬롯 {sorted(missing)} — 생성·검증 먼저")
     have = {m for (m,) in (await db.execute(select(BestpriceAssignment.member_id).where(
         BestpriceAssignment.month == month, BestpriceAssignment.mode == "live"))).all()}
     rates, _ = await observed_rates(db, today)
@@ -559,7 +617,7 @@ async def live_pilot(db, *, limit: int = 500, extra_member_ids: list[str] | None
     done: list[str] = []
     for m in picked:
         t = tier_of[m]
-        c = coupons[t]
+        c = coupons[slot_of[m]]
         err = None
         try:
             await promo_request(db, "POST", f"/api/v2/admin/coupons/{c.coupon_no}/issues",
@@ -585,7 +643,7 @@ async def live_pilot(db, *, limit: int = 500, extra_member_ids: list[str] | None
     for m in done:
         by_tier[tier_of[m]] = by_tier.get(tier_of[m], 0) + 1
     summary = {"month": month, "pilot": True, "picked": len(picked), "issued": issued, "failed": failed,
-               "by_tier": by_tier, "errors_sample": errors[:5],
+               "by_tier": by_tier, "by_slot": _slot_sizes({m: slot_of[m] for m in done}), "errors_sample": errors[:5],
                "extra_found": [m for m in (extra_member_ids or []) if m in tier_of],
                "extra_missing": [m for m in (extra_member_ids or []) if m not in tier_of]}
     run.status, run.summary_json, run.finished_at = "done", json.dumps(summary, ensure_ascii=False), datetime.utcnow()

@@ -112,7 +112,10 @@ class Settings(BaseSettings):
     BESTPRICE_MONTHLY_CAP_KRW: int = 3000000  # 월 실사용 상한(원)
     BESTPRICE_SAFETY_FACTOR: float = 1.3      # 예상 사용률 안전계수
     BESTPRICE_WARN_RATIO: float = 0.7         # 월 누적 실사용 경고 비율
-    BESTPRICE_MIN_ORDER_KRW: int = 15000
+    BESTPRICE_MIN_ORDER_KRW: int = 15000        # 기본 최소 주문금액
+    BESTPRICE_MIN_ORDER_LOW_KRW: int = 10000    # 낮춘 최소 주문금액(객단가 낮은 회원·전환 구간)
+    BESTPRICE_LOW_AOV_KRW: int = 15000          # 회원 주문금액 중앙값이 이보다 낮으면 낮춘 기준
+    BESTPRICE_LOW_MIN_TIERS: str = "new,nopurchase,dormant,lapsed"  # 무조건 낮춘 기준(첫 구매·복귀 전환)
     BESTPRICE_VALID_DAYS: int = 14
     BESTPRICE_MAX_ISSUE_PER_NIGHT: int = 50000  # 하룻밤 발급 회원 수 상한(나머지는 다음 밤)
     BESTPRICE_ISSUE_BATCH: int = 1            # 발급 요청 1건당 회원 수(문서상 대량 한도 미표기 → 1부터)

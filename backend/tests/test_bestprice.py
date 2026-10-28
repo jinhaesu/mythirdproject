@@ -110,6 +110,29 @@ class LogicTest(unittest.TestCase):
         self.assertEqual(p3.deferred_batch, 4)
         self.assertEqual(p3.per_tier["new"]["worst_case_cost"], 2000)
 
+    def test_min_order_personalized(self):
+        rule = dict(low_tiers=frozenset({"new", "nopurchase", "dormant", "lapsed"}), low_aov=15000,
+                    high_min=15000, low_min=10000)
+        self.assertEqual(L.min_order_for("new", None, **rule), 10000)        # 전환 구간
+        self.assertEqual(L.min_order_for("lapsed", 30000, **rule), 10000)
+        self.assertEqual(L.min_order_for("active", 12900, **rule), 10000)    # 객단가 낮음
+        self.assertEqual(L.min_order_for("active", 15000, **rule), 15000)
+        self.assertEqual(L.min_order_for("vip", None, **rule), 15000)
+        self.assertEqual(L.min_order_for("longinactive", None, **rule), 15000)
+        self.assertEqual(L.coupon_slot("active", 15000, 15000), "active")    # 기존 8개와 호환
+        self.assertEqual(L.coupon_slot("active", 10000, 15000), "active:10000")
+        self.assertEqual(L.slot_tier("active:10000"), "active")
+        self.assertEqual(L.slot_min("active:10000", 15000), 10000)
+        self.assertEqual(L.slot_min("active", 15000), 15000)
+
+    def test_low_min_coupon_name_and_body(self):
+        self.assertEqual(spec.bestprice_coupon_name(1500, "2026-11"), "널담 회원 최저가 1,500원 (11월)")
+        self.assertEqual(spec.bestprice_coupon_name(1500, "2026-11", 15000), "널담 회원 최저가 1,500원 (11월)")
+        self.assertEqual(spec.bestprice_coupon_name(1500, "2026-11", 10000), "널담 회원 최저가 1,500원 (11월·1만원 이상)")
+        r = spec.build_bestprice_coupon_request(amount=300, month="2026-11", issue_max_count=10, min_order_price=10000)["request"]
+        self.assertEqual(r["available_min_price"], 10000)
+        self.assertTrue(r["coupon_name"].endswith("(11월·1만원 이상)"))
+
     def test_cap_status(self):
         self.assertEqual(L.cap_status(0, 3_000_000, 0.7), "ok")
         self.assertEqual(L.cap_status(2_100_000, 3_000_000, 0.7), "warn")
