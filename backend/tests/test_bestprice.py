@@ -128,10 +128,10 @@ class LogicTest(unittest.TestCase):
     def test_low_min_coupon_name_and_body(self):
         self.assertEqual(spec.bestprice_coupon_name(1500, "2026-11"), "널담 회원 최저가 1,500원 (11월)")
         self.assertEqual(spec.bestprice_coupon_name(1500, "2026-11", 15000), "널담 회원 최저가 1,500원 (11월)")
-        self.assertEqual(spec.bestprice_coupon_name(1500, "2026-11", 10000), "널담 회원 최저가 1,500원 (11월·1만원 이상)")
+        self.assertEqual(spec.bestprice_coupon_name(1500, "2026-11", 10000), "널담 회원 최저가 1,500원 (11월, 1만원 이상)")
         r = spec.build_bestprice_coupon_request(amount=300, month="2026-11", issue_max_count=10, min_order_price=10000)["request"]
         self.assertEqual(r["available_min_price"], 10000)
-        self.assertTrue(r["coupon_name"].endswith("(11월·1만원 이상)"))
+        self.assertTrue(r["coupon_name"].endswith("(11월, 1만원 이상)"))
 
     def test_cap_status(self):
         self.assertEqual(L.cap_status(0, 3_000_000, 0.7), "ok")

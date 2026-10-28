@@ -71,7 +71,8 @@ def bestprice_coupon_name(amount: int, month: str, min_order: int | None = None,
     tail = f"{int(month[5:7])}월"
     if min_order and int(min_order) != int(default_min):
         m = int(min_order)
-        tail += f"·{m // 10000}만원 이상" if m % 10000 == 0 else f"·{m:,}원 이상"
+        # 카페24가 가운뎃점(·)을 &middot;로 저장해 쉼표 사용(2026-10-29 실측)
+        tail += f", {m // 10000}만원 이상" if m % 10000 == 0 else f", {m:,}원 이상"
     return f"{BESTPRICE_NAME_PREFIX} {int(amount):,}원 ({tail})"
 
 
