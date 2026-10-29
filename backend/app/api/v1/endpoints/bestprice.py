@@ -65,6 +65,32 @@ async def bestprice_catalog_js(db: AsyncSession = Depends(get_db)):
                     headers={"Cache-Control": "public, max-age=600"})
 
 
+@router.get("/ranking.js")
+async def bestprice_ranking_js(db: AsyncSession = Depends(get_db)):
+    """공식몰 베스트 TOP 10(우리 판매 수량 기준) → window.ndBestRanking. 순위·상품번호·기간만(수량·매출 없음)."""
+    from app.services import best_ranking
+    try:
+        data = await best_ranking.get_ranking(db)
+    except Exception:
+        data = {"basis": "cafe24_popular", "label": "널담 공식몰 인기순", "from": None, "to": None,
+                "updated_at": None, "items": []}
+    body = "window.ndBestRanking=" + json.dumps(data, ensure_ascii=False, separators=(",", ":")) + ";"
+    return Response(body, media_type="application/javascript; charset=utf-8",
+                    headers={"Cache-Control": "public, max-age=600"})
+
+
+@router.get("/ranking.json")
+async def bestprice_ranking_json(db: AsyncSession = Depends(get_db)):
+    from app.services import best_ranking
+    try:
+        data = await best_ranking.get_ranking(db)
+    except Exception:
+        data = {"basis": "cafe24_popular", "label": "널담 공식몰 인기순", "from": None, "to": None,
+                "updated_at": None, "items": []}
+    return Response(json.dumps(data, ensure_ascii=False), media_type="application/json; charset=utf-8",
+                    headers={"Cache-Control": "public, max-age=600", "Access-Control-Allow-Origin": "*"})
+
+
 class PilotBody(BaseModel):
     limit: int = 500
     member_ids: list[str] = []
