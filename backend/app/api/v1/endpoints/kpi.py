@@ -6,6 +6,7 @@
 
 엔드포인트:
   GET    /api/v1/kpi/summary?granularity=month|week|day — 자사몰 KPI 요약 (month=월별 요약, week/day=최근 N일 버킷)
+                                                  &start=YYYY-MM-DD&end=YYYY-MM-DD 주면 직접 설정 기간
   PUT    /api/v1/kpi/goals/{month}               — 월간 목표 upsert
   GET    /api/v1/kpi/goals?months=12             — 월간 목표 목록
   PUT    /api/v1/kpi/channel-spend               — 채널별 월 광고비 upsert (scope: mall|external, 기본 mall)
@@ -208,21 +209,65 @@ def _serialize_external_goal(goal: ExternalMarketingGoal) -> dict:
 
 # ── GET /summary ─────────────────────────────────────────────────────────────
 
+_MAX_RANGE_MONTHS = 24
+_MAX_RANGE_DAYS = 400
+
+
+def _resolve_range(start: Optional[date], end: Optional[date]) -> Optional[tuple[date, date]]:
+    """직접 설정 기간(start~end) 검증. 둘 다 없으면 None(최근 N 기간 동작)."""
+    if start is None and end is None:
+        return None
+    if start is None or end is None:
+        raise HTTPException(status_code=422, detail="start와 end를 함께 지정해야 합니다.")
+    today = date.today()
+    if end > today:
+        end = today
+    if start > end:
+        raise HTTPException(status_code=422, detail="시작일이 종료일보다 늦습니다.")
+    return start, end
+
+
+def _months_between(start: date, end: date) -> list[str]:
+    """start가 속한 월부터 end가 속한 월까지 (오래된 순)."""
+    out = []
+    y, m = start.year, start.month
+    while (y, m) <= (end.year, end.month):
+        out.append(f"{y:04d}-{m:02d}")
+        m += 1
+        if m == 13:
+            m, y = 1, y + 1
+    return out
+
+
 async def _kpi_summary_data(
     db: AsyncSession,
     granularity: str,
     months: int,
     days: int,
+    start: Optional[date] = None,
+    end: Optional[date] = None,
 ) -> dict:
-    """summary·export 공용 KPI 집계. granularity=month면 월별, week/day면 최근 days일 버킷."""
+    """summary·export 공용 KPI 집계. granularity=month면 월별, week/day면 최근 days일 버킷.
+
+    start·end가 있으면 그 기간(직접 설정)으로 집계한다 — 월별은 start월~end월(최대 24개월),
+    주별·일별은 start~end(최대 400일, end는 오늘까지).
+    """
+    rng = _resolve_range(start, end)
     if granularity == "month":
-        return await _kpi_summary_monthly(db, months)
-    return await _kpi_summary_bucketed(db, granularity, days)
+        if rng is None:
+            return await _kpi_summary_monthly(db, months)
+        month_list = _months_between(*rng)
+        if len(month_list) > _MAX_RANGE_MONTHS:
+            raise HTTPException(status_code=422, detail=f"월별 직접 설정은 최대 {_MAX_RANGE_MONTHS}개월입니다.")
+        return await _kpi_summary_monthly(db, months, month_list=month_list)
+    if rng is not None and (rng[1] - rng[0]).days + 1 > _MAX_RANGE_DAYS:
+        raise HTTPException(status_code=422, detail=f"주별·일별 직접 설정은 최대 {_MAX_RANGE_DAYS}일입니다.")
+    return await _kpi_summary_bucketed(db, granularity, days, rng=rng)
 
 
-async def _kpi_summary_monthly(db: AsyncSession, months: int) -> dict:
-    """최근 N개월(당월 포함) 마케팅 KPI 요약. 데이터 부족 항목은 None."""
-    month_list = _recent_months(months)
+async def _kpi_summary_monthly(db: AsyncSession, months: int, month_list: Optional[list[str]] = None) -> dict:
+    """최근 N개월(당월 포함) 마케팅 KPI 요약. 데이터 부족 항목은 None. month_list를 주면 그 월들."""
+    month_list = month_list or _recent_months(months)
     range_start, _ = _month_bounds(month_list[0])
     _, range_end = _month_bounds(month_list[-1])
 
@@ -410,15 +455,22 @@ async def _kpi_summary_monthly(db: AsyncSession, months: int) -> dict:
     return {"months": months_out, "granularity": "month"}
 
 
-async def _kpi_summary_bucketed(db: AsyncSession, granularity: str, days: int) -> dict:
+async def _kpi_summary_bucketed(
+    db: AsyncSession, granularity: str, days: int, rng: Optional[tuple[date, date]] = None,
+) -> dict:
     """최근 days일(오늘 포함)을 일/주(월요일 시작) 버킷으로 나눈 마케팅 KPI 요약.
+    rng(start, end)를 주면 그 기간을 나눈다(직접 설정).
 
     ltv/ltv_cac/goal은 항상 None (월 단위 전용 지표). channel_spends는 meta 자동 1행만
     포함한다 (naver_sa는 자사몰로 연결되지 않는 채널이라 그 외 KPI로 이동).
     """
-    today = date.today()
-    end_date = today
-    start_date = today - timedelta(days=days - 1)
+    if rng is not None:
+        start_date, end_date = rng
+        days = (end_date - start_date).days + 1
+    else:
+        today = date.today()
+        end_date = today
+        start_date = today - timedelta(days=days - 1)
 
     bucket_bounds: list[tuple[date, date]] = []
     if granularity == "day":
@@ -725,6 +777,8 @@ async def get_kpi_summary(
     granularity: str = Query(default="month", description="month | week | day"),
     months: int = Query(default=6, ge=1, le=24),
     days: int = Query(default=30, ge=7, le=190, description="week/day granularity 전용 — 최근 N일"),
+    start: Optional[date] = Query(default=None, description="직접 설정 시작일 YYYY-MM-DD (end와 함께)"),
+    end: Optional[date] = Query(default=None, description="직접 설정 종료일 YYYY-MM-DD (오늘 이후는 오늘로)"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -735,7 +789,7 @@ async def get_kpi_summary(
     """
     if granularity not in ("month", "week", "day"):
         raise HTTPException(status_code=422, detail="granularity 는 month, week, day 중 하나여야 합니다.")
-    return await _kpi_summary_data(db, granularity, months, days)
+    return await _kpi_summary_data(db, granularity, months, days, start, end)
 
 
 @router.get("/external-summary")
@@ -1831,6 +1885,8 @@ async def export_kpi_excel(
     granularity: str = Query(default="month", description="month | week | day"),
     months: int = Query(default=6, ge=1, le=24),
     days: int = Query(default=30, ge=7, le=190, description="week/day granularity 전용 — 최근 N일"),
+    start: Optional[date] = Query(default=None),
+    end: Optional[date] = Query(default=None),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -1846,7 +1902,7 @@ async def export_kpi_excel(
     from openpyxl.utils import get_column_letter
     from fastapi.responses import StreamingResponse
 
-    data = await _kpi_summary_data(db, granularity, months, days)
+    data = await _kpi_summary_data(db, granularity, months, days, start, end)
     items = data["months"]
     month_mode = granularity == "month"
 

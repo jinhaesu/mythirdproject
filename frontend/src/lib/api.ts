@@ -1307,6 +1307,9 @@ export interface KPISummaryParams {
   months?: number;
   /** granularity='week' | 'day'일 때: 30 | 90 */
   days?: number;
+  /** 직접 설정 기간 (YYYY-MM-DD, 둘 다 있을 때만 적용 — months/days보다 우선) */
+  start?: string;
+  end?: string;
 }
 
 export interface KPIGoalUpdatePayload {

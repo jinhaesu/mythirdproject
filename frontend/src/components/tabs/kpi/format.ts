@@ -56,10 +56,10 @@ export const fmtNum = (v: number | null | undefined): string =>
 export const shortMonth = (m: string): string => m.slice(2).replace('-', '.');
 
 /** granularity별 차트 X축 라벨. month="M월", week="MM-DD~MM-DD"(bucket_end 활용), day="MM-DD" */
-export const bucketLabel = (m: KPIMonthSummary, granularity: KPIGranularity): string => {
+export const bucketLabel = (m: KPIMonthSummary, granularity: KPIGranularity, withYear = false): string => {
   if (granularity === 'month') {
     const mm = parseInt((m.month.split('-')[1] || '0'), 10);
-    return `${mm}월`;
+    return withYear ? `${m.month.slice(2, 4)}년 ${mm}월` : `${mm}월`;
   }
   const start = m.month.slice(5, 10); // MM-DD
   if (granularity === 'week') {

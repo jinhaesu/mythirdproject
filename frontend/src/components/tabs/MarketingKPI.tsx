@@ -203,23 +203,50 @@ export function MarketingKPI() {
 
   const defaultMonth = useMemo(() => new Date().toISOString().slice(0, 7), []);
 
+  // 직접 설정 기간 (2026-10-29 연다은 건의) — 적용된 값(custom)이 있으면 최근 N 버튼 대신 이 기간으로 조회
+  const todayStr = useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }, []);
+  const [customOpen, setCustomOpen] = useState(false);
+  const [draftStart, setDraftStart] = useState('');
+  const [draftEnd, setDraftEnd] = useState(todayStr);
+  const [custom, setCustom] = useState<{ start: string; end: string } | null>(null);
+
+  const applyCustom = () => {
+    if (!draftStart || !draftEnd) { toast.error('시작일과 종료일을 모두 고르세요.'); return; }
+    if (draftStart > draftEnd) { toast.error('시작일이 종료일보다 늦습니다.'); return; }
+    const days = (new Date(draftEnd).getTime() - new Date(draftStart).getTime()) / 86400000 + 1;
+    if (!isMonthMode && days > 400) { toast.error('주별·일별은 최대 400일까지 볼 수 있습니다.'); return; }
+    if (isMonthMode) {
+      const ms = (Number(draftEnd.slice(0, 4)) - Number(draftStart.slice(0, 4))) * 12
+        + Number(draftEnd.slice(5, 7)) - Number(draftStart.slice(5, 7)) + 1;
+      if (ms > 24) { toast.error('월별은 최대 24개월까지 볼 수 있습니다.'); return; }
+    }
+    setCustom({ start: draftStart, end: draftEnd });
+    setCustomOpen(false);
+  };
+
+  const summaryParams = custom
+    ? { granularity, start: custom.start, end: custom.end }
+    : isMonthMode ? { granularity, months: monthsRange } : { granularity, days: daysRange };
+
   const {
     data: summaryData, isLoading: summaryLoading, isError: summaryError, refetch: refetchSummary,
   } = useQuery({
-    queryKey: ['kpi-summary', granularity, isMonthMode ? monthsRange : daysRange],
-    queryFn: () => kpiApi.getSummary(
-      isMonthMode ? { granularity, months: monthsRange } : { granularity, days: daysRange },
-    ),
+    queryKey: ['kpi-summary', granularity, custom ? `${custom.start}~${custom.end}` : (isMonthMode ? monthsRange : daysRange)],
+    queryFn: () => kpiApi.getSummary(summaryParams),
     staleTime: 60 * 1000,
   });
 
   const months: KPIMonthSummary[] = summaryData?.months ?? [];
   const currentMonth = months.length > 0 ? months[months.length - 1] : null;
   const latestGoal: KPIGoal | null = isMonthMode ? (currentMonth?.goal ?? null) : null;
+  // 여러 해에 걸친 월별 조회면 축에 연도를 붙인다
+  const withYear = isMonthMode && months.length > 0 && months[0].month.slice(0, 4) !== months[months.length - 1].month.slice(0, 4);
+  const label = (m: KPIMonthSummary) => bucketLabel(m, granularity, withYear);
 
-  const exportParams = isMonthMode
-    ? { granularity, months: monthsRange }
-    : { granularity, days: daysRange };
+  const exportParams = summaryParams;
 
   const handleExportKpi = async () => {
     try {
@@ -271,7 +298,7 @@ export function MarketingKPI() {
   // ─── Channel spend table data ───
 
   const channelChartData = useMemo(() => months.map((m) => {
-    const row: Record<string, number | string | null> = { month: bucketLabel(m, granularity) };
+    const row: Record<string, number | string | null> = { month: label(m) };
     CHANNEL_KEYS.forEach((ch) => {
       if (ch === 'meta') {
         row.meta = m.meta_spend ?? 0;
@@ -282,7 +309,7 @@ export function MarketingKPI() {
     });
     row.revenue = m.mall?.revenue ?? null;
     return row;
-  }), [months, granularity]);
+  }), [months, granularity, withYear]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const spendRows = useMemo(() => {
     const rows: Array<{ key: string; month: string; channel: string; item: KPIChannelSpend }> = [];
@@ -305,33 +332,52 @@ export function MarketingKPI() {
   // ─── CAC / LTV trend data ───
 
   const cacLtvChartData = useMemo(() => months.map((m) => ({
-    month: bucketLabel(m, granularity),
+    month: label(m),
     cac: m.cac,
     ltv: m.ltv,
     ltv_cac: m.ltv_cac,
     avg_orders: m.mall?.avg_orders_per_customer ?? null,
-  })), [months, granularity]);
+  })), [months, granularity, withYear]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Mall metrics chart data ───
 
   const newCustomersChartData = useMemo(() => months.map((m) => ({
-    month: bucketLabel(m, granularity),
+    month: label(m),
     new_customers: m.mall?.new_customers ?? null,
     target: m.goal?.target_new_customers ?? null,
-  })), [months, granularity]);
+  })), [months, granularity, withYear]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const revenueAovChartData = useMemo(() => months.map((m) => ({
-    month: bucketLabel(m, granularity),
+    month: label(m),
     revenue: m.mall?.revenue ?? null,
     aov: m.mall?.aov ?? null,
-  })), [months, granularity]);
+  })), [months, granularity, withYear]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const conversionChartData = useMemo(() => months.map((m) => ({
-    month: bucketLabel(m, granularity),
+    month: label(m),
     visits: m.mall?.visits ?? null,
     conversion_rate: m.mall?.conversion_rate ?? null,
     target: m.goal?.target_conversion_rate ?? null,
-  })), [months, granularity]);
+  })), [months, granularity, withYear]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 방문자수 기간 합계·하루 평균 (수집된 날만)
+  const visitStats = useMemo(() => {
+    let total = 0;
+    let dayCount = 0;
+    months.forEach((m) => {
+      if (m.mall?.visits == null) return;
+      total += m.mall.visits;
+      const from = new Date(m.month.length === 7 ? `${m.month}-01` : m.month);
+      let to: Date;
+      if (m.bucket_end) to = new Date(m.bucket_end);
+      else if (m.month.length === 7) to = new Date(from.getFullYear(), from.getMonth() + 1, 0);
+      else to = from;
+      const now = new Date();
+      if (to > now) to = now;
+      dayCount += Math.max(1, Math.round((to.getTime() - from.getTime()) / 86400000) + 1);
+    });
+    return { total, avg: dayCount ? Math.round(total / dayCount) : null };
+  }, [months]);
 
   // ─── Goal form ───
 
@@ -404,14 +450,14 @@ export function MarketingKPI() {
               </button>
             ))}
           </div>
-          <div className="flex items-center bg-bg-2 rounded-lg p-0.5">
+          <div className="relative flex items-center bg-bg-2 rounded-lg p-0.5">
             {isMonthMode ? (
               ([3, 6, 12] as const).map((n) => (
                 <button
                   key={n}
-                  onClick={() => setMonthsRange(n)}
+                  onClick={() => { setMonthsRange(n); setCustom(null); }}
                   className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                    monthsRange === n ? 'bg-bg-1 text-accent shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'text-text-tertiary hover:text-text-secondary'
+                    !custom && monthsRange === n ? 'bg-bg-1 text-accent shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'text-text-tertiary hover:text-text-secondary'
                   }`}
                 >
                   최근 {n}개월
@@ -421,14 +467,67 @@ export function MarketingKPI() {
               ([{ v: 30, label: '1개월' }, { v: 90, label: '3개월' }] as const).map((d) => (
                 <button
                   key={d.v}
-                  onClick={() => setDaysRange(d.v)}
+                  onClick={() => { setDaysRange(d.v); setCustom(null); }}
                   className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                    daysRange === d.v ? 'bg-bg-1 text-accent shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'text-text-tertiary hover:text-text-secondary'
+                    !custom && daysRange === d.v ? 'bg-bg-1 text-accent shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'text-text-tertiary hover:text-text-secondary'
                   }`}
                 >
                   최근 {d.label}
                 </button>
               ))
+            )}
+            <button
+              onClick={() => {
+                if (!customOpen && !draftStart) setDraftStart(custom?.start ?? todayStr.slice(0, 8) + '01');
+                setCustomOpen((v) => !v);
+              }}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                custom ? 'bg-bg-1 text-accent shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'text-text-tertiary hover:text-text-secondary'
+              }`}
+            >
+              {custom ? `${custom.start.slice(2).replace(/-/g, '.')} ~ ${custom.end.slice(2).replace(/-/g, '.')}` : '직접 설정'}
+            </button>
+            {customOpen && (
+              <div className="absolute right-0 top-full mt-2 z-20 w-72 bg-bg-1 border border-border-primary rounded-xl p-3 shadow-lg space-y-2">
+                <p className="text-[11px] text-text-tertiary">
+                  조회 기간을 직접 고릅니다. 위의 월별·주별·일별 단위로 나눠 보여 줍니다
+                  ({isMonthMode ? '월별 최대 24개월' : '주별·일별 최대 400일'}).
+                </p>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="date"
+                    value={draftStart}
+                    max={draftEnd || todayStr}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setDraftStart(e.target.value)}
+                    className="flex-1 min-w-0 px-2 py-1.5 bg-bg-0 border border-border-primary rounded-lg text-xs text-text-secondary focus:outline-none focus:border-brand"
+                  />
+                  <span className="text-xs text-text-quaternary">~</span>
+                  <input
+                    type="date"
+                    value={draftEnd}
+                    min={draftStart || undefined}
+                    max={todayStr}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setDraftEnd(e.target.value)}
+                    className="flex-1 min-w-0 px-2 py-1.5 bg-bg-0 border border-border-primary rounded-lg text-xs text-text-secondary focus:outline-none focus:border-brand"
+                  />
+                </div>
+                <div className="flex justify-end gap-1.5">
+                  {custom && (
+                    <button
+                      onClick={() => { setCustom(null); setCustomOpen(false); }}
+                      className="px-3 py-1.5 rounded-lg text-xs text-text-tertiary hover:bg-bg-2"
+                    >
+                      해제
+                    </button>
+                  )}
+                  <button
+                    onClick={applyCustom}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-brand hover:bg-accent-hover"
+                  >
+                    적용
+                  </button>
+                </div>
+              </div>
             )}
           </div>
           <button
@@ -747,6 +846,31 @@ export function MarketingKPI() {
                 <Percent size={14} className="text-[#F2994A]" />
                 방문자수 & 구매전환율
                 <span className="text-[10px] font-normal text-text-quaternary">전환율 = 주문수 ÷ 방문자수 (카페24 접속통계 자동)</span>
+                <span className="ml-auto flex items-center gap-2">
+                  {visitStats.avg != null && (
+                    <span className="text-[11px] font-normal text-text-tertiary">
+                      기간 합계 <b className="text-text-secondary">{visitStats.total.toLocaleString('ko-KR')}명</b> · 하루 평균{' '}
+                      <b className="text-text-secondary">{visitStats.avg.toLocaleString('ko-KR')}명</b>
+                    </span>
+                  )}
+                  <span className="flex items-center bg-bg-2 rounded-lg p-0.5">
+                    {([
+                      { key: 'day', label: '일별' },
+                      { key: 'week', label: '주별' },
+                      { key: 'month', label: '월별' },
+                    ] as const).map((g) => (
+                      <button
+                        key={g.key}
+                        onClick={() => setGranularity(g.key)}
+                        className={`px-2 py-1 rounded-md text-[11px] font-medium transition-all ${
+                          granularity === g.key ? 'bg-bg-1 text-accent shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'text-text-tertiary hover:text-text-secondary'
+                        }`}
+                      >
+                        {g.label}
+                      </button>
+                    ))}
+                  </span>
+                </span>
               </h3>
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">

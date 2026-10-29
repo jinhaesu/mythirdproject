@@ -23,7 +23,12 @@ def _auth_header(api_key: str, api_secret: str) -> str:
     return f"HMAC-SHA256 apiKey={api_key}, date={date}, salt={salt}, signature={signature}"
 
 
-async def send_sms(to_phone: str, message: str, from_phone: Optional[str] = None) -> dict:
+async def send_sms(
+    to_phone: str,
+    message: str,
+    from_phone: Optional[str] = None,
+    kakao_options: Optional[dict] = None,
+) -> dict:
     """
     Solapi를 통해 SMS 발송.
 
@@ -36,6 +41,8 @@ async def send_sms(to_phone: str, message: str, from_phone: Optional[str] = None
         to_phone:   수신 전화번호 (하이픈 포함/미포함 모두 허용)
         message:    발송할 문자 내용
         from_phone: 발신번호 오버라이드 (None 이면 SOLAPI_SENDER 사용)
+        kakao_options: 카카오 알림톡으로 보낼 때 {pfId, templateId, variables}.
+                       승인된 템플릿이어야 하며, 실패하면 Solapi가 문자로 대신 보낸다.
 
     Returns:
         {"success": True, "response": {...}} 또는 {"success": False, "reason": "..."}
@@ -59,6 +66,8 @@ async def send_sms(to_phone: str, message: str, from_phone: Optional[str] = None
             "text": message,
         }
     }
+    if kakao_options:
+        payload["message"]["kakaoOptions"] = {**kakao_options, "disableSms": False}
 
     try:
         async with httpx.AsyncClient(timeout=15) as client:
