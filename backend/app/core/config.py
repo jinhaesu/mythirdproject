@@ -91,6 +91,11 @@ class Settings(BaseSettings):
     SOLAPI_API_SECRET: str = ""
     SOLAPI_SENDER: str = ""  # 사전 등록된 발신번호 (Solapi 콘솔에서 등록 필수)
 
+    # 매일 09:00 KST 전일 Meta 지출액·ROAS 알림 (services/meta_daily_alert.py)
+    META_DAILY_ALERT_TO: str = ""  # 받는 번호, 쉼표로 여러 개 — 비어 있으면 발송 안 함
+    META_ALERT_KAKAO_PFID: str = ""  # 카카오 채널 pfId (Solapi) — 없으면 문자(LMS)
+    META_ALERT_KAKAO_TEMPLATE_ID: str = ""  # 승인된 알림톡 템플릿 ID
+
     # Cafe24 OAuth 2.0
     CAFE24_CLIENT_ID: str = ""
     CAFE24_CLIENT_SECRET: str = ""

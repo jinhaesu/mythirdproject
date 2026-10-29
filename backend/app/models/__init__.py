@@ -41,6 +41,7 @@ from app.models.ad_spend import (
     AdMedia, AdMediaAlias, AdMediaGroup, AdMediaBudget, AdMediaSpendDaily, ChannelRevenue,
 )
 from app.models.gfa_upload import GfaUploadBatch, GfaUploadDaily
+from app.models.meta_daily_alert import MetaDailyAlertLog
 from app.models.bestprice import (
     BestpriceRun, BestpriceCoupon, BestpriceAssignment, BestpriceRedemption,
 )
@@ -106,4 +107,5 @@ __all__ = [
     "ChannelRevenue",
     "GfaUploadBatch",
     "GfaUploadDaily",
+    "MetaDailyAlertLog",
 ]

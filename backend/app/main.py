@@ -219,6 +219,11 @@ async def lifespan(app: FastAPI):
         bg_tasks.append(asyncio.create_task(run_content_metrics_loop()))
         logger.info("Content metrics daily loop started")
 
+        from app.services.meta_daily_alert import run_meta_daily_alert_loop
+        bg_tasks.append(asyncio.create_task(run_meta_daily_alert_loop()))
+        logger.info("Meta daily alert loop started (09:00 KST, recipients=%d)",
+                    len([p for p in settings.META_DAILY_ALERT_TO.split(",") if p.strip()]))
+
         from app.services.bestprice import run_bestprice_loop
         bg_tasks.append(asyncio.create_task(run_bestprice_loop()))
         logger.info(f"Bestprice coupon loop started (LIVE={settings.BESTPRICE_LIVE})")
