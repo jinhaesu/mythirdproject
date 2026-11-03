@@ -3,7 +3,9 @@
 /**
  * GFA 성과 대시보드 — 올린 성과 파일(광고 관리자 보고서) 값으로 그린다 (2026-10-27 마케팅 건의).
  *
- * 1) 핵심 KPI 요약 — 총 광고비·총 전환 매출·ROAS·전환 수·CPA·CTR·CPC·CVR (직전 같은 길이 기간 대비)
+ * 1) 핵심 KPI 요약 — 총 광고비·총 전환 매출·ROAS·전환 수·CPA·CTR·CPC·CVR
+ *    (비교 기간은 고른 기간을 따라감: 달 보기 = 전월, 진행 중인 달 = 전월 같은 날짜, 직접 지정 = 직전 같은 일수)
+ *    기본은 달 보기, 위에 올린 날짜 누적 현황(이어진 구간·빈 구간·달별) — 2026-11-03 연다은 건의
  * 2) 광고 성과 추이 — 일별·주별·월별 (광고비·전환 매출 / ROAS / 클릭 / 전환 / CPA / CPC) + 전주·전월 대비
  * 3) 캠페인별 — 광고비·매출·ROAS·CPA·CTR·예산 소진율·고효율/저효율(roasClass)·매출 기여도
  * 4) 소재별 — 노출·클릭·CTR·CPC·ROAS, 이미지형·동영상형 비교, 상품별·프로모션별 비교
@@ -18,7 +20,7 @@ import {
 import { Loader2, Upload, FileSpreadsheet, Info, TrendingUp, Layers, Image as ImageIcon, Tag } from 'lucide-react';
 import {
   naverGFAApi,
-  type GfaChangeKey, type GfaPerf, type GfaSeriesPoint, type GfaUploadDashboardData,
+  type GfaChangeKey, type GfaCoverage, type GfaPerf, type GfaRange, type GfaSeriesPoint, type GfaUploadDashboardData,
 } from '@/lib/naver-api';
 import {
   BREAKEVEN_ROAS, BREAKEVEN_ROAS_LABEL, BREAKEVEN_ROAS_LOW, roasClass,
@@ -127,13 +129,64 @@ function PerfTable({ rows, first }: { rows: GroupRow[]; first: string }) {
   );
 }
 
-export function GfaUploadDashboard({ dateRange, startDate, endDate, accounts, onUpload, onShowAll }: {
+/** 'YYYY-MM-DD' → 'YY.M.D' (해가 같으면 'M.D') */
+const shortDay = (s: string, sameYear: boolean) => {
+  const [y, m, d] = s.split('-');
+  return sameYear ? `${Number(m)}.${Number(d)}` : `${y.slice(2)}.${Number(m)}.${Number(d)}`;
+};
+const rangeText = (r: GfaRange, sameYear = false) =>
+  r.from === r.to ? shortDay(r.from, sameYear) : `${shortDay(r.from, sameYear)}~${shortDay(r.to, sameYear)}`;
+
+/** 올린 날짜 누적 현황 — 이어진 구간·빈 구간·달별 채움 (여러 파일을 나눠 올려 쌓을 때 어디가 비었는지) */
+function CoverageBar({ cov, month, onPickMonth }: { cov: GfaCoverage; month?: string; onPickMonth: (m: string) => void }) {
+  if (!cov.months.length) return null;
+  return (
+    <div className="rounded-lg px-3 py-2 text-xs space-y-1.5" style={{ border: '1px solid var(--color-border-primary)' }}>
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="font-medium text-text-secondary">올린 날짜</span>
+        {cov.runs.map((r) => (
+          <span key={r.from} className="px-1.5 py-0.5 rounded bg-green/10 text-green tabular-nums">{rangeText(r)} <span className="text-text-quaternary">{r.days}일</span></span>
+        ))}
+        {cov.gaps.length > 0 && (
+          <>
+            <span className="font-medium text-text-secondary ml-1">빈 구간</span>
+            {cov.gaps.map((g) => (
+              <span key={g.from} className="px-1.5 py-0.5 rounded bg-yellow/10 text-yellow tabular-nums">{rangeText(g)} <span className="text-text-quaternary">{g.days}일</span></span>
+            ))}
+          </>
+        )}
+      </div>
+      <div className="flex flex-wrap items-center gap-1">
+        <span className="font-medium text-text-secondary mr-1">달별</span>
+        {cov.months.map((m) => {
+          const full = m.days >= m.month_days;
+          const on = month === m.month;
+          return (
+            <button key={m.month} onClick={() => onPickMonth(m.month)}
+              title={`${m.month} — ${m.days}/${m.month_days}일 올림${full ? '' : ' (일부)'}`}
+              className="px-2 py-0.5 rounded-md text-[11px] tabular-nums border transition-colors"
+              style={on
+                ? { backgroundColor: 'var(--color-brand-bg)', color: '#fff', borderColor: 'transparent' }
+                : { borderColor: 'var(--color-border-primary)', color: full ? 'var(--color-text-secondary)' : 'var(--color-text-tertiary)' }}>
+              {m.month.slice(2).replace('-', '.')}{full ? '' : ` · ${m.days}/${m.month_days}일`}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+export function GfaUploadDashboard({ dateRange, startDate, endDate, month, accounts, onUpload, onShowAll, onPickMonth }: {
   dateRange: string;
   startDate?: string;
   endDate?: string;
+  /** dateRange='month'일 때 YYYY-MM */
+  month?: string;
   accounts: string[];
   onUpload: () => void;
   onShowAll: () => void;
+  onPickMonth: (m: string) => void;
 }) {
   const [account, setAccount] = useState<string>('__all__');
   const [unit, setUnit] = useState<Unit>('daily');
@@ -141,8 +194,8 @@ export function GfaUploadDashboard({ dateRange, startDate, endDate, accounts, on
   const [allCreatives, setAllCreatives] = useState(false);
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['gfa-upload', 'dashboard', dateRange, startDate, endDate, account],
-    queryFn: () => naverGFAApi.uploadDashboard(dateRange, startDate, endDate, account === '__all__' ? undefined : account),
+    queryKey: ['gfa-upload', 'dashboard', dateRange, startDate, endDate, month, account],
+    queryFn: () => naverGFAApi.uploadDashboard(dateRange, startDate, endDate, account === '__all__' ? undefined : account, month),
     retry: 1,
   });
   const d = data && data.has_data ? (data as GfaUploadDashboardData) : null;
@@ -203,7 +256,10 @@ export function GfaUploadDashboard({ dateRange, startDate, endDate, accounts, on
   const k = d.kpi;
   const ch: Partial<Record<GfaChangeKey, number | null>> = d.kpi_change || {};
   const av = d.availability;
-  const prevText = `직전 ${d.period.days}일 대비`;
+  const prevText = d.period.compare_label || `직전 ${d.period.days}일 대비`;
+  const prevPartial = d.kpi_prev && d.period.prev_days != null && d.period.prev_days_with_data != null
+    && d.period.prev_days_with_data < d.period.prev_days;
+  const missing = d.coverage?.missing || [];
   const empty = k.days === 0;
   const vatText = d.spend_vat.length === 1 && d.spend_vat[0] ? VAT_LABEL[d.spend_vat[0]] : d.spend_vat.length > 1 ? 'VAT 기준 섞임(파일마다 다름)' : 'VAT 표시 없음';
 
@@ -228,7 +284,9 @@ export function GfaUploadDashboard({ dateRange, startDate, endDate, accounts, on
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg px-3 py-2 text-xs" style={{ backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)' }}>
         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-green/15 text-green font-medium"><FileSpreadsheet size={12} /> 업로드 파일 데이터</span>
         <span className="text-text-secondary">조회 {d.period.start} ~ {d.period.end}</span>
-        <span className="text-text-tertiary">올린 기간 {d.data_span.min} ~ {d.data_span.max}</span>
+        <span className="text-text-tertiary" title={`비교 기간 ${d.period.prev_start} ~ ${d.period.prev_end}`}>
+          비교 {d.period.prev_start} ~ {d.period.prev_end}
+        </span>
         {d.last_upload?.created_at && (
           <span className="text-text-tertiary">마지막 업로드 {kst(d.last_upload.created_at)}{d.last_upload.filename ? ` · ${d.last_upload.filename}` : ''}</span>
         )}
@@ -241,16 +299,26 @@ export function GfaUploadDashboard({ dateRange, startDate, endDate, accounts, on
           </select>
         )}
       </div>
+      {d.coverage && <CoverageBar cov={d.coverage} month={month} onPickMonth={onPickMonth} />}
 
       {empty ? (
         <Notice>
-          선택한 기간({d.period.start} ~ {d.period.end})에는 올린 데이터가 없습니다. 올린 기간은 {d.data_span.min} ~ {d.data_span.max}입니다.{' '}
+          선택한 기간({d.period.start} ~ {d.period.end})에는 올린 데이터가 없습니다 — 위 「달별」에서 올린 달을 고르거나{' '}
           <button onClick={onShowAll} className="underline text-text-secondary">올린 전체 기간 보기</button>
         </Notice>
       ) : (
         <>
           {d.missing_days > 0 && (
-            <Notice>선택한 {d.period.days}일 중 {d.missing_days}일은 올린 데이터가 없습니다 — 그 날짜는 0이 아니라 빈 날로 두었습니다.</Notice>
+            <Notice>
+              선택한 {d.period.days}일 중 {d.missing_days}일은 올린 데이터가 없습니다
+              {missing.length > 0 && <> ({missing.slice(0, 6).map((r) => rangeText(r, true)).join(', ')}{missing.length > 6 ? ` 외 ${missing.length - 6}구간` : ''})</>}
+              {' '}— 그 날짜는 0이 아니라 빈 날로 두었습니다. 그 기간 파일을 더 올리면 쌓입니다.
+            </Notice>
+          )}
+          {prevPartial && (
+            <Notice>
+              비교 기간({d.period.prev_start} ~ {d.period.prev_end}) {d.period.prev_days}일 중 {d.period.prev_days_with_data}일만 올린 데이터가 있어 증감률이 실제와 다를 수 있습니다.
+            </Notice>
           )}
 
           {/* 1. 핵심 KPI */}
