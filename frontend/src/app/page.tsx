@@ -35,6 +35,7 @@ import {
 } from '@/components/tabs/naver';
 import { AICommandCenter } from '@/components/chat/AICommandCenter';
 import NuldamSystemBar from '@/components/NuldamSystemBar';
+import DatarizeDashboard from '@/components/tabs/crm/DatarizeDashboard';
 import toast from 'react-hot-toast';
 
 // React strict mode의 effect double-invoke 방어용 — 동일 매직링크 토큰은 1회만 verify
@@ -172,6 +173,7 @@ export default function Home() {
             {sub('live') === 1 && <MetaDailyTable />}
             {sub('live') === 2 && <NaverSearchAdsDashboard />}
             {sub('live') === 3 && <NaverGFADashboard />}
+            {sub('live') === 4 && <DatarizeDashboard />}
           </>
         )}
         {activeMenu === 'content' && (
