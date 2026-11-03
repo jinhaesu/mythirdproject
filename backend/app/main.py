@@ -224,6 +224,10 @@ async def lifespan(app: FastAPI):
         logger.info("Meta daily alert loop started (09:00 KST, recipients=%d)",
                     len([p for p in settings.META_DAILY_ALERT_TO.split(",") if p.strip()]))
 
+        from app.services.datarize_sync import run_datarize_sync_loop
+        bg_tasks.append(asyncio.create_task(run_datarize_sync_loop()))
+        logger.info("Datarize sheet sync loop started (09:30·13:30 KST)")
+
         from app.services.bestprice import run_bestprice_loop
         bg_tasks.append(asyncio.create_task(run_bestprice_loop()))
         logger.info(f"Bestprice coupon loop started (LIVE={settings.BESTPRICE_LIVE})")

@@ -109,6 +109,11 @@ class Settings(BaseSettings):
     # Analytics API(ca-api.cafe24data.com) 호출 시 사용할 mall_id 기본값. 없으면 user.cafe24_mall_id 사용.
     CAFE24_MALL_ID: str = ""
 
+    # ── 데이터라이즈(CRM) 구글시트 연동 — services/datarize_sync.py ──
+    # 시트는 '링크가 있는 모든 사용자 보기'라 CSV 내보내기 주소로 키 없이 읽는다.
+    DATARIZE_SHEET_ID: str = "1ndahARbWOtEYZ-B2cgF1xxj7WsfcCBy7jHzhm1D1ms8"
+    DATARIZE_ADMIN_EMAILS: str = "lion9080@joinandjoin.com"  # 「지금 다시 불러오기」 허용(쉼표 구분, 슈퍼유저는 항상)
+
     # ── 회원 최저가 쿠폰(bestprice) — services/bestprice.py ──
     # false(기본)면 계산·로그·dry-run 행만 쓰고 카페24 쓰기(쿠폰 생성·발급·중지)는 절대 안 함.
     BESTPRICE_LIVE: bool = False

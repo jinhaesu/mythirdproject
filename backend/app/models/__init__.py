@@ -42,6 +42,9 @@ from app.models.ad_spend import (
 )
 from app.models.gfa_upload import GfaUploadBatch, GfaUploadDaily
 from app.models.meta_daily_alert import MetaDailyAlertLog
+from app.models.datarize import (
+    DatarizeMessageDaily, DatarizeCostDaily, DatarizeMemberDaily, DatarizeSegmentDaily, DatarizeSyncLog,
+)
 from app.models.bestprice import (
     BestpriceRun, BestpriceCoupon, BestpriceAssignment, BestpriceRedemption,
 )
@@ -108,4 +111,9 @@ __all__ = [
     "GfaUploadBatch",
     "GfaUploadDaily",
     "MetaDailyAlertLog",
+    "DatarizeMessageDaily",
+    "DatarizeCostDaily",
+    "DatarizeMemberDaily",
+    "DatarizeSegmentDaily",
+    "DatarizeSyncLog",
 ]

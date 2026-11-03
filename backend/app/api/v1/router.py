@@ -210,3 +210,11 @@ api_router.include_router(
     prefix="/service",
     tags=["Service (server-to-server)"]
 )
+
+# 데이터라이즈(CRM) 구글시트 연동 대시보드 (광고 채널 › 데이터라이즈)
+from app.api.v1.endpoints import datarize  # noqa: E402
+api_router.include_router(
+    datarize.router,
+    prefix="/crm",
+    tags=["CRM Datarize"]
+)

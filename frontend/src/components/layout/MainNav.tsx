@@ -46,6 +46,7 @@ export const MENUS: { key: MenuKey; name: string; icon: any; subTabs: SubTabDef[
       { id: 1, name: 'Meta 일별 데이터' },
       { id: 2, name: '네이버 검색광고' },
       { id: 3, name: 'GFA' },
+      { id: 4, name: '데이터라이즈' },
     ],
   },
   {
