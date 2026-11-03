@@ -305,6 +305,7 @@ async def gfa_upload_status(
     return {
         "has_data": True, "rows": span["rows"],
         "date_min": span["min"].isoformat(), "date_max": span["max"].isoformat(),
+        "coverage": coverage_of(await _days(db)),
         "accounts": [{"account": a, "rows": int(n), "date_min": d1.isoformat(), "date_max": d2.isoformat()}
                      for a, n, d1, d2 in accs],
         "last_upload": {
@@ -315,10 +316,106 @@ async def gfa_upload_status(
     }
 
 
+# ─── 올린 날짜 범위(누적 현황) ─────────────────────────────────────────────────
+
+def _month_end(d: date) -> date:
+    return (d.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+
+
+def _add_months(d: date, n: int) -> date:
+    """그 달 1일에서 n달 옮긴 날(1일)."""
+    m = d.year * 12 + (d.month - 1) + n
+    return date(m // 12, m % 12 + 1, 1)
+
+
+def _runs(days: List[date]) -> List[tuple]:
+    """정렬된 날짜 → 이어진 구간 [(시작, 끝)]."""
+    out: List[list] = []
+    for d in days:
+        if out and d == out[-1][1] + timedelta(days=1):
+            out[-1][1] = d
+        else:
+            out.append([d, d])
+    return [tuple(x) for x in out]
+
+
+def coverage_of(days: List[date], d1: Optional[date] = None, d2: Optional[date] = None) -> dict:
+    """올린 날짜 목록 → 이어진 구간·빈 구간·달별 채움.
+
+    d1·d2를 주면 그 안에서 비어 있는 구간(missing)도 돌려준다 — 여러 파일을 나눠 올려 쌓을 때
+    어디가 비었는지 보여 주려고 (2026-11-03 연다은 건의: 60일씩 나눠 받은 파일 누적)."""
+    days = sorted(set(days))
+    runs = _runs(days)
+    gaps = [(a[1] + timedelta(days=1), b[0] - timedelta(days=1)) for a, b in zip(runs, runs[1:])]
+    months: dict = {}
+    for d in days:
+        k = d.strftime("%Y-%m")
+        months[k] = months.get(k, 0) + 1
+    out = {
+        "runs": [{"from": a.isoformat(), "to": b.isoformat(), "days": (b - a).days + 1} for a, b in runs],
+        "gaps": [{"from": a.isoformat(), "to": b.isoformat(), "days": (b - a).days + 1} for a, b in gaps],
+        "months": [{"month": k, "days": n, "month_days": _month_end(date.fromisoformat(k + "-01")).day}
+                   for k, n in sorted(months.items())],
+    }
+    if d1 and d2:
+        have = {d for d in days if d1 <= d <= d2}
+        miss = [d1 + timedelta(days=i) for i in range((d2 - d1).days + 1)]
+        out["missing"] = [{"from": a.isoformat(), "to": b.isoformat(), "days": (b - a).days + 1}
+                          for a, b in _runs([d for d in miss if d not in have])]
+    return out
+
+
+async def _days(db: AsyncSession, account: Optional[str] = None) -> List[date]:
+    q = select(GfaUploadDaily.date).distinct()
+    if account is not None:
+        q = q.where(GfaUploadDaily.account_label == account)
+    return [d for (d,) in (await db.execute(q)).all()]
+
+
+@router.get("/gfa/upload/coverage")
+async def gfa_upload_coverage(
+    account: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """올린 데이터가 덮는 날짜 — 이어진 구간·빈 구간·달별 채움(계정별 선택)."""
+    account = None if account in (None, "__all__") else account
+    return coverage_of(await _days(db, account))
+
+
 # ─── 대시보드 ───────────────────────────────────────────────────────────────
 
-def _resolve(date_range: str, start_date: Optional[str], end_date: Optional[str], span: dict) -> tuple:
+def _compare(d1: date, d2: date) -> tuple:
+    """비교 기간 (시작, 끝, 설명) — 고른 기간을 따라간다.
+
+    · 달 단위(1일~말일, 여러 달 포함) → 바로 앞 같은 개수의 달
+    · 한 달 안의 1일~D일(이번 달 진행 중 등) → 전월 1일~D일(전월 말일까지)
+    · 그 밖 → 바로 앞 같은 길이(일)
+    """
+    if d1.day == 1 and d2 == _month_end(d2):
+        n = (d2.year - d1.year) * 12 + d2.month - d1.month + 1
+        p1 = _add_months(d1, -n)
+        p2 = d1 - timedelta(days=1)
+        return p1, p2, ("전월 대비" if n == 1 else f"직전 {n}개월 대비")
+    if d1.day == 1 and (d1.year, d1.month) == (d2.year, d2.month):
+        p1 = _add_months(d1, -1)
+        p2 = min(p1 + timedelta(days=d2.day - 1), _month_end(p1))
+        return p1, p2, f"전월 같은 기간({p1.month}/1~{p2.month}/{p2.day}) 대비"
+    n = (d2 - d1).days + 1
+    p2 = d1 - timedelta(days=1)
+    return p2 - timedelta(days=n - 1), p2, f"직전 {n}일 대비"
+
+
+def _resolve(date_range: str, start_date: Optional[str], end_date: Optional[str], span: dict,
+             month: Optional[str] = None) -> tuple:
     today = _kst_today()
+    if date_range == "month":  # 달 보기 — month=YYYY-MM(없으면 이번 달), 이번 달은 오늘까지
+        try:
+            m1 = date.fromisoformat(f"{month}-01") if month else today.replace(day=1)
+        except ValueError:
+            raise HTTPException(status_code=422, detail="month는 YYYY-MM 형식이어야 합니다")
+        m2 = _month_end(m1)
+        return m1, (min(m2, today) if m1 <= today else m2)
     if date_range == "custom" and start_date and end_date:
         try:
             d1, d2 = date.fromisoformat(start_date), date.fromisoformat(end_date)
@@ -493,29 +590,29 @@ async def gfa_upload_dashboard(
     date_range: str = Query(default="last_30_days"),
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
+    month: Optional[str] = None,  # date_range=month 일 때 YYYY-MM
     account: Optional[str] = None,  # 없으면 전체 계정
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """올린 파일 값으로 만든 GFA 성과 대시보드 — 핵심 KPI(직전 같은 길이 기간 대비)·일/주/월 추이·
+    """올린 파일 값으로 만든 GFA 성과 대시보드 — 핵심 KPI(고른 기간에 맞춘 비교 기간 대비)·일/주/월 추이·
     캠페인·소재·소재 유형·상품·프로모션. 파일에 없는 칸이 필요한 표는 availability로 알려 준다."""
     account = None if account in (None, "__all__") else account  # ''는 계정 이름 없이 올린 '기본' 계정
     span = await _span(db, account)
     if not span:
         return {"has_data": False}
-    d1, d2 = _resolve(date_range, start_date, end_date, span)
+    d1, d2 = _resolve(date_range, start_date, end_date, span, month)
     if (d2 - d1).days > 800:
         raise HTTPException(status_code=422, detail="조회 기간은 800일까지입니다")
     n = (d2 - d1).days + 1
-    p2 = d1 - timedelta(days=1)
-    p1 = p2 - timedelta(days=n - 1)
+    p1, p2, compare_label = _compare(d1, d2)
 
     q = select(*_COLS).where(GfaUploadDaily.date >= p1, GfaUploadDaily.date <= d2)
     if account is not None:
         q = q.where(GfaUploadDaily.account_label == account)
     rows = (await db.execute(q)).all()
     cur = [r for r in rows if r.date >= d1]
-    prev = [r for r in rows if r.date <= p2]
+    prev = [r for r in rows if p1 <= r.date <= p2]
 
     meta: dict = {}
     bids = sorted({r.batch_id for r in cur if r.budget})
@@ -608,12 +705,16 @@ async def gfa_upload_dashboard(
     )).all()}, key=lambda v: v or "")
     last = (await db.execute(select(GfaUploadBatch).order_by(GfaUploadBatch.id.desc()).limit(1))).scalars().first()
     days_with = {r.date for r in cur}
+    prev_days = {r.date for r in prev}
     return {
         "has_data": True,
         "source": "upload",
         "period": {"start": d1.isoformat(), "end": d2.isoformat(), "days": n,
-                   "prev_start": p1.isoformat(), "prev_end": p2.isoformat()},
+                   "prev_start": p1.isoformat(), "prev_end": p2.isoformat(),
+                   "prev_days": (p2 - p1).days + 1, "prev_days_with_data": len(prev_days),
+                   "compare_label": compare_label},
         "data_span": {"min": span["min"].isoformat(), "max": span["max"].isoformat(), "rows": span["rows"]},
+        "coverage": coverage_of(await _days(db, account), d1, d2),
         "missing_days": n - len(days_with),
         "account": account,
         "accounts": accounts_in,

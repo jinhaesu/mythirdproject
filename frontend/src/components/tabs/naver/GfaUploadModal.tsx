@@ -5,7 +5,8 @@
  *
  * 1) 파일 선택 → 미리보기: 서버가 머리글을 읽고 칸을 자동 연결 (DB 변경 없음)
  * 2) 못 알아본 칸은 항목별로 직접 고르고 다시 미리보기
- * 3) 반영: 같은 (계정 이름, 날짜)의 예전 값은 파일 값으로 바뀐다 — 두 번 세지 않음
+ * 3) 반영: 같은 (계정 이름, 날짜)의 예전 값은 파일 값으로 바뀐다 — 두 번 세지 않음, 다른 날짜는 그대로 쌓인다
+ * 4) 여러 파일 한 번에(2026-11-03): GFA는 60일씩만 받아져 1~2월·3~4월처럼 나눈 파일을 골라 기간 순으로 차례 반영
  */
 import { useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -42,55 +43,140 @@ const toUploadError = (e: any): UploadError => {
   return { message: e?.response?.status === 413 ? '파일이 너무 큽니다 (8MB까지)' : '파일을 읽지 못했습니다' };
 };
 
+/** 고른 파일 하나 — 여러 개를 한 번에 골라 차례로 미리보기·반영한다 (2026-11-03: GFA는 60일씩만 받아져 나눠 올림) */
+type Item = {
+  id: number;
+  file: File;
+  sheet?: string;
+  headerRow?: number;
+  mapping: Record<string, number | null>;
+  preview: GfaUploadPreview | null;
+  error: UploadError | null;
+  status: 'reading' | 'ready' | 'error' | 'applying' | 'applied';
+  result?: GfaUploadApplyResult;
+};
+type RunOpts = { sheet?: string; headerRow?: number; mapping?: Record<string, number | null> };
+
+let itemSeq = 0;
+
 export function GfaUploadModal({ accounts, onClose, onApplied }: {
   accounts: string[];
   onClose: () => void;
-  onApplied: (res: GfaUploadApplyResult) => void;
+  /** 반영한 파일들의 결과(반영 순서) */
+  onApplied: (results: GfaUploadApplyResult[]) => void;
 }) {
   const qc = useQueryClient();
-  const [file, setFile] = useState<File | null>(null);
+  const [items, setItems] = useState<Item[]>([]);
+  const [activeId, setActiveId] = useState<number | null>(null);
   const [accountLabel, setAccountLabel] = useState('');
-  const [sheet, setSheet] = useState<string | undefined>(undefined);
-  const [headerRow, setHeaderRow] = useState<number | undefined>(undefined);
-  const [mapping, setMapping] = useState<Record<string, number | null>>({});
-  const [preview, setPreview] = useState<GfaUploadPreview | null>(null);
-  const [error, setError] = useState<UploadError | null>(null);
+  const [applying, setApplying] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showSample, setShowSample] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const itemsRef = useRef<Item[]>([]);
+  itemsRef.current = items;
 
-  type RunOpts = { file?: File; accountLabel?: string; sheet?: string; headerRow?: number; mapping?: Record<string, number | null> };
-  const previewMut = useMutation({
-    mutationFn: (v: Required<Pick<RunOpts, 'file'>> & RunOpts) => naverGFAApi.uploadPreview(v.file, v),
-    onSuccess: (p) => {
-      setPreview(p);
-      setError(null);
-      setSheet(p.file.sheet || undefined);
-      setHeaderRow(p.file.header_row);
-    },
-    onError: (e) => { setPreview(null); setError(toUploadError(e)); },
-  });
-  const run = (next: RunOpts = {}) => {
-    const f = next.file ?? file;
-    if (!f) return;
-    previewMut.mutate({
-      file: f,
-      accountLabel: next.accountLabel ?? accountLabel,
-      sheet: 'sheet' in next ? next.sheet : sheet,
-      headerRow: 'headerRow' in next ? next.headerRow : headerRow,
-      mapping: next.mapping ?? mapping,
-    });
+  const active = items.find((x) => x.id === activeId) || null;
+  const file = active?.file ?? null;
+  const sheet = active?.sheet;
+  const headerRow = active?.headerRow;
+  const mapping = active?.mapping ?? {};
+  const preview = active?.preview ?? null;
+  const error = active?.error ?? null;
+
+  const patch = (id: number, p: Partial<Item>) =>
+    setItems((xs) => xs.map((x) => (x.id === id ? { ...x, ...p } : x)));
+  const setHeaderRow = (v: number | undefined) => { if (active) patch(active.id, { headerRow: v }); };
+
+  /** 한 파일 미리보기 — DB는 바꾸지 않는다 */
+  const previewOne = async (it: Item, next: RunOpts = {}, label = accountLabel) => {
+    const opts = {
+      accountLabel: label,
+      sheet: 'sheet' in next ? next.sheet : it.sheet,
+      headerRow: 'headerRow' in next ? next.headerRow : it.headerRow,
+      mapping: next.mapping ?? it.mapping,
+    };
+    patch(it.id, { status: 'reading', sheet: opts.sheet, headerRow: opts.headerRow, mapping: opts.mapping });
+    try {
+      const p = await naverGFAApi.uploadPreview(it.file, opts);
+      patch(it.id, { preview: p, error: null, status: 'ready', sheet: p.file.sheet || undefined, headerRow: p.file.header_row });
+    } catch (e) {
+      patch(it.id, { preview: null, error: toUploadError(e), status: 'error' });
+    }
+  };
+  const run = (next: RunOpts = {}) => { if (active) previewOne(active, next); };
+  /** 계정 이름을 바꾸면 아직 반영 안 한 파일 전부 다시 미리보기(겹침 계산이 계정 이름 기준) */
+  const rerunAll = async () => {
+    for (const it of itemsRef.current) if (it.status !== 'applied') await previewOne(it);
   };
 
-  const applyMut = useMutation({
-    mutationFn: () => naverGFAApi.uploadApply(file as File, { accountLabel, sheet, headerRow, mapping }),
-    onSuccess: (res) => {
-      toast.success(`GFA 성과 반영 완료 — ${res.date_from}~${res.date_to} · ${res.inserted.toLocaleString('ko-KR')}행${res.replaced ? ` (예전 ${res.replaced.toLocaleString('ko-KR')}행 대체)` : ''}`);
-      qc.invalidateQueries({ queryKey: ['gfa-upload'] });
-      onApplied(res);
-    },
-    onError: (e) => toast.error(toUploadError(e).message),
+  const addFiles = async (files: File[]) => {
+    const fresh: Item[] = files.map((f) => ({
+      id: ++itemSeq, file: f, mapping: {}, preview: null, error: null, status: 'reading',
+    }));
+    setItems((xs) => [...xs, ...fresh]);
+    setActiveId(fresh[0]?.id ?? null);
+    for (const it of fresh) await previewOne(it);  // 차례로 — 서버에 한꺼번에 몰지 않음
+  };
+  const removeItem = (id: number) => {
+    setItems((xs) => xs.filter((x) => x.id !== id));
+    if (activeId === id) setActiveId(items.find((x) => x.id !== id)?.id ?? null);
+  };
+
+  // 반영 대기 — 기간이 이른 파일부터(겹치는 날짜는 나중에 반영되는 파일 값이 남는다)
+  const pending = useMemo(
+    () => items.filter((x) => x.status === 'ready' && x.preview?.can_apply)
+      .sort((a, b) => (a.preview?.date_from || '').localeCompare(b.preview?.date_from || '')),
+    [items],
+  );
+  const overlaps = useMemo(() => {
+    const out: string[] = [];
+    for (let i = 0; i < pending.length; i++) {
+      for (let j = i + 1; j < pending.length; j++) {
+        const a = pending[i].preview!, b = pending[j].preview!;
+        if (a.date_from && b.date_from && a.date_to && b.date_to && a.date_from <= b.date_to && b.date_from <= a.date_to) {
+          const from = a.date_from > b.date_from ? a.date_from : b.date_from;
+          const to = a.date_to < b.date_to ? a.date_to : b.date_to;
+          out.push(`「${pending[i].file.name}」과 「${pending[j].file.name}」이 ${from}~${to}에 겹칩니다 — 그 날짜는 뒤 파일(「${pending[j].file.name}」) 값이 남습니다`);
+        }
+      }
+    }
+    return out;
+  }, [pending]);
+
+  const applyAll = async (list: Item[]) => {
+    setApplying(true);
+    const done: GfaUploadApplyResult[] = [];
+    try {
+      for (const it of list) {
+        patch(it.id, { status: 'applying' });
+        try {
+          const res = await naverGFAApi.uploadApply(it.file, { accountLabel, sheet: it.sheet, headerRow: it.headerRow, mapping: it.mapping });
+          patch(it.id, { status: 'applied', result: res });
+          done.push(res);
+        } catch (e) {
+          patch(it.id, { status: 'ready' });
+          toast.error(`「${it.file.name}」 반영 실패 — ${toUploadError(e).message}${done.length ? ` (앞의 ${done.length}개는 반영됨)` : ''}`);
+          return;
+        }
+      }
+    } finally {
+      setApplying(false);
+      if (done.length) qc.invalidateQueries({ queryKey: ['gfa-upload'] });
+    }
+    const ins = done.reduce((s, r) => s + r.inserted, 0);
+    const rep = done.reduce((s, r) => s + r.replaced, 0);
+    const from = done.map((r) => r.date_from).filter(Boolean).sort()[0];
+    const to = done.map((r) => r.date_to).filter(Boolean).sort().pop();
+    toast.success(`GFA 성과 반영 완료 — 파일 ${done.length}개 · ${from}~${to} · ${ins.toLocaleString('ko-KR')}행${rep ? ` (예전 ${rep.toLocaleString('ko-KR')}행 대체)` : ''}`);
+    onApplied(done);
+  };
+
+  const { data: uploadStatus } = useQuery({
+    queryKey: ['gfa-upload', 'status'],
+    queryFn: () => naverGFAApi.uploadStatus(),
   });
+  const coverage = uploadStatus?.coverage;
 
   const { data: history } = useQuery({
     queryKey: ['gfa-upload', 'batches'],
@@ -114,33 +200,47 @@ export function GfaUploadModal({ accounts, onClose, onApplied }: {
     const next = { ...mapping };
     if (v === 'auto') delete next[key];
     else next[key] = v === 'none' ? null : Number(v);
-    setMapping(next);
     run({ mapping: next });
   };
-  const resetMapping = () => { setMapping({}); run({ mapping: {} }); };
+  const resetMapping = () => { run({ mapping: {} }); };
 
   const unknownCols = useMemo(() => (preview?.columns || []).filter((c) => c.status === 'unknown'), [preview]);
   const ignoredCols = useMemo(() => (preview?.columns || []).filter((c) => c.status === 'ignored'), [preview]);
   const sheets = preview?.file.sheets || error?.sheets || [];
-  const busy = previewMut.isPending || applyMut.isPending;
+  const reading = items.some((x) => x.status === 'reading');
+  const busy = reading || applying;
   const t = preview?.totals;
+  const blocked = items.filter((x) => x.status === 'error' || (x.status === 'ready' && !x.preview?.can_apply));
 
   const submit = () => {
-    if (!preview || !file || !preview.can_apply) return;
-    const lines = [
-      `GFA 성과 ${preview.date_from} ~ ${preview.date_to} (${preview.days}일) · ${preview.record_count.toLocaleString('ko-KR')}행을 반영합니다.`,
-      `· 비용 ${won(t?.spend)}${preview.spend_vat ? ` (${VAT_LABEL[preview.spend_vat]})` : ''} · 전환 매출 ${won(t?.conv_sales)}${t?.roas != null ? ` · ROAS ${t.roas.toFixed(2)}` : ''}`,
-      preview.replace.rows > 0
-        ? `· 이미 올린 같은 계정·날짜 ${preview.replace.rows.toLocaleString('ko-KR')}행은 이 파일 값으로 바뀝니다`
-        : '· 겹치는 예전 데이터 없음',
-      '',
-      '진행할까요?',
-    ];
-    if (confirm(lines.join('\n'))) applyMut.mutate();
+    if (!pending.length) return;
+    let lines: string[];
+    if (pending.length === 1) {
+      const p = pending[0].preview!;
+      const tt = p.totals;
+      lines = [
+        `GFA 성과 ${p.date_from} ~ ${p.date_to} (${p.days}일) · ${p.record_count.toLocaleString('ko-KR')}행을 반영합니다.`,
+        `· 비용 ${won(tt.spend)}${p.spend_vat ? ` (${VAT_LABEL[p.spend_vat]})` : ''} · 전환 매출 ${won(tt.conv_sales)}${tt.roas != null ? ` · ROAS ${tt.roas.toFixed(2)}` : ''}`,
+        p.replace.rows > 0
+          ? `· 이미 올린 같은 계정·날짜 ${p.replace.rows.toLocaleString('ko-KR')}행은 이 파일 값으로 바뀝니다`
+          : '· 겹치는 예전 데이터 없음 — 이미 올린 다른 날짜에 더해 쌓입니다',
+      ];
+    } else {
+      lines = [
+        `파일 ${pending.length}개를 기간이 이른 것부터 차례로 반영합니다 (이미 올린 다른 날짜에 더해 쌓임).`,
+        ...pending.map((x, i) => {
+          const p = x.preview!;
+          return `${i + 1}. ${x.file.name} — ${p.date_from}~${p.date_to} · ${p.record_count.toLocaleString('ko-KR')}행 · 비용 ${won(p.totals.spend)}${p.replace.rows ? ` · 같은 날짜 예전 ${p.replace.rows.toLocaleString('ko-KR')}행 대체` : ''}`;
+        }),
+        ...(overlaps.length ? ['', ...overlaps.map((o) => `⚠ ${o}`)] : []),
+        ...(blocked.length ? ['', `반영 못 하는 파일 ${blocked.length}개는 빼고 진행합니다.`] : []),
+      ];
+    }
+    if (confirm([...lines, '', '진행할까요?'].join('\n'))) applyAll(pending);
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.55)' }} onClick={() => !busy && !preview && onClose()}>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.55)' }} onClick={() => !busy && items.length === 0 && onClose()}>
       <div className="w-full max-w-6xl rounded-xl p-5 max-h-[92vh] flex flex-col" style={{ backgroundColor: 'var(--color-bg-level-1)', border: '1px solid var(--color-border-primary)' }} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between gap-3 mb-3 shrink-0">
           <div>
@@ -155,25 +255,24 @@ export function GfaUploadModal({ accounts, onClose, onApplied }: {
 
         {/* 파일·계정·시트 */}
         <div className="flex flex-wrap items-center gap-2 shrink-0">
-          <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls,.txt,.tsv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden"
+          <input ref={fileRef} type="file" multiple accept=".csv,.xlsx,.xls,.txt,.tsv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden"
             onChange={(e) => {
-              const f = e.target.files?.[0] || null;
+              const fs = Array.from(e.target.files || []);
               e.target.value = '';
-              if (!f) return;
-              setFile(f); setSheet(undefined); setHeaderRow(undefined); setMapping({});
-              run({ file: f, sheet: undefined, headerRow: undefined, mapping: {} });
+              if (fs.length) addFiles(fs);
             }} />
           <button onClick={() => fileRef.current?.click()} disabled={busy}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
-            style={{ backgroundColor: 'var(--color-brand-bg)' }}>
-            <Upload size={13} /> {file ? '다른 파일' : '파일 선택'}
+            style={{ backgroundColor: 'var(--color-brand-bg)' }}
+            title="여러 파일을 한 번에 고를 수 있습니다 (예: 1~2월, 3~4월 파일)">
+            <Upload size={13} /> {items.length ? '파일 더 고르기' : '파일 선택 (여러 개 가능)'}
           </button>
-          {file && <span className="text-xs text-text-secondary truncate max-w-[240px]" title={file.name}>{file.name}</span>}
+          {items.length === 1 && file && <span className="text-xs text-text-secondary truncate max-w-[240px]" title={file.name}>{file.name}</span>}
           <label className="flex items-center gap-1.5 text-xs text-text-tertiary">
             계정 이름
             <input value={accountLabel} list="gfa-upload-accounts" placeholder="비우면 파일의 광고계정 칸"
               onChange={(e) => setAccountLabel(e.target.value)}
-              onBlur={() => { if (file && preview) run(); }}
+              onBlur={() => { if (items.length) rerunAll(); }}
               onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
               className="w-44 px-2 py-1.5 rounded-lg text-xs bg-bg-2 border border-border-primary text-text-primary" />
             <datalist id="gfa-upload-accounts">
@@ -181,7 +280,7 @@ export function GfaUploadModal({ accounts, onClose, onApplied }: {
             </datalist>
           </label>
           {sheets.length > 1 && (
-            <select value={sheet || ''} onChange={(e) => { setSheet(e.target.value); setHeaderRow(undefined); run({ sheet: e.target.value, headerRow: undefined }); }} disabled={busy}
+            <select value={sheet || ''} onChange={(e) => { run({ sheet: e.target.value, headerRow: undefined }); }} disabled={busy}
               className="px-2 py-1.5 rounded-lg text-xs bg-bg-2 border border-border-primary text-text-primary max-w-[220px]">
               {!sheet && <option value="">시트 고르기</option>}
               {sheets.map((s) => (
@@ -194,18 +293,77 @@ export function GfaUploadModal({ accounts, onClose, onApplied }: {
               머리글 행
               <input type="number" min={1} max={200} value={headerRow ?? ''}
                 onChange={(e) => setHeaderRow(e.target.value ? Number(e.target.value) : undefined)}
-                onBlur={() => { if (headerRow && headerRow !== preview.file.header_row) { setMapping({}); run({ headerRow, mapping: {} }); } }}
+                onBlur={() => { if (headerRow && headerRow !== preview.file.header_row) { run({ headerRow, mapping: {} }); } }}
                 onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
                 className="w-16 px-2 py-1.5 rounded-lg text-xs bg-bg-2 border border-border-primary text-text-primary" />
             </label>
           )}
-          {previewMut.isPending && <span className="text-xs text-text-tertiary">파일 읽는 중…</span>}
+          {reading && <span className="text-xs text-text-tertiary">파일 읽는 중…</span>}
           <div className="flex-1" />
           <button onClick={() => setShowHistory((v) => !v)}
             className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs text-text-tertiary border border-border-primary hover:text-text-primary">
             <History size={12} /> 올린 기록
           </button>
         </div>
+
+        {/* 지금까지 쌓인 날짜 — 60일씩 나눠 올릴 때 어디가 비었는지 */}
+        {coverage && coverage.runs.length > 0 && (
+          <div className="mt-2 text-[11px] text-text-tertiary shrink-0">
+            지금까지 올린 날짜: {coverage.runs.map((r) => `${r.from}~${r.to}`).join(', ')}
+            {coverage.gaps.length > 0 && <span className="text-yellow"> · 빈 구간 {coverage.gaps.map((g) => `${g.from}~${g.to}`).join(', ')}</span>}
+            <span className="text-text-quaternary"> — 새 파일은 이 위에 쌓이고, 같은 날짜는 새 파일 값으로 바뀝니다</span>
+          </div>
+        )}
+
+        {/* 고른 파일 목록 (여러 개) */}
+        {items.length > 1 && (
+          <div className="mt-2 rounded-lg overflow-x-auto shrink-0" style={{ border: '1px solid var(--color-border-primary)' }}>
+            <table className="w-full min-w-[720px] text-[11px]">
+              <thead>
+                <tr className="text-text-tertiary" style={{ backgroundColor: 'var(--color-bg-level-2)' }}>
+                  {['파일', '기간', '행', '비용', '같은 날짜 대체', '상태', ''].map((h, i) => (
+                    <th key={i} className={`px-2 py-1.5 font-medium ${i >= 2 && i <= 4 ? 'text-right' : 'text-left'}`}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((x) => {
+                  const p = x.preview;
+                  const st = x.status === 'reading' ? ['읽는 중…', 'text-text-tertiary']
+                    : x.status === 'applying' ? ['반영 중…', 'text-text-tertiary']
+                      : x.status === 'applied' ? ['반영됨', 'text-green']
+                        : x.status === 'error' ? ['못 읽음', 'text-red']
+                          : p?.can_apply ? ['반영 가능', 'text-text-secondary'] : ['고칠 것 있음', 'text-red'];
+                  return (
+                    <tr key={x.id} onClick={() => setActiveId(x.id)}
+                      className="cursor-pointer"
+                      style={{ borderTop: '1px solid var(--color-border-primary)', backgroundColor: x.id === activeId ? 'rgb(var(--color-overlay-rgb) / 0.05)' : undefined }}>
+                      <td className="px-2 py-1 text-text-primary truncate max-w-[260px]" title={x.file.name}>{x.id === activeId ? '▸ ' : ''}{x.file.name}</td>
+                      <td className="px-2 py-1 text-text-secondary whitespace-nowrap">{p?.date_from ? `${p.date_from} ~ ${p.date_to}` : '-'}</td>
+                      <td className="px-2 py-1 text-right tabular-nums text-text-secondary">{p ? num(p.record_count) : '-'}</td>
+                      <td className="px-2 py-1 text-right tabular-nums text-text-primary">{p ? won(p.totals.spend) : '-'}</td>
+                      <td className="px-2 py-1 text-right tabular-nums text-text-tertiary">{p ? num(p.replace.rows) : '-'}</td>
+                      <td className={`px-2 py-1 whitespace-nowrap ${st[1]}`}>{st[0]}</td>
+                      <td className="px-2 py-1 text-right">
+                        {x.status !== 'applying' && (
+                          <button onClick={(e) => { e.stopPropagation(); removeItem(x.id); }} disabled={busy}
+                            className="p-0.5 rounded text-text-tertiary hover:text-red disabled:opacity-40" title="목록에서 빼기">
+                            <X size={12} />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            {overlaps.length > 0 && (
+              <div className="px-2 py-1.5 text-[11px] text-yellow space-y-0.5" style={{ borderTop: '1px solid var(--color-border-primary)' }}>
+                {overlaps.map((o) => <div key={o}>⚠ {o}</div>)}
+              </div>
+            )}
+          </div>
+        )}
 
         {error && (
           <div className="mt-3 flex items-start gap-2 rounded-lg px-3 py-2 text-xs text-red shrink-0" style={{ backgroundColor: 'rgb(var(--color-red-rgb) / 0.08)', border: '1px solid rgb(var(--color-red-rgb) / 0.3)' }}>
@@ -260,9 +418,10 @@ export function GfaUploadModal({ accounts, onClose, onApplied }: {
             </div>
           )}
 
-          {!preview && !error && !previewMut.isPending && (
+          {!preview && !error && !reading && (
             <div className="rounded-lg px-4 py-6 text-center text-xs text-text-tertiary space-y-1" style={{ border: '1px dashed var(--color-border-primary)' }}>
               <p>파일을 고르면 칸을 자동으로 알아보고 미리 보여 줍니다.</p>
+              <p>GFA는 한 번에 60일까지만 내려받아지니 1~2월, 3~4월처럼 나눠 받은 파일을 <b className="text-text-secondary">한꺼번에 골라</b> 올리면 차례로 쌓입니다.</p>
               <p className="text-text-quaternary">알아보는 칸: 날짜·캠페인·광고그룹·소재·소재 유형·노출·클릭·비용(VAT 제외 우선)·전환 수·전환 매출(구매완료 우선)·예산·상품·프로모션</p>
             </div>
           )}
@@ -395,18 +554,19 @@ export function GfaUploadModal({ accounts, onClose, onApplied }: {
         </div>
 
         <div className="flex flex-wrap items-center justify-end gap-2 mt-4 shrink-0">
-          {preview && (
+          {items.length > 0 && (
             <span className="w-full sm:w-auto sm:mr-auto text-[11px] text-text-tertiary">
-              {preview.can_apply
-                ? '반영하면 이 파일에 있는 계정·날짜의 값이 파일 값으로 바뀝니다 (다른 날짜는 그대로)'
-                : '빨간 항목을 고쳐야 반영할 수 있습니다'}
+              {pending.length
+                ? `반영하면 파일에 있는 계정·날짜만 파일 값으로 바뀌고 다른 날짜는 그대로 쌓여 있습니다${blocked.length ? ` · 고칠 것 있는 파일 ${blocked.length}개는 빼고 반영` : ''}`
+                : items.every((x) => x.status === 'applied') ? '모두 반영했습니다'
+                  : reading ? '파일 읽는 중…' : '빨간 항목을 고쳐야 반영할 수 있습니다'}
             </span>
           )}
           <button onClick={onClose} disabled={busy} className="shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs text-text-tertiary border border-border-primary disabled:opacity-40">닫기</button>
-          <button onClick={submit} disabled={!preview || !preview.can_apply || busy}
+          <button onClick={submit} disabled={!pending.length || busy}
             className="shrink-0 whitespace-nowrap flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-medium text-white disabled:opacity-50"
             style={{ backgroundColor: 'var(--color-brand-bg)' }}>
-            <Check size={13} /> {applyMut.isPending ? '반영 중…' : '반영하기'}
+            <Check size={13} /> {applying ? '반영 중…' : pending.length > 1 ? `${pending.length}개 파일 반영하기` : '반영하기'}
           </button>
         </div>
       </div>

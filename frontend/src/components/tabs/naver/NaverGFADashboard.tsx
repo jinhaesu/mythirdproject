@@ -5,17 +5,31 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Monitor, DollarSign, Eye, MousePointer, Target, TrendingUp,
   Loader2, RefreshCw, ChevronDown, ChevronRight, Sparkles,
-  Image, Activity, Play, Pause, Award, Calendar, Upload,
+  Image, Activity, Play, Pause, Award, Calendar, Upload, ChevronLeft,
 } from 'lucide-react';
 import { naverGFAApi, formatNaverCurrency, formatNaverNumber, formatNaverPercent } from '@/lib/naver-api';
 import toast from 'react-hot-toast';
 import { GfaUploadModal } from './GfaUploadModal';
 import { GfaUploadDashboard } from './GfaUploadDashboard';
 
-type DatePreset = 'today' | 'yesterday' | 'last_7_days' | 'last_14_days' | 'last_30_days' | 'this_month'
+type DatePreset = 'month' | 'today' | 'yesterday' | 'last_7_days' | 'last_14_days' | 'last_30_days' | 'this_month'
   | 'last_month' | 'last_90_days' | 'all' | 'custom';
 
+/** 한국 날짜 YYYY-MM-DD */
+const kstDay = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
+/** YYYY-MM에서 n달 옮기기 */
+const shiftMonth = (m: string, n: number) => {
+  const [y, mo] = m.split('-').map(Number);
+  const t = y * 12 + (mo - 1) + n;
+  return `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, '0')}`;
+};
+const monthLastDay = (m: string) => {
+  const [y, mo] = m.split('-').map(Number);
+  return `${m}-${String(new Date(y, mo, 0).getDate()).padStart(2, '0')}`;
+};
+
 const DATE_PRESETS: { value: DatePreset; label: string; uploadOnly?: boolean }[] = [
+  { value: 'month', label: '월별 보기', uploadOnly: true },
   { value: 'today', label: '오늘' },
   { value: 'yesterday', label: '어제' },
   { value: 'last_7_days', label: '최근 7일' },
@@ -25,7 +39,7 @@ const DATE_PRESETS: { value: DatePreset; label: string; uploadOnly?: boolean }[]
   { value: 'last_month', label: '지난달', uploadOnly: true },
   { value: 'last_90_days', label: '최근 90일', uploadOnly: true },
   { value: 'all', label: '올린 전체 기간', uploadOnly: true },
-  { value: 'custom', label: '기간 직접설정' },
+  { value: 'custom', label: '직접 지정' },
 ];
 const UPLOAD_ONLY = new Set(DATE_PRESETS.filter((p) => p.uploadOnly).map((p) => p.value));
 
@@ -114,9 +128,23 @@ export function NaverGFADashboard() {
   const apiMode = apiConnected && !uploadMode;
   const gfaConnected = apiMode;
 
+  // 올린 파일은 기본이 달 보기(2026-11-03 연다은 건의) — 처음엔 올린 데이터가 있는 가장 최근 달
   const datePreset: DatePreset = pickedPreset && (uploadMode || !UPLOAD_ONLY.has(pickedPreset))
-    ? pickedPreset : uploadMode ? 'last_30_days' : 'last_7_days';
+    ? pickedPreset : uploadMode ? 'month' : 'last_7_days';
   const uploadAccounts = (uploadStatus?.accounts || []).map((a) => a.account);
+  const thisMonth = kstDay().slice(0, 7);
+  const [pickedMonth, setPickedMonth] = useState<string | null>(null);
+  const viewMonth = pickedMonth || uploadStatus?.date_max?.slice(0, 7) || thisMonth;
+  const pickMonth = (m: string) => { setPickedMonth(m); setDatePreset('month'); };
+  const pickPreset = (p: DatePreset) => {
+    if (p === 'custom' && datePreset === 'month') {  // 직접 지정은 보던 달로 채워 시작
+      const end = monthLastDay(viewMonth);
+      const t = kstDay();
+      setCustomStartDate(`${viewMonth}-01`);
+      setCustomEndDate(end > t ? t : end);
+    }
+    setDatePreset(p);
+  };
 
   // Effective date range for API calls
   const effectiveDateRange = datePreset;
@@ -277,13 +305,32 @@ export function NaverGFADashboard() {
           )}
           <select
             value={datePreset}
-            onChange={(e) => setDatePreset(e.target.value as DatePreset)}
+            onChange={(e) => pickPreset(e.target.value as DatePreset)}
             className="rounded-lg border border-border-primary px-3 py-2 text-sm bg-bg-1 focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
           >
             {DATE_PRESETS.filter((p) => uploadMode || !p.uploadOnly).map((p) => (
               <option key={p.value} value={p.value}>{p.label}</option>
             ))}
           </select>
+          {datePreset === 'month' && (
+            <div className="flex items-center gap-1">
+              <button onClick={() => pickMonth(shiftMonth(viewMonth, -1))} title="이전 달"
+                className="p-2 rounded-lg border border-border-primary text-text-tertiary hover:text-text-primary">
+                <ChevronLeft size={14} />
+              </button>
+              <input
+                type="month"
+                value={viewMonth}
+                max={thisMonth}
+                onChange={(e) => e.target.value && pickMonth(e.target.value)}
+                className="rounded-lg border border-border-primary px-2 py-1.5 text-sm bg-bg-1 focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
+              />
+              <button onClick={() => pickMonth(shiftMonth(viewMonth, 1))} disabled={viewMonth >= thisMonth} title="다음 달"
+                className="p-2 rounded-lg border border-border-primary text-text-tertiary hover:text-text-primary disabled:opacity-30">
+                <ChevronRight size={14} />
+              </button>
+            </div>
+          )}
           {datePreset === 'custom' && (
             <div className="flex items-center gap-1.5">
               <Calendar size={14} className="text-text-quaternary" />
@@ -326,14 +373,12 @@ export function NaverGFADashboard() {
         <GfaUploadModal
           accounts={uploadAccounts}
           onClose={() => setShowUpload(false)}
-          onApplied={(res) => {
+          onApplied={(results) => {
             setShowUpload(false);
             if (apiConnected) setSource('upload');
-            if (res.date_from && res.date_to) {  // 방금 올린 기간을 바로 보여 준다
-              setCustomStartDate(res.date_from);
-              setCustomEndDate(res.date_to);
-              setDatePreset('custom');
-            }
+            // 방금 올린 파일 중 가장 늦은 날짜의 달을 바로 보여 준다(여러 파일이면 쌓인 결과)
+            const last = results.map((r) => r.date_to).filter(Boolean).sort().pop();
+            if (last) pickMonth(last.slice(0, 7));
           }}
         />
       )}
@@ -343,9 +388,11 @@ export function NaverGFADashboard() {
           dateRange={effectiveDateRange}
           startDate={effectiveStartDate}
           endDate={effectiveEndDate}
+          month={datePreset === 'month' ? viewMonth : undefined}
           accounts={uploadAccounts}
           onUpload={() => setShowUpload(true)}
           onShowAll={() => setDatePreset('all')}
+          onPickMonth={pickMonth}
         />
       ) : !statusKnown ? (
         <div className="flex items-center justify-center py-12">

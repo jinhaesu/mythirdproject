@@ -260,12 +260,13 @@ export const naverGFAApi = {
     const { data } = await api.get('/naver/gfa/upload/status');
     return data;
   },
-  uploadDashboard: async (dateRange: string, startDate?: string, endDate?: string, account?: string): Promise<GfaUploadDashboard> => {
+  uploadDashboard: async (dateRange: string, startDate?: string, endDate?: string, account?: string, month?: string): Promise<GfaUploadDashboard> => {
     const params: any = { date_range: dateRange };
     if (dateRange === 'custom' && startDate && endDate) {
       params.start_date = startDate;
       params.end_date = endDate;
     }
+    if (dateRange === 'month' && month) params.month = month;
     if (account !== undefined) params.account = account;
     const { data } = await api.get('/naver/gfa/upload/dashboard', { params });
     return data;
@@ -357,8 +358,17 @@ export type GfaUploadBatch = {
   uploaded_by: string | null; created_at: string | null;
 };
 
+/** 올린 날짜 누적 현황 — 이어진 구간·빈 구간·달별 채움 (missing은 고른 기간 안에서 빈 구간) */
+export type GfaRange = { from: string; to: string; days: number };
+export type GfaCoverage = {
+  runs: GfaRange[]; gaps: GfaRange[];
+  months: { month: string; days: number; month_days: number }[];
+  missing?: GfaRange[];
+};
+
 export type GfaUploadStatus = {
   has_data: boolean; rows: number; date_min?: string; date_max?: string;
+  coverage?: GfaCoverage;
   accounts: { account: string; rows: number; date_min: string; date_max: string }[];
   last_upload?: { id: number; filename: string | null; uploaded_by: string | null; created_at: string | null; spend_vat: string | null } | null;
 };
@@ -380,8 +390,12 @@ export type GfaSeriesPoint = GfaPerf & {
 export type GfaUploadDashboardData = {
   has_data: true;
   source: 'upload';
-  period: { start: string; end: string; days: number; prev_start: string; prev_end: string };
+  period: {
+    start: string; end: string; days: number; prev_start: string; prev_end: string;
+    prev_days?: number; prev_days_with_data?: number; compare_label?: string;
+  };
   data_span: { min: string; max: string; rows: number };
+  coverage?: GfaCoverage;
   missing_days: number;
   account: string | null;
   accounts: string[];
