@@ -2452,6 +2452,150 @@ async def track_referral_click(
 # ---------------------------------------------------------------------------
 
 _TRACKER_JS_TEMPLATE = r"""
+/* 자사몰 여정·상세 스크롤 기록 (2026-11-04) — 개인정보 없이 무작위 방문자·방문 아이디만.
+   받는 곳: journey.py /journey/collect. 실패해도 쇼핑몰 화면엔 영향 없음. */
+(function () {
+  try {
+    if (window.top !== window || navigator.webdriver || window.__ndJ) return; // 쿠폰 창 등 iframe 제외
+    window.__ndJ = 1;
+    var EP = '__BACKEND__/api/v1/journey/collect';
+    var root = location.hostname.replace(/^(m|www)\./i, '');
+    var C = window.crypto || window.msCrypto;
+    if (!C || !C.getRandomValues || !window.JSON) return;
+    function rid() { var a = new Uint8Array(12), s = ''; C.getRandomValues(a); for (var i = 0; i < a.length; i++) s += (a[i] + 256).toString(16).slice(1); return s; }
+    function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+    function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+    function ckGet(k) { var m = document.cookie.match(new RegExp('(?:^|;\\s*)' + k + '=([^;]+)')); return m ? m[1] : null; }
+    function ckSet(k, v, age) { try { document.cookie = k + '=' + v + '; domain=.' + root + '; path=/; max-age=' + age + '; SameSite=Lax'; } catch (e) {} }
+    var ID = /^[0-9a-f]{24}$/;
+    var vid = lsGet('nd_j_v') || ckGet('nd_j_v');
+    if (!vid || !ID.test(vid)) vid = rid();
+    lsSet('nd_j_v', vid); ckSet('nd_j_v', vid, 400 * 86400);
+    // 방문(세션): 30분 넘게 쉬면 새 방문. localStorage가 막힌 브라우저는 쿠키로
+    var now = Date.now(), ss = (lsGet('nd_j_s') || ckGet('nd_j_s') || '').split('.');
+    var sid = ss[0], last = parseInt(ss[1] || '0', 10), sn = parseInt(ss[2] || '0', 10) || parseInt(lsGet('nd_j_n') || '0', 10);
+    if (!ID.test(sid || '') || !last || now - last > 30 * 60 * 1000) { sid = rid(); sn = (sn || 0) + 1; lsSet('nd_j_n', String(sn)); }
+    sn = sn || 1;
+    function touch() { var v = sid + '.' + Date.now() + '.' + sn; lsSet('nd_j_s', v); ckSet('nd_j_s', v, 1800); }
+    touch();
+    function send(o) {
+      o.v = vid; o.s = sid; o.sn = sn;
+      var b = JSON.stringify(o);
+      try { if (navigator.sendBeacon && navigator.sendBeacon(EP, new Blob([b], { type: 'text/plain' }))) return; } catch (e) {}
+      try { fetch(EP, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: b, keepalive: true, mode: 'no-cors' }); } catch (e) {}
+    }
+    // 주소는 경로 + 필요한 값만 (검색어 등은 보내지 않음)
+    var KEEP = ['product_no', 'cate_no', 'order_id', 'utm_source', 'utm_medium', 'utm_campaign'];
+    var qs = new URLSearchParams(location.search), kept = [];
+    for (var i = 0; i < KEEP.length; i++) { var x = qs.get(KEEP[i]); if (x) kept.push(KEEP[i] + '=' + encodeURIComponent(x.slice(0, 60))); }
+    var U = location.pathname.slice(0, 240) + (kept.length ? '?' + kept.join('&') : '');
+    var ref = ''; try { ref = document.referrer ? new URL(document.referrer).hostname : ''; } catch (e) {}
+    var dev = (window.innerWidth || 0) >= 1000 && !/Mobi|Android|iPhone/i.test(navigator.userAgent) ? 'pc' : 'm';
+    var pv = rid(), shown = document.visibilityState !== 'hidden' ? Date.now() : 0, dwell = 0, maxD = -1, box = null;
+    var maxSec = -1, opened = false;
+    function pageView(isNew) {
+      var n = '', og = document.querySelector('meta[property="og:title"]');
+      if (og) n = (og.getAttribute('content') || '').slice(0, 120);
+      var o = '';
+      if (/order_result/i.test(location.pathname)) { o = qs.get('order_id') || ((document.documentElement.innerHTML.match(/20\d{6}-\d{7}/) || [''])[0]); }
+      send({ t: 'pv', pv: pv, u: U, r: isNew ? ref : location.hostname, n: n, o: o, d: dev, h: location.hostname });
+    }
+    // ── 상세 스크롤: ① 페이지 전체 깊이 ② 도달 구역 ③ 설명 펼침 ④ 펼친 설명 안 깊이 ──
+    function vh() { return window.innerHeight || 700; }
+    function bigBox() { return box && box.getBoundingClientRect().height >= vh() * 1.2; } // 접힌 설명(약 840px)은 화면 한 장 정도
+    // 내려 본 가장 아래 위치(px)를 기억했다가, 떠날 때 그때의 페이지 높이로 나눈다
+    // (그림이 늦게 불러져 페이지가 길어져도 앞서 잰 % 가 부풀지 않게)
+    var scEl = null, maxBot = 0;
+    function pageDepth() {
+      // 운영 화면은 body가 스크롤 칸일 때도 있어 문서·body 중 실제로 내려간 쪽을 쓴다
+      var els = [document.scrollingElement || document.documentElement, document.body];
+      for (var i = 0; i < els.length; i++) {
+        var e = els[i];
+        if (!e || e.scrollHeight < e.clientHeight * 1.3) continue;
+        if (e.scrollTop > 0 || !scEl) {
+          if (scEl !== e && e.scrollTop > 0) { scEl = e; maxBot = 0; }
+          if (!scEl) scEl = e;
+          if (scEl === e) maxBot = Math.max(maxBot, e.scrollTop + e.clientHeight);
+          if (e.scrollTop > 0) return;
+        }
+      }
+    }
+    function pagePct() {
+      if (!scEl || !scEl.scrollHeight) return -1;
+      return Math.floor(Math.min(1, maxBot / scEl.scrollHeight) * 20) * 5;
+    }
+    var ticking = false;
+    function onScroll() { if (ticking) return; ticking = true; (window.requestAnimationFrame || setTimeout)(function () { ticking = false; pageDepth(); if (bigBox()) opened = true; }); }
+    function setupScroll() {
+      box = document.getElementById('prdDetail');
+      if (!box) return;
+      document.addEventListener('scroll', onScroll, true);
+      window.addEventListener('scroll', onScroll);
+      pageDepth();
+      if (!window.IntersectionObserver) return;
+      try {
+        // 구역: 1설명 2정보고시 3리뷰 4문의 — 화면에 조금이라도 들어오면 도달
+        var secs = [[box, 1], [document.getElementById('prdInfo'), 2], [document.querySelector('.nd-alpha-review') || document.getElementById('prdReview'), 3], [document.getElementById('prdQnA'), 4]];
+        var sio = new IntersectionObserver(function (es) {
+          for (var j = 0; j < es.length; j++) if (es[j].isIntersecting) { var n = +es[j].target.getAttribute('data-nd-sec'); if (n > maxSec) maxSec = n; }
+        });
+        maxSec = 0;
+        for (var q = 0; q < secs.length; q++) if (secs[q][0]) { secs[q][0].setAttribute('data-nd-sec', secs[q][1]); sio.observe(secs[q][0]); }
+      } catch (e) {}
+      // 펼친 설명 안 깊이: 5% 간격 표시점 중 화면에 들어온 가장 깊은 점
+      try {
+        if (getComputedStyle(box).position === 'static') box.style.position = 'relative';
+        var lay = document.createElement('div');
+        lay.setAttribute('aria-hidden', 'true');
+        lay.style.cssText = 'position:absolute;left:0;top:0;width:1px;height:100%;pointer-events:none;opacity:0;z-index:-1';
+        var io = new IntersectionObserver(function (es) {
+          // 그림이 아직 안 불러져 설명이 짧을 땐 다 보인 것처럼 잡히므로 세지 않는다
+          if (box.getBoundingClientRect().height < (window.innerHeight || 600) * 1.2) return;
+          for (var j = 0; j < es.length; j++) if (es[j].isIntersecting) { var p = +es[j].target.getAttribute('data-p'); if (p > maxD) maxD = p; }
+        });
+        for (var p = 0; p <= 100; p += 5) {
+          var m = document.createElement('span');
+          m.setAttribute('data-p', p);
+          m.style.cssText = 'position:absolute;left:0;width:1px;height:1px;top:' + (p === 100 ? 'calc(100% - 2px)' : p + '%');
+          lay.appendChild(m);
+        }
+        box.appendChild(lay);
+        for (var k = 0; k < lay.children.length; k++) io.observe(lay.children[k]);
+      } catch (e) {}
+    }
+    function flush() {
+      if (shown) { dwell += Date.now() - shown; shown = 0; }
+      var o = { t: 'sc', pv: pv, dw: dwell };
+      if (box) { pageDepth(); if (bigBox()) opened = true; o.pp = pagePct(); o.sec = maxSec; o.ex = opened ? 1 : 0; if (opened) o.dp = maxD; }
+      send(o); touch();
+    }
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'hidden') flush(); else { shown = Date.now(); touch(); }
+    });
+    window.addEventListener('pagehide', flush);
+    window.addEventListener('pageshow', function (ev) { if (ev.persisted) { pv = rid(); dwell = 0; shown = Date.now(); touch(); pageView(false); } });
+    // 상세의 담기·구매 버튼 (머리줄 장바구니 링크처럼 다른 페이지로 가는 a 링크는 제외)
+    var lastEv = 0;
+    document.addEventListener('click', function (e) {
+      try {
+        if (!box) return;
+        var a = e.target && e.target.closest ? e.target.closest('a,button,[role=button]') : null;
+        if (!a) return;
+        var href = a.tagName === 'A' ? (a.getAttribute('href') || '') : '';
+        if (/\.html/i.test(href)) return;
+        var tx = (a.innerText || a.textContent || '').replace(/\s+/g, '');
+        if (!tx || tx.length > 20) return;
+        var k = /장바구니|담기/.test(tx) ? 'cart_click' : /바로구매|구매하기|주문하기|선물하기/.test(tx) ? 'buy_click' : '';
+        if (!k || Date.now() - lastEv < 800) return;
+        lastEv = Date.now();
+        send({ t: 'ev', pv: rid(), rp: pv, k: k, u: U, h: location.hostname, d: dev });
+      } catch (e2) {}
+    }, true);
+    function start() { pageView(true); setupScroll(); }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
+  } catch (e) { /* 기록 실패는 조용히 무시 */ }
+})();
+
 (function () {
   try {
     var qs = new URLSearchParams(location.search);
