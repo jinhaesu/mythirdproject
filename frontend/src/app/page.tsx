@@ -36,6 +36,8 @@ import {
 import { AICommandCenter } from '@/components/chat/AICommandCenter';
 import NuldamSystemBar from '@/components/NuldamSystemBar';
 import DatarizeDashboard from '@/components/tabs/crm/DatarizeDashboard';
+import JourneyDashboard from '@/components/tabs/mall/JourneyDashboard';
+import ScrollDepthDashboard from '@/components/tabs/mall/ScrollDepthDashboard';
 import toast from 'react-hot-toast';
 
 // React strict mode의 effect double-invoke 방어용 — 동일 매직링크 토큰은 1회만 verify
@@ -165,6 +167,12 @@ export default function Home() {
             {sub('analysis') === 1 && <MarketingKPI />}
             {sub('analysis') === 2 && <ExternalMarketingKPI />}
             {sub('analysis') === 3 && <SponsorshipAnalytics />}
+          </>
+        )}
+        {activeMenu === 'mall' && (
+          <>
+            {sub('mall') === 0 && <JourneyDashboard />}
+            {sub('mall') === 1 && <ScrollDepthDashboard />}
           </>
         )}
         {activeMenu === 'live' && (

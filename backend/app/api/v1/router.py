@@ -218,3 +218,11 @@ api_router.include_router(
     prefix="/crm",
     tags=["CRM Datarize"]
 )
+
+# 자사몰 여정·상세 스크롤 분석 (tracker.js 수집 → 깔때기·흐름도·스크롤 이탈, 2026-11-04)
+from app.api.v1.endpoints import journey  # noqa: E402
+api_router.include_router(
+    journey.router,
+    prefix="/journey",
+    tags=["Mall Journey"]
+)

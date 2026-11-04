@@ -45,6 +45,7 @@ from app.models.meta_daily_alert import MetaDailyAlertLog
 from app.models.datarize import (
     DatarizeMessageDaily, DatarizeCostDaily, DatarizeMemberDaily, DatarizeSegmentDaily, DatarizeSyncLog,
 )
+from app.models.journey import MallJourneyEvent
 from app.models.bestprice import (
     BestpriceRun, BestpriceCoupon, BestpriceAssignment, BestpriceRedemption,
 )
@@ -116,4 +117,5 @@ __all__ = [
     "DatarizeMemberDaily",
     "DatarizeSegmentDaily",
     "DatarizeSyncLog",
+    "MallJourneyEvent",
 ]
