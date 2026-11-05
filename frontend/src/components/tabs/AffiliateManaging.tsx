@@ -163,6 +163,7 @@ interface Cafe24Status {
   needs_reauth?: boolean;
   missing_scopes?: string[];
   required_scopes?: string[];
+  token_expires_at?: string | null;
 }
 
 function priceToNumber(v: unknown): number {
@@ -643,6 +644,25 @@ function Cafe24Banner() {
     onError: () => toast.error('연결 해제에 실패했습니다'),
   });
 
+  const refreshMutation = useMutation({
+    mutationFn: cafe24Api.refreshToken,
+    onSuccess: (r) => {
+      qc.invalidateQueries({ queryKey: ['cafe24', 'status'] });
+      const t = r?.token_expires_at ? new Date(r.token_expires_at) : null;
+      toast.success(t ? `토큰을 연장했습니다 · ${t.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}까지` : '토큰을 연장했습니다');
+    },
+    onError: () => toast.error("연장에 실패했습니다. 계속 실패하면 '연결 해제' 후 다시 연결해 주세요."),
+  });
+
+  // 토큰 남은 시간 (서버가 30분마다 1시간 전에 자동 연장, 화면에서는 「지금 연장」으로 바로)
+  const expAt = status?.token_expires_at ? new Date(status.token_expires_at) : null;
+  const leftMin = expAt ? Math.round((expAt.getTime() - Date.now()) / 60000) : null;
+  const expLabel = expAt && leftMin !== null
+    ? leftMin > 0
+      ? `토큰 ${expAt.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}까지 · ${leftMin >= 60 ? `${Math.floor(leftMin / 60)}시간 ${leftMin % 60}분` : `${leftMin}분`} 남음`
+      : '토큰 만료됨 · 다음 사용 때 자동 연장'
+    : null;
+
   const handleConnect = async () => {
     const mid = mallIdInput.trim();
     if (!mid) { toast.error('쇼핑몰 ID를 입력하세요'); return; }
@@ -691,6 +711,20 @@ function Cafe24Banner() {
             )}
           </div>
           <div className="flex items-center gap-1.5">
+            {expLabel && (
+              <span className={`hidden sm:inline text-[11px] tabular-nums ${leftMin !== null && leftMin < 30 ? 'text-yellow' : 'text-text-tertiary'}`}>
+                {expLabel}
+              </span>
+            )}
+            <button
+              onClick={() => refreshMutation.mutate()}
+              disabled={refreshMutation.isPending}
+              className="flex items-center gap-1 px-3 py-1.5 text-xs text-green border border-green/30 hover:bg-green/10 rounded-lg transition-colors disabled:opacity-50"
+              title="카페24 토큰을 지금 바로 연장 (평소에는 서버가 자동으로 연장)"
+            >
+              {refreshMutation.isPending && <Loader2 size={10} className="animate-spin" />}
+              지금 연장
+            </button>
             <button
               onClick={() => refetchStatus()}
               className="p-1.5 text-text-tertiary hover:text-text-primary border border-[rgb(var(--color-overlay-rgb)/0.1)] rounded-lg transition-colors"

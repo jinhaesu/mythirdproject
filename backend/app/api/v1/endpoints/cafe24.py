@@ -96,14 +96,9 @@ async def cafe24_auth_callback(
         scopes_raw = ",".join(str(s) for s in scopes_raw)
     user.cafe24_scopes = scopes_raw
 
-    expires_at_raw = data.get("expires_at")
-    if expires_at_raw:
-        try:
-            user.cafe24_token_expires_at = datetime.fromisoformat(
-                expires_at_raw.replace("Z", "+00:00")
-            ).replace(tzinfo=None)
-        except Exception:
-            pass
+    exp = cafe24_svc.parse_cafe24_expires_at(data.get("expires_at"))
+    if exp:
+        user.cafe24_token_expires_at = exp
 
     await db.commit()
     logger.info(f"[Cafe24] Connected mall={user.cafe24_mall_id} for user={user.id}")
@@ -138,11 +133,33 @@ async def cafe24_status(
         "connected": connected,
         "mall_id": cafe24_user.cafe24_mall_id if cafe24_user else None,
         "scopes": cafe24_user.cafe24_scopes if cafe24_user else None,
-        "token_expires_at": cafe24_user.cafe24_token_expires_at if cafe24_user else None,
+        "token_expires_at": _utc_iso(cafe24_user.cafe24_token_expires_at if cafe24_user else None),
         "required_scopes": sorted(required),
         "missing_scopes": missing_scopes,
         "needs_reauth": bool(missing_scopes),
     }
+
+
+def _utc_iso(dt):
+    """DB 의 UTC naive 시각 → 'Z' 붙은 ISO (화면이 한국 시각으로 바꿔 보여 줌)."""
+    return dt.isoformat(timespec="seconds") + "Z" if dt else None
+
+
+@router.post("/refresh-token")
+async def cafe24_refresh_token(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """「지금 연장」: 카페24 토큰을 바로 갱신 (자동 갱신과 같은 절차, 30분마다 서버가 알아서도 함)."""
+    cafe24_user = current_user if current_user.cafe24_access_token else await get_shared_cafe24_user(db)
+    if not (cafe24_user and cafe24_user.cafe24_refresh_token):
+        raise HTTPException(status_code=400, detail="Cafe24 스토어 연결이 필요합니다.")
+    try:
+        exp = await cafe24_svc.refresh_now(cafe24_user, db)
+    except Exception as e:
+        logger.error(f"[Cafe24] manual refresh failed: {e}")
+        raise HTTPException(status_code=502, detail="토큰 연장에 실패했습니다. 계속 실패하면 '연결 해제' 후 다시 연결해 주세요.")
+    return {"success": True, "token_expires_at": _utc_iso(exp)}
 
 
 @router.post("/disconnect")

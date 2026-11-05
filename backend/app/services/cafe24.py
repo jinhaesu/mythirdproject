@@ -77,6 +77,44 @@ async def refresh(mall_id: str, refresh_token: str) -> dict:
 import asyncio as _asyncio
 _refresh_locks: dict = {}
 
+KST = timezone(timedelta(hours=9))
+# 카페24 access_token 수명은 2시간. 이보다 훨씬 먼 만료 시각은 옛 저장값(한국 시각을 UTC로 착각)이라 믿지 않음.
+_MAX_TOKEN_LIFETIME = timedelta(hours=2, minutes=15)
+
+
+def parse_cafe24_expires_at(raw: Optional[str]) -> Optional[datetime]:
+    """카페24 expires_at → UTC naive datetime (DB 저장·utcnow 비교용).
+
+    카페24는 "2026-11-05T17:58:27.000" 처럼 시간대 없이 **한국 시각**으로 준다.
+    전에는 이 값을 그대로 저장해 utcnow 와 비교 → 늘 9시간 남은 것으로 보여 선제 갱신이 한 번도 안 돌았음(2026-11-05).
+    시간대가 붙어 오면 그대로 존중한다.
+    """
+    if not raw:
+        return None
+    try:
+        dt = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=KST)
+    return dt.astimezone(timezone.utc).replace(tzinfo=None)
+
+
+def token_needs_refresh(expires_at: Optional[datetime], now: Optional[datetime] = None,
+                        margin: timedelta = timedelta(hours=1)) -> bool:
+    """만료가 margin 안으로 들어왔거나, 저장값이 수명보다 멀어 믿을 수 없으면 True."""
+    now = now or datetime.utcnow()
+    if expires_at is None:
+        return True
+    left = expires_at - now
+    return left < margin or left > _MAX_TOKEN_LIFETIME
+
+
+async def refresh_now(user, db) -> Optional[datetime]:
+    """지금 바로 토큰 갱신(화면의 「지금 연장」). 새 만료 시각(UTC) 반환."""
+    await _do_refresh_locked(user, db, force=True)
+    return user.cafe24_token_expires_at
+
 
 async def proactive_refresh_all(db) -> dict:
     """
@@ -97,10 +135,8 @@ async def proactive_refresh_all(db) -> dict:
     failed = 0
     skipped = 0
     for u in users:
-        exp = u.cafe24_token_expires_at
-        now = datetime.utcnow()
-        # 만료까지 1시간 이상 남았으면 스킵 (불필요한 refresh 방지)
-        if exp and (exp - now) > timedelta(hours=1):
+        # 만료까지 1시간 이상 남았으면 스킵 (불필요한 refresh 방지). 믿을 수 없는 옛 저장값은 갱신.
+        if not token_needs_refresh(u.cafe24_token_expires_at):
             skipped += 1
             continue
         try:
@@ -179,13 +215,9 @@ async def _persist_refresh_result(user, db, data: dict) -> None:
     user.cafe24_access_token = data.get("access_token", user.cafe24_access_token)
     if data.get("refresh_token"):
         user.cafe24_refresh_token = data["refresh_token"]
-    if data.get("expires_at"):
-        try:
-            user.cafe24_token_expires_at = datetime.fromisoformat(
-                data["expires_at"].replace("Z", "+00:00")
-            ).replace(tzinfo=None)
-        except Exception:
-            pass
+    exp = parse_cafe24_expires_at(data.get("expires_at"))
+    if exp:
+        user.cafe24_token_expires_at = exp
     # refresh 응답의 실제 scope로 갱신 — 앱 재인가/권한 변경으로 scope가 줄어든 경우
     # /cafe24/status 의 missing_scopes·needs_reauth 가 실제 상태를 반영하도록.
     # (2026-10-22: 저장값은 write_category 보유로 남았지만 실제 토큰은 insufficient_scope)
