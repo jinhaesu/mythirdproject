@@ -42,6 +42,7 @@ async def _run_scheduled_reports():
     _scheduler_status = "running"
     _cafe24_poll_counter = 0
     _cafe24_refresh_counter = 0
+    _cafe24_last_refresh_check = None
     while True:
         try:
             await asyncio.sleep(60)
@@ -49,10 +50,11 @@ async def _run_scheduled_reports():
             _scheduler_last_check = now
             _scheduler_run_count += 1
 
-            # ── Cafe24 토큰 선제적 refresh (30분마다, 만료 훨씬 전에 갱신) ──
+            # ── Cafe24 토큰 선제적 refresh (실제 시각 기준 10분마다 확인, 만료 1시간 전에 갱신) ──
+            # 전에는 '30바퀴마다'였는데 한 바퀴에 주문 폴링 등으로 몇 분씩 걸려 1시간 넘게 안 돌았음 (2026-11-05)
             _cafe24_refresh_counter += 1
-            if _cafe24_refresh_counter >= 30:
-                _cafe24_refresh_counter = 0
+            if _cafe24_last_refresh_check is None or (now - _cafe24_last_refresh_check) >= timedelta(minutes=10):
+                _cafe24_last_refresh_check = now
                 try:
                     async with async_session_factory() as _db:
                         rr = await proactive_refresh_all(_db)
