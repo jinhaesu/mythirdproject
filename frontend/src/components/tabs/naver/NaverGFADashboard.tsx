@@ -5,43 +5,19 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Monitor, DollarSign, Eye, MousePointer, Target, TrendingUp,
   Loader2, RefreshCw, ChevronDown, ChevronRight, Sparkles,
-  Image, Activity, Play, Pause, Award, Calendar, Upload, ChevronLeft,
+  Image, Activity, Play, Pause, Award, Upload,
 } from 'lucide-react';
 import { naverGFAApi, formatNaverCurrency, formatNaverNumber, formatNaverPercent } from '@/lib/naver-api';
 import toast from 'react-hot-toast';
 import { GfaUploadModal } from './GfaUploadModal';
 import { GfaUploadDashboard } from './GfaUploadDashboard';
+import { AdDatePicker, useAdDateRange, kstToday } from '@/components/common/AdDatePicker';
 
-type DatePreset = 'month' | 'today' | 'yesterday' | 'last_7_days' | 'last_14_days' | 'last_30_days' | 'this_month'
-  | 'last_month' | 'last_90_days' | 'all' | 'custom';
-
-/** 한국 날짜 YYYY-MM-DD */
-const kstDay = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
-/** YYYY-MM에서 n달 옮기기 */
-const shiftMonth = (m: string, n: number) => {
-  const [y, mo] = m.split('-').map(Number);
-  const t = y * 12 + (mo - 1) + n;
-  return `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, '0')}`;
-};
+/** YYYY-MM의 마지막 날 */
 const monthLastDay = (m: string) => {
   const [y, mo] = m.split('-').map(Number);
   return `${m}-${String(new Date(y, mo, 0).getDate()).padStart(2, '0')}`;
 };
-
-const DATE_PRESETS: { value: DatePreset; label: string; uploadOnly?: boolean }[] = [
-  { value: 'month', label: '월별 보기', uploadOnly: true },
-  { value: 'today', label: '오늘' },
-  { value: 'yesterday', label: '어제' },
-  { value: 'last_7_days', label: '최근 7일' },
-  { value: 'last_14_days', label: '최근 14일' },
-  { value: 'last_30_days', label: '최근 30일' },
-  { value: 'this_month', label: '이번달' },
-  { value: 'last_month', label: '지난달', uploadOnly: true },
-  { value: 'last_90_days', label: '최근 90일', uploadOnly: true },
-  { value: 'all', label: '올린 전체 기간', uploadOnly: true },
-  { value: 'custom', label: '직접 지정' },
-];
-const UPLOAD_ONLY = new Set(DATE_PRESETS.filter((p) => p.uploadOnly).map((p) => p.value));
 
 const STATUS_KO: Record<string, { label: string; color: string }> = {
   ACTIVE: { label: '활성', color: 'bg-green/15 text-green' },
@@ -97,17 +73,11 @@ function MiniLineChart({ data, color = '#2DB400', height = 40, width = 120 }: {
 
 export function NaverGFADashboard() {
   const qc = useQueryClient();
-  const [pickedPreset, setDatePreset] = useState<DatePreset | null>(null);
+  const dp = useAdDateRange();
   const [expandedCampaign, setExpandedCampaign] = useState<string | null>(null);
   const [aiTriggered, setAiTriggered] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
   const [source, setSource] = useState<'api' | 'upload'>('api');
-
-  // Custom date range state
-  const today = new Date().toISOString().split('T')[0];
-  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-  const [customStartDate, setCustomStartDate] = useState<string>(sevenDaysAgo);
-  const [customEndDate, setCustomEndDate] = useState<string>(today);
 
   // 연결 상태 (네이버 로그인 OAuth — 오픈API 재구현 2026-09-30)
   const { data: gfaStatus, isError: gfaStatusError } = useQuery({
@@ -128,28 +98,21 @@ export function NaverGFADashboard() {
   const apiMode = apiConnected && !uploadMode;
   const gfaConnected = apiMode;
 
-  // 올린 파일은 기본이 달 보기(2026-11-03 연다은 건의) — 처음엔 올린 데이터가 있는 가장 최근 달
-  const datePreset: DatePreset = pickedPreset && (uploadMode || !UPLOAD_ONLY.has(pickedPreset))
-    ? pickedPreset : uploadMode ? 'month' : 'last_7_days';
   const uploadAccounts = (uploadStatus?.accounts || []).map((a) => a.account);
-  const thisMonth = kstDay().slice(0, 7);
-  const [pickedMonth, setPickedMonth] = useState<string | null>(null);
-  const viewMonth = pickedMonth || uploadStatus?.date_max?.slice(0, 7) || thisMonth;
-  const pickMonth = (m: string) => { setPickedMonth(m); setDatePreset('month'); };
-  const pickPreset = (p: DatePreset) => {
-    if (p === 'custom' && datePreset === 'month') {  // 직접 지정은 보던 달로 채워 시작
-      const end = monthLastDay(viewMonth);
-      const t = kstDay();
-      setCustomStartDate(`${viewMonth}-01`);
-      setCustomEndDate(end > t ? t : end);
-    }
-    setDatePreset(p);
+  // 공통 기간(Meta 성과와 동일) → 항상 시작/종료일로 변환해 조회 (custom)
+  const effectiveDateRange = 'custom';
+  const effectiveStartDate = dp.range?.since;
+  const effectiveEndDate = dp.range?.until;
+  const rangeReady = !!dp.range;
+  // 올린 파일 달 단축(커버리지 막대·업로드 직후): 그 달 1일~말일(이번 달은 오늘까지)을 직접 지정으로 채움
+  const pickMonth = (m: string) => {
+    const t = kstToday();
+    const end = monthLastDay(m);
+    dp.setCustomRange(`${m}-01`, end > t ? t : end);
   };
-
-  // Effective date range for API calls
-  const effectiveDateRange = datePreset;
-  const effectiveStartDate = datePreset === 'custom' ? customStartDate : undefined;
-  const effectiveEndDate = datePreset === 'custom' ? customEndDate : undefined;
+  const showAllUploaded = () => {
+    if (uploadStatus?.date_min && uploadStatus?.date_max) dp.setCustomRange(uploadStatus.date_min, uploadStatus.date_max);
+  };
 
   const connectGFA = async () => {
     try {
@@ -165,7 +128,7 @@ export function NaverGFADashboard() {
     queryKey: ['naver-gfa-overview', effectiveDateRange, effectiveStartDate, effectiveEndDate],
     queryFn: () => naverGFAApi.getOverview(effectiveDateRange, effectiveStartDate, effectiveEndDate),
     retry: 1,
-    enabled: gfaConnected,
+    enabled: gfaConnected && rangeReady,
   });
 
   // Fetch campaigns
@@ -173,7 +136,7 @@ export function NaverGFADashboard() {
     queryKey: ['naver-gfa-campaigns', effectiveDateRange, effectiveStartDate, effectiveEndDate],
     queryFn: () => naverGFAApi.getCampaigns(effectiveDateRange, effectiveStartDate, effectiveEndDate),
     retry: 1,
-    enabled: apiMode,
+    enabled: apiMode && rangeReady,
   });
 
   // Fetch trend
@@ -181,14 +144,14 @@ export function NaverGFADashboard() {
     queryKey: ['naver-gfa-trend', effectiveDateRange, effectiveStartDate, effectiveEndDate],
     queryFn: () => naverGFAApi.getTrend(effectiveDateRange, 'daily', effectiveStartDate, effectiveEndDate),
     retry: 1,
-    enabled: apiMode,
+    enabled: apiMode && rangeReady,
   });
 
   // Fetch ad groups for expanded campaign
   const { data: adgroupsData, isLoading: loadingAdgroups } = useQuery({
     queryKey: ['naver-gfa-adgroups', expandedCampaign, effectiveDateRange, effectiveStartDate, effectiveEndDate],
     queryFn: () => naverGFAApi.getCampaignAdgroups(expandedCampaign!, effectiveDateRange, effectiveStartDate, effectiveEndDate),
-    enabled: !!expandedCampaign,
+    enabled: !!expandedCampaign && rangeReady,
     retry: 1,
   });
 
@@ -199,6 +162,7 @@ export function NaverGFADashboard() {
   });
 
   const handleAiAnalysis = () => {
+    if (!rangeReady) { toast.error('기간을 먼저 지정해 주세요'); return; }
     setAiTriggered(true);
     aiMutation.mutate();
   };
@@ -295,7 +259,7 @@ export function NaverGFADashboard() {
             <div className="flex items-center rounded-lg p-0.5 border border-border-primary">
               {([['api', 'API 실시간'], ['upload', '올린 파일']] as const).map(([v, label]) => (
                 <button key={v}
-                  onClick={() => { setSource(v); if (v === 'api' && pickedPreset && UPLOAD_ONLY.has(pickedPreset)) setDatePreset(null); }}
+                  onClick={() => setSource(v)}
                   className="px-2.5 py-1 rounded-md text-xs font-medium transition-colors"
                   style={source === v ? { backgroundColor: 'var(--color-brand-bg)', color: '#fff' } : { color: 'var(--color-text-tertiary)' }}>
                   {label}
@@ -303,54 +267,7 @@ export function NaverGFADashboard() {
               ))}
             </div>
           )}
-          <select
-            value={datePreset}
-            onChange={(e) => pickPreset(e.target.value as DatePreset)}
-            className="rounded-lg border border-border-primary px-3 py-2 text-sm bg-bg-1 focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
-          >
-            {DATE_PRESETS.filter((p) => uploadMode || !p.uploadOnly).map((p) => (
-              <option key={p.value} value={p.value}>{p.label}</option>
-            ))}
-          </select>
-          {datePreset === 'month' && (
-            <div className="flex items-center gap-1">
-              <button onClick={() => pickMonth(shiftMonth(viewMonth, -1))} title="이전 달"
-                className="p-2 rounded-lg border border-border-primary text-text-tertiary hover:text-text-primary">
-                <ChevronLeft size={14} />
-              </button>
-              <input
-                type="month"
-                value={viewMonth}
-                max={thisMonth}
-                onChange={(e) => e.target.value && pickMonth(e.target.value)}
-                className="rounded-lg border border-border-primary px-2 py-1.5 text-sm bg-bg-1 focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
-              />
-              <button onClick={() => pickMonth(shiftMonth(viewMonth, 1))} disabled={viewMonth >= thisMonth} title="다음 달"
-                className="p-2 rounded-lg border border-border-primary text-text-tertiary hover:text-text-primary disabled:opacity-30">
-                <ChevronRight size={14} />
-              </button>
-            </div>
-          )}
-          {datePreset === 'custom' && (
-            <div className="flex items-center gap-1.5">
-              <Calendar size={14} className="text-text-quaternary" />
-              <input
-                type="date"
-                value={customStartDate}
-                onChange={(e) => setCustomStartDate(e.target.value)}
-                max={customEndDate}
-                className="rounded-lg border border-border-primary px-2 py-1.5 text-sm bg-bg-1 focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
-              />
-              <span className="text-text-quaternary text-sm">~</span>
-              <input
-                type="date"
-                value={customEndDate}
-                onChange={(e) => setCustomEndDate(e.target.value)}
-                min={customStartDate}
-                className="rounded-lg border border-border-primary px-2 py-1.5 text-sm bg-bg-1 focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
-              />
-            </div>
-          )}
+          <AdDatePicker {...dp.pickerProps} />
           <button
             onClick={() => setShowUpload(true)}
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-white hover:opacity-90 transition-opacity"
@@ -384,16 +301,19 @@ export function NaverGFADashboard() {
       )}
 
       {uploadMode ? (
+        !rangeReady ? (
+          <div className="py-12 text-center text-sm text-text-tertiary">조회할 기간(시작일·종료일)을 지정해 주세요</div>
+        ) : (
         <GfaUploadDashboard
           dateRange={effectiveDateRange}
           startDate={effectiveStartDate}
           endDate={effectiveEndDate}
-          month={datePreset === 'month' ? viewMonth : undefined}
           accounts={uploadAccounts}
           onUpload={() => setShowUpload(true)}
-          onShowAll={() => setDatePreset('all')}
+          onShowAll={showAllUploaded}
           onPickMonth={pickMonth}
         />
+        )
       ) : !statusKnown ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="animate-spin text-green" size={32} />

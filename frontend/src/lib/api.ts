@@ -1185,7 +1185,7 @@ export async function downloadFile(path: string, params?: Record<string, any>): 
     }
   }
   const blob = new Blob([response.data], {
-    type: response.headers?.['content-type'] || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    type: String(response.headers?.['content-type'] || '') || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
   const url = window.URL.createObjectURL(blob);
   const a = document.createElement('a');

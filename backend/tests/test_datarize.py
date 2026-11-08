@@ -70,6 +70,8 @@ def test_report_rules():
     # 일별: 10/1 ↔ 9/3 (4주 전, 같은 요일)
     d1 = r["daily"][0]
     assert d1["date"] == "2026-10-01" and d1["prev_date"] == "2026-09-03" and d1["prev"]["알림톡"]["sent"] == 1000
+    # 고를 수 있는 달 = 메시지 성과가 있는 달만(발송비만 있는 6월은 목록에서 빠짐, 건의 61fa6731)
+    assert r["months"] == ["2026-10", "2026-09"]
 
 
 def test_click_basis_sms_blank():

@@ -24,7 +24,7 @@ import {
 } from 'recharts';
 import { roasClass, BREAKEVEN_ROAS, BREAKEVEN_ROAS_LABEL } from '@/components/tabs/kpi/format';
 
-type DatePreset = 'today' | 'yesterday' | 'last_3d' | 'last_7d' | 'last_14d' | 'last_30d' | 'this_month' | 'last_month' | 'custom';
+import { AdDatePicker, useAdDateRange, resolveAdDateRange, type AdDatePreset as DatePreset } from '@/components/common/AdDatePicker';
 
 // Currency formatting helper - display KRW as-is from API, no multiply/divide
 function formatCurrency(amount: number, currency: string = 'KRW'): string {
@@ -99,9 +99,8 @@ function translateActionType(actionType: string): string {
 }
 
 export default function PerformanceDashboard() {
-  const [datePreset, setDatePreset] = useState<DatePreset>('last_30d');
-  const [customSince, setCustomSince] = useState('');
-  const [customUntil, setCustomUntil] = useState('');
+  const dp = useAdDateRange();
+  const { preset: datePreset, customSince, customUntil } = dp;
   const [expandedCampaign, setExpandedCampaign] = useState<string | null>(null);
   const [selectedCampaignForDeep, setSelectedCampaignForDeep] = useState<string | null>(null);
   const [hidePaused, setHidePaused] = useState(false);
@@ -115,31 +114,11 @@ export default function PerformanceDashboard() {
 
   const isCustom = datePreset === 'custom' && customSince && customUntil && customSince <= customUntil;
 
-  // Compute date range for this_month / last_month / today / yesterday / last_3d
-  const computedDateRange = useMemo(() => {
-    const today = new Date();
-    const yyyy = today.getFullYear();
-    const mm = today.getMonth();
-    const fmt = (d: Date) => d.toISOString().slice(0, 10);
-    switch (datePreset) {
-      case 'today': return { since: fmt(today), until: fmt(today) };
-      case 'yesterday': {
-        const y = new Date(today); y.setDate(y.getDate() - 1);
-        return { since: fmt(y), until: fmt(y) };
-      }
-      case 'last_3d': {
-        const s = new Date(today); s.setDate(s.getDate() - 2);
-        return { since: fmt(s), until: fmt(today) };
-      }
-      case 'this_month': return { since: `${yyyy}-${String(mm + 1).padStart(2, '0')}-01`, until: fmt(today) };
-      case 'last_month': {
-        const start = new Date(yyyy, mm - 1, 1);
-        const end = new Date(yyyy, mm, 0);
-        return { since: fmt(start), until: fmt(end) };
-      }
-      default: return null;
-    }
-  }, [datePreset]);
+  // Meta 키워드(last_7d 등)로 조회하지 않는 프리셋만 since/until 로 계산 (KST 기준, 공통 모듈)
+  const computedDateRange = useMemo(
+    () => (['last_7d', 'last_14d', 'last_30d', 'custom'].includes(datePreset) ? null : resolveAdDateRange(datePreset)),
+    [datePreset],
+  );
 
   const isDateRange = isCustom || !!computedDateRange;
   const effectiveSince = computedDateRange?.since || customSince;
@@ -474,33 +453,10 @@ export default function PerformanceDashboard() {
             <option value="PENDING_REVIEW">검토중</option>
             <option value="ARCHIVED">보관됨</option>
           </select>
-          <select
-            value={datePreset}
-            onChange={(e) => { setDatePreset(e.target.value as DatePreset); setAiTriggered(false); }}
-            className="px-3 py-2 border border-border-primary rounded-lg text-sm"
-          >
-            <option value="today">오늘</option>
-            <option value="yesterday">어제</option>
-            <option value="last_3d">최근 3일</option>
-            <option value="last_7d">최근 7일</option>
-            <option value="last_14d">최근 14일</option>
-            <option value="last_30d">최근 30일</option>
-            <option value="this_month">이번달</option>
-            <option value="last_month">지난달</option>
-            <option value="custom">직접 지정</option>
-          </select>
-          {datePreset === 'custom' && (
-            <>
-              <input type="date" value={customSince} onChange={(e) => setCustomSince(e.target.value)} max={customUntil || undefined}
-                className="px-3 py-2 border border-border-primary rounded-lg text-xs" />
-              <span className="text-text-quaternary text-xs">~</span>
-              <input type="date" value={customUntil} onChange={(e) => setCustomUntil(e.target.value)} min={customSince || undefined}
-                className="px-3 py-2 border border-border-primary rounded-lg text-xs" />
-              {customSince && customUntil && customSince > customUntil && (
-                <span className="text-red text-[10px]">시작일이 종료일보다 뒤입니다</span>
-              )}
-            </>
-          )}
+          <AdDatePicker
+            {...dp.pickerProps}
+            onPresetChange={(p) => { dp.setPreset(p); setAiTriggered(false); }}
+          />
           <button
             onClick={() => { setAiTriggered(true); clearAnalysisCache(datePreset); setTimeout(() => refetchAI(), 100); }}
             disabled={loadingAI}

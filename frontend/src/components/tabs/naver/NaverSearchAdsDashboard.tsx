@@ -5,22 +5,11 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import {
   BarChart3, DollarSign, Eye, MousePointer, Target, TrendingUp, TrendingDown,
   Loader2, RefreshCw, ChevronDown, ChevronRight, Play, Pause, Sparkles,
-  Search, Award, Activity, AlertCircle, CheckCircle, Lightbulb, Zap, Calendar,
+  Search, Award, Activity, AlertCircle, CheckCircle, Lightbulb, Zap,
 } from 'lucide-react';
 import { naverSearchAdsApi, formatNaverCurrency, formatNaverNumber, formatNaverPercent } from '@/lib/naver-api';
 import toast from 'react-hot-toast';
-
-type DatePreset = 'today' | 'yesterday' | 'last_7_days' | 'last_14_days' | 'last_30_days' | 'this_month' | 'custom';
-
-const DATE_PRESETS: { value: DatePreset; label: string }[] = [
-  { value: 'today', label: '오늘' },
-  { value: 'yesterday', label: '어제' },
-  { value: 'last_7_days', label: '최근 7일' },
-  { value: 'last_14_days', label: '최근 14일' },
-  { value: 'last_30_days', label: '최근 30일' },
-  { value: 'this_month', label: '이번달' },
-  { value: 'custom', label: '기간 직접설정' },
-];
+import { AdDatePicker, useAdDateRange } from '@/components/common/AdDatePicker';
 
 const STATUS_KO: Record<string, { label: string; color: string }> = {
   ELIGIBLE: { label: '활성', color: 'bg-green/15 text-green' },
@@ -63,30 +52,25 @@ function MiniLineChart({ data, color = '#2DB400', height = 40, width = 120 }: {
 }
 
 export function NaverSearchAdsDashboard() {
-  const [datePreset, setDatePreset] = useState<DatePreset>('last_7_days');
+  const dp = useAdDateRange();
   const [expandedCampaign, setExpandedCampaign] = useState<string | null>(null);
   const [aiTriggered, setAiTriggered] = useState(false);
   const [debugInfo, setDebugInfo] = useState<any>(null);
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'PAUSED'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
-  const [customStartDate, setCustomStartDate] = useState<string>(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 7);
-    return d.toISOString().split('T')[0];
-  });
-  const [customEndDate, setCustomEndDate] = useState<string>(() => {
-    return new Date().toISOString().split('T')[0];
-  });
 
-  const effectiveDateRange = datePreset;
-  const effectiveStartDate = datePreset === 'custom' ? customStartDate : undefined;
-  const effectiveEndDate = datePreset === 'custom' ? customEndDate : undefined;
+  // 공통 기간(Meta 성과와 동일) → 항상 시작/종료일로 변환해 조회 (custom)
+  const effectiveDateRange = 'custom';
+  const effectiveStartDate = dp.range?.since;
+  const effectiveEndDate = dp.range?.until;
+  const rangeReady = !!dp.range;
 
   // Fetch overview
   const { data: overview, isLoading: loadingOverview, isError: overviewError, error: overviewErrorObj, refetch: refetchOverview } = useQuery({
     queryKey: ['naver-search-overview', effectiveDateRange, effectiveStartDate, effectiveEndDate],
     queryFn: () => naverSearchAdsApi.getOverview(effectiveDateRange, effectiveStartDate, effectiveEndDate),
     retry: 1,
+    enabled: rangeReady,
   });
 
   // Fetch campaigns
@@ -94,6 +78,7 @@ export function NaverSearchAdsDashboard() {
     queryKey: ['naver-search-campaigns', effectiveDateRange, effectiveStartDate, effectiveEndDate],
     queryFn: () => naverSearchAdsApi.getCampaigns(effectiveDateRange, effectiveStartDate, effectiveEndDate),
     retry: 1,
+    enabled: rangeReady,
   });
 
   // Fetch trend
@@ -101,13 +86,14 @@ export function NaverSearchAdsDashboard() {
     queryKey: ['naver-search-trend', effectiveDateRange, effectiveStartDate, effectiveEndDate],
     queryFn: () => naverSearchAdsApi.getTrend(effectiveDateRange, 'daily', effectiveStartDate, effectiveEndDate),
     retry: 1,
+    enabled: rangeReady,
   });
 
   // Fetch ad groups for expanded campaign
   const { data: adgroupsData, isLoading: loadingAdgroups } = useQuery({
     queryKey: ['naver-search-adgroups', expandedCampaign, effectiveDateRange, effectiveStartDate, effectiveEndDate],
     queryFn: () => naverSearchAdsApi.getCampaignAdgroups(expandedCampaign!, effectiveDateRange, effectiveStartDate, effectiveEndDate),
-    enabled: !!expandedCampaign,
+    enabled: !!expandedCampaign && rangeReady,
     retry: 1,
   });
 
@@ -138,6 +124,7 @@ export function NaverSearchAdsDashboard() {
   });
 
   const handleAiAnalysis = () => {
+    if (!rangeReady) { toast.error('기간을 먼저 지정해 주세요'); return; }
     setAiTriggered(true);
     aiMutation.mutate();
   };
@@ -241,35 +228,7 @@ export function NaverSearchAdsDashboard() {
           <p className="text-sm text-text-tertiary mt-1">네이버 검색광고 실시간 성과 분석</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <select
-            value={datePreset}
-            onChange={(e) => setDatePreset(e.target.value as DatePreset)}
-            className="rounded-lg border border-border-primary px-3 py-2 text-sm bg-bg-1 focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
-          >
-            {DATE_PRESETS.map((p) => (
-              <option key={p.value} value={p.value}>{p.label}</option>
-            ))}
-          </select>
-          {datePreset === 'custom' && (
-            <div className="flex items-center gap-1.5">
-              <Calendar size={14} className="text-text-quaternary" />
-              <input
-                type="date"
-                value={customStartDate}
-                onChange={(e) => setCustomStartDate(e.target.value)}
-                max={customEndDate}
-                className="rounded-lg border border-border-primary px-2 py-1.5 text-sm bg-bg-1 focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
-              />
-              <span className="text-text-quaternary text-sm">~</span>
-              <input
-                type="date"
-                value={customEndDate}
-                onChange={(e) => setCustomEndDate(e.target.value)}
-                min={customStartDate}
-                className="rounded-lg border border-border-primary px-2 py-1.5 text-sm bg-bg-1 focus:border-green focus:ring-1 focus:ring-green/50 focus:outline-none"
-              />
-            </div>
-          )}
+          <AdDatePicker {...dp.pickerProps} />
           <button
             onClick={() => refetchOverview()}
             className="p-2 rounded-lg border border-border-primary hover:bg-bg-2/5 transition-colors"
