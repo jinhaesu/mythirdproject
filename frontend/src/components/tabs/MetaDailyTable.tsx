@@ -10,34 +10,30 @@ import { useQuery } from '@tanstack/react-query';
 import { Download, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { insightsDailyApi } from '@/lib/api';
+import { AdDatePicker, useAdDateRange } from '@/components/common/AdDatePicker';
 import { fmtWon, fmtNum, roasClass } from '@/components/tabs/kpi/format';
 
-const PRESETS = [
-  { label: '7일', days: 7 },
-  { label: '30일', days: 30 },
-  { label: '90일', days: 90 },
-  { label: '180일', days: 180 },
-  { label: '1년', days: 365 },
-];
-
 export function MetaDailyTable() {
-  const [days, setDays] = useState(30);
+  const dp = useAdDateRange();
+  const range = dp.range;
   const [q, setQ] = useState('');
   const [submittedQ, setSubmittedQ] = useState('');
   const [page, setPage] = useState(0);
   const [exporting, setExporting] = useState(false);
   const PAGE = 100;
 
-  const params = { days, campaign_q: submittedQ || undefined, limit: PAGE, offset: page * PAGE };
+  const params = { since: range?.since, until: range?.until, campaign_q: submittedQ || undefined, limit: PAGE, offset: page * PAGE };
   const { data, isLoading } = useQuery({
     queryKey: ['insights', 'daily-table', params],
     queryFn: () => insightsDailyApi.table(params),
+    enabled: !!range,  // 직접 지정이 완성되기 전에는 조회하지 않음
   });
 
   const doExport = async () => {
+    if (!range) { toast.error('기간을 먼저 지정해 주세요'); return; }
     setExporting(true);
     try {
-      await insightsDailyApi.exportCsv({ days, campaign_q: submittedQ || undefined });
+      await insightsDailyApi.exportCsv({ since: range.since, until: range.until, campaign_q: submittedQ || undefined });
       toast.success('CSV 다운로드 시작');
     } catch {
       toast.error('다운로드 실패');
@@ -56,17 +52,12 @@ export function MetaDailyTable() {
           </p>
         </div>
         <div className="flex-1" />
-        <div className="flex items-center rounded-lg p-0.5" style={{ backgroundColor: 'rgb(var(--color-overlay-rgb) / 0.05)' }}>
-          {PRESETS.map((p) => (
-            <button key={p.days} onClick={() => { setDays(p.days); setPage(0); }}
-              className="px-3 py-1.5 rounded-md text-xs font-medium transition-colors"
-              style={days === p.days
-                ? { backgroundColor: 'var(--color-brand-bg)', color: '#fff' }
-                : { color: 'var(--color-text-tertiary)' }}>
-              {p.label}
-            </button>
-          ))}
-        </div>
+        <AdDatePicker
+          {...dp.pickerProps}
+          onPresetChange={(p) => { dp.setPreset(p); setPage(0); }}
+          onSinceChange={(v) => { dp.setCustomSince(v); setPage(0); }}
+          onUntilChange={(v) => { dp.setCustomUntil(v); setPage(0); }}
+        />
         <div className="relative">
           <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-quaternary" />
           <input
@@ -98,7 +89,9 @@ export function MetaDailyTable() {
               </tr>
             </thead>
             <tbody>
-              {isLoading ? (
+              {!range ? (
+                <tr><td colSpan={12} className="px-3 py-10 text-center text-text-tertiary">조회할 기간(시작일·종료일)을 지정해 주세요</td></tr>
+              ) : isLoading ? (
                 <tr><td colSpan={12} className="px-3 py-10 text-center text-text-tertiary">불러오는 중...</td></tr>
               ) : (data?.items || []).length === 0 ? (
                 <tr><td colSpan={12} className="px-3 py-10 text-center text-text-tertiary">데이터가 없습니다</td></tr>

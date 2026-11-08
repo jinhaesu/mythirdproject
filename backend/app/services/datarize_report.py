@@ -213,8 +213,10 @@ def build_report(*, message_rows: list[dict], cost_rows: list[dict], member_rows
                  segment_rows: list[dict], month: Optional[str], basis: str, today: date) -> dict:
     basis = "click" if basis == "click" else "visit"
     data_dates = {r["date"] for r in message_rows}
-    months_avail = sorted({ym(d) for d in data_dates} | {ym(r["date"]) for r in cost_rows if r.get("kind") == "차감"},
-                          reverse=True)
+    # 고를 수 있는 달 = 메시지 성과가 있는 달만. 발송비 탭은 1년치라 그 달까지 넣으면
+    # 성과가 비어 있는 달(예: 2025-11)을 골라 "연동이 안 된다"고 보이게 된다(건의 61fa6731).
+    # 발송비 12개월 추이는 아래 cost_hist에서 따로 그린다.
+    months_avail = sorted({ym(d) for d in data_dates}, reverse=True)
     month = month or pick_default_month(data_dates, today)
     if not month:
         return {"empty": True, "basis": basis, "months": months_avail}
