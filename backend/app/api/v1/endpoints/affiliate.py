@@ -416,49 +416,76 @@ async def list_campaigns(
         select(AffiliatePartner.id).where(AffiliatePartner.deleted_at.is_(None))
     )
     active_partner_ids = [row[0] for row in active_pids_r.all()]
+    if not campaigns:
+        return []
+
+    # 캠페인마다 질의 4번씩 돌던 것을 캠페인 묶음 질의 4번으로 (결과 같음, 2026-11-10 건의 4afe1bf7)
+    cids = [c.id for c in campaigns]
+    pc_map: dict = {}
+    if active_partner_ids:
+        pc_map = dict(
+            (
+                await db.execute(
+                    select(PartnerCampaign.campaign_id, func.count(func.distinct(PartnerCampaign.partner_id)))
+                    .where(PartnerCampaign.campaign_id.in_(cids), PartnerCampaign.partner_id.in_(active_partner_ids))
+                    .group_by(PartnerCampaign.campaign_id)
+                )
+            ).all()
+        )
+    legacy_map = dict(
+        (
+            await db.execute(
+                select(AffiliatePartner.campaign_id, func.count(AffiliatePartner.id))
+                .where(AffiliatePartner.campaign_id.in_(cids), AffiliatePartner.deleted_at.is_(None))
+                .group_by(AffiliatePartner.campaign_id)
+            )
+        ).all()
+    )
+    click_conditions = [ReferralClick.campaign_id.in_(cids)]
+    conv_conditions = [
+        ReferralConversion.campaign_id.in_(cids),
+        ReferralConversion.status == "paid",
+        CONFIRMED_ATTR,
+    ]
+    if active_partner_ids:
+        click_conditions.append(ReferralClick.partner_id.in_(active_partner_ids))
+        conv_conditions.append(ReferralConversion.partner_id.in_(active_partner_ids))
+    click_map = dict(
+        (
+            await db.execute(
+                select(ReferralClick.campaign_id, func.count(ReferralClick.id))
+                .where(*click_conditions)
+                .group_by(ReferralClick.campaign_id)
+            )
+        ).all()
+    )
+    conv_map = {
+        row[0]: row[1:]
+        for row in (
+            await db.execute(
+                select(
+                    ReferralConversion.campaign_id,
+                    func.count(ReferralConversion.id),
+                    func.coalesce(func.sum(ReferralConversion.order_amount), 0),
+                    func.coalesce(func.sum(ReferralConversion.commission_amount), 0),
+                )
+                .where(*conv_conditions)
+                .group_by(ReferralConversion.campaign_id)
+            )
+        ).all()
+    }
 
     response = []
     for c in campaigns:
         d = _campaign_to_dict(c, current_user)
-        pc_count_r = await db.execute(
-            select(func.count(func.distinct(PartnerCampaign.partner_id))).where(
-                PartnerCampaign.campaign_id == c.id,
-                PartnerCampaign.partner_id.in_(active_partner_ids) if active_partner_ids else False,
-            )
-        )
-        legacy_count_r = await db.execute(
-            select(func.count(AffiliatePartner.id)).where(
-                AffiliatePartner.campaign_id == c.id,
-                AffiliatePartner.deleted_at.is_(None),
-            )
-        )
-        click_conditions = [ReferralClick.campaign_id == c.id]
-        conv_conditions = [
-            ReferralConversion.campaign_id == c.id,
-            ReferralConversion.status == "paid",
-            CONFIRMED_ATTR,
-        ]
-        if active_partner_ids:
-            click_conditions.append(ReferralClick.partner_id.in_(active_partner_ids))
-            conv_conditions.append(ReferralConversion.partner_id.in_(active_partner_ids))
-        click_count_r = await db.execute(
-            select(func.count(ReferralClick.id)).where(*click_conditions)
-        )
-        conv_r = await db.execute(
-            select(
-                func.count(ReferralConversion.id),
-                func.coalesce(func.sum(ReferralConversion.order_amount), 0),
-                func.coalesce(func.sum(ReferralConversion.commission_amount), 0),
-            ).where(*conv_conditions)
-        )
-        conv_row = conv_r.one()
-        clicks = click_count_r.scalar() or 0
+        conv_row = conv_map.get(c.id, (0, 0, 0))
+        clicks = click_map.get(c.id, 0) or 0
         conversions = conv_row[0] or 0
-        d["partner_count"] = (pc_count_r.scalar() or 0) + (legacy_count_r.scalar() or 0)
+        d["partner_count"] = (pc_map.get(c.id, 0) or 0) + (legacy_map.get(c.id, 0) or 0)
         d["click_count"] = clicks
         d["conversion_count"] = conversions
-        d["total_sales"] = float(conv_row[1])
-        d["total_commission"] = float(conv_row[2])
+        d["total_sales"] = float(conv_row[1] or 0)
+        d["total_commission"] = float(conv_row[2] or 0)
         d["conversion_rate"] = round((conversions / clicks * 100) if clicks > 0 else 0.0, 2)
         response.append(d)
     return response
@@ -851,54 +878,90 @@ async def list_partners(
 
     result = await db.execute(query)
     partners = result.scalars().all()
+    if not partners:
+        return []
+
+    # 파트너마다 질의 4~6번씩 돌던 것(파트너 수백 명 → 질의 천여 번, 클릭 표는 파트너 색인이 없어 매번 전체 읽기)을
+    # 묶음 질의 5번으로 바꿈 — 결과는 같다 (2026-11-10 이은주 건의 4afe1bf7).
+    pids = [p.id for p in partners]
+    click_map = {
+        pid: cnt
+        for pid, cnt in (
+            await db.execute(
+                select(ReferralClick.partner_id, func.count(ReferralClick.id))
+                .where(ReferralClick.partner_id.in_(pids))
+                .group_by(ReferralClick.partner_id)
+            )
+        ).all()
+    }
+    conv_map = {
+        row[0]: row[1:]
+        for row in (
+            await db.execute(
+                select(
+                    ReferralConversion.partner_id,
+                    func.count(ReferralConversion.id),
+                    func.coalesce(func.sum(ReferralConversion.order_amount), 0),
+                    func.coalesce(func.sum(ReferralConversion.commission_amount), 0),
+                )
+                .where(
+                    ReferralConversion.partner_id.in_(pids),
+                    ReferralConversion.status == "paid",
+                    CONFIRMED_ATTR,
+                )
+                .group_by(ReferralConversion.partner_id)
+            )
+        ).all()
+    }
+    settle_map = {
+        pid: amt
+        for pid, amt in (
+            await db.execute(
+                select(AffiliateSettlement.partner_id, func.coalesce(func.sum(AffiliateSettlement.amount), 0))
+                .where(AffiliateSettlement.partner_id.in_(pids), AffiliateSettlement.status == "paid")
+                .group_by(AffiliateSettlement.partner_id)
+            )
+        ).all()
+    }
+    pcs_by_partner: dict = {}
+    for pc in (
+        await db.execute(
+            select(PartnerCampaign).where(PartnerCampaign.partner_id.in_(pids)).order_by(PartnerCampaign.id)
+        )
+    ).scalars().all():
+        pcs_by_partner.setdefault(pc.partner_id, []).append(pc)
+    camp_ids = {pc.campaign_id for pcs in pcs_by_partner.values() for pc in pcs}
+    camp_ids |= {p.campaign_id for p in partners if p.campaign_id}
+    camp_map = {}
+    if camp_ids:
+        camp_map = {
+            c.id: c
+            for c in (
+                await db.execute(select(AffiliateCampaign).where(AffiliateCampaign.id.in_(camp_ids)))
+            ).scalars().all()
+        }
 
     response = []
     for p in partners:
         d = _partner_to_dict(p)
-        click_r = await db.execute(
-            select(func.count(ReferralClick.id)).where(ReferralClick.partner_id == p.id)
-        )
-        conv_r = await db.execute(
-            select(
-                func.count(ReferralConversion.id),
-                func.coalesce(func.sum(ReferralConversion.order_amount), 0),
-                func.coalesce(func.sum(ReferralConversion.commission_amount), 0),
-            ).where(
-                ReferralConversion.partner_id == p.id,
-                ReferralConversion.status == "paid",
-                CONFIRMED_ATTR,
-            )
-        )
-        conv_row = conv_r.one()
-        settle_r = await db.execute(
-            select(func.coalesce(func.sum(AffiliateSettlement.amount), 0)).where(
-                AffiliateSettlement.partner_id == p.id,
-                AffiliateSettlement.status == "paid",
-            )
-        )
-        clicks = click_r.scalar() or 0
+        conv_row = conv_map.get(p.id, (0, 0, 0))
+        clicks = click_map.get(p.id, 0) or 0
         conversions = conv_row[0] or 0
-        total_commission = float(conv_row[2])
-        paid_settlement = float(settle_r.scalar() or 0)
+        total_commission = float(conv_row[2] or 0)
+        paid_settlement = float(settle_map.get(p.id, 0) or 0)
         d["click_count"] = clicks
         d["conversion_count"] = conversions
-        d["total_sales"] = float(conv_row[1])
+        d["total_sales"] = float(conv_row[1] or 0)
         d["total_commission"] = total_commission
         d["unpaid_commission"] = max(0.0, total_commission - paid_settlement)
         d["conversion_rate"] = round((conversions / clicks * 100) if clicks > 0 else 0.0, 2)
 
         # 파트너별 연결된 캠페인들의 링크 배열 (중복 제거)
-        pc_rows_r = await db.execute(
-            select(PartnerCampaign).where(PartnerCampaign.partner_id == p.id)
-        )
-        pcs = list(pc_rows_r.scalars().all())
+        pcs = pcs_by_partner.get(p.id, [])
         seen_campaign_ids = {pc.campaign_id for pc in pcs}
         campaign_links = []
         for pc in pcs:
-            cr = await db.execute(
-                select(AffiliateCampaign).where(AffiliateCampaign.id == pc.campaign_id)
-            )
-            camp = cr.scalar_one_or_none()
+            camp = camp_map.get(pc.campaign_id)
             campaign_links.append({
                 "pc_id": pc.id,
                 "campaign_id": pc.campaign_id,
@@ -908,10 +971,7 @@ async def list_partners(
             })
         # legacy campaign_id 가상 row (PC에 없고 partner.campaign_id만 있는 경우)
         if p.campaign_id and p.campaign_id not in seen_campaign_ids:
-            cr = await db.execute(
-                select(AffiliateCampaign).where(AffiliateCampaign.id == p.campaign_id)
-            )
-            camp = cr.scalar_one_or_none()
+            camp = camp_map.get(p.campaign_id)
             campaign_links.append({
                 "pc_id": -1,
                 "campaign_id": p.campaign_id,
