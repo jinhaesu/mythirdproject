@@ -92,7 +92,7 @@ async def chat(
 
     try:
         response = client.messages.create(
-            model="claude-fable-5",
+            model="claude-sonnet-5-5",
             max_tokens=3000,
             system=system,
             messages=messages,

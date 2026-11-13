@@ -1033,8 +1033,8 @@ async def search_ads_ai_analysis(
         raise HTTPException(500, detail=f"AI 클라이언트 초기화 실패: {e}")
 
     models_to_try = [
-        "claude-fable-5",
-        "claude-opus-4-8",
+        "claude-sonnet-5-5",
+        "claude-sonnet-5",
     ]
     raw_response = None
     last_error = None
@@ -1400,8 +1400,8 @@ async def gfa_ai_analysis(
         from anthropic import Anthropic
         client = Anthropic(api_key=settings.ANTHROPIC_API_KEY)
         models_to_try = [
-            "claude-fable-5",
-            "claude-opus-4-8",
+            "claude-sonnet-5-5",
+            "claude-sonnet-5",
         ]
         analysis = None
         last_error = None
