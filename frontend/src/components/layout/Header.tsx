@@ -81,17 +81,14 @@ export function Header() {
   };
 
   return (
-    <header style={{ backgroundColor: 'var(--color-bg-level-1)', borderBottom: '1px solid var(--color-border-primary)' }} className="sticky top-0 z-50">
+    <header style={{ backgroundColor: 'var(--color-bg-level-1)', borderBottom: '1px solid var(--color-border-primary)' }} className="sticky top-[40px] z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between flex-wrap gap-y-2 py-2 lg:py-0 lg:h-14 lg:flex-nowrap">
           <div className="flex items-center gap-3">
             {/* 업무 중심 개편(2026-09) — 플랫폼 스위처 제거, 단일 브랜드. 메뉴는 MainNav가 담당 */}
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-md flex items-center justify-center" style={{ backgroundColor: 'var(--color-brand-bg)' }}>
-                <span className="text-white font-bold text-xs">널</span>
-              </div>
-              <span className="font-semibold text-base" style={{ color: 'var(--color-brand-bg)', letterSpacing: '-0.022em' }}>
-                널담 마케팅
+              <span className="font-semibold text-base" style={{ color: 'var(--color-text-primary)', letterSpacing: '-0.01em' }}>
+                마케팅
               </span>
             </div>
           </div>
@@ -104,9 +101,9 @@ export function Header() {
                   onClick={handleMetaConnect}
                   disabled={connecting}
                   className="flex items-center gap-2 px-2.5 sm:px-4 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
-                  style={{ backgroundColor: metaExpired ? 'var(--color-red)' : 'var(--color-brand-bg)', color: metaExpired ? '#fff' : 'var(--color-text-primary)', border: '1px solid transparent' }}
-                  onMouseEnter={e => { if (!metaExpired) (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--color-accent-hover)'; }}
-                  onMouseLeave={e => { if (!metaExpired) (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--color-brand-bg)'; }}
+                  style={{ backgroundColor: metaExpired ? 'var(--nd-bad)' : 'var(--nd-accent)', color: 'var(--nd-on-accent)', border: '1px solid transparent' }}
+                  onMouseEnter={e => { if (!metaExpired) (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--nd-accent-hover)'; }}
+                  onMouseLeave={e => { if (!metaExpired) (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--nd-accent)'; }}
                 >
                   <Link2 size={14} />
                   <span className="hidden sm:inline">{connecting ? '연결 중...' : metaExpired ? 'Meta 재연동 필요' : 'Meta 연결하기'}</span>
@@ -123,9 +120,9 @@ export function Header() {
                 >
                   <div
                     className="w-7 h-7 rounded-full flex items-center justify-center"
-                    style={{ backgroundColor: 'rgba(94,106,210,0.2)', border: '1px solid rgba(94,106,210,0.4)' }}
+                    style={{ backgroundColor: 'var(--nd-raised)', border: '1px solid var(--nd-line)' }}
                   >
-                    <User size={14} style={{ color: 'var(--color-accent-hover)' }} />
+                    <User size={14} strokeWidth={1.5} style={{ color: 'var(--color-text-secondary)' }} />
                   </div>
                   <div className="hidden sm:block text-left">
                     <p className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>{user.full_name || user.email}</p>
@@ -142,7 +139,7 @@ export function Header() {
                     style={{
                       backgroundColor: 'var(--color-bg-secondary)',
                       border: '1px solid var(--color-border-secondary)',
-                      boxShadow: '0px 7px 32px rgba(0,0,0,0.35)',
+                      boxShadow: 'var(--shadow-high)',
                     }}
                   >
                     {user.meta_connected ? (
@@ -156,7 +153,7 @@ export function Header() {
                         <div className="flex" style={{ borderTop: '1px solid var(--color-border-secondary)' }}>
                           <button
                             className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs transition-colors"
-                            style={{ color: 'var(--color-accent-hover)' }}
+                            style={{ color: 'var(--nd-accent)' }}
                             onClick={() => { setShowMenu(false); handleMetaConnect(); }}
                             onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'rgb(var(--color-overlay-rgb) / 0.07)'; }}
                             onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = ''; }}
@@ -169,7 +166,7 @@ export function Header() {
                             style={{ color: 'var(--color-red)', borderLeft: '1px solid var(--color-border-secondary)' }}
                             onClick={handleMetaDisconnect}
                             disabled={disconnecting}
-                            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'rgba(235,87,87,0.1)'; }}
+                            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--nd-bad-soft)'; }}
                             onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = ''; }}
                           >
                             <Unlink size={12} />
@@ -180,7 +177,7 @@ export function Header() {
                     ) : (
                       <button
                         className="w-full flex items-center gap-2 px-4 py-2 text-sm transition-colors"
-                        style={{ color: 'var(--color-accent-hover)' }}
+                        style={{ color: 'var(--nd-accent)' }}
                         onClick={() => { setShowMenu(false); handleMetaConnect(); }}
                         onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'rgb(var(--color-overlay-rgb) / 0.07)'; }}
                         onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = ''; }}
@@ -206,7 +203,7 @@ export function Header() {
                         logout();
                         setShowMenu(false);
                       }}
-                      onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'rgba(235,87,87,0.1)'; }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--nd-bad-soft)'; }}
                       onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = ''; }}
                     >
                       <LogOut size={16} />
@@ -224,7 +221,7 @@ export function Header() {
       {showSettings && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center"
-          style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}
+          style={{ backgroundColor: 'rgba(2,3,8,0.6)' }}
           onClick={() => setShowSettings(false)}
         >
           <div
@@ -232,7 +229,7 @@ export function Header() {
             style={{
               backgroundColor: 'var(--color-bg-level-2)',
               border: '1px solid var(--color-border-primary)',
-              boxShadow: '0px 7px 32px rgba(0,0,0,0.35)',
+              boxShadow: 'var(--shadow-high)',
             }}
             onClick={e => e.stopPropagation()}
           >
@@ -277,13 +274,13 @@ export function Header() {
               {/* Meta Connection */}
               <div>
                 <h3 className="text-xs font-semibold mb-3 flex items-center gap-2" style={{ color: 'var(--color-text-tertiary)' }}>
-                  <Facebook size={14} style={{ color: 'var(--color-blue)' }} /> Meta 연동 상태
+                  <Facebook size={14} strokeWidth={1.5} /> Meta 연동 상태
                 </h3>
                 {user?.meta_connected ? (
                   <div className="space-y-3">
                     <div
                       className="p-3 rounded-lg"
-                      style={{ backgroundColor: 'rgba(39,166,68,0.1)', border: '1px solid rgba(39,166,68,0.3)' }}
+                      style={{ backgroundColor: 'var(--nd-good-soft)', border: '1px solid rgb(var(--color-green-rgb) / 0.3)' }}
                     >
                       <p className="text-sm font-medium" style={{ color: 'var(--color-green)' }}>연동됨</p>
                       <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-tertiary)' }}>광고 계정 ID: {user.meta_ad_account_id || '-'}</p>
@@ -375,9 +372,9 @@ export function Header() {
                             }}
                             disabled={savingSettings}
                             className="w-full py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
-                            style={{ backgroundColor: 'var(--color-brand-bg)', color: 'var(--color-text-primary)' }}
-                            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--color-accent-hover)'; }}
-                            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--color-brand-bg)'; }}
+                            style={{ backgroundColor: 'var(--nd-accent)', color: 'var(--nd-on-accent)' }}
+                            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--nd-accent-hover)'; }}
+                            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--nd-accent)'; }}
                           >
                             {savingSettings ? '저장 중...' : '설정 저장'}
                           </button>
@@ -407,8 +404,8 @@ export function Header() {
                                     className="px-2 py-0.5 rounded text-xs transition-colors"
                                     style={
                                       user.meta_ad_account_id === acc.id
-                                        ? { backgroundColor: 'rgba(39,166,68,0.15)', color: 'var(--color-green)', border: '1px solid rgba(39,166,68,0.3)' }
-                                        : { backgroundColor: 'rgba(94,106,210,0.15)', color: 'var(--color-accent-hover)', border: '1px solid rgba(94,106,210,0.3)' }
+                                        ? { backgroundColor: 'var(--nd-good-soft)', color: 'var(--color-green)', border: '1px solid rgb(var(--color-green-rgb) / 0.3)' }
+                                        : { backgroundColor: 'var(--nd-accent-soft)', color: 'var(--nd-accent)', border: '1px solid rgb(var(--color-brand-bg-rgb) / 0.3)' }
                                     }
                                   >
                                     {user.meta_ad_account_id === acc.id ? '사용 중' : '선택'}
@@ -440,7 +437,7 @@ export function Header() {
                 ) : (
                   <div
                     className="p-3 rounded-lg"
-                    style={{ backgroundColor: 'rgba(252,120,64,0.1)', border: '1px solid rgba(252,120,64,0.3)' }}
+                    style={{ backgroundColor: 'var(--nd-warn-soft)', border: '1px solid rgb(var(--color-yellow-rgb) / 0.3)' }}
                   >
                     <p className="text-sm font-medium" style={{ color: 'var(--color-orange)' }}>연동 안됨</p>
                     <p className="text-xs mt-1" style={{ color: 'var(--color-text-tertiary)' }}>Meta 계정을 연결하면 광고 관리 기능을 사용할 수 있습니다.</p>
@@ -448,9 +445,9 @@ export function Header() {
                       onClick={handleMetaConnect}
                       disabled={connecting}
                       className="mt-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
-                      style={{ backgroundColor: 'var(--color-brand-bg)', color: 'var(--color-text-primary)' }}
-                      onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--color-accent-hover)'; }}
-                      onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--color-brand-bg)'; }}
+                      style={{ backgroundColor: 'var(--nd-accent)', color: 'var(--nd-on-accent)' }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--nd-accent-hover)'; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--nd-accent)'; }}
                     >
                       {connecting ? '연결 중...' : 'Meta 연결하기'}
                     </button>

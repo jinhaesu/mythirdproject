@@ -103,9 +103,9 @@ export function MainNav() {
               <button
                 key={menu.key}
                 onClick={() => setActiveMenu(menu.key)}
-                className="group flex items-center gap-2 px-3.5 py-3 border-b-2 font-medium text-sm transition-colors whitespace-nowrap"
+                className="group flex items-center gap-2 px-3 py-3 border-b-2 font-medium text-sm transition-colors whitespace-nowrap"
                 style={{
-                  borderBottomColor: isActive ? 'var(--color-brand-bg)' : 'transparent',
+                  borderBottomColor: isActive ? 'var(--nd-accent)' : 'transparent',
                   color: isActive ? 'var(--color-text-primary)' : 'var(--color-text-tertiary)',
                 }}
                 onMouseEnter={(e) => {
@@ -121,10 +121,7 @@ export function MainNav() {
                   }
                 }}
               >
-                <Icon
-                  size={16}
-                  style={{ color: isActive ? 'var(--color-accent-hover)' : 'var(--color-text-tertiary)' }}
-                />
+                <Icon size={16} strokeWidth={1.5} />
                 <span>{menu.name}</span>
               </button>
             );
