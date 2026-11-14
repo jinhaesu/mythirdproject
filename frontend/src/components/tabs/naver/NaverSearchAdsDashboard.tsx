@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import {
   BarChart3, DollarSign, Eye, MousePointer, Target, TrendingUp, TrendingDown,
-  Loader2, RefreshCw, ChevronDown, ChevronRight, Play, Pause, Sparkles,
+  Loader2, RefreshCw, ChevronDown, ChevronRight, Play, Pause, ScanSearch,
   Search, Award, Activity, AlertCircle, CheckCircle, Lightbulb, Zap,
 } from 'lucide-react';
 import { naverSearchAdsApi, formatNaverCurrency, formatNaverNumber, formatNaverPercent } from '@/lib/naver-api';
@@ -221,7 +221,7 @@ export function NaverSearchAdsDashboard() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
+          <h1 className="text-2xl font-semibold text-text-primary flex items-center gap-2">
             <BarChart3 className="text-green" size={28} />
             검색광고 성과 대시보드
           </h1>
@@ -318,7 +318,7 @@ export function NaverSearchAdsDashboard() {
                     <Icon size={16} className={card.color} />
                   </div>
                 </div>
-                <p className="text-lg font-bold text-text-primary">{card.value}</p>
+                <p className="text-lg font-semibold text-text-primary">{card.value}</p>
               </div>
             );
           })}
@@ -372,7 +372,7 @@ export function NaverSearchAdsDashboard() {
                   onClick={() => setStatusFilter(tab.value)}
                   className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
                     statusFilter === tab.value
-                      ? 'bg-bg-1 text-text-primary shadow-[0px_1px_3px_rgba(0,0,0,0.2)]'
+                      ? 'bg-bg-1 text-text-primary shadow-low'
                       : 'text-text-tertiary hover:text-text-secondary'
                   }`}
                 >
@@ -418,18 +418,18 @@ export function NaverSearchAdsDashboard() {
             <table className="w-full text-sm min-w-[1100px]">
               <thead className="bg-bg-0">
                 <tr>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase">캠페인명</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase">유형</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase">상태</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium text-text-tertiary uppercase">일예산</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium text-text-tertiary uppercase">비용</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium text-text-tertiary uppercase">클릭</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium text-text-tertiary uppercase">CTR</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium text-text-tertiary uppercase">CPC</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium text-text-tertiary uppercase">전환</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium text-text-tertiary uppercase">ROAS</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium text-text-tertiary uppercase">노출순위</th>
-                  <th className="text-center px-4 py-3 text-xs font-medium text-text-tertiary uppercase">액션</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary">캠페인명</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary">유형</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary">상태</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-text-tertiary">일예산</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-text-tertiary">비용</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-text-tertiary">클릭</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-text-tertiary">CTR</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-text-tertiary">CPC</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-text-tertiary">전환</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-text-tertiary">ROAS</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-text-tertiary">노출순위</th>
+                  <th className="text-center px-4 py-3 text-xs font-medium text-text-tertiary">액션</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-primary">
@@ -473,7 +473,7 @@ export function NaverSearchAdsDashboard() {
                 {topKeywords.slice(0, 5).map((kw: any, i: number) => (
                   <div key={i} className="flex items-center justify-between p-2 bg-bg-0 rounded-lg">
                     <div className="flex items-center gap-2">
-                      <span className="w-5 h-5 bg-green/15 text-green rounded-full flex items-center justify-center text-xs font-bold">{i + 1}</span>
+                      <span className="w-5 h-5 bg-green/15 text-green rounded-full flex items-center justify-center text-xs font-semibold">{i + 1}</span>
                       <span className="text-sm font-medium text-text-primary">{kw.keyword}</span>
                     </div>
                     <div className="text-right">
@@ -493,7 +493,7 @@ export function NaverSearchAdsDashboard() {
                   .map((kw: any, i: number) => (
                     <div key={i} className="flex items-center justify-between p-2 bg-bg-0 rounded-lg">
                       <div className="flex items-center gap-2">
-                        <span className="w-5 h-5 bg-green/10 text-green rounded-full flex items-center justify-center text-xs font-bold">{i + 1}</span>
+                        <span className="w-5 h-5 bg-green/10 text-green rounded-full flex items-center justify-center text-xs font-semibold">{i + 1}</span>
                         <span className="text-sm font-medium text-text-primary">{kw.keyword}</span>
                       </div>
                       <div className="text-right">
@@ -512,7 +512,7 @@ export function NaverSearchAdsDashboard() {
       <div className="bg-bg-1 rounded-xl border border-border-primary p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-base font-semibold text-text-primary flex items-center gap-2">
-            <Sparkles size={18} className="text-green" />
+            <ScanSearch size={18} className="text-green" />
             AI 분석
           </h2>
           <button
@@ -523,7 +523,7 @@ export function NaverSearchAdsDashboard() {
             {aiMutation.isPending ? (
               <Loader2 size={16} className="animate-spin" />
             ) : (
-              <Sparkles size={16} />
+              <ScanSearch size={16} />
             )}
             {aiMutation.isPending ? '분석 중...' : '분석하기'}
           </button>
@@ -531,7 +531,7 @@ export function NaverSearchAdsDashboard() {
 
         {!aiTriggered ? (
           <div className="text-center py-8 text-text-quaternary">
-            <Sparkles size={40} className="mx-auto mb-3" />
+            <ScanSearch size={40} className="mx-auto mb-3" />
             <p className="text-sm">AI 분석 버튼을 클릭하면 검색광고 성과에 대한 인사이트를 제공합니다.</p>
           </div>
         ) : aiMutation.isPending ? (
@@ -546,15 +546,15 @@ export function NaverSearchAdsDashboard() {
             ) : (
               <>
                 {/* Grade Badge + Summary Card */}
-                <div className="relative rounded-xl bg-gradient-to-r from-blue to-green p-5 text-white overflow-hidden">
+                <div className="relative rounded-xl bg-blue p-5 text-white overflow-hidden">
                   {aiMutation.data.overall_grade && (
-                    <div className="absolute top-3 right-3 w-14 h-14 rounded-xl bg-bg-1/20 backdrop-blur-sm flex items-center justify-center shadow-[0px_7px_32px_rgba(0,0,0,0.35)]">
-                      <span className="text-3xl font-black text-white drop-shadow">{aiMutation.data.overall_grade}</span>
+                    <div className="absolute top-3 right-3 w-14 h-14 rounded-xl bg-bg-1/20 flex items-center justify-center shadow-high">
+                      <span className="text-3xl font-semibold text-white">{aiMutation.data.overall_grade}</span>
                     </div>
                   )}
                   <div className="pr-20">
-                    <h3 className="text-base font-bold mb-1 flex items-center gap-2">
-                      <Sparkles size={18} /> AI 분석 요약
+                    <h3 className="text-base font-semibold mb-1 flex items-center gap-2">
+                      <ScanSearch size={18} /> AI 분석 요약
                     </h3>
                     {aiMutation.data.summary && (
                       <p className="text-sm text-white/90 leading-relaxed">{aiMutation.data.summary}</p>
@@ -573,9 +573,9 @@ export function NaverSearchAdsDashboard() {
                     </h3>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                       {aiMutation.data.kpi_highlights.map((kpi: any, i: number) => (
-                        <div key={i} className="bg-bg-1 border border-border-primary rounded-lg p-3 shadow-[0px_1px_3px_rgba(0,0,0,0.2)] hover:shadow-[0px_3px_12px_rgba(0,0,0,0.2)] transition-shadow">
+                        <div key={i} className="bg-bg-1 border border-border-primary rounded-lg p-3 shadow-low transition-shadow">
                           <p className="text-xs text-text-tertiary mb-1 truncate">{kpi.metric}</p>
-                          <p className="text-lg font-bold text-text-primary">{kpi.value}</p>
+                          <p className="text-lg font-semibold text-text-primary">{kpi.value}</p>
                           {(kpi.evaluation || kpi.change) && (
                             <div className={`flex items-center gap-1 text-xs mt-1 ${
                               (kpi.evaluation === '개선필요' || String(kpi.change || '').startsWith('-')) ? 'text-red' :
@@ -660,7 +660,7 @@ export function NaverSearchAdsDashboard() {
                         };
                         const isString = typeof rec === 'string';
                         return (
-                          <div key={i} className="bg-bg-1 border border-border-primary rounded-lg p-4 shadow-[0px_1px_3px_rgba(0,0,0,0.2)] hover:shadow-[0px_3px_12px_rgba(0,0,0,0.2)] transition-shadow">
+                          <div key={i} className="bg-bg-1 border border-border-primary rounded-lg p-4 shadow-low transition-shadow">
                             <div className="flex items-start gap-3">
                               {!isString && rec.priority && (
                                 <span className={`mt-1.5 w-2.5 h-2.5 rounded-full flex-shrink-0 ${priorityDot[rec.priority] || 'bg-bg-5'}`} />
@@ -696,7 +696,7 @@ export function NaverSearchAdsDashboard() {
                       {aiMutation.data.action_items.map((item: string, i: number) => (
                         <div key={i} className="flex items-start gap-2.5">
                           <div className="mt-0.5 w-5 h-5 rounded border-2 border-border-primary bg-bg-1 flex items-center justify-center flex-shrink-0">
-                            <span className="text-[10px] font-bold text-text-quaternary">{i + 1}</span>
+                            <span className="text-[10px] font-semibold text-text-quaternary">{i + 1}</span>
                           </div>
                           <p className="text-sm text-text-secondary">{item}</p>
                         </div>
@@ -719,11 +719,11 @@ export function NaverSearchAdsDashboard() {
                           C: 'bg-yellow/15 text-yellow', D: 'bg-orange/15 text-orange', F: 'bg-red/15 text-red',
                         };
                         return (
-                          <div key={i} className="bg-bg-1 border border-border-primary rounded-lg p-3 hover:shadow-[0px_1px_3px_rgba(0,0,0,0.2)] transition-shadow">
+                          <div key={i} className="bg-bg-1 border border-border-primary rounded-lg p-3 transition-shadow">
                             <div className="flex items-center justify-between mb-1.5">
                               <span className="text-sm font-semibold text-text-primary truncate max-w-[200px]">{name}</span>
                               {camp.grade && (
-                                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${gradeColors[camp.grade] || 'bg-bg-2 text-text-tertiary'}`}>{camp.grade}</span>
+                                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${gradeColors[camp.grade] || 'bg-bg-2 text-text-tertiary'}`}>{camp.grade}</span>
                               )}
                             </div>
                             {camp.kpi_highlight && (
@@ -854,11 +854,11 @@ function CampaignRow({ campaign, campaignId, isExpanded, status, onToggleExpand,
               {/* Tabs */}
               <div className="flex items-center gap-1 mb-3 bg-bg-4 rounded-lg p-0.5 w-fit">
                 <button onClick={() => setExpandTab('adgroups')}
-                  className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${expandTab === 'adgroups' ? 'bg-bg-1 text-text-primary shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'text-text-tertiary hover:text-text-secondary'}`}>
+                  className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${expandTab === 'adgroups' ? 'bg-bg-1 text-text-primary shadow-low' : 'text-text-tertiary hover:text-text-secondary'}`}>
                   광고그룹
                 </button>
                 <button onClick={() => setExpandTab('keywords')}
-                  className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${expandTab === 'keywords' ? 'bg-bg-1 text-text-primary shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'text-text-tertiary hover:text-text-secondary'}`}>
+                  className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${expandTab === 'keywords' ? 'bg-bg-1 text-text-primary shadow-low' : 'text-text-tertiary hover:text-text-secondary'}`}>
                   키워드 · 쇼핑랭킹
                 </button>
               </div>
@@ -886,7 +886,7 @@ function CampaignRow({ campaign, campaignId, isExpanded, status, onToggleExpand,
                             { v: 'PAUSED' as const, l: '중지', c: pausedAgs.length },
                           ]).map(t => (
                             <button key={t.v} onClick={() => setAgStatusFilter(t.v)}
-                              className={`px-2 py-1 text-xs font-medium rounded transition-colors ${agStatusFilter === t.v ? 'bg-bg-1 text-text-primary shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'text-text-tertiary hover:text-text-secondary'}`}>
+                              className={`px-2 py-1 text-xs font-medium rounded transition-colors ${agStatusFilter === t.v ? 'bg-bg-1 text-text-primary shadow-low' : 'text-text-tertiary hover:text-text-secondary'}`}>
                               {t.l} ({t.c})
                             </button>
                           ))}
@@ -1011,7 +1011,7 @@ function CampaignRow({ campaign, campaignId, isExpanded, status, onToggleExpand,
                           { v: 'PAUSED' as const, l: '중지', c: pausedKws.length },
                         ]).map(t => (
                           <button key={t.v} onClick={() => setKwStatusFilter(t.v)}
-                            className={`px-2 py-1 text-xs font-medium rounded transition-colors ${kwStatusFilter === t.v ? 'bg-bg-1 text-text-primary shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'text-text-tertiary hover:text-text-secondary'}`}>
+                            className={`px-2 py-1 text-xs font-medium rounded transition-colors ${kwStatusFilter === t.v ? 'bg-bg-1 text-text-primary shadow-low' : 'text-text-tertiary hover:text-text-secondary'}`}>
                             {t.l} ({t.c})
                           </button>
                         ))}
@@ -1044,7 +1044,7 @@ function CampaignRow({ campaign, campaignId, isExpanded, status, onToggleExpand,
                                 <td className="px-3 py-2 text-right text-text-secondary">{formatNaverCurrency(r.bidAmt || 0)}</td>
                                 <td className="px-3 py-2 text-center">
                                   {r.qualityIndex != null ? (
-                                    <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold ${
+                                    <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-semibold ${
                                       r.qualityIndex >= 8 ? 'bg-green/15 text-green' :
                                       r.qualityIndex >= 5 ? 'bg-blue/15 text-accent-hover' :
                                       r.qualityIndex >= 3 ? 'bg-yellow/15 text-yellow' :
@@ -1060,7 +1060,7 @@ function CampaignRow({ campaign, campaignId, isExpanded, status, onToggleExpand,
                                 </td>
                                 <td className="px-3 py-2 text-center">
                                   {r.shopping_rank ? (
-                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold ${
+                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
                                       r.shopping_rank <= 5 ? 'bg-green/15 text-green' :
                                       r.shopping_rank <= 15 ? 'bg-blue/15 text-accent-hover' :
                                       r.shopping_rank <= 30 ? 'bg-yellow/15 text-yellow' :

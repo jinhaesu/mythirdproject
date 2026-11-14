@@ -589,7 +589,7 @@ function ConnectionStatusIndicator() {
     <div className={`flex items-center gap-3 px-4 py-2.5 rounded-xl border ${
       anyDisconnected ? 'bg-red/5 border-red/20' : anyWarning ? 'bg-yellow/5 border-yellow/20' : 'bg-bg-3 border-border-primary'
     }`}>
-      <span className="text-[10px] font-medium text-text-tertiary uppercase tracking-wider shrink-0">연결 상태</span>
+      <span className="text-[10px] font-medium text-text-tertiary shrink-0">연결 상태</span>
       <div className="flex items-center gap-4 flex-wrap">
         {items.map((item) => {
           const color = item.warning ? 'bg-yellow/20' : item.connected ? 'bg-green/20' : 'bg-red/20';
@@ -606,7 +606,7 @@ function ConnectionStatusIndicator() {
                     : `${item.label}: 연결 안 됨`
               }
             >
-              <span className={`w-2 h-2 rounded-full ${color} ${!item.connected || item.warning ? 'animate-pulse' : ''}`} />
+              <span className={`w-2 h-2 rounded-full ${color} `} />
               <span className={`text-xs font-medium ${textColor}`}>{item.label}</span>
               {item.detail && item.connected && !item.warning && (
                 <span className="text-[10px] text-text-tertiary hidden md:inline">({item.detail})</span>
@@ -799,12 +799,12 @@ function Cafe24Banner() {
   }
 
   return (
-    <div className="px-4 py-3 bg-red/10 border-2 border-red/40 rounded-xl space-y-2 animate-pulse-slow">
+    <div className="px-4 py-3 bg-red/10 border-2 border-red/40 rounded-xl space-y-2">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-2">
           <AlertCircle size={16} className="text-red shrink-0 mt-0.5" />
           <div>
-            <p className="text-sm text-red font-semibold">⚠️ Cafe24 스토어 연결이 필요합니다</p>
+            <p className="text-sm text-red font-semibold">Cafe24 스토어 연결이 필요합니다</p>
             <p className="text-xs text-text-tertiary mt-0.5">토큰 만료 또는 갱신 실패로 연결이 끊어졌습니다. 재연결 전까지 상품 조회, 주문 폴링, 쿠폰 발급이 중단됩니다.</p>
           </div>
         </div>
@@ -1119,7 +1119,7 @@ function Cafe24ProductBrowserModal({ onClose, onPick, multi = false, alreadySele
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
       <div
         onClick={e => e.stopPropagation()}
         className="bg-bg-3 border border-border-primary rounded-2xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col"
@@ -1175,7 +1175,7 @@ function Cafe24ProductBrowserModal({ onClose, onPick, multi = false, alreadySele
                     type="button"
                     onClick={() => onPick(p.product_no, p.product_name, p.price)}
                     disabled={isSelected && !multi}
-                    className={`group text-left rounded-xl p-3 transition-all relative ${
+                    className={`group text-left rounded-xl p-3 transition-colors relative ${
                       isSelected
                         ? 'bg-green/10 border border-green/40'
                         : 'bg-bg-2 border border-border-primary hover:border-blue/50 hover:bg-[rgb(var(--color-overlay-rgb)/0.06)]'
@@ -1541,15 +1541,14 @@ function DashboardSection() {
         {kpis.map((kpi, idx) => (
           <div
             key={idx}
-            className={`group relative overflow-hidden bg-bg-3 rounded-2xl p-4 border border-[rgb(var(--color-overlay-rgb)/0.06)] ring-1 ${kpi.ring} hover:border-[rgb(var(--color-overlay-rgb)/0.12)] transition-all`}
+            className={`group relative overflow-hidden bg-bg-3 rounded-2xl p-4 border border-[rgb(var(--color-overlay-rgb)/0.06)] ring-1 ${kpi.ring} hover:border-[rgb(var(--color-overlay-rgb)/0.12)] transition-colors`}
           >
-            <div className={`pointer-events-none absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-br ${kpi.glow} to-transparent`} />
             <div className="relative">
               <div className={`w-9 h-9 rounded-xl ${kpi.bg} flex items-center justify-center ${kpi.color} mb-2.5`}>
                 {kpi.icon}
               </div>
-              <p className="text-[10px] text-text-tertiary font-medium tracking-wide">{kpi.label}</p>
-              <p className="text-lg font-bold text-text-primary tabular-nums tracking-tight mt-0.5">{kpi.value}</p>
+              <p className="text-[10px] text-text-tertiary font-medium">{kpi.label}</p>
+              <p className="text-lg font-semibold text-text-primary tabular-nums tracking-tight mt-0.5">{kpi.value}</p>
               {/* 환불/취소 배지 — 순매출 카드에만 표시 */}
               {kpi.showRefund && hasRefunds && (
                 <div className="mt-2 flex flex-col gap-0.5">
@@ -1766,10 +1765,10 @@ function DashboardSection() {
                       const el = document.getElementById(`campaign-card-${c.campaign_id}`);
                       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     }}
-                    className="group w-full text-left bg-bg-2 hover:bg-[rgb(var(--color-overlay-rgb)/0.06)] rounded-lg p-2.5 border border-border-primary hover:border-green/30 transition-all"
+                    className="group w-full text-left bg-bg-2 hover:bg-[rgb(var(--color-overlay-rgb)/0.06)] rounded-lg p-2.5 border border-border-primary hover:border-green/30 transition-colors"
                   >
                     <div className="flex items-center gap-2 mb-1.5">
-                      <span className="text-[10px] font-bold text-text-tertiary w-5 shrink-0">{idx + 1}.</span>
+                      <span className="text-[10px] font-semibold text-text-tertiary w-5 shrink-0">{idx + 1}.</span>
                       <span className="text-xs font-medium text-text-primary truncate flex-1" title={c.campaign_name}>
                         {c.campaign_name}
                       </span>
@@ -1779,7 +1778,7 @@ function DashboardSection() {
                     </div>
                     <div className="relative h-1.5 bg-bg-1 rounded-full overflow-hidden">
                       <div
-                        className="absolute inset-y-0 left-0 rounded-full transition-all"
+                        className="absolute inset-y-0 left-0 rounded-full transition-colors"
                         style={{ width: `${barRatio}%`, backgroundColor: `rgba(16,185,129,${opacity})` }}
                       />
                     </div>
@@ -1906,7 +1905,7 @@ function DashboardSection() {
             <div className="space-y-2">
               {d.top_partners.map((p, idx) => (
                 <div key={p.id} className="flex items-center gap-3 p-2 bg-bg-2 rounded-lg">
-                  <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${rankColors[idx] ?? 'bg-bg-3/20 text-text-tertiary'}`}>
+                  <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold ${rankColors[idx] ?? 'bg-bg-3/20 text-text-tertiary'}`}>
                     {idx + 1}
                   </span>
                   <div className="flex-1">
@@ -1938,21 +1937,21 @@ function DashboardSection() {
           {/* 환불 건수 */}
           <div className="bg-bg-2 rounded-lg p-3 border border-red/20">
             <p className="text-[10px] text-text-tertiary mb-1">환불 건수</p>
-            <p className="text-2xl font-bold text-red">{d.refunded_count}<span className="text-sm font-normal ml-0.5">건</span></p>
+            <p className="text-2xl font-semibold text-red">{d.refunded_count}<span className="text-sm font-normal ml-0.5">건</span></p>
             <p className="text-[10px] text-text-tertiary mt-0.5">결제 완료 후 환불 처리</p>
           </div>
 
           {/* 취소 건수 */}
           <div className="bg-bg-2 rounded-lg p-3 border border-orange/20">
             <p className="text-[10px] text-text-tertiary mb-1">취소 건수</p>
-            <p className="text-2xl font-bold text-orange">{d.cancelled_count}<span className="text-sm font-normal ml-0.5">건</span></p>
+            <p className="text-2xl font-semibold text-orange">{d.cancelled_count}<span className="text-sm font-normal ml-0.5">건</span></p>
             <p className="text-[10px] text-text-tertiary mt-0.5">결제 전 또는 배송 전 취소</p>
           </div>
 
           {/* 환불·취소 차액 (Gross - Net) */}
           <div className="bg-bg-2 rounded-lg p-3 border border-border-primary">
             <p className="text-[10px] text-text-tertiary mb-1">환불·취소 차감액</p>
-            <p className="text-2xl font-bold text-text-secondary">
+            <p className="text-2xl font-semibold text-text-secondary">
               {refundCancelDiff > 0 ? `₩${fmt(refundCancelDiff)}` : '₩0'}
             </p>
             <p className="text-[10px] text-text-tertiary mt-0.5">Gross - Net 차이</p>
@@ -1966,14 +1965,14 @@ function DashboardSection() {
             <div className="flex h-4 rounded-full overflow-hidden gap-0.5">
               {/* 순매출 */}
               <div
-                className="bg-green/20 transition-all"
+                className="bg-green/20 transition-colors"
                 style={{ width: `${d.gross_sales > 0 ? (d.net_sales / d.gross_sales) * 100 : 100}%` }}
                 title={`순매출: ${formatCurrency(d.net_sales)}`}
               />
               {/* 환불·취소 차감 */}
               {refundCancelDiff > 0 && (
                 <div
-                  className="bg-red/70 transition-all"
+                  className="bg-red/70 transition-colors"
                   style={{ width: `${(refundCancelDiff / d.gross_sales) * 100}%` }}
                   title={`차감: ${formatCurrency(refundCancelDiff)}`}
                 />
@@ -2103,7 +2102,7 @@ function DashboardSection() {
                       key={`${c.day_of_week}_${c.hour}_${i}`}
                       className="flex items-center gap-1.5 px-2.5 py-1 bg-green/10 border border-green/20 rounded-lg"
                     >
-                      <span className="text-[9px] font-bold text-green">#{i + 1}</span>
+                      <span className="text-[9px] font-semibold text-green">#{i + 1}</span>
                       <span className="text-[10px] text-white">
                         {HEATMAP_DAYS[c.day_of_week]} {c.hour}시
                       </span>
@@ -2144,7 +2143,7 @@ function DashboardSection() {
 
                   {/* 순위 배지 */}
                   <span
-                    className={`relative z-10 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
+                    className={`relative z-10 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold shrink-0 ${
                       idx === 0 ? 'bg-yellow/20 text-yellow' :
                       idx === 1 ? 'bg-bg-3/20 text-text-secondary' :
                       idx === 2 ? 'bg-orange/20 text-orange' :
@@ -2476,7 +2475,7 @@ function CampaignDebugPanel({
           <button
             onClick={onReattach}
             disabled={reattaching}
-            className="px-3 py-1.5 text-xs bg-yellow/20 hover:bg-yellow/30 border border-yellow/50 text-yellow rounded font-semibold disabled:opacity-50 flex items-center gap-1.5 shadow-[0_0_12px_rgba(245,158,11,0.2)]"
+            className="px-3 py-1.5 text-xs bg-yellow/20 hover:bg-yellow/30 border border-yellow/50 text-yellow rounded font-semibold disabled:opacity-50 flex items-center gap-1.5"
           >
             {reattaching ? <Loader2 size={12} className="animate-spin" /> : <ShoppingBag size={12} />}
             상품 재첨부 ({liveCount}→{expectedCount}개)
@@ -2508,7 +2507,7 @@ function CampaignDebugPanel({
             rel="noreferrer"
             className="px-2.5 py-1 text-[10px] text-blue border border-blue/30 hover:bg-blue/10 rounded flex items-center gap-1"
           >
-            🔗 직접 열어보기
+            <ExternalLink size={10} strokeWidth={1.5} /> 직접 열어보기
           </a>
         )}
       </div>
@@ -2843,7 +2842,7 @@ function CampaignsSection() {
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h2 className="text-lg font-bold text-text-primary">어필리에이트 캠페인</h2>
+        <h2 className="text-lg font-semibold text-text-primary">어필리에이트 캠페인</h2>
         <button
           onClick={() => setShowForm(!showForm)}
           className="flex items-center gap-1.5 px-3 py-1.5 bg-green hover:bg-green text-white text-xs font-medium rounded-lg transition-colors"
@@ -2942,9 +2941,9 @@ function CampaignsSection() {
                   <button
                     type="button"
                     onClick={() => setForm({ ...form, auto_create_category: false, cafe24_product_nos: undefined, cafe24_product_meta: undefined, cafe24_category_name: undefined, cafe24_existing_category_no: undefined })}
-                    className={`flex-1 py-1.5 text-[11px] rounded-md font-medium transition-all ${
+                    className={`flex-1 py-1.5 text-[11px] rounded-md font-medium transition-colors ${
                       !form.auto_create_category
-                        ? 'bg-green text-white shadow-[0_2px_8px_rgba(16,185,129,0.3)]'
+                        ? 'bg-green text-white'
                         : 'text-text-tertiary hover:text-text-primary'
                     }`}
                   >
@@ -2954,9 +2953,9 @@ function CampaignsSection() {
                     type="button"
                     onClick={() => setForm({ ...form, auto_create_category: true, cafe24_product_no: undefined, cafe24_product_name: undefined })}
                     disabled={!isCafe24Connected}
-                    className={`flex-1 py-1.5 text-[11px] rounded-md font-medium transition-all disabled:opacity-50 ${
+                    className={`flex-1 py-1.5 text-[11px] rounded-md font-medium transition-colors disabled:opacity-50 ${
                       form.auto_create_category
-                        ? 'bg-brand text-white shadow-[0_2px_8px_rgba(139,92,246,0.3)]'
+                        ? 'bg-brand text-white'
                         : 'text-text-tertiary hover:text-text-primary'
                     }`}
                   >
@@ -3236,11 +3235,11 @@ function CampaignsSection() {
                 </div>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-center bg-bg-2 rounded-lg p-3">
-                <div><p className="text-[10px] text-text-tertiary">파트너</p><p className="text-sm font-bold text-text-primary">{c.partner_count}명</p></div>
-                <div><p className="text-[10px] text-text-tertiary">클릭</p><p className="text-sm font-bold text-text-primary">{fmt(c.click_count)}</p></div>
-                <div><p className="text-[10px] text-text-tertiary">전환</p><p className="text-sm font-bold text-teal">{c.conversion_count}건</p></div>
-                <div><p className="text-[10px] text-text-tertiary">매출</p><p className="text-sm font-bold text-green">₩{fmt(c.total_sales)}</p></div>
-                <div><p className="text-[10px] text-text-tertiary">커미션</p><p className="text-sm font-bold text-yellow">₩{fmt(c.total_commission)}</p></div>
+                <div><p className="text-[10px] text-text-tertiary">파트너</p><p className="text-sm font-semibold text-text-primary">{c.partner_count}명</p></div>
+                <div><p className="text-[10px] text-text-tertiary">클릭</p><p className="text-sm font-semibold text-text-primary">{fmt(c.click_count)}</p></div>
+                <div><p className="text-[10px] text-text-tertiary">전환</p><p className="text-sm font-semibold text-teal">{c.conversion_count}건</p></div>
+                <div><p className="text-[10px] text-text-tertiary">매출</p><p className="text-sm font-semibold text-green">₩{fmt(c.total_sales)}</p></div>
+                <div><p className="text-[10px] text-text-tertiary">커미션</p><p className="text-sm font-semibold text-yellow">₩{fmt(c.total_commission)}</p></div>
               </div>
               {c.referral_link && (
                 <div className="mt-2 flex items-center gap-2 px-3 py-2 bg-bg-2 border border-border-primary rounded-lg">
@@ -3363,23 +3362,23 @@ function PartnerTimeseriesChart({
       <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-[11px]">
         <div className="bg-bg-1 rounded-lg px-2.5 py-1.5">
           <p className="text-text-tertiary">기간 매출</p>
-          <p className="text-green font-bold tabular-nums">₩{fmt(totals.sales)}</p>
+          <p className="text-green font-semibold tabular-nums">₩{fmt(totals.sales)}</p>
         </div>
         <div className="bg-bg-1 rounded-lg px-2.5 py-1.5">
           <p className="text-text-tertiary">전환</p>
-          <p className="text-teal font-bold tabular-nums">{fmt(totals.conversions)}건</p>
+          <p className="text-teal font-semibold tabular-nums">{fmt(totals.conversions)}건</p>
         </div>
         <div className="bg-bg-1 rounded-lg px-2.5 py-1.5">
           <p className="text-text-tertiary">클릭</p>
-          <p className="text-text-primary font-bold tabular-nums">{fmt(totals.clicks)}</p>
+          <p className="text-text-primary font-semibold tabular-nums">{fmt(totals.clicks)}</p>
         </div>
         <div className="bg-bg-1 rounded-lg px-2.5 py-1.5">
           <p className="text-text-tertiary">환불·취소</p>
-          <p className="text-red font-bold tabular-nums">₩{fmt(totals.refunded + totals.cancelled)}</p>
+          <p className="text-red font-semibold tabular-nums">₩{fmt(totals.refunded + totals.cancelled)}</p>
         </div>
         <div className="bg-bg-1 rounded-lg px-2.5 py-1.5">
           <p className="text-text-tertiary">최고 매출일</p>
-          <p className="text-yellow font-bold tabular-nums">
+          <p className="text-yellow font-semibold tabular-nums">
             {peakDay ? `${peakDay.date.slice(5)} (₩${fmt(peakDay.sales)})` : '—'}
           </p>
         </div>
@@ -3686,7 +3685,7 @@ function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalP
   const availableCampaigns = campaigns.filter(c => !existingCampaignIds.has(c.id) && c.status === 'active');
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
       <div
         className="w-full max-w-4xl bg-bg-3 rounded-2xl border border-border-primary shadow-2xl max-h-[90vh] overflow-y-auto"
         onClick={e => e.stopPropagation()}
@@ -3694,7 +3693,7 @@ function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalP
         {/* 헤더 */}
         <div className="flex items-center justify-between p-5 border-b border-border-primary">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-green to-teal flex items-center justify-center text-white font-bold text-sm shrink-0">
+            <div className="w-10 h-10 rounded-full bg-green flex items-center justify-center text-white font-semibold text-sm shrink-0">
               {partner.name[0]}
             </div>
             <div>
@@ -3901,15 +3900,15 @@ function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalP
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                       <div className="bg-bg-2 border border-border-primary rounded-lg p-2.5">
                         <p className="text-[10px] text-text-tertiary">순매출 (paid only)</p>
-                        <p className="text-sm font-bold text-green mt-0.5">₩{fmt(audit.summary.net_sales_paid_only)}</p>
+                        <p className="text-sm font-semibold text-green mt-0.5">₩{fmt(audit.summary.net_sales_paid_only)}</p>
                       </div>
                       <div className="bg-bg-2 border border-border-primary rounded-lg p-2.5">
                         <p className="text-[10px] text-text-tertiary">총합 (all status)</p>
-                        <p className="text-sm font-bold text-blue mt-0.5">₩{fmt(audit.summary.gross_sales_all_status)}</p>
+                        <p className="text-sm font-semibold text-blue mt-0.5">₩{fmt(audit.summary.gross_sales_all_status)}</p>
                       </div>
                       <div className="bg-bg-2 border border-border-primary rounded-lg p-2.5">
                         <p className="text-[10px] text-text-tertiary">차이 (취소+환불+기타)</p>
-                        <p className="text-sm font-bold text-yellow mt-0.5">₩{fmt(audit.summary.diff)}</p>
+                        <p className="text-sm font-semibold text-yellow mt-0.5">₩{fmt(audit.summary.diff)}</p>
                       </div>
                     </div>
                     <div className="overflow-x-auto rounded-lg border border-border-primary">
@@ -4013,7 +4012,7 @@ function PartnerEditModal({ partner, onClose, onSave, isSaving }: PartnerEditMod
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
       <div
         className="w-full max-w-lg bg-bg-3 rounded-2xl border border-border-primary shadow-2xl max-h-[90vh] overflow-y-auto"
         onClick={e => e.stopPropagation()}
@@ -4126,7 +4125,7 @@ function PartnerEditModal({ partner, onClose, onSave, isSaving }: PartnerEditMod
                 return (
                   <label
                     key={opt.key}
-                    className={`flex items-center gap-1.5 px-2.5 py-2 rounded-lg border cursor-pointer transition-all text-xs select-none ${
+                    className={`flex items-center gap-1.5 px-2.5 py-2 rounded-lg border cursor-pointer transition-colors text-xs select-none ${
                       checked
                         ? `${opt.color} border-opacity-60`
                         : 'border-border-primary text-text-tertiary hover:border-border-tertiary hover:text-text-secondary'
@@ -4353,7 +4352,7 @@ function PartnersSection() {
 
       <div className="space-y-4">
         <div className="flex justify-between items-center">
-          <h2 className="text-lg font-bold text-text-primary">파트너 관리</h2>
+          <h2 className="text-lg font-semibold text-text-primary">파트너 관리</h2>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowTrash(!showTrash)}
@@ -4509,7 +4508,7 @@ function PartnersSection() {
                     return (
                       <label
                         key={opt.key}
-                        className={`flex items-center gap-1.5 px-2.5 py-2 rounded-lg border cursor-pointer transition-all text-xs select-none ${
+                        className={`flex items-center gap-1.5 px-2.5 py-2 rounded-lg border cursor-pointer transition-colors text-xs select-none ${
                           checked
                             ? `${opt.color} border-opacity-60`
                             : 'border-border-primary text-text-tertiary hover:border-border-tertiary hover:text-text-secondary'
@@ -4676,7 +4675,7 @@ function PartnersSection() {
               >
                 <div className="flex justify-between items-start mb-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-green to-teal flex items-center justify-center text-white font-bold text-sm shrink-0">
+                    <div className="w-10 h-10 rounded-full bg-green flex items-center justify-center text-white font-semibold text-sm shrink-0">
                       {p.name[0]}
                     </div>
                     <div>
@@ -4757,11 +4756,11 @@ function PartnersSection() {
                 {p.status === 'approved' && (
                   <>
                     <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-center bg-bg-2 rounded-lg p-3 mb-2">
-                      <div><p className="text-[10px] text-text-tertiary">클릭</p><p className="text-sm font-bold text-text-primary">{fmt(p.click_count)}</p></div>
-                      <div><p className="text-[10px] text-text-tertiary">전환</p><p className="text-sm font-bold text-teal">{p.conversion_count}건</p></div>
-                      <div><p className="text-[10px] text-text-tertiary">매출</p><p className="text-sm font-bold text-green">₩{fmt(p.total_sales)}</p></div>
-                      <div><p className="text-[10px] text-text-tertiary">총 커미션</p><p className="text-sm font-bold text-yellow">₩{fmt(p.total_commission)}</p></div>
-                      <div><p className="text-[10px] text-text-tertiary">미정산</p><p className="text-sm font-bold text-red">₩{fmt(p.unpaid_commission)}</p></div>
+                      <div><p className="text-[10px] text-text-tertiary">클릭</p><p className="text-sm font-semibold text-text-primary">{fmt(p.click_count)}</p></div>
+                      <div><p className="text-[10px] text-text-tertiary">전환</p><p className="text-sm font-semibold text-teal">{p.conversion_count}건</p></div>
+                      <div><p className="text-[10px] text-text-tertiary">매출</p><p className="text-sm font-semibold text-green">₩{fmt(p.total_sales)}</p></div>
+                      <div><p className="text-[10px] text-text-tertiary">총 커미션</p><p className="text-sm font-semibold text-yellow">₩{fmt(p.total_commission)}</p></div>
+                      <div><p className="text-[10px] text-text-tertiary">미정산</p><p className="text-sm font-semibold text-red">₩{fmt(p.unpaid_commission)}</p></div>
                     </div>
                     {p.campaign_links && p.campaign_links.length > 0 ? (
                       <div
@@ -4854,7 +4853,7 @@ function ReferralSection() {
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h2 className="text-lg font-bold text-text-primary">친구추천 프로그램</h2>
+        <h2 className="text-lg font-semibold text-text-primary">친구추천 프로그램</h2>
         <button
           onClick={() => setShowForm(!showForm)}
           className="flex items-center gap-1.5 px-3 py-1.5 bg-green hover:bg-green text-white text-xs font-medium rounded-lg transition-colors"
@@ -4971,19 +4970,19 @@ function ReferralSection() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
               <div className="bg-bg-2 rounded-lg p-3 text-center">
                 <p className="text-[10px] text-text-tertiary">추천인 보상</p>
-                <p className="text-lg font-bold text-green">{fmt(prog.referrer_reward)}{prog.reward_type === 'points' ? 'P' : prog.reward_type === 'cash' ? '원' : ''}</p>
+                <p className="text-lg font-semibold text-green">{fmt(prog.referrer_reward)}{prog.reward_type === 'points' ? 'P' : prog.reward_type === 'cash' ? '원' : ''}</p>
               </div>
               <div className="bg-bg-2 rounded-lg p-3 text-center">
                 <p className="text-[10px] text-text-tertiary">피추천인 보상</p>
-                <p className="text-lg font-bold text-teal">{fmt(prog.referee_reward)}{prog.reward_type === 'points' ? 'P' : prog.reward_type === 'cash' ? '원' : ''}</p>
+                <p className="text-lg font-semibold text-teal">{fmt(prog.referee_reward)}{prog.reward_type === 'points' ? 'P' : prog.reward_type === 'cash' ? '원' : ''}</p>
               </div>
               <div className="bg-bg-2 rounded-lg p-3 text-center">
                 <p className="text-[10px] text-text-tertiary">총 추천</p>
-                <p className="text-lg font-bold text-text-primary">{prog.total_referrals}</p>
+                <p className="text-lg font-semibold text-text-primary">{prog.total_referrals}</p>
               </div>
               <div className="bg-bg-2 rounded-lg p-3 text-center">
                 <p className="text-[10px] text-text-tertiary">가입 전환율</p>
-                <p className="text-lg font-bold text-yellow">{fmtPct(prog.conversion_rate)}%</p>
+                <p className="text-lg font-semibold text-yellow">{fmtPct(prog.conversion_rate)}%</p>
               </div>
             </div>
 
@@ -5041,7 +5040,7 @@ function MyPointsSection() {
 
   return (
     <div className="space-y-5">
-      <h2 className="text-lg font-bold text-text-primary">내 포인트</h2>
+      <h2 className="text-lg font-semibold text-text-primary">내 포인트</h2>
 
       <div className="grid md:grid-cols-2 gap-4">
         {/* 포인트 잔액 카드 */}
@@ -5056,7 +5055,7 @@ function MyPointsSection() {
           ) : (
             <>
               <p className="text-[10px] text-text-tertiary mb-1">보유 포인트</p>
-              <p className="text-4xl font-bold text-yellow">{fmt(pointsData?.balance ?? 0)}</p>
+              <p className="text-4xl font-semibold text-yellow">{fmt(pointsData?.balance ?? 0)}</p>
               <p className="text-sm text-text-tertiary mt-1">P</p>
             </>
           )}
@@ -5213,7 +5212,7 @@ function SettlementSection() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <h2 className="text-lg font-bold text-text-primary">정산 관리</h2>
+        <h2 className="text-lg font-semibold text-text-primary">정산 관리</h2>
         <SearchBar
           value={search}
           onChange={setSearch}
@@ -5238,18 +5237,18 @@ function SettlementSection() {
       <div className="grid md:grid-cols-3 gap-4">
         <div className="bg-bg-3 rounded-xl p-4 border border-border-primary text-center">
           <p className="text-xs text-text-tertiary">총 미정산 금액</p>
-          <p className="text-2xl font-bold text-red mt-1">₩{fmt(totalUnpaid)}</p>
+          <p className="text-2xl font-semibold text-red mt-1">₩{fmt(totalUnpaid)}</p>
           <p className="text-[10px] text-text-tertiary mt-0.5">{pendingCount}건 대기중</p>
         </div>
         <div className="bg-bg-3 rounded-xl p-4 border border-border-primary text-center">
           <p className="text-xs text-text-tertiary">이번 달 정산 예정</p>
-          <p className="text-2xl font-bold text-yellow mt-1">
+          <p className="text-2xl font-semibold text-yellow mt-1">
             ₩{fmt(approvedPartners.reduce((s, p) => s + n(p.unpaid_commission), 0))}
           </p>
         </div>
         <div className="bg-bg-3 rounded-xl p-4 border border-border-primary text-center">
           <p className="text-xs text-text-tertiary">누적 정산 완료</p>
-          <p className="text-2xl font-bold text-green mt-1">₩{fmt(totalPaid)}</p>
+          <p className="text-2xl font-semibold text-green mt-1">₩{fmt(totalPaid)}</p>
         </div>
       </div>
 
@@ -5366,7 +5365,7 @@ function SettlementSection() {
       {/* 판매자 유형 선택 모달 — 정산서 양식이 유형별로 다름 (소득세 차감 vs 사업자 세금계산서 발행) */}
       {exportTarget && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
           onClick={() => !exportMutation.isPending && setExportTarget(null)}
         >
           <div
@@ -5375,7 +5374,7 @@ function SettlementSection() {
           >
             <div className="flex items-start justify-between mb-4">
               <div>
-                <h3 className="text-base font-bold text-text-primary">판매자 유형 선택</h3>
+                <h3 className="text-base font-semibold text-text-primary">판매자 유형 선택</h3>
                 <p className="text-xs text-text-tertiary mt-1">
                   <span className="text-text-primary">{exportTarget.name}</span> 님의 정산서 양식을 선택해주세요
                 </p>
@@ -5467,7 +5466,7 @@ function SettingsSection() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-bold text-text-primary">어필리에이트 설정</h2>
+      <h2 className="text-lg font-semibold text-text-primary">어필리에이트 설정</h2>
       <div className="grid md:grid-cols-2 gap-4">
         <div className="bg-bg-3 rounded-xl p-4 border border-border-primary space-y-3">
           <h3 className="text-sm font-semibold text-text-primary">기본 설정</h3>
@@ -5659,7 +5658,7 @@ export function AffiliateManaging() {
           <button
             key={item.key}
             onClick={() => setActiveSection(item.key)}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
               activeSection === item.key
                 ? 'bg-green text-white'
                 : 'text-text-tertiary hover:text-text-primary hover:bg-[rgb(var(--color-overlay-rgb)/0.05)]'
@@ -5670,7 +5669,7 @@ export function AffiliateManaging() {
         ))}
         <button
           onClick={() => setShowMore(v => !v)}
-          className={`px-3 py-2 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
+          className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
             moreActive ? 'text-text-primary' : 'text-text-quaternary hover:text-text-primary'
           }`}
         >
@@ -5680,7 +5679,7 @@ export function AffiliateManaging() {
           <button
             key={item.key}
             onClick={() => setActiveSection(item.key)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
               activeSection === item.key
                 ? 'bg-green text-white'
                 : 'text-text-quaternary hover:text-text-primary hover:bg-[rgb(var(--color-overlay-rgb)/0.05)]'

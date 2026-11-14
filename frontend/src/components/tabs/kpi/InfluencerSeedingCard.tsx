@@ -5,7 +5,7 @@ import type { ChangeEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import {
-  Download, ExternalLink, Loader2, Megaphone, Plus, Sparkles, Trash2,
+  Download, ExternalLink, Loader2, Megaphone, Plus, ScanSearch, Trash2,
 } from 'lucide-react';
 import {
   BarChart, Bar, Cell,
@@ -166,7 +166,7 @@ export function InfluencerSeedingCard() {
         </div>
         <button
           onClick={handleExport}
-          className="flex items-center gap-1.5 px-3 py-2 border border-border-primary rounded-lg text-sm text-text-secondary hover:bg-bg-2 transition-all"
+          className="flex items-center gap-1.5 px-3 py-2 border border-border-primary rounded-lg text-sm text-text-secondary hover:bg-bg-2 transition-colors"
         >
           <Download size={14} /> 엑셀
         </button>
@@ -234,7 +234,7 @@ export function InfluencerSeedingCard() {
         <div className="overflow-x-auto mb-4">
           <table className="w-full min-w-[760px] text-left">
             <thead>
-              <tr className="border-b border-border-primary text-[10px] text-text-quaternary uppercase tracking-wide">
+              <tr className="border-b border-border-primary text-[10px] text-text-quaternary">
                 <th className="px-3 py-2 whitespace-nowrap">일자</th>
                 <th className="px-3 py-2 whitespace-nowrap">이름</th>
                 <th className="px-3 py-2 whitespace-nowrap">채널</th>
@@ -286,7 +286,7 @@ export function InfluencerSeedingCard() {
                             disabled={isAnalyzing}
                             className="flex items-center gap-1 px-2 py-1 border border-border-primary rounded-lg text-[10px] text-text-secondary hover:bg-bg-2 disabled:opacity-50"
                           >
-                            {isAnalyzing ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />}
+                            {isAnalyzing ? <Loader2 size={10} className="animate-spin" /> : <ScanSearch size={10} />}
                             {isAnalyzing ? '분석 중...' : 'AI 분석'}
                           </button>
                         )}

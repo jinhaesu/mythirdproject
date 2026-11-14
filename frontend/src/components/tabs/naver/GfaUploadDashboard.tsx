@@ -32,7 +32,7 @@ type Unit = 'daily' | 'weekly' | 'monthly';
 const UNIT_LABEL: Record<Unit, string> = { daily: '일별', weekly: '주별', monthly: '월별' };
 const PREV_LABEL: Record<Unit, string> = { daily: '전일', weekly: '전주', monthly: '전월' };
 
-const C = { spend: '#4EA7FC', sales: '#27A644', roas: '#F0BF00', clicks: '#7070FF', conv: '#27A644', cost: '#4EA7FC' };
+const C = { spend: '#4EA7FC', sales: '#27A644', roas: '#F0BF00', clicks: '#4A85FF', conv: '#27A644', cost: '#4EA7FC' };
 const tooltipStyle = { backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)', borderRadius: 8, fontSize: 12 };
 const tick = { fontSize: 10, fill: 'var(--color-text-tertiary)' };
 const fmtAxis = (v: number) =>
@@ -326,7 +326,7 @@ export function GfaUploadDashboard({ dateRange, startDate, endDate, month, accou
             {kpiCards.map((c) => (
               <div key={c.key} className="bg-bg-1 rounded-xl border border-border-primary p-4" title={d.kpi_prev ? `${d.period.prev_start} ~ ${d.period.prev_end} 대비` : '직전 기간 데이터 없음'}>
                 <div className="text-xs text-text-tertiary font-medium">{c.label}</div>
-                <div className={`text-lg font-bold tabular-nums mt-1 ${c.cls || 'text-text-primary'}`}>{c.value}</div>
+                <div className={`text-lg font-semibold tabular-nums mt-1 ${c.cls || 'text-text-primary'}`}>{c.value}</div>
                 <div className="flex flex-wrap items-center gap-x-2 text-[11px] mt-0.5">
                   <Delta v={ch[c.key]} better={c.better} suffix={ch[c.key] != null ? prevText : undefined} />
                 </div>

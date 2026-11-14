@@ -18,7 +18,6 @@ import {
   MessageSquare,
   TrendingUp,
   ArrowUpRight,
-  Sparkles,
   RefreshCw,
 } from 'lucide-react';
 import {
@@ -106,32 +105,27 @@ function LoginView({ onTokenVerified }: { onTokenVerified: (partner: PartnerInfo
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-bg-0 p-4 relative overflow-hidden">
-      {/* Background ornament */}
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute top-[-15%] left-[-10%] w-[420px] h-[420px] rounded-full bg-green/10 blur-[120px]" />
-        <div className="absolute bottom-[-15%] right-[-10%] w-[420px] h-[420px] rounded-full bg-teal/10 blur-[120px]" />
-      </div>
 
       <div className="w-full max-w-md relative z-10">
         {/* Logo */}
         <div className="text-center mb-10">
           <div className="inline-flex items-center gap-3 mb-5">
-            <div className="w-14 h-14 bg-gradient-to-br from-green to-teal rounded-2xl flex items-center justify-center shadow-[0_8px_30px_rgba(16,185,129,0.35)]">
-              <span className="text-white font-bold text-2xl tracking-tight">N</span>
+            <div className="w-14 h-14 bg-green rounded-2xl flex items-center justify-center">
+              <span className="text-white font-semibold text-2xl tracking-tight">N</span>
             </div>
             <div className="text-left">
-              <h1 className="text-3xl font-bold text-white tracking-tight leading-none">널담</h1>
-              <p className="text-[11px] text-green/80 mt-1 font-medium tracking-wider uppercase">Affiliate Program</p>
+              <h1 className="text-3xl font-semibold text-text-primary tracking-tight leading-none">널담</h1>
+              <p className="text-[11px] text-green/80 mt-1 font-medium">Affiliate Program</p>
             </div>
           </div>
           <p className="text-text-tertiary text-sm">파트너 전용 매출 현황 대시보드</p>
         </div>
 
-        <div className="bg-gradient-to-b from-[#101113] to-[#0B0C0E] border border-[rgb(var(--color-overlay-rgb)/0.08)] rounded-3xl p-7 shadow-[0_24px_60px_-15px_rgba(0,0,0,0.6)] backdrop-blur-xl">
+        <div className="bg-bg-1 border border-[rgb(var(--color-overlay-rgb)/0.08)] rounded-3xl p-7 shadow-high">
           {!sent ? (
             <form onSubmit={handleSend} className="space-y-5">
               <div className="text-center mb-2">
-                <h2 className="text-lg font-semibold text-white">파트너 로그인</h2>
+                <h2 className="text-lg font-semibold text-text-primary">파트너 로그인</h2>
                 <p className="text-sm text-text-tertiary mt-1.5">
                   {mode === 'phone' ? '휴대폰으로 로그인 링크를 받습니다' : '이메일로 로그인 링크를 받습니다'}
                 </p>
@@ -142,9 +136,9 @@ function LoginView({ onTokenVerified }: { onTokenVerified: (partner: PartnerInfo
                 <button
                   type="button"
                   onClick={() => setMode('phone')}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs rounded-lg font-medium transition-all ${
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs rounded-lg font-medium transition-colors ${
                     mode === 'phone'
-                      ? 'bg-green text-white shadow-[0_2px_8px_rgba(16,185,129,0.3)]'
+                      ? 'bg-green text-white'
                       : 'text-text-tertiary hover:text-text-primary'
                   }`}
                 >
@@ -153,9 +147,9 @@ function LoginView({ onTokenVerified }: { onTokenVerified: (partner: PartnerInfo
                 <button
                   type="button"
                   onClick={() => setMode('email')}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs rounded-lg font-medium transition-all ${
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs rounded-lg font-medium transition-colors ${
                     mode === 'email'
-                      ? 'bg-green text-white shadow-[0_2px_8px_rgba(16,185,129,0.3)]'
+                      ? 'bg-green text-white'
                       : 'text-text-tertiary hover:text-text-primary'
                   }`}
                 >
@@ -173,7 +167,7 @@ function LoginView({ onTokenVerified }: { onTokenVerified: (partner: PartnerInfo
                     placeholder="010-1234-5678"
                     required
                     autoFocus
-                    className="w-full px-4 py-3 bg-bg-2 border border-[rgb(var(--color-overlay-rgb)/0.08)] rounded-xl text-sm text-text-primary placeholder:text-text-quaternary focus:outline-none focus:border-green/60 focus:ring-2 focus:ring-green/15 transition-all"
+                    className="w-full px-4 py-3 bg-bg-2 border border-[rgb(var(--color-overlay-rgb)/0.08)] rounded-xl text-sm text-text-primary placeholder:text-text-quaternary focus:outline-none focus:border-green/60 focus:ring-2 focus:ring-green/15 transition-colors"
                   />
                 </div>
               ) : (
@@ -186,7 +180,7 @@ function LoginView({ onTokenVerified }: { onTokenVerified: (partner: PartnerInfo
                     placeholder="partner@example.com"
                     required
                     autoFocus
-                    className="w-full px-4 py-3 bg-bg-2 border border-[rgb(var(--color-overlay-rgb)/0.08)] rounded-xl text-sm text-text-primary placeholder:text-text-quaternary focus:outline-none focus:border-green/60 focus:ring-2 focus:ring-green/15 transition-all"
+                    className="w-full px-4 py-3 bg-bg-2 border border-[rgb(var(--color-overlay-rgb)/0.08)] rounded-xl text-sm text-text-primary placeholder:text-text-quaternary focus:outline-none focus:border-green/60 focus:ring-2 focus:ring-green/15 transition-colors"
                   />
                 </div>
               )}
@@ -194,7 +188,7 @@ function LoginView({ onTokenVerified }: { onTokenVerified: (partner: PartnerInfo
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-green to-green hover:from-green hover:to-green disabled:opacity-50 text-white text-sm font-semibold rounded-xl transition-all shadow-[0_4px_16px_rgba(16,185,129,0.3)] hover:shadow-[0_6px_24px_rgba(16,185,129,0.45)]"
+                className="w-full flex items-center justify-center gap-2 py-3 bg-green disabled:opacity-50 text-white text-sm font-semibold rounded-xl transition-colors"
               >
                 {loading ? (
                   <Loader2 size={16} className="animate-spin" />
@@ -210,14 +204,14 @@ function LoginView({ onTokenVerified }: { onTokenVerified: (partner: PartnerInfo
             </form>
           ) : (
             <div className="text-center py-2">
-              <div className="w-16 h-16 bg-gradient-to-br from-green/15 to-green/5 border border-green/30 rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-[0_4px_16px_rgba(16,185,129,0.2)]">
+              <div className="w-16 h-16 bg-green/15 border border-green/30 rounded-2xl flex items-center justify-center mx-auto mb-5">
                 {mode === 'phone' ? (
                   <MessageSquare size={28} className="text-green" />
                 ) : (
                   <Mail size={28} className="text-green" />
                 )}
               </div>
-              <h2 className="text-lg font-semibold text-white mb-2">
+              <h2 className="text-lg font-semibold text-text-primary mb-2">
                 {mode === 'phone' ? '문자를 확인하세요' : '이메일을 확인하세요'}
               </h2>
               <p className="text-sm text-text-tertiary mb-1">
@@ -295,8 +289,7 @@ const ACCENT_THEME: Record<NonNullable<KpiCardProps['accent']>, { text: string; 
 function KpiCard({ icon, label, value, sub, accent = 'default', trend }: KpiCardProps) {
   const theme = ACCENT_THEME[accent];
   return (
-    <div className={`relative overflow-hidden rounded-2xl border border-[rgb(var(--color-overlay-rgb)/0.06)] bg-bg-1 p-4 ring-1 ${theme.ring} hover:border-[rgb(var(--color-overlay-rgb)/0.12)] transition-all group`}>
-      <div className={`pointer-events-none absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-br ${theme.gradient}`} />
+    <div className={`relative overflow-hidden rounded-2xl border border-[rgb(var(--color-overlay-rgb)/0.06)] bg-bg-1 p-4 ring-1 ${theme.ring} hover:border-[rgb(var(--color-overlay-rgb)/0.12)] transition-colors group`}>
       <div className="relative">
         <div className="flex items-start justify-between mb-3">
           <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${theme.bg}`}>
@@ -313,8 +306,8 @@ function KpiCard({ icon, label, value, sub, accent = 'default', trend }: KpiCard
             </span>
           )}
         </div>
-        <p className="text-[11px] text-text-tertiary font-medium tracking-wide">{label}</p>
-        <p className={`mt-1 text-xl font-bold ${theme.text} tabular-nums tracking-tight`}>{value}</p>
+        <p className="text-[11px] text-text-tertiary font-medium">{label}</p>
+        <p className={`mt-1 text-xl font-semibold ${theme.text} tabular-nums tracking-tight`}>{value}</p>
         {sub && <p className="text-[11px] text-text-tertiary mt-1">{sub}</p>}
       </div>
     </div>
@@ -476,8 +469,8 @@ function CampaignCard({ campaign }: { campaign: PartnerCampaign }) {
   const conversionRate = campaign.clicks > 0 ? ((campaign.conversions / campaign.clicks) * 100).toFixed(1) : '0.0';
 
   return (
-    <div className="group relative overflow-hidden rounded-2xl border border-[rgb(var(--color-overlay-rgb)/0.06)] bg-bg-1 hover:border-[rgb(var(--color-overlay-rgb)/0.12)] transition-all">
-      <div className="pointer-events-none absolute -inset-px rounded-2xl bg-gradient-to-br from-green/0 via-green/0 to-teal/0 opacity-0 group-hover:from-green/10 group-hover:to-teal/5 group-hover:opacity-100 transition-opacity" />
+    <div className="group relative overflow-hidden rounded-2xl border border-[rgb(var(--color-overlay-rgb)/0.06)] bg-bg-1 hover:border-[rgb(var(--color-overlay-rgb)/0.12)] transition-colors">
+      <div className="pointer-events-none absolute -inset-px rounded-2xl bg-green/0 opacity-0 group-hover:opacity-100 transition-opacity" />
       <div className="relative p-5 space-y-4">
         {/* 상품 정보 */}
         <div className="flex items-start gap-3">
@@ -485,10 +478,10 @@ function CampaignCard({ campaign }: { campaign: PartnerCampaign }) {
             <img
               src={campaign.product_image}
               alt={campaign.product_name}
-              className="w-14 h-14 rounded-xl object-cover bg-bg-2 border border-[rgb(var(--color-overlay-rgb)/0.05)] shrink-0 shadow-[0_4px_12px_rgba(0,0,0,0.4)]"
+              className="w-14 h-14 rounded-xl object-cover bg-bg-2 border border-[rgb(var(--color-overlay-rgb)/0.05)] shrink-0 shadow-high"
             />
           ) : (
-            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-bg-3 to-bg-1 border border-[rgb(var(--color-overlay-rgb)/0.06)] flex items-center justify-center shrink-0">
+            <div className="w-14 h-14 rounded-xl bg-bg-3 border border-[rgb(var(--color-overlay-rgb)/0.06)] flex items-center justify-center shrink-0">
               <ShoppingBag size={20} className="text-text-tertiary" />
             </div>
           )}
@@ -512,7 +505,7 @@ function CampaignCard({ campaign }: { campaign: PartnerCampaign }) {
           />
           <button
             onClick={handleCopy}
-            className={`shrink-0 px-2 py-1 rounded-md text-[11px] font-medium transition-all ${
+            className={`shrink-0 px-2 py-1 rounded-md text-[11px] font-medium transition-colors ${
               copied
                 ? 'bg-green/20 text-green'
                 : 'bg-[rgb(var(--color-overlay-rgb)/0.05)] text-text-tertiary hover:bg-green/15 hover:text-green'
@@ -529,20 +522,20 @@ function CampaignCard({ campaign }: { campaign: PartnerCampaign }) {
         <div className="grid grid-cols-4 gap-2">
           <div className="bg-bg-2 border border-[rgb(var(--color-overlay-rgb)/0.04)] rounded-xl px-2.5 py-2.5">
             <p className="text-[10px] text-text-tertiary font-medium">클릭</p>
-            <p className="text-sm font-bold text-text-primary mt-0.5 tabular-nums">{fmtNum(campaign.clicks)}</p>
+            <p className="text-sm font-semibold text-text-primary mt-0.5 tabular-nums">{fmtNum(campaign.clicks)}</p>
           </div>
           <div className="bg-bg-2 border border-[rgb(var(--color-overlay-rgb)/0.04)] rounded-xl px-2.5 py-2.5">
             <p className="text-[10px] text-text-tertiary font-medium">전환</p>
-            <p className="text-sm font-bold text-teal mt-0.5 tabular-nums">{fmtNum(campaign.conversions)}</p>
+            <p className="text-sm font-semibold text-teal mt-0.5 tabular-nums">{fmtNum(campaign.conversions)}</p>
             <p className="text-[10px] text-text-tertiary tabular-nums">{conversionRate}%</p>
           </div>
           <div className="bg-bg-2 border border-[rgb(var(--color-overlay-rgb)/0.04)] rounded-xl px-2.5 py-2.5">
             <p className="text-[10px] text-text-tertiary font-medium">매출</p>
-            <p className="text-sm font-bold text-green mt-0.5 tabular-nums">{fmtKRWShort(campaign.sales)}</p>
+            <p className="text-sm font-semibold text-green mt-0.5 tabular-nums">{fmtKRWShort(campaign.sales)}</p>
           </div>
           <div className="bg-bg-2 border border-[rgb(var(--color-overlay-rgb)/0.04)] rounded-xl px-2.5 py-2.5">
             <p className="text-[10px] text-text-tertiary font-medium">커미션</p>
-            <p className="text-sm font-bold text-yellow mt-0.5 tabular-nums">{fmtKRWShort(campaign.commission)}</p>
+            <p className="text-sm font-semibold text-yellow mt-0.5 tabular-nums">{fmtKRWShort(campaign.commission)}</p>
           </div>
         </div>
 
@@ -631,14 +624,14 @@ function ShareLinkCard() {
   }, [remainingSec]);
 
   return (
-    <div className="rounded-2xl border border-green/25 bg-gradient-to-br from-green/[0.08] via-bg-1 to-bg-1 p-5">
+    <div className="rounded-2xl border border-green/25 bg-green/[0.08] p-5">
       <div className="flex items-start justify-between gap-3 mb-4 flex-wrap">
         <div className="flex items-start gap-3 min-w-0">
           <div className="w-10 h-10 rounded-xl bg-green/15 border border-green/30 flex items-center justify-center shrink-0">
             <Link2 size={18} className="text-green" />
           </div>
           <div className="min-w-0">
-            <h3 className="text-sm font-semibold text-white">실시간 매출 확인 링크</h3>
+            <h3 className="text-sm font-semibold text-text-primary">실시간 매출 확인 링크</h3>
             <p className="text-[11px] text-text-tertiary mt-0.5 leading-relaxed">
               본인 또는 동료에게 공유할 1회용 로그인 링크. 발급 후 10분간 유효합니다.
             </p>
@@ -655,7 +648,7 @@ function ShareLinkCard() {
         <button
           onClick={issue}
           disabled={issuing}
-          className="w-full flex items-center justify-center gap-2 py-2.5 bg-gradient-to-r from-green to-green hover:from-green hover:to-green disabled:opacity-50 text-white text-sm font-semibold rounded-xl transition-all shadow-[0_4px_14px_rgba(16,185,129,0.25)]"
+          className="w-full flex items-center justify-center gap-2 py-2.5 bg-green disabled:opacity-50 text-white text-sm font-semibold rounded-xl transition-colors"
         >
           {issuing ? <Loader2 size={14} className="animate-spin" /> : <Link2 size={14} />}
           실시간 매출 링크 발급
@@ -672,7 +665,7 @@ function ShareLinkCard() {
             />
             <button
               onClick={handleCopy}
-              className={`shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
+              className={`shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
                 copied
                   ? 'bg-green/25 text-green'
                   : 'bg-green/15 text-green hover:bg-green/25'
@@ -841,22 +834,17 @@ function DashboardView({ partner, onLogout }: { partner: PartnerInfo; onLogout: 
 
   return (
     <div className="min-h-screen bg-bg-0 relative">
-      {/* Background subtle gradient */}
-      <div className="pointer-events-none fixed inset-0">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] rounded-full bg-green/[0.04] blur-[120px]" />
-      </div>
 
       {/* 헤더 */}
-      <header className="sticky top-0 z-30 border-b border-[rgb(var(--color-overlay-rgb)/0.06)] bg-bg-0/80 backdrop-blur-xl">
+      <header className="sticky top-0 z-30 border-b border-[rgb(var(--color-overlay-rgb)/0.06)] bg-bg-0/80">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-green to-teal rounded-xl flex items-center justify-center shrink-0 shadow-[0_4px_16px_rgba(16,185,129,0.3)]">
-              <span className="text-white font-bold text-base">N</span>
+            <div className="w-10 h-10 bg-green rounded-xl flex items-center justify-center shrink-0">
+              <span className="text-white font-semibold text-base">N</span>
             </div>
             <div>
-              <p className="text-sm font-semibold text-white leading-tight">{partner.name}</p>
+              <p className="text-sm font-semibold text-text-primary leading-tight">{partner.name}</p>
               <p className="text-[11px] text-text-tertiary mt-0.5 flex items-center gap-1">
-                <Sparkles size={10} className="text-green" />
                 널담 어필리에이트 파트너
               </p>
             </div>
@@ -884,8 +872,8 @@ function DashboardView({ partner, onLogout }: { partner: PartnerInfo; onLogout: 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-10 relative">
         {/* 환영 인사 */}
         <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">
-            안녕하세요, <span className="bg-gradient-to-r from-green/10 to-teal/10 bg-clip-text text-transparent">{partner.name}</span>님
+          <h1 className="text-2xl font-semibold text-text-primary tracking-tight">
+            {partner.name}님의 성과
           </h1>
           <p className="text-sm text-text-tertiary mt-1.5">
             오늘도 멋진 하루 보내세요. 실시간 매출과 커미션 현황을 확인해보세요.
@@ -898,8 +886,8 @@ function DashboardView({ partner, onLogout }: { partner: PartnerInfo; onLogout: 
         {/* KPI 카드 */}
         <section>
           <div className="flex items-center gap-2 mb-4">
-            <div className="h-5 w-1 rounded-full bg-gradient-to-b from-green/20 to-teal/20" />
-            <h2 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider">성과 요약</h2>
+            <div className="h-5 w-1 rounded-full bg-green/20" />
+            <h2 className="text-xs font-semibold text-text-tertiary">성과 요약</h2>
           </div>
           {loadingDash ? (
             <KpiSkeletonGrid />
@@ -925,8 +913,8 @@ function DashboardView({ partner, onLogout }: { partner: PartnerInfo; onLogout: 
         {/* 추이 그래프 */}
         <section>
           <div className="flex items-center gap-2 mb-4">
-            <div className="h-5 w-1 rounded-full bg-gradient-to-b from-teal/20 to-brand/20" />
-            <h2 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider">매출 추이</h2>
+            <div className="h-5 w-1 rounded-full bg-teal/20" />
+            <h2 className="text-xs font-semibold text-text-tertiary">매출 추이</h2>
           </div>
           {loadingTs ? (
             <Skeleton className="h-[280px]" />
@@ -939,8 +927,8 @@ function DashboardView({ partner, onLogout }: { partner: PartnerInfo; onLogout: 
         {dashboard && ((dashboard.refunded_count || 0) > 0 || (dashboard.cancelled_count || 0) > 0) && (
           <section>
             <div className="flex items-center gap-2 mb-4">
-              <div className="h-5 w-1 rounded-full bg-gradient-to-b from-yellow/20 to-red/20" />
-              <h2 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider">환불 · 취소 현황</h2>
+              <div className="h-5 w-1 rounded-full bg-yellow/20" />
+              <h2 className="text-xs font-semibold text-text-tertiary">환불 · 취소 현황</h2>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               {refundCancelItems.map((item, i) => (
@@ -953,8 +941,8 @@ function DashboardView({ partner, onLogout }: { partner: PartnerInfo; onLogout: 
         {/* 캠페인 & 링크 */}
         <section>
           <div className="flex items-center gap-2 mb-4">
-            <div className="h-5 w-1 rounded-full bg-gradient-to-b from-green/20 to-green/20" />
-            <h2 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider">내 캠페인 &amp; 링크</h2>
+            <div className="h-5 w-1 rounded-full bg-green/20" />
+            <h2 className="text-xs font-semibold text-text-tertiary">내 캠페인 &amp; 링크</h2>
             {!loadingCamp && (
               <span className="ml-1 px-2 py-0.5 bg-green/10 text-green text-[11px] rounded-full border border-green/20 font-medium">
                 {campaigns.length}개

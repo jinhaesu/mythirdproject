@@ -15,7 +15,7 @@ interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
  *
  * Surface:     bg #141516, border #23252A
  * Text:        #F7F8F8
- * Focus:       border and ring #5E6AD2
+ * Focus:       border and ring #4A85FF
  * Error:       border and ring #EB5757
  * Shape:       rounded-xl
  * Chevron:     #62666D (quaternary text color)

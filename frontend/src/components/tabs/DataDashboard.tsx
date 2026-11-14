@@ -17,7 +17,7 @@ import {
 import { Database, TrendingUp, Eye, Wallet } from 'lucide-react';
 import { kpiApi, DataDashboardMonth } from '@/lib/api';
 
-const STACK_COLORS = ['#5E6AD2', '#27A644', '#F2994A', '#EB5757', '#56CCF2', '#BB6BD9', '#F2C94C', '#6FCF97'];
+const STACK_COLORS = ['#4A85FF', '#27A644', '#F2994A', '#EB5757', '#56CCF2', '#BB6BD9', '#F2C94C', '#6FCF97'];
 
 function fmtWon(v: number | null | undefined): string {
   if (v == null) return '—';

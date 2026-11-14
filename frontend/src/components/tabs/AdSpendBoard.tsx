@@ -271,7 +271,7 @@ export function AdSpendBoard() {
       {/* 입력 단위 안내 — 2026-10-06 천원→원 전환 공지 */}
       <div className="flex items-start gap-2 rounded-lg px-3 py-2 text-[11px]"
         style={{ backgroundColor: 'rgba(240,191,0,0.08)', border: '1px solid rgba(240,191,0,0.35)' }}>
-        <span className="text-yellow font-bold shrink-0">₩ 입력 단위 확인</span>
+        <span className="text-yellow font-semibold shrink-0">₩ 입력 단위 확인</span>
         <span className="text-text-secondary">
           모든 금액은 <b className="text-text-primary">원 단위</b>로 입력합니다 — 150만 원이면 <b className="text-text-primary">1500000</b>,
           천원 단위(1500)로 적으면 1,000배 작게 저장됩니다. Limit·비고 옆 금액도 동일하게 원 단위입니다.
@@ -298,7 +298,7 @@ export function AdSpendBoard() {
           ].map((c) => (
             <div key={c.label} className="rounded-xl px-4 py-2.5" style={{ backgroundColor: 'var(--color-bg-level-1)', border: '1px solid var(--color-border-primary)' }}>
               <p className="text-[10px] text-text-quaternary">{c.label}</p>
-              <p className={`text-base font-bold tabular-nums ${c.cls || 'text-text-primary'}`}>{c.value}</p>
+              <p className={`text-base font-semibold tabular-nums ${c.cls || 'text-text-primary'}`}>{c.value}</p>
             </div>
           ))}
         </div>
@@ -433,7 +433,7 @@ export function AdSpendBoard() {
                   <Fragment key={inflow}>
                     <tr className="group/gh">
                       <td colSpan={days + 5}
-                        className={`p-0 text-[10px] font-bold ${gs ? 'adg-head' : ''}`}
+                        className={`p-0 text-[10px] font-semibold ${gs ? 'adg-head' : ''}`}
                         style={gs || { backgroundColor: 'rgb(var(--color-overlay-rgb) / 0.06)', color: 'var(--color-accent-hover)' }}>
                         {/* 그룹 헤더 클릭 → 이 그룹에 매체 추가 */}
                         <button
@@ -455,7 +455,7 @@ export function AdSpendBoard() {
                           style={{ backgroundColor: 'var(--color-bg-level-1)', ...(gs || {}) }}>
                           <div className="flex items-center gap-1">
                             <span className="truncate" title={`${r.group_name || ''} · ${r.name}${r.memo ? ` · ${r.memo}` : ''}`}>{r.name}</span>
-                            {r.auto && <span className="shrink-0 px-1 rounded text-[8px] font-bold bg-green/15 text-green">자동</span>}
+                            {r.auto && <span className="shrink-0 px-1 rounded text-[8px] font-semibold bg-green/15 text-green">자동</span>}
                             {!r.auto && (
                               <button
                                 onClick={() => {
@@ -554,11 +554,11 @@ export function AdSpendBoard() {
               </tbody>
               <tfoot className="sticky bottom-0" style={{ backgroundColor: 'var(--color-bg-level-2)' }}>
                 <tr style={{ borderTop: '2px solid var(--color-border-primary)' }}>
-                  <td className="sticky left-0 px-2 py-1.5 font-bold text-text-primary" style={{ backgroundColor: 'var(--color-bg-level-2)' }}>일별 합계{isFiltered ? ' (필터)' : ''}</td>
+                  <td className="sticky left-0 px-2 py-1.5 font-semibold text-text-primary" style={{ backgroundColor: 'var(--color-bg-level-2)' }}>일별 합계{isFiltered ? ' (필터)' : ''}</td>
                   {dates.map((d) => (
                     <td key={d} className="px-1 py-1.5 text-right font-medium text-text-secondary tabular-nums">{k(view?.dayTotals[d])}</td>
                   ))}
-                  <td className="px-2 py-1.5 text-right font-bold text-text-primary tabular-nums" style={stickyR(R_TOTAL, COL_TOTAL, 'var(--color-bg-level-2)', 20, true)}>{k(view?.spend)}</td>
+                  <td className="px-2 py-1.5 text-right font-semibold text-text-primary tabular-nums" style={stickyR(R_TOTAL, COL_TOTAL, 'var(--color-bg-level-2)', 20, true)}>{k(view?.spend)}</td>
                   <td className="px-2 py-1.5 text-right text-text-quaternary tabular-nums" style={stickyR(R_LIMIT, COL_LIMIT, 'var(--color-bg-level-2)', 20)}>{k(view?.limit)}</td>
                   <td className="px-2 py-1.5 text-right text-text-quaternary tabular-nums" style={stickyR(R_PCT, COL_PCT, 'var(--color-bg-level-2)', 20)}>{view?.usage_pct != null ? `${view.usage_pct}%` : ''}</td>
                   <td style={stickyR(R_NOTE, COL_NOTE, 'var(--color-bg-level-2)', 20)} />

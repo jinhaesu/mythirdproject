@@ -65,7 +65,7 @@ function ExternalGoalCard({
           </span>
         )}
       </div>
-      <p className="text-lg font-bold text-text-primary">{value}</p>
+      <p className="text-lg font-semibold text-text-primary">{value}</p>
       {showTarget && targetLabel && <p className="text-[11px] text-text-quaternary mt-0.5">{targetLabel}</p>}
     </div>
   );
@@ -425,7 +425,7 @@ export function ExternalMarketingKPI() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-xl font-bold text-text-primary">외부 채널 KPI</h2>
+          <h2 className="text-xl font-semibold text-text-primary">외부 채널 KPI</h2>
           <p className="text-xs text-text-tertiary mt-1">외부 채널 매출 기입·공동구매(어필리에이트) 매출·목표 관리 — 광고비 기입은 광고비 일보, 시딩·협찬은 활동 기록</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -434,8 +434,8 @@ export function ExternalMarketingKPI() {
               <button
                 key={n}
                 onClick={() => setMonthsRange(n)}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                  monthsRange === n ? 'bg-bg-1 text-accent shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'text-text-tertiary hover:text-text-secondary'
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  monthsRange === n ? 'bg-bg-1 text-accent shadow-low' : 'text-text-tertiary hover:text-text-secondary'
                 }`}
               >
                 최근 {n}개월
@@ -444,7 +444,7 @@ export function ExternalMarketingKPI() {
           </div>
           <button
             onClick={handleExportKpi}
-            className="flex items-center gap-1.5 px-3 py-2 border border-border-primary rounded-lg text-sm text-text-secondary hover:bg-bg-2 transition-all"
+            className="flex items-center gap-1.5 px-3 py-2 border border-border-primary rounded-lg text-sm text-text-secondary hover:bg-bg-2 transition-colors"
           >
             <Download size={14} /> 엑셀
           </button>
@@ -536,7 +536,7 @@ export function ExternalMarketingKPI() {
                 <button
                   onClick={handleSaveGoal}
                   disabled={updateGoalMutation.isPending}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-brand text-white text-sm font-medium rounded-lg hover:bg-accent-hover disabled:opacity-50 transition-all"
+                  className="flex items-center gap-1.5 px-4 py-2 bg-brand text-white text-sm font-medium rounded-lg hover:bg-accent-hover disabled:opacity-50 transition-colors"
                 >
                   {updateGoalMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} 저장
                 </button>
@@ -601,7 +601,7 @@ export function ExternalMarketingKPI() {
             <div className="overflow-x-auto mt-4">
               <table className="w-full min-w-[880px] text-left">
                 <thead>
-                  <tr className="border-b border-border-primary text-[10px] text-text-quaternary uppercase tracking-wide">
+                  <tr className="border-b border-border-primary text-[10px] text-text-quaternary">
                     <th className="px-3 py-2 whitespace-nowrap">월</th>
                     <th className="px-3 py-2 whitespace-nowrap">채널</th>
                     <th className="px-3 py-2 whitespace-nowrap">유형</th>
@@ -640,7 +640,7 @@ export function ExternalMarketingKPI() {
                   <button
                     type="button"
                     onClick={() => setNewRevenueLinked(true)}
-                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
                       newRevenueLinked ? 'bg-green/15 text-green' : 'text-text-tertiary hover:text-text-secondary'
                     }`}
                   >
@@ -649,7 +649,7 @@ export function ExternalMarketingKPI() {
                   <button
                     type="button"
                     onClick={() => setNewRevenueLinked(false)}
-                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
                       !newRevenueLinked ? 'bg-border-primary text-text-secondary' : 'text-text-tertiary hover:text-text-secondary'
                     }`}
                   >

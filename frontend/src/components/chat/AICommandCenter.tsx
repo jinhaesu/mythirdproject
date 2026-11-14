@@ -121,7 +121,7 @@ export function AICommandCenter() {
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className={`fixed bottom-6 right-6 w-14 h-14 ${fabGradient} text-white rounded-full shadow-[0px_7px_32px_rgba(0,0,0,0.35)] hover:shadow-[0px_7px_32px_rgba(0,0,0,0.35)] transition-all hover:scale-105 flex items-center justify-center z-50`}
+        className={`fixed bottom-6 right-6 w-14 h-14 ${fabGradient} text-white rounded-full shadow-high transition-colors flex items-center justify-center z-50`}
         title="AI 어시스턴트"
       >
         <MessageSquare size={24} />
@@ -133,7 +133,7 @@ export function AICommandCenter() {
   const chatHeight = isExpanded ? 'h-[700px]' : 'h-[520px]';
 
   return (
-    <div className={`fixed bottom-6 right-6 ${chatWidth} ${chatHeight} bg-bg-1 rounded-2xl shadow-2xl flex flex-col z-50 border border-border-primary transition-all`}>
+    <div className={`fixed bottom-6 right-6 ${chatWidth} ${chatHeight} bg-bg-1 rounded-2xl shadow-2xl flex flex-col z-50 border border-border-primary transition-colors`}>
       {/* Header */}
       <div className={`flex items-center justify-between px-4 py-3 ${headerGradient} rounded-t-2xl`}>
         <div className="flex items-center gap-2">

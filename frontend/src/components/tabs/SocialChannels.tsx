@@ -168,7 +168,7 @@ function YouTubeSection() {
                   {(cQuery.data?.comments || []).map((c: any, i: number) => (
                     <div key={i} className="text-[11px]">
                       <span className="font-medium text-text-secondary">{c.author}</span>
-                      <span className="text-text-quaternary ml-1.5 text-[10px]">👍 {fmtNum(c.likes)}{c.replies ? ` · 답글 ${c.replies}` : ''}</span>
+                      <span className="text-text-quaternary ml-1.5 text-[10px]">좋아요 {fmtNum(c.likes)}{c.replies ? ` · 답글 ${c.replies}` : ''}</span>
                       <p className="text-text-tertiary whitespace-pre-wrap">{c.text}</p>
                     </div>
                   ))}
@@ -315,9 +315,9 @@ function InstagramSection() {
                 <p className="text-[10px] text-text-quaternary">{m.timestamp?.slice(0, 10)} · {m.media_type}</p>
                 <p className="text-[11px] text-text-tertiary line-clamp-2 min-h-[28px]">{m.caption || ''}</p>
                 <div className="flex items-center gap-3 text-[11px] tabular-nums">
-                  <span className="text-text-secondary">❤ {fmtNum(m.like_count)}</span>
+                  <span className="text-text-secondary">좋아요 {fmtNum(m.like_count)}</span>
                   <button onClick={() => setOpenMedia(openMedia === m.id ? null : m.id)}
-                    className="text-brand hover:underline">💬 {fmtNum(m.comments_count)}</button>
+                    className="text-brand hover:underline">댓글 {fmtNum(m.comments_count)}</button>
                   {m.reach != null && <span className="text-text-quaternary">도달 {fmtNum(m.reach)}</span>}
                   {m.views != null && <span className="text-text-quaternary">조회 {fmtNum(m.views)}</span>}
                 </div>
@@ -415,11 +415,11 @@ function IgInsightsView() {
         <div className="flex flex-wrap gap-3">
           <div className="rounded-xl px-4 py-2.5" style={{ backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)' }}>
             <p className="text-[10px] text-text-quaternary">최근 {days}일 도달 합계</p>
-            <p className="text-base font-bold tabular-nums text-text-primary">{fmtNum(totalReach)}</p>
+            <p className="text-base font-semibold tabular-nums text-text-primary">{fmtNum(totalReach)}</p>
           </div>
           <div className="rounded-xl px-4 py-2.5" style={{ backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)' }}>
             <p className="text-[10px] text-text-quaternary">최근 {days}일 팔로워</p>
-            <p className="text-base font-bold tabular-nums text-text-primary">
+            <p className="text-base font-semibold tabular-nums text-text-primary">
               {data?.followers_start != null ? fmtNum(data.followers_start) : '-'}
               <span className="text-text-quaternary font-normal mx-1">→</span>
               {data?.followers_end != null ? fmtNum(data.followers_end) : '-'}
@@ -430,7 +430,7 @@ function IgInsightsView() {
           </div>
           <div className="rounded-xl px-4 py-2.5" style={{ backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)' }}>
             <p className="text-[10px] text-text-quaternary">일평균 도달</p>
-            <p className="text-base font-bold tabular-nums text-text-primary">{fmtNum(rows.length ? Math.round(totalReach / rows.length) : 0)}</p>
+            <p className="text-base font-semibold tabular-nums text-text-primary">{fmtNum(rows.length ? Math.round(totalReach / rows.length) : 0)}</p>
           </div>
         </div>
       )}
@@ -552,7 +552,7 @@ function IgHashtagView() {
               style={{ border: '1px solid var(--color-border-primary)' }}>
               <p className="text-[10px] text-text-quaternary">{m.timestamp?.slice(0, 10)} · {m.media_type}</p>
               <p className="text-[11px] text-text-secondary line-clamp-3 min-h-[40px]">{m.caption || '(캡션 없음)'}</p>
-              <p className="text-[11px] tabular-nums text-text-tertiary">❤ {fmtNum(m.like_count)} · 💬 {fmtNum(m.comments_count)}</p>
+              <p className="text-[11px] tabular-nums text-text-tertiary">좋아요 {fmtNum(m.like_count)} · 댓글 {fmtNum(m.comments_count)}</p>
             </a>
           ))}
           {data.media?.length === 0 && <p className="text-xs text-text-quaternary py-3">게시물이 없습니다</p>}

@@ -13,7 +13,7 @@ import {
 } from 'recharts';
 import {
   ExternalLink, Plus, Pencil, Trash2, X, RefreshCw,
-  ChevronLeft, ChevronRight, ArrowUp, ArrowDown, Search,
+  ChevronLeft, ChevronRight, ArrowUp, ArrowDown, Search, AlertTriangle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
@@ -699,7 +699,7 @@ function PlanCalendar({ onEdit }: { onEdit: (row: MarketingActivityRow) => void 
           color: 'var(--color-text-secondary)',
         }}
       >
-        {overdue && <span title="실적 전환 필요">⚠ </span>}
+        {overdue && <span title="실적 전환 필요" className="inline-flex align-[-1px] mr-0.5"><AlertTriangle size={11} strokeWidth={1.5} /></span>}
         <span className="font-medium" style={{ color: 'var(--color-text-primary)' }}>{r.creator || r.product || '미지정'}</span>
         {!compact && r.views > 0 && <span className="text-text-quaternary"> · {fmtNum(r.views)}</span>}
       </button>
@@ -753,7 +753,7 @@ function PlanCalendar({ onEdit }: { onEdit: (row: MarketingActivityRow) => void 
             {date && (
               <>
                 <div className={`text-[10px] mb-0.5 tabular-nums ${date === todayIso
-                  ? 'inline-flex items-center justify-center w-4 h-4 rounded-full text-white font-bold'
+                  ? 'inline-flex items-center justify-center w-4 h-4 rounded-full text-white font-semibold'
                   : i % 7 === 0 ? 'text-red' : i % 7 === 6 ? 'text-blue' : 'text-text-quaternary'}`}
                   style={date === todayIso ? { backgroundColor: 'var(--color-brand-bg)' } : undefined}>
                   {parseInt(date.slice(8), 10)}

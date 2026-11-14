@@ -24,17 +24,17 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(
     const variants: Record<NonNullable<CardProps['variant']>, string> = {
       default:
         'bg-bg-1 border border-border-primary text-text-primary ' +
-        'shadow-[0px_3px_12px_rgba(0,0,0,0.09)]',
+        'shadow-medium',
 
       // bordered keeps the same surface as default — border is always visible
       bordered:
         'bg-bg-1 border border-border-primary text-text-primary ' +
-        'shadow-[0px_3px_12px_rgba(0,0,0,0.09)]',
+        'shadow-medium',
 
       // elevated: one step up in the Linear surface hierarchy
       elevated:
         'bg-bg-3 border border-border-secondary text-text-primary ' +
-        'shadow-[0px_3px_12px_rgba(0,0,0,0.09)]',
+        'shadow-medium',
     };
 
     const paddings: Record<NonNullable<CardProps['padding']>, string> = {

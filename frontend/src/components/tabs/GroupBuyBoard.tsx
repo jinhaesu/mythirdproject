@@ -96,7 +96,7 @@ export function GroupBuyBoard() {
                 <div className="mt-3 flex items-end justify-between">
                   <div>
                     <p className="text-[10px] text-text-quaternary">확정 매출</p>
-                    <p className="text-lg font-bold text-text-primary tabular-nums">{fmtWon(gb.confirmed_revenue)}</p>
+                    <p className="text-lg font-semibold text-text-primary tabular-nums">{fmtWon(gb.confirmed_revenue)}</p>
                     <p className="text-[10px] text-text-quaternary">{fmtNum(gb.confirmed_orders)}건 · 클릭 {fmtNum(gb.clicks)}</p>
                   </div>
                   {gb.target_revenue ? (
@@ -217,7 +217,7 @@ function GroupBuyDetail({ id, onBack }: { id: number; onBack: () => void }) {
         ].map((c) => (
           <div key={c.label} className="rounded-xl p-3.5" style={{ backgroundColor: 'var(--color-bg-level-1)', border: '1px solid var(--color-border-primary)' }}>
             <p className="text-[11px] text-text-tertiary">{c.label}</p>
-            <p className="text-xl font-bold text-text-primary tabular-nums mt-0.5">{c.value}</p>
+            <p className="text-xl font-semibold text-text-primary tabular-nums mt-0.5">{c.value}</p>
             {c.extra && <p className="text-[10px] text-text-quaternary mt-0.5">{c.extra}</p>}
           </div>
         ))}

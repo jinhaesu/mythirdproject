@@ -9,7 +9,7 @@ export function heatmapCellColor(value: number, max: number): string {
   if (!value || max <= 0) return 'rgb(var(--color-overlay-rgb) / 0.02)';
   const t = Math.min(1, value / max);
   const alpha = 0.12 + t * 0.83;
-  return `rgba(94,106,210,${alpha.toFixed(2)})`;
+  return `rgb(var(--color-brand-bg-rgb) / ${alpha.toFixed(2)})`;
 }
 
 /** 행 단위 메모 — 같은 지표로 되돌아오면(동일 배열 identity) 행 재렌더 생략 */

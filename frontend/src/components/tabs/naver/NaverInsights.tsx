@@ -486,7 +486,7 @@ function MentionPanel() {
         <div className="grid grid-cols-3 gap-3 mb-4">
           <div className="bg-bg-0 border border-[#03C75A]/30 rounded-lg p-3">
             <p className="text-[10px] text-text-quaternary mb-1">최근 {periodLabel} 블로그 신규 글</p>
-            <p className="text-xl font-bold text-[#03C75A]">
+            <p className="text-xl font-semibold text-[#03C75A]">
               {data.blog_period
                 ? `${data.blog_period.count.toLocaleString('ko-KR')}${data.blog_period.exact ? '' : '+'}`
                 : '–'}
@@ -495,14 +495,14 @@ function MentionPanel() {
           </div>
           <div className="bg-bg-0 border border-border-primary rounded-lg p-3">
             <p className="text-[10px] text-text-quaternary mb-1">블로그 누적 언급</p>
-            <p className="text-xl font-bold text-text-primary">
+            <p className="text-xl font-semibold text-text-primary">
               {data.blog?.total >= 0 ? data.blog.total.toLocaleString('ko-KR') : '수집 실패'}
               {data.blog?.total >= 0 && <span className="text-xs font-normal text-text-quaternary ml-1">건</span>}
             </p>
           </div>
           <div className="bg-bg-0 border border-border-primary rounded-lg p-3">
             <p className="text-[10px] text-text-quaternary mb-1">카페 누적 언급</p>
-            <p className="text-xl font-bold text-text-primary">
+            <p className="text-xl font-semibold text-text-primary">
               {data.cafe?.total >= 0 ? data.cafe.total.toLocaleString('ko-KR') : '수집 실패'}
               {data.cafe?.total >= 0 && <span className="text-xs font-normal text-text-quaternary ml-1">건</span>}
             </p>

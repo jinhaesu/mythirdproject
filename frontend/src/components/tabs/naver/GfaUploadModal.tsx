@@ -232,7 +232,7 @@ export function GfaUploadModal({ accounts, onClose, onApplied }: {
           const p = x.preview!;
           return `${i + 1}. ${x.file.name} — ${p.date_from}~${p.date_to} · ${p.record_count.toLocaleString('ko-KR')}행 · 비용 ${won(p.totals.spend)}${p.replace.rows ? ` · 같은 날짜 예전 ${p.replace.rows.toLocaleString('ko-KR')}행 대체` : ''}`;
         }),
-        ...(overlaps.length ? ['', ...overlaps.map((o) => `⚠ ${o}`)] : []),
+        ...(overlaps.length ? ['', ...overlaps.map((o) => `주의: ${o}`)] : []),
         ...(blocked.length ? ['', `반영 못 하는 파일 ${blocked.length}개는 빼고 진행합니다.`] : []),
       ];
     }
@@ -359,7 +359,7 @@ export function GfaUploadModal({ accounts, onClose, onApplied }: {
             </table>
             {overlaps.length > 0 && (
               <div className="px-2 py-1.5 text-[11px] text-yellow space-y-0.5" style={{ borderTop: '1px solid var(--color-border-primary)' }}>
-                {overlaps.map((o) => <div key={o}>⚠ {o}</div>)}
+                {overlaps.map((o) => <div key={o}>{o}</div>)}
               </div>
             )}
           </div>
@@ -439,20 +439,20 @@ export function GfaUploadModal({ accounts, onClose, onApplied }: {
 
               {preview.errors.length > 0 && (
                 <div className="rounded-lg px-3 py-2 text-[11px] space-y-1" style={{ backgroundColor: 'rgb(var(--color-red-rgb) / 0.08)', border: '1px solid rgb(var(--color-red-rgb) / 0.3)' }}>
-                  {preview.errors.map((w) => <div key={w} className="text-red">✕ {w}</div>)}
+                  {preview.errors.map((w) => <div key={w} className="text-red">{w}</div>)}
                 </div>
               )}
               {(preview.warnings.length > 0 || preview.replace.rows > 0 || preview.replace.other_accounts.length > 0) && (
                 <div className="rounded-lg px-3 py-2 text-[11px] space-y-1" style={{ backgroundColor: 'rgb(var(--color-yellow-rgb) / 0.07)', border: '1px solid rgb(var(--color-yellow-rgb) / 0.3)' }}>
                   {preview.replace.rows > 0 && (
-                    <div className="text-text-primary">↻ 이미 올린 같은 계정·날짜 <b>{preview.replace.rows.toLocaleString('ko-KR')}행</b>은 이 파일 값으로 바뀝니다 (두 번 세지 않음)</div>
+                    <div className="text-text-primary">이미 올린 같은 계정·날짜 <b>{preview.replace.rows.toLocaleString('ko-KR')}행</b>은 이 파일 값으로 바뀝니다 (두 번 세지 않음)</div>
                   )}
                   {preview.replace.other_accounts.map((o) => (
                     <div key={o.account} className="text-yellow">
-                      ⚠ 같은 날짜에 다른 계정 이름 「{o.account || '기본'}」 데이터 {o.rows.toLocaleString('ko-KR')}행({o.date_from}~{o.date_to})이 있습니다 — 같은 광고계정이면 계정 이름을 똑같이 맞춰야 두 번 세지 않습니다
+                      같은 날짜에 다른 계정 이름 「{o.account || '기본'}」 데이터 {o.rows.toLocaleString('ko-KR')}행({o.date_from}~{o.date_to})이 있습니다 — 같은 광고계정이면 계정 이름을 똑같이 맞춰야 두 번 세지 않습니다
                     </div>
                   ))}
-                  {preview.warnings.map((w) => <div key={w} className="text-yellow">⚠ {w}</div>)}
+                  {preview.warnings.map((w) => <div key={w} className="text-yellow">{w}</div>)}
                 </div>
               )}
 

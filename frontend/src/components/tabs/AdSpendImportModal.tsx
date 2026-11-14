@@ -263,7 +263,7 @@ export function AdSpendImportModal({ initialMonth, onClose, onApplied }: {
 
             {(preview.warnings.length > 0 || preview.excluded.length > 0) && (
               <div className="rounded-lg px-3 py-2 text-[11px] space-y-1" style={{ backgroundColor: 'rgb(var(--color-yellow-rgb) / 0.07)', border: '1px solid rgb(var(--color-yellow-rgb) / 0.3)' }}>
-                {preview.warnings.map((w) => <div key={w} className="text-yellow">⚠ {w}</div>)}
+                {preview.warnings.map((w) => <div key={w} className="text-yellow">{w}</div>)}
                 {preview.excluded.length > 0 && (
                   <div className="text-text-secondary">
                     <b className="text-text-primary">공식 합계에서 빠진 금액</b> (시트 규칙대로 제외):{' '}

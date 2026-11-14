@@ -24,7 +24,7 @@ export const CHANNEL_COLORS: Record<string, string> = {
   etc: '#8A8F98',
 };
 
-export const LINE_PALETTE = ['#4EA7FC', '#27A644', '#F0BF00', '#EA4335', '#7070FF'];
+export const LINE_PALETTE = ['#4EA7FC', '#27A644', '#F0BF00', '#EA4335', '#4A85FF'];
 
 // ─── 손익분기 ROAS (대표 기준 2026-10-05: 3.1~3.3 유지돼야 지속 가능) ───
 
