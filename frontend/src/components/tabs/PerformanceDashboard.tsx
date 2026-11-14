@@ -7,7 +7,7 @@ import {
   Play, Pause, ChevronDown, ChevronRight, AlertTriangle, CheckCircle, XCircle,
   Loader2, RefreshCw, Zap, Activity, Users, Layers,
   TrendingUp, TrendingDown, ToggleLeft, ToggleRight, Edit3, Check, X,
-  Shield, Sparkles, ArrowRight, Lightbulb, Palette,
+  Shield, ScanSearch, ArrowRight, Lightbulb, Palette,
   MessageSquare, BarChart2, ExternalLink,
 } from 'lucide-react';
 import { analyticsApi, downloadFile, insightsApi, clearAnalysisCache } from '@/lib/api';
@@ -347,7 +347,7 @@ export default function PerformanceDashboard() {
           <div className="w-20 h-20 bg-red/15 rounded-full flex items-center justify-center mx-auto mb-6">
             <AlertTriangle size={40} className="text-red" />
           </div>
-          <h2 className="text-2xl font-bold text-text-primary mb-3">데이터 로딩 실패</h2>
+          <h2 className="text-2xl font-semibold text-text-primary mb-3">데이터 로딩 실패</h2>
           <p className="text-text-tertiary mb-6">Meta 광고 데이터를 가져오는데 실패했습니다.</p>
           <button onClick={() => refetchOverview()} className="bg-brand text-white px-6 py-2 rounded-lg hover:bg-accent-hover">다시 시도</button>
         </div>
@@ -362,7 +362,7 @@ export default function PerformanceDashboard() {
           <div className="w-20 h-20 bg-blue/15 rounded-full flex items-center justify-center mx-auto mb-6">
             <BarChart3 size={40} className="text-accent" />
           </div>
-          <h2 className="text-2xl font-bold text-text-primary mb-3">Meta 계정을 연동해주세요</h2>
+          <h2 className="text-2xl font-semibold text-text-primary mb-3">Meta 계정을 연동해주세요</h2>
           <p className="text-text-tertiary mb-6">Meta 광고 관리자 계정을 연동하면 실제 캠페인 데이터를 기반으로 성과 분석, AI 추천, 광고 관리가 가능합니다.</p>
         </div>
       </div>
@@ -438,7 +438,7 @@ export default function PerformanceDashboard() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-xl font-bold text-text-primary">성과 분석 대시보드</h2>
+          <h2 className="text-xl font-semibold text-text-primary">성과 분석 대시보드</h2>
           <p className="text-xs text-text-tertiary mt-1">Meta 광고 관리자 실시간 데이터</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -460,9 +460,9 @@ export default function PerformanceDashboard() {
           <button
             onClick={() => { setAiTriggered(true); clearAnalysisCache(datePreset); setTimeout(() => refetchAI(), 100); }}
             disabled={loadingAI}
-            className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-yellow to-yellow text-white text-sm font-medium rounded-lg hover:from-yellow hover:to-yellow disabled:opacity-50 transition-all"
+            className="flex items-center gap-1.5 px-4 py-2 bg-yellow text-white text-sm font-medium rounded-lg disabled:opacity-50 transition-colors"
           >
-            {loadingAI ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+            {loadingAI ? <Loader2 size={14} className="animate-spin" /> : <ScanSearch size={14} />}
             {loadingAI ? '분석 중...' : '분석하기'}
           </button>
           <button onClick={() => { refetchOverview(); }} className="p-2 border border-border-primary rounded-lg hover:bg-bg-2/5">
@@ -505,28 +505,28 @@ export default function PerformanceDashboard() {
                   <div className="flex items-center bg-bg-2 rounded-lg p-0.5">
                     <button
                       onClick={() => setTrendView('daily')}
-                      className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                        trendView === 'daily' ? 'bg-bg-1 text-accent shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'text-text-tertiary hover:text-text-secondary'
+                      className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                        trendView === 'daily' ? 'bg-bg-1 text-accent shadow-low' : 'text-text-tertiary hover:text-text-secondary'
                       }`}
                     >일별</button>
                     <button
                       onClick={() => setTrendView('weekly')}
-                      className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                        trendView === 'weekly' ? 'bg-bg-1 text-accent shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'text-text-tertiary hover:text-text-secondary'
+                      className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                        trendView === 'weekly' ? 'bg-bg-1 text-accent shadow-low' : 'text-text-tertiary hover:text-text-secondary'
                       }`}
                     >주간</button>
                   </div>
                   <button
                     onClick={() => insightRefreshMutation.mutate()}
                     disabled={insightRefreshMutation.isPending}
-                    className="flex items-center gap-1.5 px-3 py-1.5 border border-border-primary rounded-lg text-xs text-text-secondary hover:bg-bg-2 disabled:opacity-50 transition-all"
+                    className="flex items-center gap-1.5 px-3 py-1.5 border border-border-primary rounded-lg text-xs text-text-secondary hover:bg-bg-2 disabled:opacity-50 transition-colors"
                   >
                     <RefreshCw size={12} className={insightRefreshMutation.isPending ? 'animate-spin' : ''} />
                     {insightRefreshMutation.isPending ? '수집 중...' : '지금 수집'}
                   </button>
                   <button
                     onClick={handleExportInsights}
-                    className="flex items-center gap-1.5 px-3 py-1.5 border border-border-primary rounded-lg text-xs text-text-secondary hover:bg-bg-2 transition-all"
+                    className="flex items-center gap-1.5 px-3 py-1.5 border border-border-primary rounded-lg text-xs text-text-secondary hover:bg-bg-2 transition-colors"
                   >
                     <Download size={12} /> 엑셀
                   </button>
@@ -558,9 +558,9 @@ export default function PerformanceDashboard() {
 
               {/* 주간 비교 카드 (이번주 vs 지난주) */}
               {trendView === 'weekly' && weeklyComparison && (
-                <div className="mb-4 bg-gradient-to-r from-bg-0 to-brand/10 rounded-xl p-4 border border-blue/30">
+                <div className="mb-4 bg-bg-0 rounded-xl p-4 border border-blue/30">
                   <div className="flex items-center justify-between mb-3">
-                    <h4 className="text-xs font-bold text-text-primary">이번주 vs 지난주 비교</h4>
+                    <h4 className="text-xs font-semibold text-text-primary">이번주 vs 지난주 비교</h4>
                     <div className="flex items-center gap-3 text-[10px] text-text-quaternary">
                       <span>이번주: {weeklyComparison.thisWeekLabel}</span>
                       <span>지난주: {weeklyComparison.lastWeekLabel}</span>
@@ -581,7 +581,7 @@ export default function PerformanceDashboard() {
                       return (
                         <div key={i} className="bg-bg-1 rounded-lg p-2.5 border border-border-primary">
                           <p className="text-[10px] text-text-quaternary mb-1">{m.label}</p>
-                          <p className="text-sm font-bold text-text-primary">{m.fmt(m.data.cur)}</p>
+                          <p className="text-sm font-semibold text-text-primary">{m.fmt(m.data.cur)}</p>
                           <div className={`flex items-center gap-0.5 mt-1 ${isGood ? 'text-green' : changeAbs < 3 ? 'text-text-quaternary' : 'text-red'}`}>
                             {isPositive ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
                             <span className="text-[10px] font-semibold">{isPositive ? '+' : ''}{m.data.change.toFixed(1)}%</span>
@@ -708,12 +708,12 @@ export default function PerformanceDashboard() {
 
           {/* AI 성과 분석 리포트 */}
           {!aiTriggered && !aiAnalysis ? (
-            <div className="bg-bg-1 rounded-2xl border border-border-primary shadow-[0px_1px_3px_rgba(0,0,0,0.2)] overflow-hidden">
-              <div className="bg-gradient-to-r from-bg-1 to-bg-0 px-6 py-8 text-center">
-                <div className="w-14 h-14 bg-gradient-to-r from-yellow to-yellow rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-[0px_7px_32px_rgba(0,0,0,0.35)]">
-                  <Sparkles size={28} className="text-white" />
+            <div className="bg-bg-1 rounded-2xl border border-border-primary shadow-low overflow-hidden">
+              <div className="bg-bg-1 px-6 py-8 text-center">
+                <div className="w-14 h-14 bg-yellow text-white rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-high">
+                  <ScanSearch size={28} className="text-white" />
                 </div>
-                <h3 className="text-lg font-bold text-text-primary mb-2">AI 성과 분석</h3>
+                <h3 className="text-lg font-semibold text-text-primary mb-2">AI 성과 분석</h3>
                 <p className="text-sm text-text-tertiary mb-1">
                   캠페인 필터와 기간을 설정한 후 <strong>분석하기</strong> 버튼을 눌러주세요.
                 </p>
@@ -724,14 +724,14 @@ export default function PerformanceDashboard() {
               </div>
             </div>
           ) : loadingAI ? (
-            <div className="bg-bg-1 rounded-2xl border border-border-primary shadow-[0px_7px_32px_rgba(0,0,0,0.35)] overflow-hidden">
-              <div className="bg-gradient-to-r from-brand via-brand to-blue px-6 py-5">
+            <div className="bg-bg-1 rounded-2xl border border-border-primary shadow-high overflow-hidden">
+              <div className="bg-brand px-6 py-5">
                 <div className="flex items-center gap-3">
-                  <div className="w-11 h-11 bg-bg-1/20 backdrop-blur-sm rounded-xl flex items-center justify-center animate-pulse">
-                    <Sparkles size={22} className="text-white" />
+                  <div className="w-11 h-11 bg-bg-1/20 rounded-xl flex items-center justify-center animate-pulse">
+                    <ScanSearch size={22} className="text-white" />
                   </div>
                   <div>
-                    <h2 className="text-lg font-bold text-white">AI 성과 분석 리포트</h2>
+                    <h2 className="text-lg font-semibold text-white">AI 성과 분석 리포트</h2>
                     <p className="text-sm text-white/70 mt-0.5">데이터를 분석하고 있습니다...</p>
                   </div>
                 </div>
@@ -746,13 +746,13 @@ export default function PerformanceDashboard() {
               </div>
             </div>
           ) : analysis && analysis.parse_error ? (
-            <div className="bg-bg-1 rounded-2xl border border-yellow/30 shadow-[0px_7px_32px_rgba(0,0,0,0.35)] overflow-hidden">
-              <div className="bg-gradient-to-r from-yellow to-yellow px-6 py-4 flex items-center justify-between flex-wrap gap-y-2">
+            <div className="bg-bg-1 rounded-2xl border border-yellow/30 shadow-high overflow-hidden">
+              <div className="bg-yellow text-white px-6 py-4 flex items-center justify-between flex-wrap gap-y-2">
                 <div className="flex items-center gap-2">
                   <AlertTriangle size={20} className="text-white" />
-                  <h2 className="text-base font-bold text-white">AI 분석 결과 (텍스트)</h2>
+                  <h2 className="text-base font-semibold text-white">AI 분석 결과 (텍스트)</h2>
                 </div>
-                <button onClick={() => { setAiTriggered(true); clearAnalysisCache(datePreset); setTimeout(() => refetchAI(), 100); }} className="flex items-center gap-1.5 bg-bg-1/20 hover:bg-bg-2/30 text-text-primary text-sm font-medium px-4 py-2 rounded-xl transition-all">
+                <button onClick={() => { setAiTriggered(true); clearAnalysisCache(datePreset); setTimeout(() => refetchAI(), 100); }} className="flex items-center gap-1.5 bg-bg-1/20 hover:bg-bg-2/30 text-text-primary text-sm font-medium px-4 py-2 rounded-xl transition-colors">
                   <RefreshCw size={14} /> 재분석
                 </button>
               </div>
@@ -761,11 +761,11 @@ export default function PerformanceDashboard() {
               </div>
             </div>
           ) : !analysis && aiAnalysis?.error ? (
-            <div className="bg-bg-1 rounded-2xl border border-red/30 shadow-[0px_7px_32px_rgba(0,0,0,0.35)] overflow-hidden">
-              <div className="bg-gradient-to-r from-red to-red px-6 py-4">
+            <div className="bg-bg-1 rounded-2xl border border-red/30 shadow-high overflow-hidden">
+              <div className="bg-red text-white px-6 py-4">
                 <div className="flex items-center gap-2">
                   <XCircle size={20} className="text-white" />
-                  <h2 className="text-base font-bold text-white">AI 분석 오류</h2>
+                  <h2 className="text-base font-semibold text-white">AI 분석 오류</h2>
                 </div>
               </div>
               <div className="p-6 text-center">
@@ -776,17 +776,17 @@ export default function PerformanceDashboard() {
               </div>
             </div>
           ) : analysis && !analysis.parse_error ? (
-            <div className="bg-bg-1 rounded-2xl border border-border-primary shadow-[0px_7px_32px_rgba(0,0,0,0.35)] overflow-hidden">
+            <div className="bg-bg-1 rounded-2xl border border-border-primary shadow-high overflow-hidden">
               {/* Gradient Header */}
-              <div className="relative bg-gradient-to-r from-brand via-brand to-blue px-6 py-5">
+              <div className="relative bg-brand px-6 py-5">
                 <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 20% 50%, white 1px, transparent 1px), radial-gradient(circle at 80% 20%, white 1px, transparent 1px)', backgroundSize: '60px 60px' }} />
                 <div className="relative flex items-center justify-between flex-wrap gap-y-2">
                   <div className="flex items-center gap-3">
-                    <div className="w-11 h-11 bg-bg-1/20 backdrop-blur-sm rounded-xl flex items-center justify-center ring-2 ring-[rgb(var(--color-overlay-rgb)/0.3)]">
-                      <Sparkles size={22} className="text-white" />
+                    <div className="w-11 h-11 bg-bg-1/20 rounded-xl flex items-center justify-center ring-2 ring-[rgb(var(--color-overlay-rgb)/0.3)]">
+                      <ScanSearch size={22} className="text-white" />
                     </div>
                     <div>
-                      <h2 className="text-lg font-bold text-white tracking-tight">AI 성과 분석 리포트</h2>
+                      <h2 className="text-lg font-semibold text-white tracking-tight">AI 성과 분석 리포트</h2>
                       <p className="text-sm text-white/70 mt-0.5">
                         {datePreset === 'today' ? '오늘' : datePreset === 'yesterday' ? '어제' : datePreset === 'last_3d' ? '최근 3일' : datePreset === 'last_7d' ? '최근 7일' : datePreset === 'last_14d' ? '최근 14일' : datePreset === 'last_30d' ? '최근 30일' : datePreset === 'this_month' ? '이번달' : datePreset === 'last_month' ? '지난달' : '사용자 지정'} 기간 분석
                         {aiStatusFilter !== 'ALL' ? ` · ${aiStatusFilter === 'ACTIVE' ? '활성' : aiStatusFilter === 'PAUSED' ? '일시중지' : aiStatusFilter === 'PENDING_REVIEW' ? '검토중' : '보관됨'} 캠페인만` : ''}
@@ -796,7 +796,7 @@ export default function PerformanceDashboard() {
                   </div>
                   <button
                     onClick={() => { setAiTriggered(true); clearAnalysisCache(datePreset); setTimeout(() => refetchAI(), 100); }}
-                    className="flex items-center gap-1.5 bg-bg-1/20 hover:bg-bg-2/30 backdrop-blur-sm text-text-primary text-sm font-medium px-4 py-2 rounded-xl transition-all"
+                    className="flex items-center gap-1.5 bg-bg-1/20 hover:bg-bg-2/30 text-text-primary text-sm font-medium px-4 py-2 rounded-xl transition-colors"
                   >
                     <RefreshCw size={14} /> 재분석
                   </button>
@@ -807,22 +807,22 @@ export default function PerformanceDashboard() {
                 {/* ① 계정 건강도 */}
                 <div className={`rounded-xl p-5 ${
                   analysis.account_health === 'good'
-                    ? 'bg-gradient-to-r from-green/10 to-green/10 border border-green/30'
+                    ? 'bg-green/10 border border-green/30'
                     : analysis.account_health === 'warning'
-                      ? 'bg-gradient-to-r from-yellow/10 to-yellow/10 border border-yellow/30'
-                      : 'bg-gradient-to-r from-red/10 to-red/10 border border-red/30'
+                      ? 'bg-yellow/10 border border-yellow/30'
+                      : 'bg-red/10 border border-red/30'
                 }`}>
                   <div className="flex items-start gap-4">
-                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 shadow-[0px_3px_12px_rgba(0,0,0,0.2)] ${
-                      analysis.account_health === 'good' ? 'bg-green' :
-                      analysis.account_health === 'warning' ? 'bg-yellow/100' : 'bg-red'
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 shadow-medium ${
+                      analysis.account_health === 'good' ? 'bg-green text-white' :
+                      analysis.account_health === 'warning' ? 'bg-yellow text-white' : 'bg-red text-white'
                     }`}>
                       <Shield size={24} className="text-white" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1.5">
-                        <h3 className="text-base font-bold text-text-primary">계정 건강도</h3>
-                        <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
+                        <h3 className="text-base font-semibold text-text-primary">계정 건강도</h3>
+                        <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
                           analysis.account_health === 'good' ? 'bg-green/10 text-green' :
                           analysis.account_health === 'warning' ? 'bg-yellow/15 text-yellow' :
                           'bg-red/15 text-red'
@@ -842,7 +842,7 @@ export default function PerformanceDashboard() {
                       <div className="w-8 h-8 bg-orange/15 rounded-lg flex items-center justify-center">
                         <Zap size={16} className="text-orange" />
                       </div>
-                      <h3 className="text-base font-bold text-text-primary">긴급 액션 아이템</h3>
+                      <h3 className="text-base font-semibold text-text-primary">긴급 액션 아이템</h3>
                       <span className="text-xs bg-orange/15 text-orange px-2 py-0.5 rounded-full font-medium">{analysis.action_items.length}건</span>
                     </div>
                     <div className="grid grid-cols-1 gap-3">
@@ -852,7 +852,7 @@ export default function PerformanceDashboard() {
                         return (
                           <div
                             key={i}
-                            className={`rounded-xl border-l-4 bg-bg-1 border border-border-primary shadow-[0px_1px_3px_rgba(0,0,0,0.2)] hover:shadow-[0px_3px_12px_rgba(0,0,0,0.2)] transition-all duration-200 p-4 ${
+                            className={`rounded-xl border-l-4 bg-bg-1 border border-border-primary shadow-low transition-colors duration-200 p-4 ${
                               item.priority === 'high' ? 'border-l-red/50' :
                               item.priority === 'medium' ? 'border-l-yellow/50' : 'border-l-blue/50'
                             }`}
@@ -860,7 +860,7 @@ export default function PerformanceDashboard() {
                             <div className="flex items-start justify-between gap-3">
                               <div className="flex-1 min-w-0">
                                 <div className="flex flex-wrap items-center gap-1.5 mb-2">
-                                  <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md ${
+                                  <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-md ${
                                     item.priority === 'high' ? 'bg-red/15 text-red' :
                                     item.priority === 'medium' ? 'bg-yellow/15 text-yellow' : 'bg-blue/15 text-accent-hover'
                                   }`}>
@@ -885,7 +885,7 @@ export default function PerformanceDashboard() {
                               {item.target_id && item.type === 'pause_ad' && (
                                 <button
                                   onClick={() => toggleStatus(item.target_id, 'ad', 'ACTIVE')}
-                                  className="flex-shrink-0 text-xs bg-red text-white px-3.5 py-2 rounded-xl hover:bg-[#F07070] transition-colors font-medium shadow-[0px_1px_3px_rgba(0,0,0,0.2)]"
+                                  className="flex-shrink-0 text-xs bg-red text-white px-3.5 py-2 rounded-xl hover:bg-[#F07070] transition-colors font-medium shadow-low"
                                 >
                                   중지 실행
                                 </button>
@@ -900,12 +900,12 @@ export default function PerformanceDashboard() {
 
                 {/* ③ 소재 피로도 분석 (5-8건) - Full Width */}
                 {analysis.creative_fatigue?.length > 0 && (
-                  <div className="bg-gradient-to-br from-brand/50 to-red/30 rounded-xl p-5 border border-brand/30">
+                  <div className="bg-brand/10 rounded-xl p-5 border border-brand/30">
                     <div className="flex items-center gap-2 mb-4">
                       <div className="w-8 h-8 bg-brand/15 rounded-lg flex items-center justify-center">
                         <Palette size={16} className="text-accent" />
                       </div>
-                      <h3 className="text-base font-bold text-text-primary">소재 피로도 분석</h3>
+                      <h3 className="text-base font-semibold text-text-primary">소재 피로도 분석</h3>
                       <span className="text-xs bg-brand/15 text-accent px-2 py-0.5 rounded-full font-medium">{analysis.creative_fatigue.length}건</span>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -916,10 +916,10 @@ export default function PerformanceDashboard() {
                         const statusLabel = isReplace ? '교체' : isModify ? '수정' : '유지';
                         const freq = parseFloat(item.frequency || '0');
                         return (
-                          <div key={i} className="bg-bg-1 rounded-xl p-4 border border-border-primary hover:border-brand/30 hover:shadow-[0px_3px_12px_rgba(0,0,0,0.2)] transition-all">
+                          <div key={i} className="bg-bg-1 rounded-xl p-4 border border-border-primary hover:border-brand/30 transition-colors">
                             <div className="flex items-center justify-between mb-3">
-                              <p className="text-sm font-bold text-text-primary truncate flex-1 mr-2">{item.ad_name}</p>
-                              <span className={`text-[11px] font-bold px-3 py-1 rounded-full flex-shrink-0 ${
+                              <p className="text-sm font-semibold text-text-primary truncate flex-1 mr-2">{item.ad_name}</p>
+                              <span className={`text-[11px] font-semibold px-3 py-1 rounded-full flex-shrink-0 ${
                                 isReplace ? 'bg-red/15 text-red ring-1 ring-red/30' :
                                 isModify ? 'bg-yellow/15 text-yellow ring-1 ring-yellow/30' : 'bg-green/10 text-green ring-1 ring-green/30'
                               }`}>
@@ -929,13 +929,13 @@ export default function PerformanceDashboard() {
                             <div className="mb-2.5">
                               <div className="flex items-center justify-between mb-1">
                                 <span className="text-[11px] text-text-quaternary">노출 빈도</span>
-                                <span className={`text-sm font-black ${isReplace ? 'text-red' : isModify ? 'text-yellow' : 'text-green'}`}>{freq.toFixed(1)}x</span>
+                                <span className={`text-sm font-semibold ${isReplace ? 'text-red' : isModify ? 'text-yellow' : 'text-green'}`}>{freq.toFixed(1)}x</span>
                               </div>
                               <div className="w-full h-3 bg-bg-2 rounded-full overflow-hidden">
                                 <div
-                                  className={`h-full rounded-full transition-all duration-500 ${
-                                    isReplace ? 'bg-gradient-to-r from-red/20 to-red/20' :
-                                    isModify ? 'bg-gradient-to-r from-yellow/20 to-yellow/20' : 'bg-gradient-to-r from-green/20 to-green/20'
+                                  className={`h-full rounded-full transition-[width] duration-500 ${
+                                    isReplace ? 'bg-red/20' :
+                                    isModify ? 'bg-yellow/20' : 'bg-green/20'
                                   }`}
                                   style={{ width: `${Math.min(freq / 4 * 100, 100)}%` }}
                                 />
@@ -957,12 +957,12 @@ export default function PerformanceDashboard() {
 
                 {/* ④ 예산 최적화 추천 (5-8건) - Full Width */}
                 {analysis.budget_recommendations?.length > 0 && (
-                  <div className="bg-gradient-to-br from-green/50 to-teal/30 rounded-xl p-5 border border-green/30">
+                  <div className="bg-green/10 rounded-xl p-5 border border-green/30">
                     <div className="flex items-center gap-2 mb-4">
                       <div className="w-8 h-8 bg-green/10 rounded-lg flex items-center justify-center">
                         <DollarSign size={16} className="text-green" />
                       </div>
-                      <h3 className="text-base font-bold text-text-primary">예산 최적화 추천</h3>
+                      <h3 className="text-base font-semibold text-text-primary">예산 최적화 추천</h3>
                       <span className="text-xs bg-green/10 text-green px-2 py-0.5 rounded-full font-medium">{analysis.budget_recommendations.length}건</span>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -971,11 +971,11 @@ export default function PerformanceDashboard() {
                         const isUp = changeStr.includes('+');
                         const isDown = changeStr.includes('-');
                         return (
-                          <div key={i} className="bg-bg-1 rounded-xl p-4 border border-border-primary hover:border-green/30 hover:shadow-[0px_3px_12px_rgba(0,0,0,0.2)] transition-all">
+                          <div key={i} className="bg-bg-1 rounded-xl p-4 border border-border-primary hover:border-green/30 transition-colors">
                             <div className="flex items-center justify-between mb-3">
-                              <p className="text-sm font-bold text-text-primary truncate flex-1 mr-2">{item.campaign_name}</p>
+                              <p className="text-sm font-semibold text-text-primary truncate flex-1 mr-2">{item.campaign_name}</p>
                               {changeStr && (
-                                <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full flex-shrink-0 ${
+                                <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full flex-shrink-0 ${
                                   isUp ? 'bg-green/10 text-green ring-1 ring-green/30' :
                                   isDown ? 'bg-red/15 text-red ring-1 ring-red/30' : 'bg-bg-2 text-text-tertiary ring-1 ring-border-primary'
                                 }`}>
@@ -986,14 +986,14 @@ export default function PerformanceDashboard() {
                             <div className="flex items-center gap-2 mb-3 bg-bg-0 rounded-lg p-3">
                               <div className="flex-1 text-center">
                                 <p className="text-[10px] text-text-quaternary mb-0.5">현재</p>
-                                <p className="text-sm font-bold text-text-tertiary">{item.current_budget}</p>
+                                <p className="text-sm font-semibold text-text-tertiary">{item.current_budget}</p>
                               </div>
                               <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center" style={{ background: isUp ? '#d1fae5' : isDown ? '#fee2e2' : '#f3f4f6' }}>
                                 <ArrowRight size={14} className={isUp ? 'text-green' : isDown ? 'text-red' : 'text-text-quaternary'} />
                               </div>
                               <div className="flex-1 text-center">
                                 <p className={`text-[10px] mb-0.5 ${isUp ? 'text-green' : isDown ? 'text-red' : 'text-blue'}`}>추천</p>
-                                <p className={`text-sm font-bold ${isUp ? 'text-green' : isDown ? 'text-red' : 'text-accent'}`}>{item.recommended_budget}</p>
+                                <p className={`text-sm font-semibold ${isUp ? 'text-green' : isDown ? 'text-red' : 'text-accent'}`}>{item.recommended_budget}</p>
                               </div>
                             </div>
                             <p className="text-xs text-text-tertiary leading-relaxed">{item.reason}</p>
@@ -1006,12 +1006,12 @@ export default function PerformanceDashboard() {
 
                 {/* ⑤ 핵심 캠페인 피드백 (5-8건) */}
                 {analysis.campaign_feedback?.length > 0 && (
-                  <div className="bg-gradient-to-br from-brand/50 to-blue/30 rounded-xl p-5 border border-brand/30">
+                  <div className="bg-brand/10 rounded-xl p-5 border border-brand/30">
                     <div className="flex items-center gap-2 mb-4">
                       <div className="w-8 h-8 bg-brand/15 rounded-lg flex items-center justify-center">
                         <Target size={16} className="text-accent" />
                       </div>
-                      <h3 className="text-base font-bold text-text-primary">캠페인별 성과 피드백</h3>
+                      <h3 className="text-base font-semibold text-text-primary">캠페인별 성과 피드백</h3>
                       <span className="text-xs bg-brand/15 text-accent px-2 py-0.5 rounded-full font-medium">{analysis.campaign_feedback.length}건</span>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1025,10 +1025,10 @@ export default function PerformanceDashboard() {
                         };
                         const gc = gradeConfig[item.grade] || gradeConfig.C;
                         return (
-                          <div key={i} className="bg-bg-1 rounded-xl p-4 border border-border-primary hover:border-brand/30 hover:shadow-[0px_3px_12px_rgba(0,0,0,0.2)] transition-all">
+                          <div key={i} className="bg-bg-1 rounded-xl p-4 border border-border-primary hover:border-brand/30 transition-colors">
                             <div className="flex items-start justify-between gap-2 mb-2.5">
-                              <p className="text-sm font-bold text-text-primary truncate flex-1">{item.campaign_name}</p>
-                              <span className={`text-[11px] font-bold px-2.5 py-1 rounded-lg flex-shrink-0 ring-1 ${gc.bg} ${gc.text} ${gc.ring}`}>
+                              <p className="text-sm font-semibold text-text-primary truncate flex-1">{item.campaign_name}</p>
+                              <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg flex-shrink-0 ring-1 ${gc.bg} ${gc.text} ${gc.ring}`}>
                                 {gc.label}
                               </span>
                             </div>
@@ -1047,20 +1047,20 @@ export default function PerformanceDashboard() {
 
                 {/* ⑥ 우선 실행 사항 */}
                 {analysis.next_steps?.length > 0 && (
-                  <div className="bg-gradient-to-br from-bg-0 to-brand/10 rounded-xl p-5 border border-blue/30">
+                  <div className="bg-bg-0 rounded-xl p-5 border border-blue/30">
                     <div className="flex items-center gap-2 mb-4">
                       <div className="w-8 h-8 bg-blue/15 rounded-lg flex items-center justify-center">
                         <Lightbulb size={16} className="text-accent" />
                       </div>
-                      <h3 className="text-base font-bold text-text-primary">우선 실행 사항</h3>
+                      <h3 className="text-base font-semibold text-text-primary">우선 실행 사항</h3>
                     </div>
                     <div className="space-y-3">
                       {analysis.next_steps.map((step: string, i: number) => (
                         <div key={i} className="flex items-start gap-3">
-                          <div className="w-7 h-7 bg-gradient-to-br from-blue to-brand text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5 shadow-[0px_1px_3px_rgba(0,0,0,0.2)]">
+                          <div className="w-7 h-7 bg-blue text-white rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0 mt-0.5 shadow-low">
                             {i + 1}
                           </div>
-                          <div className="flex-1 bg-bg-1/80 backdrop-blur-sm rounded-lg px-4 py-3 border border-blue/30 shadow-[0px_1px_3px_rgba(0,0,0,0.2)]">
+                          <div className="flex-1 bg-bg-1/80 rounded-lg px-4 py-3 border border-blue/30 shadow-low">
                             <p className="text-sm text-text-primary leading-relaxed">{step}</p>
                           </div>
                         </div>
@@ -1178,7 +1178,7 @@ export default function PerformanceDashboard() {
                     {isExpanded && (
                       <div className="bg-bg-0 px-5 py-4 border-t border-border-primary">
                         <div className="flex items-center justify-between mb-3">
-                          <span className="text-xs font-semibold text-text-tertiary uppercase">광고세트 & 광고</span>
+                          <span className="text-xs font-semibold text-text-tertiary">광고세트 & 광고</span>
                           <div className="flex items-center gap-2">
                             <button onClick={() => setFeedbackExpanded(feedbackExpanded === camp.id ? null : camp.id)}
                               className="text-xs bg-brand text-white px-3 py-1 rounded-lg hover:bg-brand flex items-center gap-1">
@@ -1204,7 +1204,7 @@ export default function PerformanceDashboard() {
                                 <span>{pct.toFixed(1)}% ({formatCurrency(spent)} / {formatCurrency(budget)})</span>
                               </div>
                               <div className="w-full h-2 bg-bg-4 rounded-full overflow-hidden">
-                                <div className={`h-full rounded-full transition-all ${pct > 90 ? 'bg-red' : pct > 70 ? 'bg-yellow' : 'bg-green'}`} style={{ width: `${pct}%` }} />
+                                <div className={`h-full rounded-full transition-[width] ${pct > 90 ? 'bg-red' : pct > 70 ? 'bg-yellow' : 'bg-green'}`} style={{ width: `${pct}%` }} />
                               </div>
                             </div>
                           );
@@ -1480,10 +1480,10 @@ export default function PerformanceDashboard() {
                       <span className="text-xs text-text-tertiary w-16 flex-shrink-0">{item.stage}</span>
                       <div className="flex-1 h-8 bg-bg-2 rounded-lg overflow-hidden relative">
                         <div
-                          className="h-full rounded-lg transition-all duration-500"
+                          className="h-full rounded-lg transition-[width] duration-500"
                           style={{ width: `${Math.max((item.value / totalImpressions) * 100, item.value > 0 ? 1 : 0)}%`, backgroundColor: item.color }}
                         />
-                        <span className="absolute inset-0 flex items-center justify-center text-[10px] font-medium text-white drop-shadow">
+                        <span className="absolute inset-0 flex items-center justify-center text-[10px] font-medium text-white">
                           {item.value > 0
                             ? `${item.value.toLocaleString()} (${((item.value / totalImpressions) * 100).toFixed(2)}%)`
                             : '데이터 없음'}
@@ -1517,7 +1517,7 @@ function KPICard({ icon, label, value, sub, color }: { icon: React.ReactNode; la
   return (
     <div className="bg-bg-1 border border-border-primary rounded-xl p-3">
       <div className="flex items-center gap-1.5 mb-1"><div className={`p-1 rounded-lg ${colors[color]}`}>{icon}</div><span className="text-xs text-text-tertiary">{label}</span></div>
-      <p className="text-lg font-bold text-text-primary">{value}</p>
+      <p className="text-lg font-semibold text-text-primary">{value}</p>
       {sub && <p className="text-xs text-text-quaternary">{sub}</p>}
     </div>
   );
@@ -1620,7 +1620,7 @@ function fmtAsOf(iso: string | null): string {
 }
 
 // 캠페인별 차트에 사용할 색상 팔레트 (최대 5개)
-const CAMPAIGN_COLORS = ['#7070FF', '#10b981', '#f97316', '#4EA7FC', '#F0BF00'];
+const CAMPAIGN_COLORS = ['#4A85FF', '#10b981', '#f97316', '#4EA7FC', '#F0BF00'];
 
 // ─── Performance Feedback Panel Component ───
 function PerformanceFeedbackPanel({
@@ -1761,11 +1761,11 @@ function PerformanceFeedbackPanel({
   return (
     <div className="mt-4 bg-bg-1 rounded-xl border border-brand/30 overflow-hidden">
       {/* Header */}
-      <div className="bg-gradient-to-r from-brand to-brand px-5 py-3 flex items-center justify-between">
+      <div className="bg-brand px-5 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Activity size={18} className="text-white" />
-          <h4 className="text-sm font-bold text-white">성과 피드백</h4>
-          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${risk.bg} ${risk.text}`}>
+          <h4 className="text-sm font-semibold text-white">성과 피드백</h4>
+          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${risk.bg} ${risk.text}`}>
             위험도: {risk.label}
           </span>
         </div>
@@ -1785,21 +1785,21 @@ function PerformanceFeedbackPanel({
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                 <div className="bg-bg-0 rounded-lg p-2.5">
                   <p className="text-[10px] text-text-quaternary">현재 ROAS</p>
-                  <p className="text-sm font-bold text-text-primary">{conv.current_roas?.toFixed(2) || '-'}</p>
+                  <p className="text-sm font-semibold text-text-primary">{conv.current_roas?.toFixed(2) || '-'}</p>
                   <TrendArrow value={conv.roas_change_pct} goodDirection="up" />
                 </div>
                 <div className="bg-bg-0 rounded-lg p-2.5">
                   <p className="text-[10px] text-text-quaternary">이전 ROAS</p>
-                  <p className="text-sm font-bold text-text-tertiary">{conv.previous_roas?.toFixed(2) || '-'}</p>
+                  <p className="text-sm font-semibold text-text-tertiary">{conv.previous_roas?.toFixed(2) || '-'}</p>
                 </div>
                 <div className="bg-bg-0 rounded-lg p-2.5">
                   <p className="text-[10px] text-text-quaternary">현재 CPM</p>
-                  <p className="text-sm font-bold text-text-primary">{fmtCur(conv.current_cpm || 0)}</p>
+                  <p className="text-sm font-semibold text-text-primary">{fmtCur(conv.current_cpm || 0)}</p>
                   <TrendArrow value={conv.cpm_change_pct} goodDirection="down" />
                 </div>
                 <div className="bg-bg-0 rounded-lg p-2.5">
                   <p className="text-[10px] text-text-quaternary">CPA vs 객단가</p>
-                  <p className="text-sm font-bold text-text-primary">{conv.current_cpa ? fmtCur(conv.current_cpa) : '-'}</p>
+                  <p className="text-sm font-semibold text-text-primary">{conv.current_cpa ? fmtCur(conv.current_cpa) : '-'}</p>
                   {conv.avg_order_value && <p className="text-[10px] text-text-quaternary">객단가: {fmtCur(conv.avg_order_value)}</p>}
                 </div>
               </div>
@@ -1859,7 +1859,7 @@ function PerformanceFeedbackPanel({
               <div className="grid grid-cols-2 gap-2">
                 <div className="bg-bg-0 rounded-lg p-2.5">
                   <p className="text-[10px] text-text-quaternary">CPC 추이</p>
-                  <p className="text-sm font-bold">{fmtCur(click.current_cpc || 0)}</p>
+                  <p className="text-sm font-semibold">{fmtCur(click.current_cpc || 0)}</p>
                   <p className="text-[10px] text-text-quaternary">{click.cpc_trend}</p>
                 </div>
                 <div className={`rounded-lg p-2.5 ${
@@ -1868,7 +1868,7 @@ function PerformanceFeedbackPanel({
                   'bg-red/10 border border-red/30'
                 }`}>
                   <p className="text-[10px] text-text-quaternary">랜딩페이지 도달율</p>
-                  <p className="text-sm font-bold">{click.landing_page_view_rate?.toFixed(1)}%</p>
+                  <p className="text-sm font-semibold">{click.landing_page_view_rate?.toFixed(1)}%</p>
                   <p className="text-[10px]">
                     {click.landing_status === 'GOOD' ? '정상' :
                      click.landing_status === 'WARNING' ? '점검 권장' :
@@ -1895,13 +1895,13 @@ function PerformanceFeedbackPanel({
               <div className="bg-bg-0 rounded-lg p-3">
                 <div className="flex items-center justify-between mb-1">
                   <p className="text-[10px] text-text-tertiary">노출 빈도 (Frequency)</p>
-                  <span className={`text-sm font-black ${imp.current_frequency > 2.3 ? 'text-red' : imp.current_frequency > 1.8 ? 'text-yellow' : 'text-green'}`}>
+                  <span className={`text-sm font-semibold ${imp.current_frequency > 2.3 ? 'text-red' : imp.current_frequency > 1.8 ? 'text-yellow' : 'text-green'}`}>
                     {imp.current_frequency?.toFixed(2)}
                   </span>
                 </div>
                 <div className="w-full h-3 bg-bg-4 rounded-full overflow-hidden">
                   <div
-                    className={`h-full rounded-full transition-all ${imp.current_frequency > 2.3 ? 'bg-red' : imp.current_frequency > 1.8 ? 'bg-yellow' : 'bg-green'}`}
+                    className={`h-full rounded-full transition-colors ${imp.current_frequency > 2.3 ? 'bg-red' : imp.current_frequency > 1.8 ? 'bg-yellow' : 'bg-green'}`}
                     style={{ width: `${Math.min((imp.current_frequency / 4) * 100, 100)}%` }}
                   />
                 </div>
@@ -1968,14 +1968,14 @@ function PerformanceFeedbackPanel({
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
                 <div className="bg-bg-0 rounded-lg p-2.5 text-center">
                   <p className="text-[10px] text-text-quaternary">현재 ON 소재 수</p>
-                  <p className={`text-lg font-black ${creative.active_ad_count <= 1 ? 'text-red' : creative.active_ad_count <= 2 ? 'text-yellow' : 'text-green'}`}>
+                  <p className={`text-lg font-semibold ${creative.active_ad_count <= 1 ? 'text-red' : creative.active_ad_count <= 2 ? 'text-yellow' : 'text-green'}`}>
                     {creative.active_ad_count}
                   </p>
                   <p className="text-[9px] text-text-quaternary">전체 {creative.total_ad_count}개</p>
                 </div>
                 <div className="bg-bg-0 rounded-lg p-2.5 text-center">
                   <p className="text-[10px] text-text-quaternary">소재 다양성</p>
-                  <p className={`text-lg font-black ${creative.diversity_score >= 70 ? 'text-green' : creative.diversity_score >= 40 ? 'text-yellow' : 'text-red'}`}>
+                  <p className={`text-lg font-semibold ${creative.diversity_score >= 70 ? 'text-green' : creative.diversity_score >= 40 ? 'text-yellow' : 'text-red'}`}>
                     {creative.diversity_score}
                   </p>
                   <p className="text-[9px] text-text-quaternary">/ 100점</p>
@@ -1988,7 +1988,7 @@ function PerformanceFeedbackPanel({
                     const ratio = total > 0 ? declining / total : 0;
                     return (
                       <>
-                        <p className={`text-sm font-bold ${ratio > 0.5 ? 'text-red' : ratio > 0.2 ? 'text-yellow' : 'text-green'}`}>
+                        <p className={`text-sm font-semibold ${ratio > 0.5 ? 'text-red' : ratio > 0.2 ? 'text-yellow' : 'text-green'}`}>
                           {ratio > 0.5 ? '교체 필요' : ratio > 0.2 ? '주의' : '양호'}
                         </p>
                         <p className="text-[9px] text-text-quaternary">하락 {declining}/{total}개</p>
@@ -2010,7 +2010,7 @@ function PerformanceFeedbackPanel({
                       <div key={i} className={`rounded-lg p-2.5 border ${trendBg}`}>
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-xs font-medium text-text-primary truncate flex-1 mr-2">{c.ad_name}</span>
-                          <span className={`text-[10px] font-bold ${trendColor}`}>{trendLabel}</span>
+                          <span className={`text-[10px] font-semibold ${trendColor}`}>{trendLabel}</span>
                         </div>
                         <div className="flex gap-3 text-[10px] text-text-tertiary">
                           <span>CTR {c.ctr?.toFixed(2)}%</span>
@@ -2045,7 +2045,7 @@ function PerformanceFeedbackPanel({
             <div className="space-y-1.5">
               {fb.recommendations.map((rec: string, i: number) => (
                 <div key={i} className="flex items-start gap-2 text-xs text-text-tertiary">
-                  <span className="w-4 h-4 bg-brand/15 text-accent rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-bold">{i + 1}</span>
+                  <span className="w-4 h-4 bg-brand/15 text-accent rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-semibold">{i + 1}</span>
                   <span>{rec}</span>
                 </div>
               ))}
@@ -2240,21 +2240,21 @@ function CreativePerformanceDashboard({
           {/* Top performers cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {topByROAS.length > 0 && (
-              <div className="bg-gradient-to-br from-green/10 to-green/10 rounded-xl p-4 border border-green/30">
-                <h4 className="text-xs font-bold text-green mb-3 flex items-center gap-1.5">
+              <div className="bg-green/10 rounded-xl p-4 border border-green/30">
+                <h4 className="text-xs font-semibold text-green mb-3 flex items-center gap-1.5">
                   <TrendingUp size={14} /> ROAS 우수 소재 TOP 3
                 </h4>
                 <div className="space-y-2">
                   {topByROAS.map((ad, i) => (
                     <div key={ad.id} className="flex items-center justify-between bg-bg-1 rounded-lg p-2.5 border border-green/30">
                       <div className="flex items-center gap-2">
-                        <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white ${
+                        <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-semibold text-white ${
                           i === 0 ? 'bg-green' : i === 1 ? 'bg-green' : 'bg-green/10'
                         }`}>{i + 1}</span>
                         <span className="text-xs font-medium text-text-primary truncate max-w-[150px]">{ad.name}</span>
                       </div>
                       <div className="text-right">
-                        <p className="text-sm font-bold text-green">ROAS {formatROAS(ad.roas)}</p>
+                        <p className="text-sm font-semibold text-green">ROAS {formatROAS(ad.roas)}</p>
                         <p className="text-[10px] text-text-quaternary">매출 {formatSpend(ad.conversion_value)}</p>
                       </div>
                     </div>
@@ -2264,21 +2264,21 @@ function CreativePerformanceDashboard({
             )}
 
             {topByCTR.length > 0 && (
-              <div className="bg-gradient-to-br from-bg-0 to-brand/10 rounded-xl p-4 border border-brand/30">
-                <h4 className="text-xs font-bold text-accent-hover mb-3 flex items-center gap-1.5">
+              <div className="bg-bg-0 rounded-xl p-4 border border-brand/30">
+                <h4 className="text-xs font-semibold text-accent-hover mb-3 flex items-center gap-1.5">
                   <MousePointer size={14} /> CTR 우수 소재 TOP 3
                 </h4>
                 <div className="space-y-2">
                   {topByCTR.map((ad, i) => (
                     <div key={ad.id} className="flex items-center justify-between bg-bg-1 rounded-lg p-2.5 border border-blue/30">
                       <div className="flex items-center gap-2">
-                        <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white ${
+                        <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-semibold text-white ${
                           i === 0 ? 'bg-blue' : i === 1 ? 'bg-blue' : 'bg-blue/10'
                         }`}>{i + 1}</span>
                         <span className="text-xs font-medium text-text-primary truncate max-w-[150px]">{ad.name}</span>
                       </div>
                       <div className="text-right">
-                        <p className="text-sm font-bold text-accent">CTR {ad.ctr.toFixed(2)}%</p>
+                        <p className="text-sm font-semibold text-accent">CTR {ad.ctr.toFixed(2)}%</p>
                         <p className="text-[10px] text-text-quaternary">CPC {formatCPC(ad.cpc)}</p>
                       </div>
                     </div>
@@ -2408,19 +2408,19 @@ function CreativePerformanceDashboard({
                         <>
                           <div className="bg-bg-1 rounded-lg p-2.5 border border-brand/30">
                             <p className="text-[10px] text-text-tertiary">총 지출</p>
-                            <p className="text-sm font-bold">{formatSpend(totalSpend)}</p>
+                            <p className="text-sm font-semibold">{formatSpend(totalSpend)}</p>
                           </div>
                           <div className="bg-bg-1 rounded-lg p-2.5 border border-brand/30">
                             <p className="text-[10px] text-text-tertiary">총 클릭</p>
-                            <p className="text-sm font-bold">{formatNum(totalClicks)}</p>
+                            <p className="text-sm font-semibold">{formatNum(totalClicks)}</p>
                           </div>
                           <div className="bg-bg-1 rounded-lg p-2.5 border border-brand/30">
                             <p className="text-[10px] text-text-tertiary">총 노출</p>
-                            <p className="text-sm font-bold">{formatNum(totalImpressions)}</p>
+                            <p className="text-sm font-semibold">{formatNum(totalImpressions)}</p>
                           </div>
                           <div className="bg-bg-1 rounded-lg p-2.5 border border-brand/30">
                             <p className="text-[10px] text-text-tertiary">총 전환값</p>
-                            <p className="text-sm font-bold">{formatSpend(totalConv)}</p>
+                            <p className="text-sm font-semibold">{formatSpend(totalConv)}</p>
                           </div>
                         </>
                       );

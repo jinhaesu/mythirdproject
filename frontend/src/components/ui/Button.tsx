@@ -46,7 +46,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
        */
       primary:
         'bg-brand hover:bg-accent-hover text-white border border-transparent ' +
-        'shadow-[0px_4px_24px_rgba(0,0,0,0.20)]',
+        'shadow-high',
 
       /**
        * Secondary: nearly-invisible translucent surface with a fine white border.
@@ -75,7 +75,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
        */
       danger:
         'bg-red hover:bg-[#F07070] text-white border border-transparent ' +
-        'shadow-[0px_4px_24px_rgba(0,0,0,0.20)]',
+        'shadow-high',
     };
 
     const sizes: Record<NonNullable<ButtonProps['size']>, string> = {

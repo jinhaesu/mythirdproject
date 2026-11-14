@@ -9,7 +9,7 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // --- Linear Foundations ---
+        // --- 면·글자·선 (값은 globals.css 에서 --nd-* 로 연결) ---
         // Bound to CSS custom properties (see globals.css :root / [data-theme]) via the
         // `rgb(var(--x-rgb) / <alpha-value>)` pattern so both plain utilities (bg-bg-0) AND
         // Tailwind's opacity modifiers (bg-bg-0/50) resolve correctly and react to the
@@ -38,14 +38,14 @@ const config: Config = {
           tertiary:  'rgb(var(--color-border-tertiary-rgb) / <alpha-value>)',  // High-emphasis outline
         },
 
-        // --- Brand & Accent (constant across themes) ---
+        // --- 강조: 널담 블루 하나 ---
         brand:  'rgb(var(--color-brand-bg-rgb) / <alpha-value>)',  // Main brand/action color
         accent: {
           DEFAULT: 'rgb(var(--color-link-primary-rgb) / <alpha-value>)',  // Links and bright active emphasis
           hover:   'rgb(var(--color-accent-hover-rgb) / <alpha-value>)',  // Hover/focus accent
         },
 
-        // --- Functional Colors (constant across themes) ---
+        // --- 뜻이 있을 때만 쓰는 색 ---
         blue:   'rgb(var(--color-blue-rgb) / <alpha-value>)',   // Info and secondary UI accent
         teal:   'rgb(var(--color-teal-rgb) / <alpha-value>)',   // Analytics / AI / support accent
         green:  'rgb(var(--color-green-rgb) / <alpha-value>)',  // Success / healthy state
@@ -86,11 +86,6 @@ const config: Config = {
           'Menlo',
           'monospace',
         ],
-        serif: [
-          'Tiempos Headline',
-          'Georgia',
-          'serif',
-        ],
       },
 
       // --- Letter Spacing (Linear type spec) ---
@@ -114,14 +109,26 @@ const config: Config = {
         pill: '9999px',
       },
 
-      // --- Box Shadow (Linear elevation tokens) ---
+      // --- Box Shadow: 밝은 화면만 옅게(--nd-shadow-*), 어두운 화면은 none ---
       boxShadow: {
         none:   '0px 0px 0px transparent',
-        tiny:   '0px 1px 1px 0px rgba(0, 0, 0, 0.09)',
-        low:    '0px 1px 4px -1px rgba(0, 0, 0, 0.09)',
-        medium: '0px 3px 12px rgba(0, 0, 0, 0.09)',
-        high:   '0px 7px 32px rgba(0, 0, 0, 0.35)',
-        panel:  '0px 3px 12px rgba(0, 0, 0, 0.09)',
+        tiny:   'var(--shadow-tiny)',
+        low:    'var(--shadow-low)',
+        medium: 'var(--shadow-medium)',
+        high:   'var(--shadow-high)',
+        panel:  'var(--shadow-medium)',
+      },
+
+      // --- 움직임: 곡선 하나, 길이 셋 (nd-cosmos.css) ---
+      transitionTimingFunction: {
+        DEFAULT: 'var(--nd-ease)',
+        nd: 'var(--nd-ease)',
+      },
+      transitionDuration: {
+        DEFAULT: 'var(--nd-fast)',
+        fast: 'var(--nd-fast)',
+        mid: 'var(--nd-mid)',
+        slow: 'var(--nd-slow)',
       },
     },
   },

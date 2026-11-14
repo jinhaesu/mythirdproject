@@ -96,8 +96,8 @@ export function HourlyHeatmapCard({ params }: { params: HourlyHeatmapParams }) {
             <button
               key={m.key}
               onClick={() => startTransition(() => setMetric(m.key))}
-              className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-all ${
-                metric === m.key ? 'bg-bg-1 text-accent shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'text-text-tertiary hover:text-text-secondary'
+              className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                metric === m.key ? 'bg-bg-1 text-accent shadow-low' : 'text-text-tertiary hover:text-text-secondary'
               }`}
             >
               {m.label}
@@ -133,7 +133,7 @@ export function HourlyHeatmapCard({ params }: { params: HourlyHeatmapParams }) {
             <span className="flex items-center gap-1">
               적음
               {[0.15, 0.35, 0.6, 0.85, 1].map((t) => (
-                <span key={t} className="w-3.5 h-3.5 rounded-[3px] inline-block" style={{ background: `rgba(94,106,210,${(0.12 + t * 0.83).toFixed(2)})` }} />
+                <span key={t} className="w-3.5 h-3.5 rounded-[3px] inline-block" style={{ background: `rgb(var(--color-brand-bg-rgb) / ${(0.12 + t * 0.83).toFixed(2)})` }} />
               ))}
               많음
             </span>
@@ -141,7 +141,7 @@ export function HourlyHeatmapCard({ params }: { params: HourlyHeatmapParams }) {
 
           {data.clamped && (
             <p className="text-[10px] text-yellow mt-2">
-              ⚠ 시간대 분석은 최대 92일까지 지원되어 선택 기간이 최근 92일로 잘렸습니다.
+              시간대 분석은 최대 92일까지 지원되어 선택 기간이 최근 92일로 잘렸습니다.
             </p>
           )}
 

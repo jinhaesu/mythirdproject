@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  Search, Loader2, TrendingUp, ShoppingBag, Star, AlertCircle, Sparkles, FileText,
+  Search, Loader2, TrendingUp, ShoppingBag, Star, AlertCircle, ScanSearch, FileText,
   BarChart3, Monitor, Smartphone, Target, Clock, Plus, Trash2, Play, RefreshCw, ExternalLink,
 } from 'lucide-react';
 import api, { marketApi } from '@/lib/api';
@@ -120,7 +120,7 @@ function TrendChart({
   const gradientId = 'trendGradient';
 
   return (
-    <div className="w-full overflow-hidden rounded-xl bg-gradient-to-b from-green/60 to-bg-1 border border-green/30">
+    <div className="w-full overflow-hidden rounded-xl bg-green/10 border border-green/30">
       <svg
         viewBox={`0 0 ${width} ${height}`}
         preserveAspectRatio="xMidYMid meet"
@@ -316,7 +316,7 @@ function ProductCard({ item, rank }: { item: ShoppingItem; rank: number }) {
   const cleanTitle = item.title.replace(/<[^>]*>/g, '');
 
   return (
-    <div className="bg-bg-1 rounded-xl border border-border-primary overflow-hidden hover:shadow-[0px_3px_12px_rgba(0,0,0,0.2)] transition-shadow group">
+    <div className="bg-bg-1 rounded-xl border border-border-primary overflow-hidden transition-shadow group">
       {/* Image area */}
       <div className="relative aspect-square bg-bg-2 overflow-hidden">
         {item.image ? (
@@ -324,7 +324,7 @@ function ProductCard({ item, rank }: { item: ShoppingItem; rank: number }) {
           <img
             src={item.image}
             alt={cleanTitle}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            className="w-full h-full object-cover transition-transform duration-300"
             onError={(e) => {
               (e.target as HTMLImageElement).style.display = 'none';
             }}
@@ -335,7 +335,7 @@ function ProductCard({ item, rank }: { item: ShoppingItem; rank: number }) {
           </div>
         )}
         {/* Rank badge */}
-        <div className="absolute top-2 left-2 w-7 h-7 rounded-full bg-green text-white text-xs font-bold flex items-center justify-center shadow">
+        <div className="absolute top-2 left-2 w-7 h-7 rounded-full bg-green text-white text-xs font-semibold flex items-center justify-center shadow">
           {rank}
         </div>
       </div>
@@ -347,7 +347,7 @@ function ProductCard({ item, rank }: { item: ShoppingItem; rank: number }) {
           {cleanTitle}
         </p>
         <div className="flex items-baseline gap-1 pt-0.5">
-          <span className="text-sm font-bold text-green">
+          <span className="text-sm font-semibold text-green">
             {price > 0 ? `₩${price.toLocaleString('ko-KR')}` : '가격 미정'}
           </span>
           {hasRange && (
@@ -373,15 +373,15 @@ function ProductCard({ item, rank }: { item: ShoppingItem; rank: number }) {
 function simpleMarkdownToHtml(text: string): string {
   return text
     // H2 headers - section headers
-    .replace(/^## (.+)$/gm, '<h3 class="text-base font-bold text-text-primary mt-6 mb-3 pb-2 border-b border-border-primary">$1</h3>')
+    .replace(/^## (.+)$/gm, '<h3 class="text-base font-semibold text-text-primary mt-6 mb-3 pb-2 border-b border-border-primary">$1</h3>')
     // H3 headers
-    .replace(/^### (.+)$/gm, '<h4 class="text-sm font-bold text-accent mt-4 mb-2 flex items-center gap-1"><span class="w-1 h-4 bg-brand/100 rounded-full inline-block mr-1"></span>$1</h4>')
+    .replace(/^### (.+)$/gm, '<h4 class="text-sm font-semibold text-accent mt-4 mb-2 flex items-center gap-1"><span class="w-1 h-4 bg-brand/100 rounded-full inline-block mr-1"></span>$1</h4>')
     // H4 headers
     .replace(/^#### (.+)$/gm, '<h5 class="text-sm font-semibold text-text-secondary mt-3 mb-1">$1</h5>')
     // Bold
     .replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold text-text-primary">$1</strong>')
     // Numbered lists with better spacing
-    .replace(/^(\d+)\. (.+)$/gm, '<div class="flex gap-3 ml-1 my-1.5"><span class="flex-shrink-0 w-6 h-6 rounded-full bg-brand/15 text-accent-hover text-xs font-bold flex items-center justify-center">$1</span><span class="pt-0.5">$2</span></div>')
+    .replace(/^(\d+)\. (.+)$/gm, '<div class="flex gap-3 ml-1 my-1.5"><span class="flex-shrink-0 w-6 h-6 rounded-full bg-brand/15 text-accent-hover text-xs font-semibold flex items-center justify-center">$1</span><span class="pt-0.5">$2</span></div>')
     // Bullet points
     .replace(/^[-•] (.+)$/gm, '<div class="flex gap-2 ml-3 my-1"><span class="text-accent mt-1.5">▸</span><span>$1</span></div>')
     // Double line breaks = paragraph gap
@@ -582,7 +582,7 @@ export function NaverKeywordResearch() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
+          <h1 className="text-2xl font-semibold text-text-primary flex items-center gap-2">
             <Search className="text-green" size={28} />
             키워드 리서치
           </h1>
@@ -680,7 +680,7 @@ export function NaverKeywordResearch() {
                       className={clsx(
                         'px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
                         period === opt.value
-                          ? 'bg-bg-1 shadow-[0px_1px_3px_rgba(0,0,0,0.2)] text-green'
+                          ? 'bg-bg-1 shadow-low text-green'
                           : 'text-text-tertiary hover:text-text-secondary'
                       )}
                     >
@@ -698,7 +698,7 @@ export function NaverKeywordResearch() {
                       className={clsx(
                         'px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
                         timeUnit === opt.value
-                          ? 'bg-bg-1 shadow-[0px_1px_3px_rgba(0,0,0,0.2)] text-green'
+                          ? 'bg-bg-1 shadow-low text-green'
                           : 'text-text-tertiary hover:text-text-secondary'
                       )}
                     >
@@ -752,23 +752,23 @@ export function NaverKeywordResearch() {
                   const exact = volumeData.data.find(d => d.keyword === searchedKeyword) || volumeData.data[0];
                   return (
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-5">
-                      <div className="bg-gradient-to-br from-green/10 to-bg-1 border border-green/30 rounded-xl p-4 text-center">
+                      <div className="bg-green/10 border border-green/30 rounded-xl p-4 text-center">
                         <div className="flex items-center justify-center gap-1.5 text-xs text-text-tertiary mb-1">
                           <BarChart3 size={13} /> 총 월간 검색량
                         </div>
-                        <p className="text-2xl font-bold text-green">{exact.monthlyTotalQcCnt.toLocaleString()}</p>
+                        <p className="text-2xl font-semibold text-green">{exact.monthlyTotalQcCnt.toLocaleString()}</p>
                       </div>
-                      <div className="bg-gradient-to-br from-bg-0 to-bg-1 border border-brand/30 rounded-xl p-4 text-center">
+                      <div className="bg-bg-0 border border-brand/30 rounded-xl p-4 text-center">
                         <div className="flex items-center justify-center gap-1.5 text-xs text-text-tertiary mb-1">
                           <Monitor size={13} /> PC 검색량
                         </div>
-                        <p className="text-2xl font-bold text-accent-hover">{exact.monthlyPcQcCnt.toLocaleString()}</p>
+                        <p className="text-2xl font-semibold text-accent-hover">{exact.monthlyPcQcCnt.toLocaleString()}</p>
                       </div>
-                      <div className="bg-gradient-to-br from-orange/10 to-bg-1 border border-orange/30 rounded-xl p-4 text-center">
+                      <div className="bg-orange/10 border border-orange/30 rounded-xl p-4 text-center">
                         <div className="flex items-center justify-center gap-1.5 text-xs text-text-tertiary mb-1">
                           <Smartphone size={13} /> 모바일 검색량
                         </div>
-                        <p className="text-2xl font-bold text-orange">{exact.monthlyMobileQcCnt.toLocaleString()}</p>
+                        <p className="text-2xl font-semibold text-orange">{exact.monthlyMobileQcCnt.toLocaleString()}</p>
                       </div>
                     </div>
                   );
@@ -826,7 +826,7 @@ export function NaverKeywordResearch() {
             <div className="bg-bg-1 rounded-xl border border-border-primary p-6">
               <div className="flex items-center justify-between mb-5 flex-wrap gap-y-2">
                 <h2 className="text-base font-semibold text-text-primary flex items-center gap-2">
-                  <Sparkles size={18} className="text-accent" />
+                  <ScanSearch size={18} className="text-accent" />
                   AI 랭킹 분석
                   <span className="ml-1 px-2 py-0.5 bg-brand/10 text-accent-hover rounded text-xs font-medium border border-brand/30">
                     {BRAND_NAME}
@@ -850,7 +850,7 @@ export function NaverKeywordResearch() {
                     {aiLoading ? (
                       <Loader2 size={15} className="animate-spin" />
                     ) : (
-                      <Sparkles size={15} />
+                      <ScanSearch size={15} />
                     )}
                     {aiLoading ? '분석 중...' : 'AI 랭킹 분석'}
                   </button>
@@ -874,10 +874,10 @@ export function NaverKeywordResearch() {
               {aiAnalysis && !aiLoading && (
                 <div className="bg-bg-1 border border-border-primary rounded-xl overflow-hidden">
                   {/* Report header */}
-                  <div className="bg-gradient-to-r from-brand to-brand px-6 py-4">
+                  <div className="bg-brand px-6 py-4">
                     <div className="flex items-center gap-2 text-white">
-                      <Sparkles size={16} />
-                      <span className="font-bold text-sm">AI 마케팅 전략 리포트</span>
+                      <ScanSearch size={16} />
+                      <span className="font-semibold text-sm">AI 마케팅 전략 리포트</span>
                     </div>
                     <div className="flex items-center gap-4 mt-1.5 text-accent text-xs">
                       <span>키워드: {searchedKeyword}</span>
@@ -909,7 +909,7 @@ export function NaverKeywordResearch() {
 
               {!aiAnalysis && !aiLoading && !aiError && (
                 <div className="flex flex-col items-center justify-center py-12 gap-3 text-text-quaternary">
-                  <Sparkles size={40} className="text-accent" />
+                  <ScanSearch size={40} className="text-accent" />
                   <p className="text-sm">버튼을 눌러 "{BRAND_NAME}" 브랜드의 랭킹 전략을 AI로 분석해보세요.</p>
                 </div>
               )}
@@ -995,7 +995,7 @@ function RankResultCard({ data }: { data: any }) {
   const rankBadge = (rank: number) => {
     const color = rank <= 10 ? 'text-green' : rank <= 30 ? 'text-yellow' : 'text-red';
     const bg = rank <= 10 ? 'bg-green/10' : rank <= 30 ? 'bg-yellow/10' : 'bg-red/10';
-    return <span className={clsx('font-bold text-sm px-1.5 py-0.5 rounded', color, bg)}>{rank}위</span>;
+    return <span className={clsx('font-semibold text-sm px-1.5 py-0.5 rounded', color, bg)}>{rank}위</span>;
   };
 
   return (
@@ -1044,7 +1044,7 @@ function RankResultCard({ data }: { data: any }) {
               <div className="space-y-1">
                 {shopRanks.map((s: any, idx: number) => (
                   <div key={idx} className="flex items-center gap-2 bg-bg-1 rounded-lg px-3 py-2 border text-xs">
-                    <span className={clsx('font-bold w-8 text-center', s.rank <= 10 ? 'text-green' : s.rank <= 30 ? 'text-yellow' : 'text-red')}>{s.rank}위</span>
+                    <span className={clsx('font-semibold w-8 text-center', s.rank <= 10 ? 'text-green' : s.rank <= 30 ? 'text-yellow' : 'text-red')}>{s.rank}위</span>
                     <div className="flex-1 min-w-0">
                       <p className="text-text-primary truncate font-medium">{s.title}</p>
                       <div className="flex items-center gap-2 text-text-quaternary mt-0.5">
@@ -1072,7 +1072,7 @@ function RankResultCard({ data }: { data: any }) {
               <div className="space-y-1">
                 {blogRanks.map((b: any, idx: number) => (
                   <div key={idx} className="flex items-center gap-2 bg-bg-1 rounded-lg px-3 py-2 border text-xs">
-                    <span className={clsx('font-bold w-8 text-center', b.rank <= 10 ? 'text-green' : b.rank <= 30 ? 'text-yellow' : 'text-red')}>{b.rank}위</span>
+                    <span className={clsx('font-semibold w-8 text-center', b.rank <= 10 ? 'text-green' : b.rank <= 30 ? 'text-yellow' : 'text-red')}>{b.rank}위</span>
                     <div className="flex-1 min-w-0">
                       <p className="text-text-primary truncate font-medium">{b.title}</p>
                       <div className="flex items-center gap-2 text-text-quaternary mt-0.5">
@@ -1147,11 +1147,11 @@ function AiRankAnalysis({ text }: { text: string }) {
   }
 
   const typeStyles = {
-    status: { border: 'border-brand/30', bg: 'bg-blue/10', icon: '📊', iconBg: 'bg-blue/15', titleColor: 'text-blue' },
-    up: { border: 'border-orange/30', bg: 'bg-orange/10', icon: '📈', iconBg: 'bg-orange/15', titleColor: 'text-orange' },
-    keep: { border: 'border-green/30', bg: 'bg-green/10', icon: '🛡️', iconBg: 'bg-green/15', titleColor: 'text-green' },
-    action: { border: 'border-brand/30', bg: 'bg-brand/10', icon: '🎯', iconBg: 'bg-brand/15', titleColor: 'text-accent' },
-    default: { border: 'border-border-primary', bg: 'bg-bg-0', icon: '💡', iconBg: 'bg-bg-2', titleColor: 'text-text-primary' },
+    status: { border: 'border-brand/30', bg: 'bg-blue/10', icon: BarChart3, iconBg: 'bg-blue/15', titleColor: 'text-blue' },
+    up: { border: 'border-orange/30', bg: 'bg-orange/10', icon: TrendingUp, iconBg: 'bg-orange/15', titleColor: 'text-orange' },
+    keep: { border: 'border-green/30', bg: 'bg-green/10', icon: Star, iconBg: 'bg-green/15', titleColor: 'text-green' },
+    action: { border: 'border-brand/30', bg: 'bg-brand/10', icon: Target, iconBg: 'bg-brand/15', titleColor: 'text-accent' },
+    default: { border: 'border-border-primary', bg: 'bg-bg-0', icon: FileText, iconBg: 'bg-bg-2', titleColor: 'text-text-primary' },
   };
 
   const renderContent = (content: string) => {
@@ -1177,7 +1177,7 @@ function AiRankAnalysis({ text }: { text: string }) {
   return (
     <div className="space-y-3">
       <h4 className="text-sm font-semibold text-green flex items-center gap-1.5">
-        <Sparkles size={15} /> AI 순위 분석 & 전략 제안
+        <ScanSearch size={15} /> AI 순위 분석 & 전략 제안
       </h4>
       <div className="grid gap-3">
         {sections.map((sec, i) => {
@@ -1186,7 +1186,7 @@ function AiRankAnalysis({ text }: { text: string }) {
             <div key={i} className={clsx('rounded-xl border p-4', style.border, style.bg)}>
               {sec.title && (
                 <div className="flex items-center gap-2 mb-2.5">
-                  <span className={clsx('w-7 h-7 rounded-lg flex items-center justify-center text-sm', style.iconBg)}>{style.icon}</span>
+                  <span className={clsx('w-7 h-7 rounded-lg flex items-center justify-center text-sm', style.iconBg, style.titleColor)}><style.icon size={14} strokeWidth={1.5} /></span>
                   <h5 className={clsx('text-sm font-semibold', style.titleColor)}>{sec.title}</h5>
                 </div>
               )}
@@ -1336,8 +1336,8 @@ function KeywordRankMonitor({ brandName, registeredKeywords = [] }: { brandName:
                       const active = schedDays.includes(dayVal);
                       return (
                         <button key={i} onClick={() => toggleDay(dayVal)}
-                          className={clsx('w-10 h-10 rounded-lg text-sm font-medium transition-all',
-                            active ? 'bg-green text-white shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'bg-bg-1 text-text-tertiary border border-border-primary hover:border-green/30')}>
+                          className={clsx('w-10 h-10 rounded-lg text-sm font-medium transition-colors',
+                            active ? 'bg-green text-white shadow-low' : 'bg-bg-1 text-text-tertiary border border-border-primary hover:border-green/30')}>
                           {label}
                         </button>
                       );
@@ -1352,7 +1352,7 @@ function KeywordRankMonitor({ brandName, registeredKeywords = [] }: { brandName:
                     <select value={schedHour} onChange={(e) => setSchedHour(Number(e.target.value))} className="px-2.5 py-2 border rounded-lg text-sm w-20">
                       {Array.from({ length: 24 }, (_, i) => <option key={i} value={i}>{String(i).padStart(2, '0')}시</option>)}
                     </select>
-                    <span className="text-text-quaternary font-bold">:</span>
+                    <span className="text-text-quaternary font-semibold">:</span>
                     <select value={schedMinute} onChange={(e) => setSchedMinute(Number(e.target.value))} className="px-2.5 py-2 border rounded-lg text-sm w-20">
                       {Array.from({ length: 60 }, (_, i) => <option key={i} value={i}>{String(i).padStart(2, '0')}분</option>)}
                     </select>

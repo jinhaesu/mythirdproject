@@ -69,7 +69,7 @@ export function SponsorshipAnalytics() {
         ].map((c) => (
           <div key={c.label} className="rounded-xl p-4" style={{ backgroundColor: 'var(--color-bg-level-1)', border: '1px solid var(--color-border-primary)' }}>
             <p className="text-[11px] text-text-tertiary">{c.label}</p>
-            <p className="text-lg font-bold text-text-primary tabular-nums mt-1">{c.value}</p>
+            <p className="text-lg font-semibold text-text-primary tabular-nums mt-1">{c.value}</p>
           </div>
         ))}
       </div>

@@ -16,7 +16,7 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
  * Surface:   bg #141516, border #23252A
  * Text:      #F7F8F8
  * Placeholder: #62666D  (quaternary text token)
- * Focus:     border and ring color #5E6AD2 (indigo brand)
+ * Focus:     border and ring color #4A85FF (indigo brand)
  * Error:     border and ring color #EB5757 (Linear red)
  * Shape:     rounded-xl  (12px, matching Linear's --radius-12 token)
  */

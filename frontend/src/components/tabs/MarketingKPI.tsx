@@ -65,7 +65,7 @@ function KPIGoalCard({
         </p>
       ) : (
         <>
-          <p className="text-lg font-bold text-text-primary">{value}</p>
+          <p className="text-lg font-semibold text-text-primary">{value}</p>
           {showTarget && <p className="text-[11px] text-text-quaternary mt-0.5">{targetLabel}</p>}
         </>
       )}
@@ -429,7 +429,7 @@ export function MarketingKPI() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-xl font-bold text-text-primary">자사몰 마케팅 KPI</h2>
+          <h2 className="text-xl font-semibold text-text-primary">자사몰 마케팅 KPI</h2>
           <p className="text-xs text-text-tertiary mt-1">목표 대비 CAC·LTV·전환율·신규고객 — 목표는 아래 &quot;목표 설정&quot;에서 입력 (광고비 기입은 광고비 일보)</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -442,8 +442,8 @@ export function MarketingKPI() {
               <button
                 key={g.key}
                 onClick={() => setGranularity(g.key)}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                  granularity === g.key ? 'bg-bg-1 text-accent shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'text-text-tertiary hover:text-text-secondary'
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  granularity === g.key ? 'bg-bg-1 text-accent shadow-low' : 'text-text-tertiary hover:text-text-secondary'
                 }`}
               >
                 {g.label}
@@ -456,8 +456,8 @@ export function MarketingKPI() {
                 <button
                   key={n}
                   onClick={() => { setMonthsRange(n); setCustom(null); }}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                    !custom && monthsRange === n ? 'bg-bg-1 text-accent shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'text-text-tertiary hover:text-text-secondary'
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                    !custom && monthsRange === n ? 'bg-bg-1 text-accent shadow-low' : 'text-text-tertiary hover:text-text-secondary'
                   }`}
                 >
                   최근 {n}개월
@@ -468,8 +468,8 @@ export function MarketingKPI() {
                 <button
                   key={d.v}
                   onClick={() => { setDaysRange(d.v); setCustom(null); }}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                    !custom && daysRange === d.v ? 'bg-bg-1 text-accent shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'text-text-tertiary hover:text-text-secondary'
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                    !custom && daysRange === d.v ? 'bg-bg-1 text-accent shadow-low' : 'text-text-tertiary hover:text-text-secondary'
                   }`}
                 >
                   최근 {d.label}
@@ -481,8 +481,8 @@ export function MarketingKPI() {
                 if (!customOpen && !draftStart) setDraftStart(custom?.start ?? todayStr.slice(0, 8) + '01');
                 setCustomOpen((v) => !v);
               }}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                custom ? 'bg-bg-1 text-accent shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'text-text-tertiary hover:text-text-secondary'
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                custom ? 'bg-bg-1 text-accent shadow-low' : 'text-text-tertiary hover:text-text-secondary'
               }`}
             >
               {custom ? `${custom.start.slice(2).replace(/-/g, '.')} ~ ${custom.end.slice(2).replace(/-/g, '.')}` : '직접 설정'}
@@ -532,14 +532,14 @@ export function MarketingKPI() {
           </div>
           <button
             onClick={handleExportKpi}
-            className="flex items-center gap-1.5 px-3 py-2 border border-border-primary rounded-lg text-sm text-text-secondary hover:bg-bg-2 transition-all"
+            className="flex items-center gap-1.5 px-3 py-2 border border-border-primary rounded-lg text-sm text-text-secondary hover:bg-bg-2 transition-colors"
           >
             <Download size={14} /> 엑셀
           </button>
           <button
             onClick={() => backfillMutation.mutate()}
             disabled={backfillMutation.isPending}
-            className="flex items-center gap-1.5 px-4 py-2 bg-brand text-white text-sm font-medium rounded-lg hover:bg-accent-hover disabled:opacity-50 transition-all"
+            className="flex items-center gap-1.5 px-4 py-2 bg-brand text-white text-sm font-medium rounded-lg hover:bg-accent-hover disabled:opacity-50 transition-colors"
           >
             {backfillMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
             {backfillMutation.isPending ? '백필 중...' : '주문 백필'}
@@ -664,7 +664,7 @@ export function MarketingKPI() {
                   <button
                     onClick={handleSaveGoal}
                     disabled={updateGoalMutation.isPending}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-brand text-white text-sm font-medium rounded-lg hover:bg-accent-hover disabled:opacity-50 transition-all"
+                    className="flex items-center gap-1.5 px-4 py-2 bg-brand text-white text-sm font-medium rounded-lg hover:bg-accent-hover disabled:opacity-50 transition-colors"
                   >
                     {updateGoalMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} 저장
                   </button>
@@ -862,8 +862,8 @@ export function MarketingKPI() {
                       <button
                         key={g.key}
                         onClick={() => setGranularity(g.key)}
-                        className={`px-2 py-1 rounded-md text-[11px] font-medium transition-all ${
-                          granularity === g.key ? 'bg-bg-1 text-accent shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'text-text-tertiary hover:text-text-secondary'
+                        className={`px-2 py-1 rounded-md text-[11px] font-medium transition-colors ${
+                          granularity === g.key ? 'bg-bg-1 text-accent shadow-low' : 'text-text-tertiary hover:text-text-secondary'
                         }`}
                       >
                         {g.label}

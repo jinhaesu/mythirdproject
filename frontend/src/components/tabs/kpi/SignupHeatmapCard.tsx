@@ -62,8 +62,8 @@ export function SignupHeatmapCard() {
               <button
                 key={g}
                 onClick={() => setGender(g)}
-                className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-all ${
-                  gender === g ? 'bg-bg-1 text-accent shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'text-text-tertiary hover:text-text-secondary'
+                className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  gender === g ? 'bg-bg-1 text-accent shadow-low' : 'text-text-tertiary hover:text-text-secondary'
                 }`}
               >
                 {label}
@@ -85,8 +85,8 @@ export function SignupHeatmapCard() {
               <button
                 key={n}
                 onClick={() => setMonths(n)}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                  months === n ? 'bg-bg-1 text-accent shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'text-text-tertiary hover:text-text-secondary'
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  months === n ? 'bg-bg-1 text-accent shadow-low' : 'text-text-tertiary hover:text-text-secondary'
                 }`}
               >
                 최근 {n}개월
@@ -122,7 +122,7 @@ export function SignupHeatmapCard() {
             <span className="flex items-center gap-1">
               적음
               {[0.15, 0.35, 0.6, 0.85, 1].map((t) => (
-                <span key={t} className="w-3.5 h-3.5 rounded-[3px] inline-block" style={{ background: `rgba(94,106,210,${(0.12 + t * 0.83).toFixed(2)})` }} />
+                <span key={t} className="w-3.5 h-3.5 rounded-[3px] inline-block" style={{ background: `rgb(var(--color-brand-bg-rgb) / ${(0.12 + t * 0.83).toFixed(2)})` }} />
               ))}
               많음
             </span>
@@ -137,7 +137,7 @@ export function SignupHeatmapCard() {
 
           {!data.coverage.full_signup_data && (
             <p className="text-[10px] text-yellow mt-2 leading-relaxed">
-              ⚠ 현재는 <b>구매 이력이 있는 회원</b>의 가입 시각만 집계됩니다 (보강 완료{' '}
+              현재는 <b>구매 이력이 있는 회원</b>의 가입 시각만 집계됩니다 (보강 완료{' '}
               {fmtNum(data.coverage.members_with_join)} / 구매회원 {fmtNum(data.coverage.buyers_total)}명).
               비구매 가입자까지 포함하려면 카페24 개인정보 읽기 권한 재동의가 필요합니다.
             </p>

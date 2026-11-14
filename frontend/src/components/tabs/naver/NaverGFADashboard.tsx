@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Monitor, DollarSign, Eye, MousePointer, Target, TrendingUp,
-  Loader2, RefreshCw, ChevronDown, ChevronRight, Sparkles,
+  Loader2, RefreshCw, ChevronDown, ChevronRight, ScanSearch,
   Image, Activity, Play, Pause, Award, Upload,
 } from 'lucide-react';
 import { naverGFAApi, formatNaverCurrency, formatNaverNumber, formatNaverPercent } from '@/lib/naver-api';
@@ -245,7 +245,7 @@ export function NaverGFADashboard() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
+          <h1 className="text-2xl font-semibold text-text-primary flex items-center gap-2">
             <Monitor className="text-green" size={28} />
             GFA 성과 대시보드
           </h1>
@@ -339,7 +339,7 @@ export function NaverGFADashboard() {
                     <Icon size={16} className={card.color} />
                   </div>
                 </div>
-                <p className="text-lg font-bold text-text-primary">{card.value}</p>
+                <p className="text-lg font-semibold text-text-primary">{card.value}</p>
               </div>
             );
           })}
@@ -393,17 +393,17 @@ export function NaverGFADashboard() {
             <table className="w-full text-sm min-w-[1000px]">
               <thead className="bg-bg-0">
                 <tr>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase">캠페인명</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase">목적</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase">상태</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium text-text-tertiary uppercase">일예산</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium text-text-tertiary uppercase">비용</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium text-text-tertiary uppercase">노출</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium text-text-tertiary uppercase">클릭</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium text-text-tertiary uppercase">CTR</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium text-text-tertiary uppercase">CPM</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium text-text-tertiary uppercase">ROAS</th>
-                  <th className="text-center px-4 py-3 text-xs font-medium text-text-tertiary uppercase">액션</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary">캠페인명</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary">목적</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary">상태</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-text-tertiary">일예산</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-text-tertiary">비용</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-text-tertiary">노출</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-text-tertiary">클릭</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-text-tertiary">CTR</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-text-tertiary">CPM</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-text-tertiary">ROAS</th>
+                  <th className="text-center px-4 py-3 text-xs font-medium text-text-tertiary">액션</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-primary">
@@ -471,7 +471,7 @@ export function NaverGFADashboard() {
       <div className="bg-bg-1 rounded-xl border border-border-primary p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-base font-semibold text-text-primary flex items-center gap-2">
-            <Sparkles size={18} className="text-green" />
+            <ScanSearch size={18} className="text-green" />
             AI 분석
           </h2>
           <button
@@ -482,7 +482,7 @@ export function NaverGFADashboard() {
             {aiMutation.isPending ? (
               <Loader2 size={16} className="animate-spin" />
             ) : (
-              <Sparkles size={16} />
+              <ScanSearch size={16} />
             )}
             {aiMutation.isPending ? '분석 중...' : '분석하기'}
           </button>
@@ -490,7 +490,7 @@ export function NaverGFADashboard() {
 
         {!aiTriggered ? (
           <div className="text-center py-8 text-text-quaternary">
-            <Sparkles size={40} className="mx-auto mb-3" />
+            <ScanSearch size={40} className="mx-auto mb-3" />
             <p className="text-sm">AI 분석 버튼을 클릭하면 GFA 성과에 대한 인사이트를 제공합니다.</p>
           </div>
         ) : aiMutation.isPending ? (

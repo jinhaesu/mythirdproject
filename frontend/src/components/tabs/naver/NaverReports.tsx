@@ -171,7 +171,7 @@ export function NaverReports() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
+          <h1 className="text-2xl font-semibold text-text-primary flex items-center gap-2">
             <FileText className="text-green" size={28} />
             네이버 리포트
           </h1>
@@ -181,7 +181,7 @@ export function NaverReports() {
           <button
             onClick={() => setActiveSection('generate')}
             className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              activeSection === 'generate' ? 'bg-bg-1 shadow-[0px_1px_3px_rgba(0,0,0,0.2)] text-green' : 'text-text-tertiary hover:text-text-secondary'
+              activeSection === 'generate' ? 'bg-bg-1 shadow-low text-green' : 'text-text-tertiary hover:text-text-secondary'
             }`}
           >
             리포트 생성
@@ -189,7 +189,7 @@ export function NaverReports() {
           <button
             onClick={() => setActiveSection('schedules')}
             className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              activeSection === 'schedules' ? 'bg-bg-1 shadow-[0px_1px_3px_rgba(0,0,0,0.2)] text-green' : 'text-text-tertiary hover:text-text-secondary'
+              activeSection === 'schedules' ? 'bg-bg-1 shadow-low text-green' : 'text-text-tertiary hover:text-text-secondary'
             }`}
           >
             스케줄 리포트

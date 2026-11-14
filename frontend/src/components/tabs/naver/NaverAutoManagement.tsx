@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Zap, Plus, Trash2, ToggleLeft, ToggleRight, Clock,
   Loader2, Bot, PlayCircle, ChevronDown, ChevronRight,
-  AlertTriangle, CheckCircle, Sparkles, Activity, Check,
+  AlertTriangle, CheckCircle, ScanSearch, Activity, Check,
 } from 'lucide-react';
 import { naverAutoRulesApi, formatNaverCurrency, formatNaverNumber, formatNaverPercent } from '@/lib/naver-api';
 import toast from 'react-hot-toast';
@@ -173,7 +173,7 @@ export function NaverAutoManagement() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
+          <h1 className="text-2xl font-semibold text-text-primary flex items-center gap-2">
             <Zap className="text-green" size={28} />
             네이버 자동관리
           </h1>
@@ -444,7 +444,7 @@ export function NaverAutoManagement() {
       <div className="bg-bg-1 rounded-xl border border-border-primary p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-base font-semibold text-text-primary flex items-center gap-2">
-            <Sparkles size={18} className="text-green" />
+            <ScanSearch size={18} className="text-green" />
             AI 룰 추천
           </h2>
           <button
@@ -455,7 +455,7 @@ export function NaverAutoManagement() {
             disabled={aiRecommendMutation.isPending}
             className="flex items-center gap-2 px-4 py-2 bg-green text-white rounded-lg text-sm font-medium hover:bg-green transition-colors disabled:opacity-50"
           >
-            {aiRecommendMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+            {aiRecommendMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <ScanSearch size={16} />}
             {aiRecommendMutation.isPending ? '분석 중...' : '추천 받기'}
           </button>
         </div>

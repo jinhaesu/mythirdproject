@@ -112,7 +112,7 @@ export function SponsorshipBoard() {
         ].map((c) => (
           <div key={c.label} className="rounded-xl px-4 py-2.5" style={{ backgroundColor: 'var(--color-bg-level-1)', border: '1px solid var(--color-border-primary)' }}>
             <p className="text-[10px] text-text-quaternary">{c.label}</p>
-            <p className="text-base font-bold tabular-nums text-text-primary">{c.value}</p>
+            <p className="text-base font-semibold tabular-nums text-text-primary">{c.value}</p>
           </div>
         ))}
       </div>
@@ -157,7 +157,7 @@ export function SponsorshipBoard() {
                     <td className="px-3 py-2 text-text-primary tabular-nums text-right">{e.estimated_value != null ? fmtWon(e.estimated_value) : '-'}</td>
                     <td className="px-3 py-2">
                       {e.outcomes.length > 0 ? (
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-green/15 text-green">{e.outcomes.length}건</span>
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-green/15 text-green">{e.outcomes.length}건</span>
                       ) : (
                         <span className="text-[10px] text-text-quaternary">미등록</span>
                       )}

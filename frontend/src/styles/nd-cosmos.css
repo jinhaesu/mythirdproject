@@ -1,0 +1,125 @@
+/* ============================================================
+   널담 디자인 기준 2 — "깊은 밤, 행성 하나, 조용한 업무 화면" (2026-11-14)
+   쓰는 법: 이 파일을 전역 CSS 맨 앞에서 불러오고, 각 시스템의 기존 색 변수를
+   아래 --nd-* 값에 연결한다(변수 이름을 바꾸지 말고 값만 연결).
+   규칙 요약은 같은 폴더 GUIDE.md.
+   간격·색·움직임 수치의 출발점: unslop by Damir Sokolovsky (@heydamir), CC BY 4.0.
+   ============================================================ */
+
+:root {
+  /* ── 잉크빛 중립색(밝은 화면) ── */
+  --nd-bg: #f5f7fa;          /* 페이지 바탕 */
+  --nd-card: #ffffff;        /* 카드·패널 */
+  --nd-raised: #eceff4;      /* 선택된 줄, 입력칸, 눌린 면 */
+  --nd-inset: #e4e8ee;       /* 더 들어간 면(표 머리 등) */
+  --nd-line: rgba(17, 24, 39, 0.09);
+  --nd-line-strong: rgba(17, 24, 39, 0.16);
+  --nd-fg: #111827;          /* 본문 */
+  --nd-fg-2: #4b5565;        /* 보조 */
+  --nd-fg-3: #6b7487;        /* 설명·메타(작은 글자 전용) */
+  --nd-fg-4: #98a1b3;        /* 비활성·자리표시 */
+
+  /* ── 강조: 널담 블루 하나 ── */
+  --nd-accent: #0659ff;
+  --nd-accent-hover: #0046de;
+  --nd-accent-soft: #eaf0fb;
+  --nd-on-accent: #ffffff;
+
+  /* ── 뜻이 있을 때만 쓰는 색 ── */
+  --nd-good: #15803d;   --nd-good-soft: #e8f5ec;
+  --nd-warn: #b45309;   --nd-warn-soft: #fbf1e2;
+  --nd-bad: #dc2626;    --nd-bad-soft: #fdecec;
+  --nd-info: #0659ff;   --nd-info-soft: #eaf0fb;
+
+  /* ── 밤하늘(두 테마에서 같은 값) ── */
+  --nd-sky-0: #020308;
+  --nd-sky-1: #070910;
+  --nd-sky-glow: #0c1226;
+  --nd-sky-line: rgba(238, 240, 245, 0.1);
+  --nd-sky-line-2: rgba(238, 240, 245, 0.2);
+  --nd-sky-fg: #eef0f5;
+  --nd-sky-fg-2: #a3a9b8;
+  --nd-sky-fg-3: #7a8296;
+  --nd-sky-accent: #8fb2ff;
+  --nd-sand: #d8c9a8;
+
+  /* ── 간격(4의 배수) ── */
+  --nd-1: 4px; --nd-2: 8px; --nd-3: 12px; --nd-4: 16px; --nd-5: 20px; --nd-6: 24px;
+  --nd-8: 32px; --nd-10: 40px; --nd-12: 48px; --nd-16: 64px;
+
+  /* ── 모서리 ── */
+  --nd-r-tag: 6px; --nd-r-ctl: 8px; --nd-r-card: 14px; --nd-r-win: 18px;
+
+  /* ── 깊이 ── */
+  --nd-shadow-s: 0 1px 2px rgba(7, 8, 13, 0.05);
+  --nd-shadow-f: 0 8px 24px rgba(7, 8, 13, 0.07);
+
+  /* ── 움직임: 곡선 하나, 길이 셋 ── */
+  --nd-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --nd-fast: 150ms;   /* 올리기·누르기 */
+  --nd-mid: 200ms;    /* 메뉴·말풍선 */
+  --nd-slow: 400ms;   /* 화면이 열릴 때 */
+}
+
+/* 어두운 화면: 각 시스템의 전환 방식(.dark 또는 data-theme="dark") 둘 다 받는다 */
+:root.dark, :root[data-theme="dark"], .dark {
+  --nd-bg: #0b0d14;
+  --nd-card: #11141c;
+  --nd-raised: #1a1e28;
+  --nd-inset: #07080d;
+  --nd-line: rgba(238, 240, 245, 0.09);
+  --nd-line-strong: rgba(238, 240, 245, 0.16);
+  --nd-fg: #eef0f5;
+  --nd-fg-2: #a3a9b8;
+  --nd-fg-3: #7a8296;
+  --nd-fg-4: #596074;
+  --nd-accent: #4a85ff;
+  --nd-accent-hover: #6f9bff;
+  --nd-accent-soft: rgba(74, 133, 255, 0.14);
+  --nd-on-accent: #05060b;
+  --nd-good: #4cc38a;   --nd-good-soft: rgba(76, 195, 138, 0.14);
+  --nd-warn: #e2a336;   --nd-warn-soft: rgba(226, 163, 54, 0.14);
+  --nd-bad: #e5484d;    --nd-bad-soft: rgba(229, 72, 77, 0.14);
+  --nd-info: #4a85ff;   --nd-info-soft: rgba(74, 133, 255, 0.14);
+  --nd-shadow-s: none;
+  --nd-shadow-f: none;
+}
+
+/* ── 밤하늘 면 ── */
+.nd-sky {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  color: var(--nd-sky-fg);
+  background: radial-gradient(120% 90% at 70% 110%, var(--nd-sky-glow) 0%, var(--nd-sky-1) 45%, var(--nd-sky-0) 100%);
+}
+.nd-sky > canvas.nd-stars { position: absolute; inset: 0; width: 100%; height: 100%; z-index: -2; }
+/* 행성 지평선(가벼운 CSS 그림). 오른쪽 아래에서 올라온다 */
+.nd-limb {
+  position: absolute; z-index: -1; right: -8%; bottom: -330%; width: 62%; aspect-ratio: 1; border-radius: 50%;
+  background: radial-gradient(circle at 36% 18%, #1b2950 0%, #0b1024 26%, #04050b 58%);
+  box-shadow: inset 10px 14px 34px -16px rgba(143, 178, 255, 0.6), 0 0 0 1px rgba(143, 178, 255, 0.14);
+}
+@media (max-width: 760px) { .nd-limb { right: -30%; width: 120%; bottom: -260%; } }
+
+/* ── 3D 아이콘: 올리면 조금 들린다 ── */
+.nd-icon3d { transition: transform var(--nd-fast) var(--nd-ease); }
+:where(a, button):hover > .nd-icon3d, .nd-icon3d-hover:hover .nd-icon3d { transform: translateY(-2px) rotate(-5deg); }
+
+/* ── 화면이 열릴 때 한 번, 차례로(최대 6개) ── */
+@keyframes nd-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.nd-rise { animation: nd-rise var(--nd-slow) var(--nd-ease) both; }
+.nd-rise:nth-child(2) { animation-delay: 40ms; } .nd-rise:nth-child(3) { animation-delay: 80ms; }
+.nd-rise:nth-child(4) { animation-delay: 120ms; } .nd-rise:nth-child(5) { animation-delay: 160ms; }
+.nd-rise:nth-child(n + 6) { animation-delay: 200ms; }
+
+/* ── 누르면 살짝 눌린다 ── */
+.nd-press { transition: transform var(--nd-fast) var(--nd-ease), background-color var(--nd-fast) var(--nd-ease), border-color var(--nd-fast) var(--nd-ease), color var(--nd-fast) var(--nd-ease); }
+.nd-press:active { transform: scale(0.98); }
+
+/* ── 숫자는 자릿수를 맞춘다 ── */
+.nd-num { font-variant-numeric: tabular-nums; }
+
+@media (prefers-reduced-motion: reduce) {
+  .nd-rise, .nd-press, .nd-icon3d { animation: none !important; transition: none !important; }
+}

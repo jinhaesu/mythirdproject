@@ -205,7 +205,7 @@ export function NaverSearchAdsManager() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
+          <h1 className="text-2xl font-semibold text-text-primary flex items-center gap-2">
             <Settings className="text-green" size={28} />
             검색광고 관리
           </h1>
@@ -250,7 +250,7 @@ export function NaverSearchAdsManager() {
             {stepLabels.map((label, i) => (
               <div key={i} className="flex items-center">
                 <div className={`flex items-center gap-2 ${i <= wizardStep ? 'text-green' : 'text-text-quaternary'}`}>
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ${
                     i < wizardStep ? 'bg-green text-white' : i === wizardStep ? 'bg-green/15 text-green border-2 border-green/50' : 'bg-bg-2 text-text-quaternary'
                   }`}>
                     {i < wizardStep ? <Check size={16} /> : i + 1}
@@ -574,7 +574,7 @@ export function NaverSearchAdsManager() {
                 <div className="border border-border-primary rounded-lg p-4">
                   <p className="text-xs text-text-tertiary mb-2">미리보기</p>
                   <div className="space-y-1">
-                    <p className="text-sm font-bold text-green">{adForm.headline || '광고 제목'}</p>
+                    <p className="text-sm font-semibold text-green">{adForm.headline || '광고 제목'}</p>
                     <p className="text-xs text-text-tertiary">{adForm.description || '광고 설명이 여기에 표시됩니다.'}</p>
                     <p className="text-xs text-green">{adForm.url || 'https://example.com'}</p>
                   </div>
@@ -704,13 +704,13 @@ export function NaverSearchAdsManager() {
               <table className="w-full text-sm">
                 <thead className="bg-bg-0">
                   <tr>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase">캠페인명</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase">유형</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary uppercase">상태</th>
-                    <th className="text-right px-4 py-3 text-xs font-medium text-text-tertiary uppercase">일예산</th>
-                    <th className="text-right px-4 py-3 text-xs font-medium text-text-tertiary uppercase">비용</th>
-                    <th className="text-right px-4 py-3 text-xs font-medium text-text-tertiary uppercase">클릭</th>
-                    <th className="text-center px-4 py-3 text-xs font-medium text-text-tertiary uppercase">액션</th>
+                    <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary">캠페인명</th>
+                    <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary">유형</th>
+                    <th className="text-left px-4 py-3 text-xs font-medium text-text-tertiary">상태</th>
+                    <th className="text-right px-4 py-3 text-xs font-medium text-text-tertiary">일예산</th>
+                    <th className="text-right px-4 py-3 text-xs font-medium text-text-tertiary">비용</th>
+                    <th className="text-right px-4 py-3 text-xs font-medium text-text-tertiary">클릭</th>
+                    <th className="text-center px-4 py-3 text-xs font-medium text-text-tertiary">액션</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border-primary">

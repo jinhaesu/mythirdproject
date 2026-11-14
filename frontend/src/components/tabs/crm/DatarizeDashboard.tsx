@@ -23,7 +23,7 @@ import {
 // ─── 표시 규칙 ───
 const SMALL_TEXT = '표본이 적어 해석하지 않습니다';
 const CH_COLOR: Record<string, string> = {
-  '브랜드 메시지': '#7070FF', '알림톡': '#4EA7FC', '문자': '#14B8A6', '이메일': '#F97316',
+  '브랜드 메시지': '#4A85FF', '알림톡': '#4EA7FC', '문자': '#14B8A6', '이메일': '#F97316',
 };
 const chColor = (c: string, i = 0) => CH_COLOR[c] || ['#8A8F98', '#A855F7', '#EC4899'][i % 3];
 const tooltipStyle = { backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)', borderRadius: 8, fontSize: 12 };

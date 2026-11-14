@@ -299,7 +299,7 @@ export function GoalOverview() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="rounded-xl p-4 space-y-2" style={{ backgroundColor: 'var(--color-bg-level-1)', border: '1px solid var(--color-border-primary)' }}>
           <p className="text-[11px] text-text-tertiary">광고비 집행 vs Limit ({parseInt(month.slice(5), 10)}월{sel.length ? ' · 선택 채널' : ''})</p>
-          <p className="text-lg font-bold text-text-primary tabular-nums">
+          <p className="text-lg font-semibold text-text-primary tabular-nums">
             {fmtWon(totals.spend)}
             <span className="text-xs font-normal text-text-quaternary"> / {totals.limit ? fmtWon(totals.limit) : '-'}</span>
           </p>
@@ -308,7 +308,7 @@ export function GoalOverview() {
         </div>
         <div className="rounded-xl p-4" style={{ backgroundColor: 'var(--color-bg-level-1)', border: '1px solid var(--color-border-primary)' }}>
           <p className="text-[11px] text-text-tertiary">채널 매출 합계 (기입+자동)</p>
-          <p className="text-lg font-bold text-text-primary tabular-nums mt-1">{fmtWon(totals.revenue)}</p>
+          <p className="text-lg font-semibold text-text-primary tabular-nums mt-1">{fmtWon(totals.revenue)}</p>
           <p className="text-[11px] text-text-quaternary mt-1.5">
             Blended ROAS <b className={roasClass(totals.roas)}>{totals.roas ?? '-'}</b>
           </p>
@@ -316,7 +316,7 @@ export function GoalOverview() {
         {isThisMonth && (
           <div className="rounded-xl p-4" style={{ backgroundColor: 'var(--color-bg-level-1)', border: '1px solid var(--color-border-primary)' }}>
             <p className="text-[11px] text-text-tertiary">자사몰 매출 (이달)</p>
-            <p className="text-lg font-bold text-text-primary tabular-nums mt-1">{briefing ? fmtWon(briefing.sales?.month_amount) : '-'}</p>
+            <p className="text-lg font-semibold text-text-primary tabular-nums mt-1">{briefing ? fmtWon(briefing.sales?.month_amount) : '-'}</p>
             <p className="text-[11px] text-text-quaternary mt-1.5">
               주문 {briefing ? fmtNum(briefing.sales?.month_orders) : '-'}건 · 어필 확정 {briefing ? fmtWon(briefing.affiliate?.confirmed_amount_30d) : '-'}
             </p>
@@ -324,7 +324,7 @@ export function GoalOverview() {
         )}
         <div className="rounded-xl p-4" style={{ backgroundColor: 'var(--color-bg-level-1)', border: '1px solid var(--color-border-primary)' }}>
           <p className="text-[11px] text-text-tertiary">마케팅 활동 (실적)</p>
-          <p className="text-lg font-bold text-text-primary tabular-nums mt-1">{fmtNum(actTotals.rows)}건</p>
+          <p className="text-lg font-semibold text-text-primary tabular-nums mt-1">{fmtNum(actTotals.rows)}건</p>
           <p className="text-[11px] text-text-quaternary mt-1.5">조회수 {fmtNum(actTotals.views)} · 비용 {fmtWon(actTotals.cost)}</p>
         </div>
       </div>
@@ -508,7 +508,7 @@ export function GoalOverview() {
                     {r.sales_linked ? (
                       <span className="tabular-nums text-text-primary" title="SALES 시스템(CSA) 매출 자동 연동 — 공급가(VAT별도)">
                         {r.revenue != null ? fmtWon(r.revenue) : <span className="text-text-quaternary">SALES 집계 전</span>}
-                        <span className="ml-1 px-1 rounded text-[8px] font-bold bg-green/15 text-green align-middle">SALES</span>
+                        <span className="ml-1 px-1 rounded text-[8px] font-semibold bg-green/15 text-green align-middle">SALES</span>
                       </span>
                     ) : editRev === r.inflow ? (
                       <input
@@ -539,13 +539,13 @@ export function GoalOverview() {
             {monthRows.length > 0 && (
               <tfoot>
                 <tr style={{ borderTop: '2px solid var(--color-border-primary)' }}>
-                  <td className="px-4 py-2.5 font-bold text-text-primary">합계</td>
-                  <td className="px-4 py-2.5 font-bold text-text-primary tabular-nums text-right">{fmtWon(totals.spend)}</td>
+                  <td className="px-4 py-2.5 font-semibold text-text-primary">합계</td>
+                  <td className="px-4 py-2.5 font-semibold text-text-primary tabular-nums text-right">{fmtWon(totals.spend)}</td>
                   <td className="px-4 py-2.5 text-text-tertiary tabular-nums text-right">{totals.limit ? fmtWon(totals.limit) : '-'}</td>
                   <td className="px-4 py-2.5 text-text-secondary tabular-nums text-right">{totals.usage_pct != null ? `${totals.usage_pct}%` : '-'}</td>
                   <td />
-                  <td className="px-4 py-2.5 font-bold text-text-primary tabular-nums text-right">{fmtWon(totals.revenue)}</td>
-                  <td className={`px-4 py-2.5 font-bold tabular-nums text-right ${roasClass(totals.roas)}`}>
+                  <td className="px-4 py-2.5 font-semibold text-text-primary tabular-nums text-right">{fmtWon(totals.revenue)}</td>
+                  <td className={`px-4 py-2.5 font-semibold tabular-nums text-right ${roasClass(totals.roas)}`}>
                     {totals.roas != null ? `${totals.roas}x` : '-'}
                   </td>
                 </tr>

@@ -21,7 +21,7 @@ import {
 
 // 페이지 유형별 고정 색 (흐름도 노드) — 순서·색은 유형에 붙어 다니고 순위로 바뀌지 않는다
 const TYPE_COLOR: Record<string, string> = {
-  main: '#4EA7FC', list: '#A855F7', search: '#14B8A6', detail: '#7070FF', cart: '#F97316',
+  main: '#4EA7FC', list: '#A855F7', search: '#14B8A6', detail: '#4A85FF', cart: '#F97316',
   order: '#E0A100', done: '#22C55E', brand: '#EC4899', _exit: '#9AA0A8',
 };
 const typeColor = (t: string) => TYPE_COLOR[t] || '#8A8F98';
@@ -284,7 +284,7 @@ function FlowChart({ r }: { r: JFunnel }) {
     </div>
   );
 }
-const MIX_COLORS = { new: '#4EA7FC', repeat: '#7070FF', guest: '#B4B9C1' };
+const MIX_COLORS = { new: '#4EA7FC', repeat: '#4A85FF', guest: '#B4B9C1' };
 
 function MixBar({ title, m, note }: { title: string; m: JMix; note?: string }) {
   const parts = [

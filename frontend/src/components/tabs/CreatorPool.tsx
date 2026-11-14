@@ -111,7 +111,7 @@ export function CreatorPool() {
         ].map((c) => (
           <div key={c.label} className="rounded-xl px-4 py-2.5" style={{ backgroundColor: 'var(--color-bg-level-1)', border: '1px solid var(--color-border-primary)' }}>
             <p className="text-[10px] text-text-quaternary">{c.label}</p>
-            <p className="text-base font-bold tabular-nums text-text-primary">{c.value}</p>
+            <p className="text-base font-semibold tabular-nums text-text-primary">{c.value}</p>
           </div>
         ))}
       </div>
@@ -121,7 +121,7 @@ export function CreatorPool() {
           <table className="w-full text-xs">
             <thead>
               <tr style={{ borderBottom: '1px solid var(--color-border-primary)' }}>
-                {['크리에이터', '팔로워', '평균 ❤', '평균 💬', '참여율', '분류', '상태', '유상/단가', '메모', '지표 기준', ''].map((h, i) => (
+                {['크리에이터', '팔로워', '평균 좋아요', '평균 댓글', '참여율', '분류', '상태', '유상/단가', '메모', '지표 기준', ''].map((h, i) => (
                   <th key={i} className="px-3 py-2.5 text-left font-medium text-text-tertiary whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -172,7 +172,7 @@ export function CreatorPool() {
                   <td className="px-3 py-2 whitespace-nowrap">
                     {c.is_paid ? (
                       <span className="text-text-primary tabular-nums">
-                        <span className="px-1 rounded text-[9px] font-bold bg-yellow/15 text-yellow mr-1">유상</span>
+                        <span className="px-1 rounded text-[9px] font-semibold bg-yellow/15 text-yellow mr-1">유상</span>
                         {c.fee != null ? fmtWon(c.fee) : '단가 미입력'}
                       </span>
                     ) : <span className="text-text-quaternary text-[11px]">오가닉</span>}
@@ -243,7 +243,7 @@ function CreatorModal({ creator, onClose, onSaved }: {
       return creator ? creatorsApi.update(creator.id, payload) : creatorsApi.add(payload);
     },
     onSuccess: (r: any) => {
-      if (r?.snapshot_error) toast(`등록됨 — 지표 수집은 실패: ${String(r.snapshot_error).slice(0, 60)}`, { icon: '⚠️', duration: 6000 });
+      if (r?.snapshot_error) toast(`등록됨 — 지표 수집은 실패: ${String(r.snapshot_error).slice(0, 60)}`, { duration: 6000 });
       else toast.success(creator ? '수정했습니다' : `@${r.username} 등록 완료${r.followers ? ` (팔로워 ${fmtNum(r.followers)})` : ''}`);
       onSaved();
     },

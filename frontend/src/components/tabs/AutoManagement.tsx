@@ -300,7 +300,7 @@ export function AutoManagement() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-text-primary flex items-center gap-3">
+          <h2 className="text-2xl font-semibold text-text-primary flex items-center gap-3">
             <div className="p-2 bg-brand/15 rounded-lg">
               <Shield size={24} className="text-accent" />
             </div>
@@ -443,14 +443,14 @@ export function AutoManagement() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border-primary bg-bg-0">
-                  <th className="text-left py-3 px-5 text-xs font-semibold text-text-tertiary uppercase">룰 이름</th>
-                  <th className="text-left py-3 px-3 text-xs font-semibold text-text-tertiary uppercase">조건</th>
-                  <th className="text-left py-3 px-3 text-xs font-semibold text-text-tertiary uppercase">액션</th>
-                  <th className="text-left py-3 px-3 text-xs font-semibold text-text-tertiary uppercase">대상</th>
-                  <th className="text-center py-3 px-3 text-xs font-semibold text-text-tertiary uppercase">실행 횟수</th>
-                  <th className="text-center py-3 px-3 text-xs font-semibold text-text-tertiary uppercase">마지막 체크</th>
-                  <th className="text-center py-3 px-3 text-xs font-semibold text-text-tertiary uppercase">ON/OFF</th>
-                  <th className="text-center py-3 px-3 text-xs font-semibold text-text-tertiary uppercase">삭제</th>
+                  <th className="text-left py-3 px-5 text-xs font-semibold text-text-tertiary">룰 이름</th>
+                  <th className="text-left py-3 px-3 text-xs font-semibold text-text-tertiary">조건</th>
+                  <th className="text-left py-3 px-3 text-xs font-semibold text-text-tertiary">액션</th>
+                  <th className="text-left py-3 px-3 text-xs font-semibold text-text-tertiary">대상</th>
+                  <th className="text-center py-3 px-3 text-xs font-semibold text-text-tertiary">실행 횟수</th>
+                  <th className="text-center py-3 px-3 text-xs font-semibold text-text-tertiary">마지막 체크</th>
+                  <th className="text-center py-3 px-3 text-xs font-semibold text-text-tertiary">ON/OFF</th>
+                  <th className="text-center py-3 px-3 text-xs font-semibold text-text-tertiary">삭제</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-primary">
@@ -809,7 +809,6 @@ export function AutoManagement() {
           }`}>
             <div className="flex items-center justify-between mb-2">
               <p className="font-medium">
-                {runNowResult.email_sent ? '✅ ' : runNowResult.status === 'error' ? '❌ ' : '⚠️ '}
                 {runNowResult.message}
               </p>
               <button onClick={() => setRunNowResult(null)} className="text-text-quaternary hover:text-text-secondary text-xs">닫기</button>

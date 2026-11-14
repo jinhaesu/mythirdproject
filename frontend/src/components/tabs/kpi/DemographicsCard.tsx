@@ -80,8 +80,8 @@ export function DemographicsCard() {
               <button
                 key={t.k}
                 onClick={() => setDim(t.k)}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                  dim === t.k ? 'bg-bg-1 text-accent shadow-[0px_1px_3px_rgba(0,0,0,0.2)]' : 'text-text-tertiary hover:text-text-secondary'
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  dim === t.k ? 'bg-bg-1 text-accent shadow-low' : 'text-text-tertiary hover:text-text-secondary'
                 }`}
               >
                 {t.label}
@@ -108,7 +108,7 @@ export function DemographicsCard() {
         <>
           {dim === 'age' && data.coverage.birthyear_known === 0 && (
             <p className="text-[11px] text-yellow mb-3 leading-relaxed">
-              ⚠ 카페24 회원 출생연도 데이터가 아직 없어 신규고객·LTV가 전부 &lsquo;미상&rsquo;으로 집계됩니다.
+              카페24 회원 출생연도 데이터가 아직 없어 신규고객·LTV가 전부 &lsquo;미상&rsquo;으로 집계됩니다.
               아래 Meta 연령별 광고비는 Meta 실집행 데이터라 지금도 유효합니다. 연령별 고객 분석을 켜려면
               카페24 개인정보 읽기(mall.read_privacy) 권한 재동의가 필요합니다.
             </p>
@@ -148,7 +148,7 @@ export function DemographicsCard() {
           <div className="overflow-x-auto">
             <table className="w-full min-w-[640px] text-left">
               <thead>
-                <tr className="border-b border-border-primary text-[10px] text-text-quaternary uppercase tracking-wide">
+                <tr className="border-b border-border-primary text-[10px] text-text-quaternary">
                   <th className="px-3 py-2 whitespace-nowrap">{dim === 'age' ? '연령대' : '성별'}</th>
                   <th className="px-3 py-2 text-right whitespace-nowrap">신규고객</th>
                   <th className="px-3 py-2 text-right whitespace-nowrap">LTV 산정 고객수</th>

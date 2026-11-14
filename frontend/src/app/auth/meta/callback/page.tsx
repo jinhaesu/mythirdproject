@@ -83,7 +83,7 @@ function MetaCallbackContent() {
   };
 
   return (
-    <div className="bg-bg-1 rounded-2xl shadow-[0px_7px_32px_rgba(0,0,0,0.35)] max-w-md w-full p-8">
+    <div className="bg-bg-1 rounded-2xl shadow-high max-w-md w-full p-8">
       {status === 'processing' && (
         <div className="text-center">
           <div className="w-12 h-12 border-4 border-brand border-t-transparent rounded-full animate-spin mx-auto mb-4" />
@@ -96,7 +96,7 @@ function MetaCallbackContent() {
         <div>
           <div className="text-center mb-6">
             <div className="w-12 h-12 bg-blue/15 rounded-full flex items-center justify-center mx-auto mb-3">
-              <span className="text-2xl">📊</span>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-blue" aria-hidden="true"><path d="M3 3v18h18" /><path d="M8 17v-5" /><path d="M13 17V8" /><path d="M18 17v-8" /></svg>
             </div>
             <h2 className="text-xl font-semibold text-text-primary">광고 계정 선택</h2>
             <p className="text-text-tertiary mt-1">{metaName}님, 사용할 광고 계정을 선택하세요.</p>
@@ -170,7 +170,7 @@ export default function MetaCallbackPage() {
     <div className="min-h-screen bg-bg-0 flex items-center justify-center p-4">
       <Suspense
         fallback={
-          <div className="bg-bg-1 rounded-2xl shadow-[0px_7px_32px_rgba(0,0,0,0.35)] max-w-md w-full p-8 text-center">
+          <div className="bg-bg-1 rounded-2xl shadow-high max-w-md w-full p-8 text-center">
             <div className="w-12 h-12 border-4 border-brand border-t-transparent rounded-full animate-spin mx-auto mb-4" />
             <h2 className="text-xl font-semibold text-text-primary mb-2">로딩 중...</h2>
           </div>
