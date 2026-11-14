@@ -106,7 +106,7 @@ export default function Home() {
           localStorage.removeItem('pending_ref');
           const user = await authApi.getMe();
           setAuth(user, data.access_token);
-          toast.success('로그인 성공!');
+          toast.success('로그인했습니다.');
         })
         .catch(() => {
           toast.error('로그인 링크가 만료되었거나 유효하지 않습니다.');
@@ -132,8 +132,8 @@ export default function Home() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-bg-0">
         <div className="text-center">
-          <div className="w-12 h-12 border-4 border-brand border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-text-tertiary text-lg">로그인 확인 중...</p>
+          <div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-text-tertiary text-sm">로그인을 확인하는 중</p>
         </div>
       </div>
     );
@@ -244,8 +244,8 @@ function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-bg-0 p-4">
       <div className="text-center">
-        <div className="w-12 h-12 border-4 border-brand border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-        <p className="text-text-tertiary text-lg">회사 계정으로 이동 중...</p>
+        <div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+        <p className="text-text-tertiary text-sm">회사 계정으로 이동하는 중</p>
       </div>
     </div>
   );

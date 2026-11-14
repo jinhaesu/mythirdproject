@@ -69,24 +69,20 @@ export default function SSOPage() {
       <div className="text-center">
         {error ? (
           <div className="w-full max-w-sm">
-            <div className="w-16 h-16 bg-[#E5484D]/10 border border-[#E5484D]/30 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-[#E5484D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
+            <img src="/icons3d/empty.png" alt="" width={96} height={96} className="nd-icon3d mx-auto mb-4" />
             <h1 className="text-lg font-semibold text-text-primary mb-2">로그인 실패</h1>
             <p className="text-sm text-text-tertiary mb-6">{error}</p>
             <Link
               href="/"
-              className="inline-block px-5 py-2.5 rounded-lg bg-brand text-white text-sm font-medium hover:bg-[#4E5ABF] transition-colors duration-150"
+              className="inline-block px-5 py-2.5 rounded-lg bg-brand text-white text-sm font-medium hover:bg-accent-hover transition-colors"
             >
               로그인 화면으로 돌아가기
             </Link>
           </div>
         ) : (
           <>
-            <div className="w-12 h-12 border-4 border-brand border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-            <p className="text-text-tertiary text-lg">회사 계정으로 로그인 중...</p>
+            <div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+            <p className="text-text-tertiary text-sm">회사 계정으로 로그인하는 중</p>
           </>
         )}
       </div>

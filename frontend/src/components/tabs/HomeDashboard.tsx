@@ -16,10 +16,15 @@ import {
 } from 'lucide-react';
 import { ReferenceLine } from 'recharts';
 import { homeApi } from '@/lib/api';
+import SkyBand, { OrbitDial, monthProgress } from '@/components/SkyBand';
 import { useAppStore, type MenuKey } from '@/store';
 import {
   fmtWon, fmtNum, roasClass, BREAKEVEN_ROAS, BREAKEVEN_ROAS_LABEL,
 } from '@/components/tabs/kpi/format';
+
+// 차트 색: 한 차트에 강조는 하나(널담 블루), 나머지는 중립 단계
+const ACCENT = 'var(--nd-accent)';
+const NEUTRAL = 'var(--nd-fg-4)';
 
 function DeltaChip({ pct }: { pct: number | null | undefined }) {
   if (pct === null || pct === undefined) return null;
@@ -49,7 +54,7 @@ function SectionCard({
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Icon size={15} style={{ color: 'var(--color-accent-hover)' }} />
+          <Icon size={16} strokeWidth={1.5} className="text-text-tertiary" />
           <h3 className="text-sm font-semibold text-text-primary">{title}</h3>
         </div>
         {menu && (
@@ -73,7 +78,7 @@ function MiniProgress({ pct }: { pct: number | null | undefined }) {
   if (pct === null || pct === undefined) {
     return <div className="h-1.5 rounded-full" style={{ backgroundColor: 'rgb(var(--color-overlay-rgb) / 0.07)' }} />;
   }
-  const color = pct > 100 ? '#EA4335' : pct >= 90 ? '#F0BF00' : '#27A644';
+  const color = pct > 100 ? 'var(--nd-bad)' : pct >= 90 ? 'var(--nd-warn)' : 'var(--nd-good)';
   return (
     <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'rgb(var(--color-overlay-rgb) / 0.07)' }}>
       <div className="h-full rounded-full" style={{ width: `${Math.min(100, pct)}%`, backgroundColor: color }} />
@@ -101,15 +106,41 @@ export function HomeDashboard() {
     refetchInterval: 10 * 60 * 1000,
   });
 
+  const mp = monthProgress();
+  const band = (
+    <SkyBand
+      className="nd-rise"
+      title={`${mp.year}년 ${mp.month}월 마케팅`}
+      meta={b?.as_of ? `데이터 기준 ${new Date(b.as_of + 'Z').toLocaleString('ko-KR')} · 10분마다 갱신` : '전 채널 통합 브리핑'}
+      right={
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <OrbitDial value={mp.value} label={`${mp.month}월 ${mp.day}일`} sub={`이달 ${mp.day}/${mp.days}일 경과`} />
+          <img src="/icons3d/marketing.png" alt="" width={64} height={64} className="nd-icon3d hidden sm:block" />
+        </div>
+      }
+    />
+  );
+
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-24">
-        <div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin" />
+      <div className="space-y-4">
+        {band}
+        <div className="flex items-center justify-center py-24">
+          <div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin" />
+        </div>
       </div>
     );
   }
   if (error || !b) {
-    return <p className="text-sm text-red py-12 text-center">브리핑을 불러오지 못했습니다. 새로고침해 주세요.</p>;
+    return (
+      <div className="space-y-4">
+        {band}
+        <div className="py-12 text-center">
+          <img src="/icons3d/empty.png" alt="" width={88} height={88} className="nd-icon3d mx-auto mb-3" />
+          <p className="text-sm text-text-secondary">브리핑을 불러오지 못했습니다. 새로고침해 주세요.</p>
+        </div>
+      </div>
+    );
   }
 
   const monthLabel = `${parseInt(b.month?.split('-')[1] || '0', 10)}월`;
@@ -129,15 +160,16 @@ export function HomeDashboard() {
 
   return (
     <div className="space-y-4">
-      {/* 상단 히어로: 이달 매출 + 상태 칩 */}
+      {band}
+      {/* 이달 매출 + 연결 상태 */}
       <div
-        className="rounded-xl p-5 flex flex-wrap items-end justify-between gap-4"
+        className="nd-rise rounded-xl p-5 flex flex-wrap items-end justify-between gap-4"
         style={{ backgroundColor: 'var(--color-bg-level-1)', border: '1px solid var(--color-border-primary)' }}
       >
         <div className="flex flex-wrap gap-8 items-end">
           <div>
             <p className="text-xs text-text-tertiary mb-1">{monthLabel} 자사몰 매출 (취소·환불 제외)</p>
-            <p className="text-3xl font-bold text-text-primary tabular-nums">{fmtWon(b.sales?.month_amount)}</p>
+            <p className="text-3xl font-medium text-text-primary tabular-nums">{fmtWon(b.sales?.month_amount)}</p>
             <p className="text-[11px] text-text-quaternary mt-1">주문 {fmtNum(b.sales?.month_orders)}건</p>
           </div>
           <Metric
@@ -159,7 +191,7 @@ export function HomeDashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="nd-rise grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Meta 광고 */}
         <SectionCard title="Meta 광고 · 최근 7일" icon={LineChart} menu="live" subTab={0}>
           <div className="flex gap-6 flex-wrap">
@@ -187,8 +219,8 @@ export function HomeDashboard() {
                     formatter={(v: any, name: any) =>
                       name === '지출' || name === '매출' ? [fmtWon(v), name] : [v, name]}
                   />
-                  <Bar dataKey="spend" name="지출" fill="#4EA7FC" opacity={0.5} radius={[3, 3, 0, 0]} />
-                  <Line dataKey="revenue" name="매출" stroke="#27A644" strokeWidth={2} dot={false} />
+                  <Bar dataKey="spend" name="지출" fill={NEUTRAL} opacity={0.45} radius={[3, 3, 0, 0]} />
+                  <Line dataKey="revenue" name="매출" stroke={ACCENT} strokeWidth={2} dot={false} />
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
@@ -224,7 +256,7 @@ export function HomeDashboard() {
             <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'rgb(var(--color-overlay-rgb) / 0.07)' }}>
               <div className="h-full rounded-full" style={{
                 width: `${Math.min(100, bePct ?? 0)}%`,
-                backgroundColor: bePct != null && bePct >= 100 ? '#27A644' : bePct != null && bePct >= 63 ? '#F0BF00' : '#EA4335',
+                backgroundColor: bePct != null && bePct >= 100 ? 'var(--nd-good)' : bePct != null && bePct >= 63 ? 'var(--nd-warn)' : 'var(--nd-bad)',
               }} />
             </div>
           </div>
@@ -239,10 +271,10 @@ export function HomeDashboard() {
                     contentStyle={{ backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)', borderRadius: 8, fontSize: 11 }}
                     formatter={(v: any, name: any) => (name === 'ROAS' ? [v != null ? Number(v).toFixed(2) : '-', name] : [fmtWon(v), name])}
                   />
-                  <ReferenceLine yAxisId="r" y={BREAKEVEN_ROAS} stroke="#EA4335" strokeDasharray="4 3"
-                    label={{ value: BREAKEVEN_ROAS_LABEL, position: 'insideTopRight', fontSize: 8, fill: '#EA4335' }} />
-                  <Bar yAxisId="w" dataKey="spend" name="광고비" fill="#4EA7FC" opacity={0.5} radius={[3, 3, 0, 0]} />
-                  <Line yAxisId="r" dataKey="roas" name="ROAS" stroke="#F0BF00" strokeWidth={2} dot={{ r: 2.5 }} connectNulls />
+                  <ReferenceLine yAxisId="r" y={BREAKEVEN_ROAS} stroke="var(--nd-bad)" strokeDasharray="4 3"
+                    label={{ value: BREAKEVEN_ROAS_LABEL, position: 'insideTopRight', fontSize: 9, fill: 'var(--nd-bad)' }} />
+                  <Bar yAxisId="w" dataKey="spend" name="광고비" fill={NEUTRAL} opacity={0.45} radius={[3, 3, 0, 0]} />
+                  <Line yAxisId="r" dataKey="roas" name="ROAS" stroke={ACCENT} strokeWidth={2} dot={{ r: 2.5 }} connectNulls />
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
@@ -319,8 +351,8 @@ export function HomeDashboard() {
                       contentStyle={{ backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)', borderRadius: 8, fontSize: 11 }}
                       formatter={(v: any, name: any) => [fmtNum(v), name]}
                     />
-                    <Bar yAxisId="r" dataKey="reach" name="일 도달" fill="#E1559B" opacity={0.55} radius={[3, 3, 0, 0]} />
-                    <Line yAxisId="f" dataKey="followers" name="팔로워" stroke="#7070FF" strokeWidth={2} dot={false} />
+                    <Bar yAxisId="r" dataKey="reach" name="일 도달" fill={NEUTRAL} opacity={0.45} radius={[3, 3, 0, 0]} />
+                    <Line yAxisId="f" dataKey="followers" name="팔로워" stroke={ACCENT} strokeWidth={2} dot={false} />
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
@@ -350,8 +382,8 @@ export function HomeDashboard() {
                     contentStyle={{ backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)', borderRadius: 8, fontSize: 11 }}
                     formatter={(v: any, name: any) => (name === '비용' ? [fmtWon(v), name] : [fmtNum(v), name])}
                   />
-                  <Bar dataKey="views" name="조회수" fill="#4EA7FC" opacity={0.6} radius={[3, 3, 0, 0]} />
-                  <Line dataKey="cost" name="비용" stroke="#F0BF00" strokeWidth={2} dot={false} />
+                  <Bar dataKey="views" name="조회수" fill={NEUTRAL} opacity={0.45} radius={[3, 3, 0, 0]} />
+                  <Line dataKey="cost" name="비용" stroke={ACCENT} strokeWidth={2} dot={false} />
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
@@ -379,8 +411,8 @@ export function HomeDashboard() {
                     contentStyle={{ backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)', borderRadius: 8, fontSize: 11 }}
                     formatter={(v: any, name: any) => [fmtWon(v), name]}
                   />
-                  <Bar dataKey="spend" name="집행" fill="#7070FF" opacity={0.6} radius={[3, 3, 0, 0]} />
-                  <Line dataKey="limit" name="Limit" stroke="#EA4335" strokeWidth={1.5} strokeDasharray="4 3" dot={false} />
+                  <Bar dataKey="spend" name="집행" fill={ACCENT} opacity={0.7} radius={[3, 3, 0, 0]} />
+                  <Line dataKey="limit" name="Limit" stroke="var(--nd-fg-3)" strokeWidth={1.5} strokeDasharray="4 3" dot={false} />
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
@@ -405,8 +437,8 @@ export function HomeDashboard() {
                     contentStyle={{ backgroundColor: 'var(--color-bg-level-2)', border: '1px solid var(--color-border-primary)', borderRadius: 8, fontSize: 11 }}
                     formatter={(v: any, name: any) => (name === '환산 금액' ? [fmtWon(v), name] : [fmtNum(v), name])}
                   />
-                  <Bar dataKey="count" name="협찬 건수" fill="#17BEBB" opacity={0.6} radius={[3, 3, 0, 0]} />
-                  <Line dataKey="value" name="환산 금액" stroke="#F0BF00" strokeWidth={2} dot={false} />
+                  <Bar dataKey="count" name="협찬 건수" fill={NEUTRAL} opacity={0.45} radius={[3, 3, 0, 0]} />
+                  <Line dataKey="value" name="환산 금액" stroke={ACCENT} strokeWidth={2} dot={false} />
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
@@ -445,9 +477,6 @@ export function HomeDashboard() {
           </div>
         </SectionCard>
       </div>
-      <p className="text-[10px] text-text-quaternary text-right">
-        데이터 기준: {b.as_of ? new Date(b.as_of + 'Z').toLocaleString('ko-KR') : '-'} · 10분마다 자동 갱신
-      </p>
     </div>
   );
 }
