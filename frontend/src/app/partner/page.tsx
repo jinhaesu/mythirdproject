@@ -110,7 +110,7 @@ function LoginView({ onTokenVerified }: { onTokenVerified: (partner: PartnerInfo
         {/* Logo */}
         <div className="text-center mb-10">
           <div className="inline-flex items-center gap-3 mb-5">
-            <div className="w-14 h-14 bg-green rounded-2xl flex items-center justify-center">
+            <div className="w-14 h-14 bg-green text-white rounded-2xl flex items-center justify-center">
               <span className="text-white font-semibold text-2xl tracking-tight">N</span>
             </div>
             <div className="text-left">
@@ -839,7 +839,7 @@ function DashboardView({ partner, onLogout }: { partner: PartnerInfo; onLogout: 
       <header className="sticky top-0 z-30 border-b border-[rgb(var(--color-overlay-rgb)/0.06)] bg-bg-0/80">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-green rounded-xl flex items-center justify-center shrink-0">
+            <div className="w-10 h-10 bg-green text-white rounded-xl flex items-center justify-center shrink-0">
               <span className="text-white font-semibold text-base">N</span>
             </div>
             <div>

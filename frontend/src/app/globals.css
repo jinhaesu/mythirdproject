@@ -275,6 +275,11 @@ body {
 :root[data-theme="dark"] .bg-brand,
 :root[data-theme="dark"] .bg-accent.text-white,
 :root[data-theme="dark"] .bg-blue.text-white { background-color: var(--color-brand-solid); }
+/* 인라인 style 로 강조색을 깐 흰 글자 버튼(탭 안쪽 '추가'·'저장' 버튼들)도 같은 깊은 톤으로 */
+:root[data-theme="dark"] .text-white[style*="background-color: var(--color-brand-bg)"],
+:root[data-theme="dark"] [style*="background-color: var(--color-brand-bg)"][style*="color: rgb(255, 255, 255)"] { background-color: var(--color-brand-solid) !important; }
+/* .bg-brand 덮어쓰기가 hover:bg-accent-hover 보다 우선해 올렸을 때 변화가 없어지므로 따로 준다 */
+:root[data-theme="dark"] .bg-brand.hover\:bg-accent-hover:hover { background-color: #0046de; }
 :root[data-theme="dark"] .bg-green.text-white { background-color: #15803d; }
 :root[data-theme="dark"] .bg-red.text-white { background-color: #dc2626; }
 :root[data-theme="dark"] .bg-teal.text-white { background-color: #0e7490; }

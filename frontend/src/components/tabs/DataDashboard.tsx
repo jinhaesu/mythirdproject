@@ -190,7 +190,7 @@ export function DataDashboard() {
                     const e = m.involved.find(x => x.channel === ch.channel);
                     return (
                       <td key={m.month} className="py-2 px-3 text-right whitespace-nowrap">
-                        {e ? <span className="text-white font-medium">{fmtWon(e.spend)}</span> : <span className="text-text-primary">—</span>}
+                        {e ? <span className="text-text-primary font-medium">{fmtWon(e.spend)}</span> : <span className="text-text-primary">—</span>}
                       </td>
                     );
                   })}
@@ -206,7 +206,7 @@ export function DataDashboard() {
                     const e = m.uninvolved.find(x => x.channel === ch.channel);
                     return (
                       <td key={m.month} className="py-2 px-3 text-right whitespace-nowrap">
-                        {e ? <span className="text-white font-medium">{fmtWon(e.spend)}</span> : <span className="text-text-primary">—</span>}
+                        {e ? <span className="text-text-primary font-medium">{fmtWon(e.spend)}</span> : <span className="text-text-primary">—</span>}
                       </td>
                     );
                   })}

@@ -710,7 +710,7 @@ export default function PerformanceDashboard() {
           {!aiTriggered && !aiAnalysis ? (
             <div className="bg-bg-1 rounded-2xl border border-border-primary shadow-low overflow-hidden">
               <div className="bg-bg-1 px-6 py-8 text-center">
-                <div className="w-14 h-14 bg-yellow rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-high">
+                <div className="w-14 h-14 bg-yellow text-white rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-high">
                   <ScanSearch size={28} className="text-white" />
                 </div>
                 <h3 className="text-lg font-semibold text-text-primary mb-2">AI 성과 분석</h3>
@@ -747,7 +747,7 @@ export default function PerformanceDashboard() {
             </div>
           ) : analysis && analysis.parse_error ? (
             <div className="bg-bg-1 rounded-2xl border border-yellow/30 shadow-high overflow-hidden">
-              <div className="bg-yellow px-6 py-4 flex items-center justify-between flex-wrap gap-y-2">
+              <div className="bg-yellow text-white px-6 py-4 flex items-center justify-between flex-wrap gap-y-2">
                 <div className="flex items-center gap-2">
                   <AlertTriangle size={20} className="text-white" />
                   <h2 className="text-base font-semibold text-white">AI 분석 결과 (텍스트)</h2>
@@ -762,7 +762,7 @@ export default function PerformanceDashboard() {
             </div>
           ) : !analysis && aiAnalysis?.error ? (
             <div className="bg-bg-1 rounded-2xl border border-red/30 shadow-high overflow-hidden">
-              <div className="bg-red px-6 py-4">
+              <div className="bg-red text-white px-6 py-4">
                 <div className="flex items-center gap-2">
                   <XCircle size={20} className="text-white" />
                   <h2 className="text-base font-semibold text-white">AI 분석 오류</h2>
@@ -814,8 +814,8 @@ export default function PerformanceDashboard() {
                 }`}>
                   <div className="flex items-start gap-4">
                     <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 shadow-medium ${
-                      analysis.account_health === 'good' ? 'bg-green' :
-                      analysis.account_health === 'warning' ? 'bg-yellow/100' : 'bg-red'
+                      analysis.account_health === 'good' ? 'bg-green text-white' :
+                      analysis.account_health === 'warning' ? 'bg-yellow text-white' : 'bg-red text-white'
                     }`}>
                       <Shield size={24} className="text-white" />
                     </div>

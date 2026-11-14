@@ -1879,10 +1879,10 @@ function DashboardSection() {
                     <span className="text-[10px] px-2 py-0.5 bg-green/20 text-green rounded">활성</span>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
-                    <div><p className="text-[10px] text-text-tertiary">파트너</p><p className="text-xs font-medium text-white">{c.partner_count}</p></div>
-                    <div><p className="text-[10px] text-text-tertiary">클릭</p><p className="text-xs font-medium text-white">{fmt(c.click_count)}</p></div>
-                    <div><p className="text-[10px] text-text-tertiary">전환</p><p className="text-xs font-medium text-white">{c.conversion_count}건</p></div>
-                    <div><p className="text-[10px] text-text-tertiary">매출</p><p className="text-xs font-medium text-white">{fmtMan(c.total_sales)}</p></div>
+                    <div><p className="text-[10px] text-text-tertiary">파트너</p><p className="text-xs font-medium text-text-primary">{c.partner_count}</p></div>
+                    <div><p className="text-[10px] text-text-tertiary">클릭</p><p className="text-xs font-medium text-text-primary">{fmt(c.click_count)}</p></div>
+                    <div><p className="text-[10px] text-text-tertiary">전환</p><p className="text-xs font-medium text-text-primary">{c.conversion_count}건</p></div>
+                    <div><p className="text-[10px] text-text-tertiary">매출</p><p className="text-xs font-medium text-text-primary">{fmtMan(c.total_sales)}</p></div>
                   </div>
                 </div>
               ))}
@@ -2103,7 +2103,7 @@ function DashboardSection() {
                       className="flex items-center gap-1.5 px-2.5 py-1 bg-green/10 border border-green/20 rounded-lg"
                     >
                       <span className="text-[9px] font-semibold text-green">#{i + 1}</span>
-                      <span className="text-[10px] text-white">
+                      <span className="text-[10px] text-text-primary">
                         {HEATMAP_DAYS[c.day_of_week]} {c.hour}시
                       </span>
                       <span className="text-[10px] text-green font-medium">({c.conversions}건)</span>
@@ -2170,7 +2170,7 @@ function DashboardSection() {
 
                   {/* 상품명 + 캠페인 수 */}
                   <div className="relative z-10 flex-1 min-w-0">
-                    <p className="text-sm text-white font-medium truncate">{p.product_name}</p>
+                    <p className="text-sm text-text-primary font-medium truncate">{p.product_name}</p>
                     <p className="text-[10px] text-text-tertiary">캠페인 {p.campaign_count}개 연결</p>
                   </div>
 
@@ -2178,7 +2178,7 @@ function DashboardSection() {
                   <div className="relative z-10 flex items-center gap-4 shrink-0 text-right">
                     <div>
                       <p className="text-[10px] text-text-tertiary">전환</p>
-                      <p className="text-xs font-medium text-white">{fmt(p.conversions)}건</p>
+                      <p className="text-xs font-medium text-text-primary">{fmt(p.conversions)}건</p>
                     </div>
                     <div>
                       <p className="text-[10px] text-text-tertiary">매출</p>
@@ -3697,7 +3697,7 @@ function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalP
               {partner.name[0]}
             </div>
             <div>
-              <h2 className="text-base font-semibold text-white">{partner.name}</h2>
+              <h2 className="text-base font-semibold text-text-primary">{partner.name}</h2>
               <div className="flex items-center gap-1.5 flex-wrap">
                 <ChannelBadges channels={partner.channels} channel={partner.channel} />
                 <span className="text-xs text-text-tertiary">{partner.email}</span>
@@ -3729,7 +3729,7 @@ function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalP
 
           {/* 퍼포먼스 테이블 */}
           <div>
-            <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+            <h3 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
               <BarChart2 size={14} className="text-teal" /> 캠페인별 성과
             </h3>
             {perfLoading ? (
@@ -3863,7 +3863,7 @@ function PartnerDetailModal({ partner, campaigns, onClose }: PartnerDetailModalP
           {/* 데이터 정합성 진단 — 관리자 vs 파트너 화면 매출 불일치 추적 */}
           <div className="border-t border-border-primary pt-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+              <h3 className="text-sm font-semibold text-text-primary flex items-center gap-2">
                 <AlertCircle size={14} className="text-yellow" /> 매출 정합성 진단
               </h3>
               <button
@@ -4680,7 +4680,7 @@ function PartnersSection() {
                     </div>
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-semibold text-white">{p.name}</p>
+                        <p className="text-sm font-semibold text-text-primary">{p.name}</p>
                         <span className="text-[10px] text-text-tertiary font-mono">#{p.id}</span>
                         {(() => {
                           const g = PARTNER_GROUP_MAP[normalizePartnerGroup(p.partner_group as string | null | undefined)];
@@ -5398,7 +5398,7 @@ function SettlementSection() {
                 <div className="w-10 h-10 rounded-full bg-green/10 flex items-center justify-center group-hover:bg-green/20 transition-colors">
                   <Users size={18} className="text-green" />
                 </div>
-                <div className="text-sm font-semibold text-white">프리랜서</div>
+                <div className="text-sm font-semibold text-text-primary">프리랜서</div>
                 <div className="text-[10px] text-text-tertiary text-center leading-tight">
                   공급가 기준 정산<br/>소득세 3% + 주민세 0.3% 차감
                 </div>
@@ -5412,7 +5412,7 @@ function SettlementSection() {
                 <div className="w-10 h-10 rounded-full bg-blue/10 flex items-center justify-center group-hover:bg-blue/20 transition-colors">
                   <Briefcase size={18} className="text-blue" />
                 </div>
-                <div className="text-sm font-semibold text-white">사업자</div>
+                <div className="text-sm font-semibold text-text-primary">사업자</div>
                 <div className="text-[10px] text-text-tertiary text-center leading-tight">
                   주문금액 기준 정산<br/>세금 차감 없음 (세금계산서 발행)
                 </div>
